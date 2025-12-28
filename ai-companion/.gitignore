@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Rust
+target/
+Cargo.lock
+
+# C#
+bin/
+obj/
+*.user
+
+# IDEs
+.idea/
+.vscode/
+
+# Model files
+*.onnx
+*.pt
+*.bin
+*.safetensors
+
+# Local config
+.env
+config/local.yaml
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
