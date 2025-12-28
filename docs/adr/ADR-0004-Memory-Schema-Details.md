@@ -1318,9 +1318,10 @@ METRICS = {
 - ADR-0001: GLADyS Architecture
 - ADR-0002: Hardware Requirements
 - ADR-0003: Plugin Manifest Specification
-- ADR-0005: gRPC Service Contracts (pending)
-- ADR-0006: Observability & Monitoring (pending)
-- ADR-0007: Adaptive Algorithms (pending)
+- ADR-0005: gRPC Service Contracts
+- ADR-0006: Observability & Monitoring
+- ADR-0007: Adaptive Algorithms
+- ADR-0008: Security and Privacy (data retention policies, memory consolidation)
 
 ---
 

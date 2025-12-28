@@ -6,7 +6,7 @@
 | **Date** | 2025-01-27 |
 | **Owner** | Mike Mulcahy (Divinity10) |
 | **Contributors** | Scott |
-| **Depends On** | ADR-0001 |
+| **Depends On** | ADR-0001, ADR-0008 |
 
 ---
 
@@ -994,8 +994,11 @@ manifest_version: "1.0"         # Schema version
 
 - ADR-0001: GLADyS Architecture
 - ADR-0002: Hardware Requirements
-- ADR-0004: Memory Schema Details (pending)
-- ADR-0005: gRPC Service Contracts (pending)
+- ADR-0004: Memory Schema Details
+- ADR-0005: gRPC Service Contracts
+- ADR-0008: Security and Privacy (permission registry, age restrictions)
+
+**Note:** Plugin permissions are defined in [ADR-0008](ADR-0008-Security-and-Privacy.md). All plugins must declare required and optional permissions with user-facing justifications.
 
 ---
 

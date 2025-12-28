@@ -1532,6 +1532,124 @@ components:
 
 Orchestrator reads config, creates appropriate channel + auth provider.
 
+### 9.4 Permission Enforcement Interceptors
+
+Beyond authentication, gRPC interceptors enforce the permission model (see [ADR-0008](ADR-0008-Security-and-Privacy.md)):
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  SECURITY INTERCEPTOR CHAIN                             │
+│                                                                         │
+│  Incoming gRPC Request                                                  │
+│         │                                                               │
+│         ▼                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ 1. AUTHENTICATION INTERCEPTOR                                   │   │
+│  │    • Extract plugin_id from metadata                            │   │
+│  │    • Validate auth credentials (Phase 2+)                       │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│         ▼                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ 2. AUTHORIZATION INTERCEPTOR                                    │   │
+│  │    • Map RPC method to required permission                      │   │
+│  │    • Call Security Module permission chain                      │   │
+│  │    • Check: age, trust, consent, scope, rate, constraints       │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│         ▼                                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ 3. AUDIT INTERCEPTOR                                            │   │
+│  │    • Log request (plugin, method, timestamp)                    │   │
+│  │    • Log decision (allow/deny, reason)                          │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│         │                                                               │
+│         ▼                                                               │
+│  Service Handler (if authorized)                                        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**RPC to Permission Mapping:**
+
+| RPC Method | Required Permission |
+|------------|---------------------|
+| `ScreenCaptureService.Capture` | `screen.full`, `screen.window`, `screen.game`, or `screen.region` |
+| `AudioCaptureService.Capture` | `audio.push_to_talk`, `audio.voice_activation`, or `audio.always_on` |
+| `FileAccessService.Read` | `file.read.game`, `file.read.scoped`, or `file.read.any` |
+| `GameModService.Query` | `game.mod.read` |
+| `GameModService.Execute` | `game.mod.write` |
+| `IoTGatewayService.ReadSensor` | `iot.sensor` |
+| `IoTGatewayService.Control` | `iot.control` |
+| `MemoryService.Query` | `memory.read` |
+| `MemoryService.Store` | `memory.write` |
+
+### 9.5 Shared Memory for High-Bandwidth Data
+
+For image data, gRPC serialization overhead is prohibitive. Instead, the orchestrator uses shared memory:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  SHARED MEMORY + gRPC HYBRID                            │
+│                                                                         │
+│  ORCHESTRATOR                                                           │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │                                                                   │ │
+│  │  ┌─────────────────────────────────────────────────────────────┐ │ │
+│  │  │ SHARED MEMORY REGION                                        │ │ │
+│  │  │                                                             │ │ │
+│  │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │ │ │
+│  │  │  │ Frame 0 │  │ Frame 1 │  │ Frame 2 │  │ Frame 3 │       │ │ │
+│  │  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘       │ │ │
+│  │  │                                                             │ │ │
+│  │  │  Written by: Orchestrator (WRITE)                          │ │ │
+│  │  │  Read by: Sensors (READ-ONLY, OS-enforced)                 │ │ │
+│  │  └─────────────────────────────────────────────────────────────┘ │ │
+│  │                                                                   │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│         │ gRPC: "Frame 2 ready"          ▲ Shared mem: read frame 2    │
+│         ▼                                │                              │
+│  ┌───────────────────────────────────────┴───────────────────────────┐ │
+│  │ SENSOR PROCESS                                                    │ │
+│  │                                                                   │ │
+│  │  1. Receive gRPC notification (frame index, timestamp)           │ │
+│  │  2. Read frame directly from shared memory (zero-copy)           │ │
+│  │  3. Process frame with vision model                              │ │
+│  │  4. Send structured event back via gRPC                          │ │
+│  │                                                                   │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│  Performance comparison:                                                │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  gRPC only:     5-10ms per 1080p frame (serialize + deserialize) │  │
+│  │  Shared memory: 0.01-0.1ms per frame (pointer read)              │  │
+│  │  Improvement:   50-100x faster                                   │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Notification Message:**
+
+```protobuf
+// In orchestrator.proto
+message FrameNotification {
+  uint32 frame_index = 1;           // Index in shared memory ring buffer
+  google.protobuf.Timestamp timestamp = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  string format = 5;                // "RGBA", "RGB", etc.
+  string source = 6;                // "full_screen", "window:Minecraft", etc.
+}
+
+service ScreenService {
+  // Notification that a new frame is available in shared memory
+  rpc StreamFrames(FrameStreamRequest) returns (stream FrameNotification);
+}
+```
+
+See [ADR-0008](ADR-0008-Security-and-Privacy.md) Section 11 for shared memory implementation details.
+
 ---
 
 ## 10. Observability
@@ -1682,8 +1800,9 @@ Contract details will be defined in a future ADR.
 - ADR-0001: GLADyS Architecture
 - ADR-0003: Plugin Manifest Specification
 - ADR-0004: Memory Schema Details
-- ADR-0006: Observability & Monitoring (pending)
-- ADR-0007: Adaptive Algorithms (pending)
+- ADR-0006: Observability & Monitoring
+- ADR-0007: Adaptive Algorithms
+- ADR-0008: Security and Privacy (permission enforcement, shared memory)
 
 ---
 

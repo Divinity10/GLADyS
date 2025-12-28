@@ -623,9 +623,9 @@ def compute_session_loss(interactions: List[Interaction]) -> float:
 
 ```python
 # Metrics for observability (ADR-0006)
-gladyslearning_interaction_loss{type}  # timing, relevance, tone, verbosity, total
-gladyslearning_session_loss
-gladyslearning_loss_trend  # Rolling average
+gladys_learning_interaction_loss{type}  # timing, relevance, tone, verbosity, total
+gladys_learning_session_loss
+gladys_learning_loss_trend  # Rolling average
 ```
 
 ---
@@ -981,31 +981,31 @@ Integration with observability (ADR-0006):
 # Prometheus metrics for learning system
 
 # Parameter tracking
-gladyslearning_parameter_value{parameter, category}
-gladyslearning_parameter_confidence{parameter, category}
-gladyslearning_parameter_short_term{parameter}
-gladyslearning_parameter_long_term{parameter}
+gladys_learning_parameter_value{parameter, category}
+gladys_learning_parameter_confidence{parameter, category}
+gladys_learning_parameter_short_term{parameter}
+gladys_learning_parameter_long_term{parameter}
 
 # Update tracking
-gladyslearning_updates_total{parameter, direction}  # up, down, none
-gladyslearning_update_magnitude{parameter}  # Histogram
+gladys_learning_updates_total{parameter, direction}  # up, down, none
+gladys_learning_update_magnitude{parameter}  # Histogram
 
 # Feedback tracking
-gladyslearning_feedback_total{type, sentiment}  # explicit/implicit, positive/negative
-gladyslearning_feedback_weight{type}
+gladys_learning_feedback_total{type, sentiment}  # explicit/implicit, positive/negative
+gladys_learning_feedback_weight{type}
 
 # Convergence tracking
-gladyslearning_parameters_converged_total  # Count with confidence > 0.7
-gladyslearning_parameters_stable_total     # Count with low recent variance
+gladys_learning_parameters_converged_total  # Count with confidence > 0.7
+gladys_learning_parameters_stable_total     # Count with low recent variance
 
 # Loss tracking
-gladyslearning_interaction_loss{type}  # timing, relevance, tone, verbosity
-gladyslearning_session_loss
-gladyslearning_loss_7day_avg
+gladys_learning_interaction_loss{type}  # timing, relevance, tone, verbosity
+gladys_learning_session_loss
+gladys_learning_loss_7day_avg
 
 # Health indicators
-gladyslearning_frozen  # 0 or 1
-gladyslearning_observation_count_total
+gladys_learning_frozen  # 0 or 1
+gladys_learning_observation_count_total
 ```
 
 ---

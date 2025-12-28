@@ -79,41 +79,41 @@ This ADR defines the observability strategy including metrics, logging, tracing,
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     LOCAL DEPLOYMENT                                    │
+│                     LOCAL DEPLOYMENT                                     │
 │                                                                         │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                     GLADyS COMPONENTS                            │   │
-│  │                                                                  │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐              │   │
-│  │  │Orchestr.│  │Salience │  │Executive│  │ Output  │              │   │
-│  │  │  :9090  │  │  :9091  │  │  :9092  │  │  :9093  │              │   │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘              │   │
-│  │       │            │            │            │                   │   │
-│  │       │ /metrics   │ /metrics   │ /metrics   │ /metrics          │   │
-│  │       └────────────┴────────────┴────────────┘                   │   │
-│  │                           │                                      │   │
-│  └───────────────────────────┼──────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                     GLADyS COMPONENTS                       │  │
+│  │                                                                   │  │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐             │  │
+│  │  │Orchestr.│  │Salience │  │Executive│  │ Output  │             │  │
+│  │  │  :9090  │  │  :9091  │  │  :9092  │  │  :9093  │             │  │
+│  │  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘             │  │
+│  │       │            │            │            │                   │  │
+│  │       │ /metrics   │ /metrics   │ /metrics   │ /metrics         │  │
+│  │       └────────────┴────────────┴────────────┘                   │  │
+│  │                           │                                       │  │
+│  └───────────────────────────┼───────────────────────────────────────┘  │
 │                              │                                          │
 │                              ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
 │  │                    OBSERVABILITY STACK                             │ │
 │  │                                                                    │ │
-│  │  ┌────────────┐   ┌────────────┐   ┌────────────┐                  │ │
-│  │  │ Prometheus │   │    Loki    │   │   Jaeger   │                  │ │
-│  │  │   :9100    │   │   :3100    │   │   :16686   │                  │ │
-│  │  │            │   │            │   │            │                  │ │
-│  │  │  Metrics   │   │    Logs    │   │   Traces   │                  │ │
-│  │  └─────┬──────┘   └─────┬──────┘   └─────┬──────┘                  │ │
-│  │        │                │                │                         │ │
-│  │        └────────────────┼────────────────┘                         │ │
-│  │                         │                                          │ │
-│  │                         ▼                                          │ │
-│  │                  ┌────────────┐                                    │ │
-│  │                  │  Grafana   │                                    │ │
-│  │                  │   :3000    │                                    │ │
-│  │                  └────────────┘                                    │ │
+│  │  ┌────────────┐   ┌────────────┐   ┌────────────┐                │ │
+│  │  │ Prometheus │   │    Loki    │   │   Jaeger   │                │ │
+│  │  │   :9100    │   │   :3100    │   │   :16686   │                │ │
+│  │  │            │   │            │   │            │                │ │
+│  │  │  Metrics   │   │    Logs    │   │   Traces   │                │ │
+│  │  └─────┬──────┘   └─────┬──────┘   └─────┬──────┘                │ │
+│  │        │                │                │                        │ │
+│  │        └────────────────┼────────────────┘                        │ │
+│  │                         │                                         │ │
+│  │                         ▼                                         │ │
+│  │                  ┌────────────┐                                   │ │
+│  │                  │  Grafana   │                                   │ │
+│  │                  │   :3000    │                                   │ │
+│  │                  └────────────┘                                   │ │
 │  │                                                                    │ │
-│  └────────────────────────────────────────────────────────────────────┘ │
+│  └───────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -218,57 +218,74 @@ gladys_salience_score{dimension}  # Histogram of scores per dimension
 ```python
 # Counters
 gladys_memory_events_stored_total
-gladysmemory_queries_total{type}  # semantic, structured, entity
-gladysmemory_cache_evictions_total{level}
+gladys_memory_queries_total{type}  # semantic, structured, entity
+gladys_memory_cache_evictions_total{level}
 
 # Gauges
-gladysmemory_l1_cache_size
-gladysmemory_l2_buffer_size
-gladysmemory_pending_persist_count
-gladysmemory_db_connection_pool_used
-gladysmemory_db_connection_pool_available
+gladys_memory_l1_cache_size
+gladys_memory_l2_buffer_size
+gladys_memory_pending_persist_count
+gladys_memory_db_connection_pool_used
+gladys_memory_db_connection_pool_available
 
 # Histograms
-gladysmemory_query_duration_seconds{type, level}  # Which cache level served
-gladysmemory_store_duration_seconds
-gladysmemory_embedding_duration_seconds
+gladys_memory_query_duration_seconds{type, level}  # Which cache level served
+gladys_memory_store_duration_seconds
+gladys_memory_embedding_duration_seconds
 ```
 
 #### 5.3.5 Executive Metrics
 
 ```python
 # Counters
-gladysexecutive_decisions_total{action}  # speak, notify, log, none
-gladysexecutive_tokens_used_total{direction}  # input, output
-gladysexecutive_errors_total{type}
+gladys_executive_decisions_total{action}  # speak, notify, log, none
+gladys_executive_tokens_used_total{direction}  # input, output
+gladys_executive_errors_total{type}
 
 # Gauges
-gladysexecutive_context_window_utilization  # 0-1
-gladysexecutive_active_skills
-gladysexecutive_active_goals
+gladys_executive_context_window_utilization  # 0-1
+gladys_executive_active_skills
+gladys_executive_active_goals
 
 # Histograms
-gladysexecutive_decision_duration_seconds
-gladysexecutive_response_length_tokens
-gladysexecutive_llm_inference_duration_seconds
+gladys_executive_decision_duration_seconds
+gladys_executive_response_length_tokens
+gladys_executive_llm_inference_duration_seconds
 ```
 
 #### 5.3.6 Output Metrics
 
 ```python
 # Counters
-gladysoutput_utterances_total{voice}
-gladysoutput_interruptions_total
-gladysoutput_errors_total{type}
+gladys_output_utterances_total{voice}
+gladys_output_interruptions_total
+gladys_output_errors_total{type}
 
 # Gauges
-gladysoutput_queue_depth
-gladysoutput_current_voice
+gladys_output_queue_depth
+gladys_output_current_voice
 
 # Histograms
-gladysoutput_tts_duration_seconds
-gladysoutput_audio_duration_seconds  # How long the speech was
-gladysoutput_time_to_first_audio_seconds
+gladys_output_tts_duration_seconds
+gladys_output_audio_duration_seconds  # How long the speech was
+gladys_output_time_to_first_audio_seconds
+```
+
+#### 5.3.7 Security Metrics (see ADR-0008)
+
+```python
+# Counters
+gladys_security_permission_checks_total{permission, verdict}  # allow, deny, abort
+gladys_security_aborts_total{plugin_id, reason}
+gladys_security_consent_grants_total{plugin_id, permission}
+gladys_security_consent_revokes_total{plugin_id, permission}
+
+# Gauges
+gladys_security_active_plugins{trust_level}  # first_party, signed, unsigned
+gladys_security_user_age  # For age-gated permission enforcement
+
+# Histograms
+gladys_security_permission_check_duration_seconds{handler}
 ```
 
 ### 5.4 Critical Metrics for Optimization Decisions
@@ -672,7 +689,7 @@ sampling:
 ```yaml
 # prometheus-alerts.yml
 groups:
-  - name: gladyscritical
+  - name: gladys_critical
     rules:
       - alert: ComponentDown
         expr: up{job=~"orchestrator|salience|executive|output"} == 0
@@ -684,7 +701,7 @@ groups:
           description: "{{ $labels.job }} has been unreachable for more than 1 minute"
       
       - alert: ExecutiveLatencyHigh
-        expr: histogram_quantile(0.95, gladysexecutive_decision_duration_seconds_bucket) > 0.8
+        expr: histogram_quantile(0.95, gladys_executive_decision_duration_seconds_bucket) > 0.8
         for: 5m
         labels:
           severity: critical
@@ -693,17 +710,17 @@ groups:
           description: "P95 latency is {{ $value }}s, budget is 0.6s"
       
       - alert: MemoryDatabaseDown
-        expr: gladysmemory_db_connection_pool_available == 0
+        expr: gladys_memory_db_connection_pool_available == 0
         for: 30s
         labels:
           severity: critical
         annotations:
           summary: "Memory database connection pool exhausted"
 
-  - name: gladyswarning
+  - name: gladys_warning
     rules:
       - alert: HighEventQueueDepth
-        expr: gladysorchestrator_event_queue_depth > 100
+        expr: gladys_orchestrator_event_queue_depth > 100
         for: 5m
         labels:
           severity: warning
@@ -712,7 +729,7 @@ groups:
           description: "Queue depth is {{ $value }}, processing may be falling behind"
       
       - alert: LowCacheHitRate
-        expr: gladysmemory_cache_hit_ratio < 0.3
+        expr: gladys_memory_cache_hit_ratio < 0.3
         for: 15m
         labels:
           severity: warning
@@ -721,24 +738,24 @@ groups:
           description: "Cache hit rate is {{ $value }}, consider tuning cache size"
       
       - alert: SensorRestarting
-        expr: increase(gladyssensor_restarts_total[10m]) > 3
+        expr: increase(gladys_sensor_restarts_total[10m]) > 3
         labels:
           severity: warning
         annotations:
           summary: "Sensor {{ $labels.sensor_id }} is restarting frequently"
       
       - alert: HighTokenUsage
-        expr: rate(gladysexecutive_tokens_used_total[1h]) > 10000
+        expr: rate(gladys_executive_tokens_used_total[1h]) > 10000
         labels:
           severity: warning
         annotations:
           summary: "High token usage rate"
           description: "Using {{ $value }} tokens/hour"
 
-  - name: gladysinfo
+  - name: gladys_info
     rules:
       - alert: ApproachingContextLimit
-        expr: gladysexecutive_context_window_utilization > 0.85
+        expr: gladys_executive_context_window_utilization > 0.85
         for: 10m
         labels:
           severity: info
@@ -747,7 +764,7 @@ groups:
           description: "Utilization is {{ $value }}, consider memory summarization"
       
       - alert: SlowMemoryQueries
-        expr: histogram_quantile(0.95, gladysmemory_query_duration_seconds_bucket) > 0.04
+        expr: histogram_quantile(0.95, gladys_memory_query_duration_seconds_bucket) > 0.04
         for: 15m
         labels:
           severity: info
@@ -849,42 +866,42 @@ if __name__ == '__main__':
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        GLADyS - SYSTEM OVERVIEW                         │
+│                      GLADyS - SYSTEM OVERVIEW                     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  COMPONENT HEALTH                    EVENT THROUGHPUT                   │
-│  ┌─────────────────────────┐        ┌─────────────────────────┐         │
-│  │ Orchestrator    [GREEN] │        │  Events/min             │         │
-│  │ Salience        [GREEN] │        │  ████████████ 450       │         │
-│  │ Executive       [GREEN] │        │                         │         │
-│  │ Output          [GREEN] │        │  Decisions/min          │         │
-│  │ Minecraft Sens  [GREEN] │        │  ████████ 120           │         │
-│  │ Audio Sensor    [YELLOW]│        └─────────────────────────┘         │
-│  └─────────────────────────┘                                            │
+│  ┌─────────────────────────┐        ┌─────────────────────────┐        │
+│  │ Orchestrator    [GREEN] │        │  Events/min             │        │
+│  │ Salience        [GREEN] │        │  ████████████ 450       │        │
+│  │ Executive       [GREEN] │        │                         │        │
+│  │ Output          [GREEN] │        │  Decisions/min          │        │
+│  │ Minecraft Sens  [GREEN] │        │  ████████ 120           │        │
+│  │ Audio Sensor    [YELLOW]│        └─────────────────────────┘        │
+│  └─────────────────────────┘                                           │
 │                                                                         │
-│  END-TO-END LATENCY (P95)            RESOURCE USAGE                     │
-│  ┌─────────────────────────┐        ┌─────────────────────────┐         │
-│  │  Target: 1000ms         │        │  GPU Memory: 18/24 GB   │         │
-│  │  Current: 847ms         │        │  ████████████████░░░░   │         │
-│  │  ████████████████░░░░   │        │                         │         │
-│  │                         │        │  System RAM: 32/64 GB   │         │
-│  │  Breakdown:             │        │  ████████████░░░░░░░░   │         │
-│  │  Sensor:     52ms       │        │                         │         │
-│  │  Salience:  148ms       │        │  CPU: 35%               │         │
-│  │  Executive: 512ms       │        │  ███████░░░░░░░░░░░░░   │         │
-│  │  Output:     78ms       │        └─────────────────────────┘         │
-│  └─────────────────────────┘                                            │
+│  END-TO-END LATENCY (P95)            RESOURCE USAGE                    │
+│  ┌─────────────────────────┐        ┌─────────────────────────┐        │
+│  │  Target: 1000ms         │        │  GPU Memory: 18/24 GB   │        │
+│  │  Current: 847ms         │        │  ████████████████░░░░   │        │
+│  │  ████████████████░░░░   │        │                         │        │
+│  │                         │        │  System RAM: 32/64 GB   │        │
+│  │  Breakdown:             │        │  ████████████░░░░░░░░   │        │
+│  │  Sensor:     52ms       │        │                         │        │
+│  │  Salience:  148ms       │        │  CPU: 35%               │        │
+│  │  Executive: 512ms       │        │  ███████░░░░░░░░░░░░░   │        │
+│  │  Output:     78ms       │        └─────────────────────────┘        │
+│  └─────────────────────────┘                                           │
 │                                                                         │
 │  RECENT ALERTS                       ACTIVE SENSORS                     │
-│  ┌─────────────────────────┐        ┌─────────────────────────┐         │
-│  │ [WARN] Low cache hit    │        │ ● minecraft-sensor      │         │
-│  │        rate (28%)       │        │ ● audio-sensor          │         │
-│  │        14:25            │        │ ○ vscode-sensor         │         │
-│  │                         │        │ ○ browser-sensor        │         │
-│  │ [INFO] Context util     │        └─────────────────────────┘         │
-│  │        high (87%)       │                                            │
-│  │        14:20            │                                            │
-│  └─────────────────────────┘                                            │
+│  ┌─────────────────────────┐        ┌─────────────────────────┐        │
+│  │ [WARN] Low cache hit    │        │ ● minecraft-sensor      │        │
+│  │        rate (28%)       │        │ ● audio-sensor          │        │
+│  │        14:25            │        │ ○ vscode-sensor         │        │
+│  │                         │        │ ○ browser-sensor        │        │
+│  │ [INFO] Context util     │        └─────────────────────────┘        │
+│  │        high (87%)       │                                           │
+│  │        14:20            │                                           │
+│  └─────────────────────────┘                                           │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -895,7 +912,7 @@ if __name__ == '__main__':
 
 ```
 Panel: Histogram
-Query: histogram_quantile(0.95, sum(rate(gladysexecutive_decision_duration_seconds_bucket[5m])) by (le))
+Query: histogram_quantile(0.95, sum(rate(gladys_executive_decision_duration_seconds_bucket[5m])) by (le))
 Title: Executive Decision Latency (P95)
 Thresholds: 
   - 500ms: green
@@ -907,7 +924,7 @@ Thresholds:
 
 ```
 Panel: Gauge
-Query: sum(gladysmemory_cache_hits_total) / (sum(gladysmemory_cache_hits_total) + sum(gladysmemory_cache_misses_total))
+Query: sum(gladys_memory_cache_hits_total) / (sum(gladys_memory_cache_hits_total) + sum(gladys_memory_cache_misses_total))
 Title: Memory Cache Hit Rate
 Thresholds:
   - 0.3: red
@@ -920,10 +937,10 @@ Thresholds:
 ```
 Panel: Graph
 Queries:
-  - rate(gladyssensor_events_emitted_total[1m]) as "Events Emitted"
-  - rate(gladyssalience_events_evaluated_total[1m]) as "Events Evaluated"
-  - rate(gladyssalience_events_suppressed_total[1m]) as "Events Suppressed"
-  - rate(gladysexecutive_decisions_total[1m]) as "Decisions Made"
+  - rate(gladys_sensor_events_emitted_total[1m]) as "Events Emitted"
+  - rate(gladys_salience_events_evaluated_total[1m]) as "Events Evaluated"
+  - rate(gladys_salience_events_suppressed_total[1m]) as "Events Suppressed"
+  - rate(gladys_executive_decisions_total[1m]) as "Decisions Made"
 Title: Event Flow Pipeline
 ```
 
@@ -1208,6 +1225,7 @@ volumes:
 - ADR-0004: Memory Schema Details (complexity triggers)
 - ADR-0005: gRPC Service Contracts (tracing integration)
 - ADR-0007: Adaptive Algorithms (metrics for learning)
+- ADR-0008: Security and Privacy (security audit log, metrics)
 
 ---
 
@@ -1233,16 +1251,16 @@ docker-compose -f docker-compose.observability.yml up -d
 
 ```promql
 # End-to-end P95 latency
-histogram_quantile(0.95, sum(rate(gladysexecutive_decision_duration_seconds_bucket[5m])) by (le))
+histogram_quantile(0.95, sum(rate(gladys_executive_decision_duration_seconds_bucket[5m])) by (le))
 
 # Events per minute by source
-sum(rate(gladyssensor_events_emitted_total[1m])) by (sensor_id) * 60
+sum(rate(gladys_sensor_events_emitted_total[1m])) by (sensor_id) * 60
 
 # Cache hit rate
-sum(gladysmemory_cache_hits_total) / (sum(gladysmemory_cache_hits_total) + sum(gladysmemory_cache_misses_total))
+sum(gladys_memory_cache_hits_total) / (sum(gladys_memory_cache_hits_total) + sum(gladys_memory_cache_misses_total))
 
 # Error rate
-sum(rate(gladysorchestrator_errors_total[5m])) / sum(rate(gladysorchestrator_events_routed_total[5m]))
+sum(rate(gladys_orchestrator_errors_total[5m])) / sum(rate(gladys_orchestrator_events_routed_total[5m]))
 ```
 
 ### Useful LogQL Queries

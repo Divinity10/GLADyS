@@ -1,4 +1,6 @@
-# Generalized Logical Adaptive Dynamic System (GLADyS)
+# GLADyS
+
+**G**eneralized **L**ogical **A**daptive **Dy**namic **S**ystem
 
 > ⚠️ **DRAFT STATUS**: This project is currently in the design phase. All documentation represents proposed architecture and is subject to change. No implementation code exists yet.
 
@@ -35,11 +37,11 @@ GLADyS is a local-first, brain-inspired AI assistant designed to observe, learn,
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      GLADyS                               │
+│                           GLADyS                                │
 │                                                                 │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐                        │
 │  │ Visual  │  │  Audio  │  │  Game   │   SENSORS              │
-│  │ Sensor  │  │ Sensor  │  │  Mod    │   (Python)             │
+│  │ Sensor  │  │ Sensor  │  │(Aperture│   (Python)             │
 │  └────┬────┘  └────┬────┘  └────┬────┘                        │
 │       │            │            │                              │
 │       └────────────┼────────────┘                              │
@@ -76,7 +78,7 @@ All architectural decisions are documented as ADRs in [`docs/adr/`](docs/adr/REA
 
 | ADR | Title |
 |-----|-------|
-| [0001](docs/adr/ADR-0001-GLADyS-Architecture.md) | System Architecture |
+| [0001](docs/adr/ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture |
 | [0002](docs/adr/ADR-0002-Hardware-Requirements.md) | Hardware Requirements |
 | [0003](docs/adr/ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification |
 | [0004](docs/adr/ADR-0004-Memory-Schema-Details.md) | Memory Schema Details |
@@ -138,6 +140,12 @@ Security is a foundational design principle, not an afterthought.
 
 See [ADR-0008](docs/adr/ADR-0008-Security-and-Privacy.md) for the complete security model.
 
+## Game Integration
+
+GLADyS can integrate with games through **Aperture**, a bridge mod that exposes game data via local APIs. This provides more accurate data than screen capture alone.
+
+See [ADR-0008 Section 13](docs/adr/ADR-0008-Security-and-Privacy.md#13-game-mod-integration) for details.
+
 ## Contributing
 
 > 🚧 Contribution guidelines will be added once implementation begins.
@@ -160,5 +168,5 @@ TBD
 ---
 
 <p align="center">
-  <i>This project is in active design. Star/watch for updates.</i>
+  <i>Named in memory of Gladys — grandmother, inspiration.</i>
 </p>

@@ -462,7 +462,59 @@ After settling period, system monitors for behavioral changes:
 - Periodic reconnection attempts
 - User notification of offline sensors
 
-### 14.3 Security (Future)
+### 14.3 Security Module
+
+The Security Module is a core component of the orchestrator that enforces all permission checks:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     SECURITY MODULE                                     │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │                    SECURITY MODULE (Singleton)                    │ │
+│  │                                                                   │ │
+│  │  • Central authority for all security decisions                  │ │
+│  │  • Holds permission registry, policies, user consent             │ │
+│  │  • Immutable audit log                                           │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                              │                                          │
+│                              ▼                                          │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │                    PERMISSION CHAIN                               │ │
+│  │                    (Chain of Responsibility)                      │ │
+│  │                                                                   │ │
+│  │  ┌─────┐   ┌─────┐   ┌───────┐   ┌─────┐   ┌────┐   ┌──────┐   │ │
+│  │  │ Age │ → │Trust│ → │Consent│ → │Scope│ → │Rate│ → │Constr│   │ │
+│  │  └─────┘   └─────┘   └───────┘   └─────┘   └────┘   └──────┘   │ │
+│  │                                                                   │ │
+│  │  Any handler can DENY or ABORT                                   │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key responsibilities:**
+- Permission enforcement via Chain of Responsibility pattern
+- gRPC interceptors for auth/authz on all incoming calls
+- Action guards (final check before privileged operations)
+- Immutable audit log of all security decisions
+
+See [ADR-0008](ADR-0008-Security-and-Privacy.md) for complete security architecture.
+
+### 14.4 Shared Memory for High-Bandwidth Data
+
+For image transfer between orchestrator and sensors, shared memory provides zero-copy performance:
+
+| Property | Value |
+|----------|-------|
+| Owner | Orchestrator process |
+| Sensor access | Read-only (OS-enforced via page table) |
+| Performance | 50-100x faster than gRPC serialization |
+| Crash isolation | Sensor crash cannot corrupt shared memory |
+
+See [ADR-0008](ADR-0008-Security-and-Privacy.md) Section 11 for implementation details.
+
+### 14.5 Distributed Deployment (Future)
 
 Design with abstraction layer for future addition of:
 - TLS
@@ -541,10 +593,13 @@ Design with abstraction layer for future addition of:
 
 ## 18. Related Decisions
 
-- ADR-0002: Hardware Requirements (pending)
-- ADR-0003: Plugin Manifest Specification (pending)
-- ADR-0004: Memory Schema Details (pending)
-- ADR-0005: gRPC Service Contracts (pending)
+- ADR-0002: Hardware Requirements
+- ADR-0003: Plugin Manifest Specification
+- ADR-0004: Memory Schema Details
+- ADR-0005: gRPC Service Contracts
+- ADR-0006: Observability & Monitoring
+- ADR-0007: Adaptive Algorithms
+- ADR-0008: Security and Privacy
 
 ---
 

@@ -15,7 +15,7 @@ An ADR is a document that captures an important architectural decision made alon
 
 | ADR | Title | Status | Summary |
 |-----|-------|--------|---------|
-| [0001](ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, and orchestration layer |
+| [0001](ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, security module, and orchestration layer |
 | [0002](ADR-0002-Hardware-Requirements.md) | Hardware Requirements | Proposed | GPU requirements, dual-GPU upgrade path, cloud deployment options |
 | [0003](ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification | Proposed | YAML-based manifest structure for sensors and skills |
 | [0004](ADR-0004-Memory-Schema-Details.md) | Memory Schema Details | Proposed | Hierarchical L0-L4 memory, PostgreSQL + pgvector, EWMA user profiling |
@@ -118,3 +118,14 @@ ADR-0001 (Architecture)
               ▼
          ADR-0008 (Security & Privacy)
 ```
+
+## Key Terminology
+
+| Term | Meaning |
+|------|---------|
+| **GLADyS** | Generalized Logical Adaptive Dynamic System - the project name |
+| **Aperture** | Bridge mod for game integration (exposes game data via local API) |
+| **Sensor** | Plugin that observes the environment (screen, audio, game state) |
+| **Skill** | Plugin that provides capabilities to the executive (knowledge, actions) |
+| **Executive** | The decision-making component that generates responses |
+| **Salience** | How important/relevant an event is to the user's current context |
