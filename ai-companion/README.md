@@ -2,6 +2,10 @@
 
 Brain-inspired cognitive architecture for an AI companion system
 
+## Documentation
+
+- [Architecture Decision Records](docs/adr/)
+
 ## Project Structure
 
 ```

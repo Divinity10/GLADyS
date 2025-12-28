@@ -2,6 +2,9 @@
 __pycache__/
 .venv/
 *.pyc
+*.py[cod]
+venv/
+*.egg-info/
 
 # Rust
 target/
@@ -11,10 +14,12 @@ Cargo.lock
 bin/
 obj/
 *.user
+*.suo
 
 # IDEs
 .idea/
 .vscode/
+*.swp
 
 # Model files
 *.onnx
