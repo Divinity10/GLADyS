@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory contains Architecture Decision Records (ADRs) for the AI Companion project.
+This directory contains Architecture Decision Records (ADRs) for the GLADyS project.
 
 ## What is an ADR?
 
@@ -15,7 +15,7 @@ An ADR is a document that captures an important architectural decision made alon
 
 | ADR | Title | Status | Summary |
 |-----|-------|--------|---------|
-| [0001](ADR-0001-AI-Companion-System-Architecture.md) | AI Companion System Architecture | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, and orchestration layer |
+| [0001](ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, and orchestration layer |
 | [0002](ADR-0002-Hardware-Requirements.md) | Hardware Requirements | Proposed | GPU requirements, dual-GPU upgrade path, cloud deployment options |
 | [0003](ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification | Proposed | YAML-based manifest structure for sensors and skills |
 | [0004](ADR-0004-Memory-Schema-Details.md) | Memory Schema Details | Proposed | Hierarchical L0-L4 memory, PostgreSQL + pgvector, EWMA user profiling |

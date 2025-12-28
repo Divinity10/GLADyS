@@ -1,4 +1,4 @@
-# ADR-0001: AI Companion System Architecture
+# ADR-0001: GLADyS Architecture
 
 | Field | Value |
 |-------|-------|
@@ -11,9 +11,9 @@
 
 ## 1. Context and Problem Statement
 
-We are building a general-purpose AI Companion/Assistant that monitors user activity across applications and responds proactively. The system should congratulate achievements, commiserate with setbacks, suggest actions, and provide reminders. Initial scope targets a single application (Minecraft) but the architecture must scale to monitor the user's entire computing environment.
+We are building a general-purpose AI that monitors user activity across applications and responds proactively. The system should congratulate achievements, commiserate with setbacks, suggest actions, and provide reminders. Initial scope targets a single application (Minecraft) but the architecture must scale to monitor the user's entire computing environment.
 
-The AI must have a configurable personality across multiple dimensions (humor, sarcasm, helpfulness, companionship vs. assistant mode) and adapt its responses based on context and user preferences.
+The AI must have a configurable personality across multiple dimensions (humor, sarcasm, helpfulness, friendliness vs. assistant mode) and adapt its responses based on context and user preferences.
 
 ---
 

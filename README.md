@@ -76,7 +76,7 @@ All architectural decisions are documented as ADRs in [`docs/adr/`](docs/adr/REA
 
 | ADR | Title |
 |-----|-------|
-| [0001](docs/adr/ADR-0001-AI-Companion-System-Architecture.md) | System Architecture |
+| [0001](docs/adr/ADR-0001-GLADyS-Architecture.md) | System Architecture |
 | [0002](docs/adr/ADR-0002-Hardware-Requirements.md) | Hardware Requirements |
 | [0003](docs/adr/ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification |
 | [0004](docs/adr/ADR-0004-Memory-Schema-Details.md) | Memory Schema Details |

@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion system requires hardware capable of running multiple ML models concurrently with sub-second response latency. This ADR defines hardware requirements based on the architecture specified in ADR-0001.
+The GLADyS requires hardware capable of running multiple ML models concurrently with sub-second response latency. This ADR defines hardware requirements based on the architecture specified in ADR-0001.
 
 Key constraints:
 - Multiple models run simultaneously (sensors, salience, embeddings, executive, TTS)
@@ -85,14 +85,14 @@ The team has existing hardware that informs upgrade decisions:
 
 ### 3.3 Gemma 3 4B Assessment
 
-Current setup uses Gemma 3 4B. Evaluation for AI Companion roles:
+Current setup uses Gemma 3 4B. Evaluation for AI roles:
 
 | Role | Suitable? | Assessment |
 |------|-----------|------------|
 | Executive | ✗ | Personality and reasoning too limited |
 | Salience evaluator | ✓ | Can classify/score events |
 | Visual sensor | ✓ | Good fit—its multimodal strength |
-| General assistant | Marginal | Not for nuanced companion |
+| General assistant | Marginal | Not for nuanced friend |
 
 **Recommendation:** Keep Gemma 3 4B for vision tasks. Use larger model for Executive.
 
@@ -291,7 +291,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI Companion roles:
 - Run different models on each GPU (sensors on one, executive on other)
 - Does NOT enable running one large model across both (without complex tensor parallelism)
 
-For the AI Companion architecture, dual-GPU works well:
+For the AI architecture, dual-GPU works well:
 ```
 GPU 0 (Large): Executive + Salience + Embeddings + TTS
 GPU 1 (Small): Sensors (Audio + Vision)
@@ -528,7 +528,7 @@ Before purchasing:
 
 ## 14. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0003: Plugin Manifest Specification (pending)
 - ADR-0004: Memory Schema Details (pending)
 

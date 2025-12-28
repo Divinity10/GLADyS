@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion requires a memory system that supports:
+The GLADyS requires a memory system that supports:
 - Fast retrieval for real-time interaction (~50ms budget)
 - Semantic search for contextually relevant memories
 - Structured queries for filtering by time, source, salience
@@ -1315,7 +1315,7 @@ METRICS = {
 
 ## 13. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0002: Hardware Requirements
 - ADR-0003: Plugin Manifest Specification
 - ADR-0005: gRPC Service Contracts (pending)

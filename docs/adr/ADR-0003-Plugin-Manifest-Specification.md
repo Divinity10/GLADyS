@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion architecture relies on a plugin system for sensors, skills, personalities, and outputs. Each plugin must declare its requirements, activation conditions, and lifecycle behavior in a standardized way.
+The GLADyS architecture relies on a plugin system for sensors, skills, personalities, and outputs. Each plugin must declare its requirements, activation conditions, and lifecycle behavior in a standardized way.
 
 This ADR defines the manifest specification for all plugin types.
 
@@ -52,7 +52,7 @@ plugin:
   
   # Minimum system requirements
   requires:
-    companion_version: string   # Minimum AI Companion version (e.g., ">=1.0.0")
+    gladys_version: string   # Minimum GLADyS version (e.g., ">=1.0.0")
     platform: string[]          # Optional: ["windows", "linux", "macos"]
 ```
 
@@ -959,7 +959,7 @@ manifest_version: "1.0"         # Schema version
 
 ### 11.2 Compatibility Rules
 
-| Manifest Version | Companion Version | Compatible |
+| Manifest Version | GLADyS Version    | Compatible |
 |------------------|-------------------|------------|
 | 1.0 | 1.x | ✓ |
 | 1.0 | 2.x | ✓ (backward compatible) |
@@ -992,7 +992,7 @@ manifest_version: "1.0"         # Schema version
 
 ## 13. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0002: Hardware Requirements
 - ADR-0004: Memory Schema Details (pending)
 - ADR-0005: gRPC Service Contracts (pending)
@@ -1005,4 +1005,4 @@ Manifest validation should occur at two stages:
 1. **Discovery time:** Basic schema validation, path existence
 2. **Activation time:** Dependency resolution, resource availability
 
-Consider adding a `companion plugin validate` CLI command for development.
+Consider adding a `GLADyS plugin validate` CLI command for development.

@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion must adapt to individual users over time. Different users have different:
+GLADyS must adapt to individual users over time. Different users have different:
 - Communication preferences (verbosity, formality, humor)
 - Sarcasm and personality tolerance
 - Skill levels in various domains
@@ -623,9 +623,9 @@ def compute_session_loss(interactions: List[Interaction]) -> float:
 
 ```python
 # Metrics for observability (ADR-0006)
-companion_learning_interaction_loss{type}  # timing, relevance, tone, verbosity, total
-companion_learning_session_loss
-companion_learning_loss_trend  # Rolling average
+gladyslearning_interaction_loss{type}  # timing, relevance, tone, verbosity, total
+gladyslearning_session_loss
+gladyslearning_loss_trend  # Rolling average
 ```
 
 ---
@@ -841,15 +841,15 @@ class BoundsEnforcer:
 | Control | Command | Phase |
 |---------|---------|-------|
 | **View Summary** | "What have you learned about me?" | 1 |
-| **View Full** | `companion profile view` | 1 |
-| **Reset All** | "Forget everything you've learned" / `companion profile reset` | 1 |
-| **Reset Category** | `companion profile reset --category communication` | 1 |
-| **Reset Parameter** | `companion profile reset --param sarcasm_tolerance` | 1 |
-| **Freeze** | "Stop learning" / `companion profile freeze` | 1 |
-| **Unfreeze** | "Resume learning" / `companion profile unfreeze` | 1 |
-| **Export** | `companion profile export > profile.json` | 2 |
-| **Import** | `companion profile import profile.json` | 2 |
-| **Edit** | `companion profile set sarcasm_tolerance 0.8` | 2 |
+| **View Full** | `gladys profile view` | 1 |
+| **Reset All** | "Forget everything you've learned" / `gladys profile reset` | 1 |
+| **Reset Category** | `gladys profile reset --category communication` | 1 |
+| **Reset Parameter** | `gladys profile reset --param sarcasm_tolerance` | 1 |
+| **Freeze** | "Stop learning" / `gladys profile freeze` | 1 |
+| **Unfreeze** | "Resume learning" / `gladys profile unfreeze` | 1 |
+| **Export** | `gladys profile export > profile.json` | 2 |
+| **Import** | `gladys profile import profile.json` | 2 |
+| **Edit** | `gladys profile set sarcasm_tolerance 0.8` | 2 |
 
 ### 11.2 Voice/Text Commands
 
@@ -981,31 +981,31 @@ Integration with observability (ADR-0006):
 # Prometheus metrics for learning system
 
 # Parameter tracking
-companion_learning_parameter_value{parameter, category}
-companion_learning_parameter_confidence{parameter, category}
-companion_learning_parameter_short_term{parameter}
-companion_learning_parameter_long_term{parameter}
+gladyslearning_parameter_value{parameter, category}
+gladyslearning_parameter_confidence{parameter, category}
+gladyslearning_parameter_short_term{parameter}
+gladyslearning_parameter_long_term{parameter}
 
 # Update tracking
-companion_learning_updates_total{parameter, direction}  # up, down, none
-companion_learning_update_magnitude{parameter}  # Histogram
+gladyslearning_updates_total{parameter, direction}  # up, down, none
+gladyslearning_update_magnitude{parameter}  # Histogram
 
 # Feedback tracking
-companion_learning_feedback_total{type, sentiment}  # explicit/implicit, positive/negative
-companion_learning_feedback_weight{type}
+gladyslearning_feedback_total{type, sentiment}  # explicit/implicit, positive/negative
+gladyslearning_feedback_weight{type}
 
 # Convergence tracking
-companion_learning_parameters_converged_total  # Count with confidence > 0.7
-companion_learning_parameters_stable_total     # Count with low recent variance
+gladyslearning_parameters_converged_total  # Count with confidence > 0.7
+gladyslearning_parameters_stable_total     # Count with low recent variance
 
 # Loss tracking
-companion_learning_interaction_loss{type}  # timing, relevance, tone, verbosity
-companion_learning_session_loss
-companion_learning_loss_7day_avg
+gladyslearning_interaction_loss{type}  # timing, relevance, tone, verbosity
+gladyslearning_session_loss
+gladyslearning_loss_7day_avg
 
 # Health indicators
-companion_learning_frozen  # 0 or 1
-companion_learning_observation_count_total
+gladyslearning_frozen  # 0 or 1
+gladyslearning_observation_count_total
 ```
 
 ---
@@ -1028,7 +1028,7 @@ companion_learning_observation_count_total
 
 ```python
 import pytest
-from companion.learning import AdaptiveParameter, UserProfile, ThresholdOptimizer
+from gladys.learning import AdaptiveParameter, UserProfile, ThresholdOptimizer
 
 class TestConvergence:
     """Test that parameters converge with consistent feedback."""
@@ -1275,7 +1275,7 @@ class TestThresholdTuning:
 
 ## 16. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0004: Memory Schema Details (user_profile table)
 - ADR-0005: gRPC Service Contracts (feedback signals)
 - ADR-0006: Observability & Monitoring (learning metrics)

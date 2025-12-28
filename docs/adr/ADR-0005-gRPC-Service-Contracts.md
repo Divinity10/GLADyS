@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion system consists of multiple components written in different languages (Rust orchestrator, Python sensors/salience/memory, C# executive). These components must communicate reliably with low latency.
+GLADyS consists of multiple components written in different languages (Rust orchestrator, Python sensors/salience/memory, C# executive). These components must communicate reliably with low latency.
 
 This ADR defines the gRPC service contracts, message formats, communication patterns, and supporting infrastructure (auth, tracing, error handling).
 
@@ -98,7 +98,7 @@ Salience Gateway does not wait for Orchestrator logging. Both receive simultaneo
 ### 4.1 Package Structure
 
 ```
-companion/
+gladys/
 ├── v1/
 │   ├── common.proto           # Shared messages
 │   ├── orchestrator.proto     # Orchestrator service
@@ -113,7 +113,7 @@ companion/
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
@@ -238,9 +238,9 @@ message ErrorDetail {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 
 // ============================================================================
 // ORCHESTRATOR SERVICE
@@ -435,9 +435,9 @@ message ResolveResponse {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 
 // ============================================================================
 // SENSOR SERVICE (implemented by each sensor)
@@ -595,9 +595,9 @@ message ConfigureResponse {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 
 // ============================================================================
 // SALIENCE GATEWAY SERVICE
@@ -706,9 +706,9 @@ message ModulateSalienceResponse {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 import "google/protobuf/timestamp.proto";
 
 // ============================================================================
@@ -969,9 +969,9 @@ message UpdateUserTraitResponse {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 
 // ============================================================================
 // EXECUTIVE SERVICE
@@ -1139,9 +1139,9 @@ message SetFocusResponse {
 
 ```protobuf
 syntax = "proto3";
-package companion.v1;
+package gladys.v1;
 
-import "companion/v1/common.proto";
+import "gladys/v1/common.proto";
 
 // ============================================================================
 // OUTPUT SERVICE
@@ -1594,10 +1594,10 @@ message RequestMetadata {
 ### 11.1 Package Versioning
 
 ```protobuf
-package companion.v1;  // Current version
+package gladys.v1;  // Current version
 
 // Future breaking changes:
-package companion.v2;
+package gladys.v2;
 ```
 
 ### 11.2 Field Deprecation
@@ -1679,7 +1679,7 @@ Contract details will be defined in a future ADR.
 
 ## 14. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0003: Plugin Manifest Specification
 - ADR-0004: Memory Schema Details
 - ADR-0006: Observability & Monitoring (pending)
@@ -1691,7 +1691,7 @@ Contract details will be defined in a future ADR.
 
 ```
 protos/
-├── companion/
+├── gladys/
 │   └── v1/
 │       ├── common.proto
 │       ├── orchestrator.proto

@@ -12,7 +12,7 @@
 
 ## 1. Context and Problem Statement
 
-The AI Companion observes user behavior through sensors (screen, audio, keyboard), learns personal preferences, and can control external devices. This creates significant privacy and security responsibilities:
+GLADyS observes user behavior through sensors (screen, audio, keyboard), learns personal preferences, and can control external devices. This creates significant privacy and security responsibilities:
 
 - What data is collected and how long is it retained?
 - How do we prevent malicious plugins from abusing access?
@@ -615,13 +615,13 @@ permissions:
   # ═══════════════════════════════════════════════════════════════════
   
   memory.read:
-    description: "Read companion memory"
+    description: "Read GLADyS memory"
     risk: low
     min_age: 13
     requires: []
   
   memory.write:
-    description: "Write to companion memory"
+    description: "Write to GLADyS memory"
     risk: low
     min_age: 13
     requires: []
@@ -674,7 +674,7 @@ sensor:
     justifications:
       screen.game: "See Minecraft gameplay for situational awareness"
       process.focus: "Detect when Minecraft is active"
-      game.mod.read: "Get precise game state from companion bridge mod"
+      game.mod.read: "Get precise game state from aperture"
       audio.push_to_talk: "Voice commands for hands-free gaming"
     
     screen:
@@ -686,7 +686,7 @@ sensor:
     
     game.mod:
       read:
-        - mod_id: companion-bridge
+        - mod_id: aperture
           data_types: [player_position, player_health, nearby_entities]
   
   install_behavior:
@@ -768,7 +768,7 @@ skill:
 │  │  │   "Detect when Minecraft is active"                         │ │ │
 │  │  │                                                             │ │ │
 │  │  │ ☐ Game Mod Data                               [Medium Risk] │ │ │
-│  │  │   "Get precise game state from companion bridge mod"        │ │ │
+│  │  │   "Get precise game state from aperture"        │ │ │
 │  │  └─────────────────────────────────────────────────────────────┘ │ │
 │  │                                                                   │ │
 │  │  OPTIONAL PERMISSIONS                                            │ │
@@ -952,7 +952,7 @@ impl FrameBuffer {
         
         let shmem = ShmemConf::new()
             .size(total_size)
-            .os_id("companion_frames")
+            .os_id("gladysframes")
             .create()
             .expect("Failed to create shared memory");
         
@@ -980,7 +980,7 @@ class FrameReader:
         self.shm = mmap.mmap(
             -1, 
             BUFFER_SIZE, 
-            "companion_frames", 
+            "gladysframes", 
             access=mmap.ACCESS_READ
         )
     
@@ -1320,7 +1320,7 @@ class IoTControlGuard:
 class AuditLog:
     """Append-only security audit log."""
     
-    def __init__(self, path: str = "/var/log/companion/security_audit.log"):
+    def __init__(self, path: str = "/var/log/gladys/security_audit.log"):
         self.path = path
         self._lock = threading.Lock()
     
@@ -1340,7 +1340,7 @@ class AuditLog:
 
 ## 13. Game Mod Integration
 
-### 13.1 Bridge Architecture
+### 13.1 Bridge Architecture (Aperture)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1350,7 +1350,7 @@ class AuditLog:
 │  ┌───────────────────────────────────────────────────────────────────┐ │
 │  │                                                                   │ │
 │  │  ┌─────────────────────────────────────────────────────────────┐ │ │
-│  │  │ COMPANION BRIDGE MOD                                        │ │ │
+│  │  │ Aperture                                        │ │ │
 │  │  │                                                             │ │ │
 │  │  │  Endpoints:                                                 │ │ │
 │  │  │  GET  /player      → position, health, inventory           │ │ │
@@ -1405,8 +1405,8 @@ class AuditLog:
 | Approach | Implementation |
 |----------|----------------|
 | User isolation | Each OS user gets separate data directory |
-| No profile switching | One companion instance = one user |
-| Data location | `$HOME/.companion/` (per OS user) |
+| No profile switching | One GLADyS instance = one user |
+| Data location | `$HOME/.gladys/` (per OS user) |
 
 ### 14.2 Configuration
 
@@ -1416,7 +1416,7 @@ user:
   age: 25  # Declared, not verified
   age_acknowledged: true
   
-  data_directory: /home/scott/.companion/
+  data_directory: /home/scott/.gladys/
 ```
 
 ---
@@ -1449,7 +1449,7 @@ user:
 
 ## 16. Related Decisions
 
-- ADR-0001: AI Companion System Architecture
+- ADR-0001: GLADyS Architecture
 - ADR-0003: Plugin Manifest Specification (permissions)
 - ADR-0004: Memory Schema Details (retention)
 - ADR-0005: gRPC Service Contracts (interceptors)
