@@ -1,10 +1,10 @@
-# AI Companion
+# Generalized Logical Adaptive Dynamic System (GLADyS)
 
 > ⚠️ **DRAFT STATUS**: This project is currently in the design phase. All documentation represents proposed architecture and is subject to change. No implementation code exists yet.
 
 ## Overview
 
-AI Companion is a local-first, brain-inspired AI assistant designed to observe, learn, and assist users in real-time contexts such as gaming, productivity, and smart home control.
+GLADyS is a local-first, brain-inspired AI assistant designed to observe, learn, and assist users in real-time contexts such as gaming, productivity, and smart home control.
 
 ### Key Characteristics
 
@@ -35,7 +35,7 @@ AI Companion is a local-first, brain-inspired AI assistant designed to observe, 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      AI COMPANION                               │
+│                      GLADyS                               │
 │                                                                 │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐                        │
 │  │ Visual  │  │  Audio  │  │  Game   │   SENSORS              │
