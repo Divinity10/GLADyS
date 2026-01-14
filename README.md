@@ -162,8 +162,7 @@ TBD
 
 ## Contact
 
-- **Owner**: Mike Mulcahy (Divinity10)
-- **Contributors**: Scott
+- **Owners**: Mike Mulcahy (Divinity10), Scott Mulcahy (scottcm)
 
 ---
 
