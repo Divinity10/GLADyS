@@ -31,6 +31,9 @@ obj/
 .env
 config/local.yaml
 
+# Personal working memory (per-user, not shared)
+memory.md
+
 # Logs
 *.log
 logs/
