@@ -13,16 +13,17 @@ An ADR is a document that captures an important architectural decision made alon
 
 ## ADR Index
 
-| ADR | Title | Status | Summary |
-|-----|-------|--------|---------|
-| [0001](ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, security module, and orchestration layer |
-| [0002](ADR-0002-Hardware-Requirements.md) | Hardware Requirements | Proposed | GPU requirements, dual-GPU upgrade path, cloud deployment options |
-| [0003](ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification | Proposed | YAML-based manifest structure for sensors and skills |
-| [0004](ADR-0004-Memory-Schema-Details.md) | Memory Schema Details | Proposed | Hierarchical L0-L4 memory, PostgreSQL + pgvector, EWMA user profiling |
-| [0005](ADR-0005-gRPC-Service-Contracts.md) | gRPC Service Contracts | Proposed | Proto definitions, transport strategies, timeout budgets, circuit breakers |
-| [0006](ADR-0006-Observability-and-Monitoring.md) | Observability and Monitoring | Proposed | Prometheus, Loki, Jaeger, Grafana stack with alerting |
-| [0007](ADR-0007-Adaptive-Algorithms.md) | Adaptive Algorithms | Proposed | EWMA adaptation, Bayesian confidence, feedback collection, user controls |
-| [0008](ADR-0008-Security-and-Privacy.md) | Security and Privacy | Proposed | Permission system, sandboxing, shared memory, age restrictions, data retention |
+| ADR | Title | Module | Status | Summary |
+|-----|-------|--------|--------|---------|
+| [0001](ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture | Core | Proposed | Brain-inspired architecture with sensors, salience gateway, memory system, executive, security module, and orchestration layer |
+| [0002](ADR-0002-Hardware-Requirements.md) | Hardware Requirements | Platform | Proposed | GPU requirements, dual-GPU upgrade path, cloud deployment options |
+| [0003](ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification | Plugins | Proposed | YAML-based manifest structure for sensors and skills |
+| [0004](ADR-0004-Memory-Schema-Details.md) | Memory Schema Details | Memory | Proposed | Hierarchical L0-L4 memory, PostgreSQL + pgvector, EWMA user profiling |
+| [0005](ADR-0005-gRPC-Service-Contracts.md) | gRPC Service Contracts | Contracts | Proposed | Proto definitions, transport strategies, timeout budgets, circuit breakers |
+| [0006](ADR-0006-Observability-and-Monitoring.md) | Observability and Monitoring | Observability | Proposed | Prometheus, Loki, Jaeger, Grafana stack with alerting |
+| [0007](ADR-0007-Adaptive-Algorithms.md) | Adaptive Algorithms | Intelligence | Proposed | EWMA adaptation, Bayesian confidence, feedback collection, user controls |
+| [0008](ADR-0008-Security-and-Privacy.md) | Security and Privacy | Security | Proposed | Permission system, sandboxing, shared memory, age restrictions, data retention |
+| [0009](ADR-0009-Memory-Contracts-and-Compaction-Policy.md) | Memory Contracts and Compaction Policy | Memory | Proposed | Episodic ingest/query contracts, configurable compaction tiers, provenance |
 
 ## ADR Status Lifecycle
 
@@ -69,6 +70,8 @@ For those new to the project, we recommend reading in this order:
 | **Date** | YYYY-MM-DD |
 | **Owner** | Name |
 | **Contributors** | Names |
+| **Module** | Core/Memory/Security/etc |
+| **Tags** | comma, separated, tags |
 | **Depends On** | ADR-XXXX, ADR-YYYY |
 
 ## 1. Context and Problem Statement

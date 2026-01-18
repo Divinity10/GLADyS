@@ -4,8 +4,10 @@
 |-------|-------|
 | **Status** | Proposed |
 | **Date** | 2025-01-27 |
-| **Owner** | Mike Mulcahy (Divinity10) |
-| **Contributors** | Scott |
+| **Owner** | Mike Mulcahy (Divinity10), Scott (scottcm) |
+| **Contributors** | |
+| **Module** | Memory |
+| **Tags** | memory, schema, storage, retrieval |
 | **Depends On** | ADR-0001 |
 
 ---

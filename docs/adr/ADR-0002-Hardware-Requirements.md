@@ -4,8 +4,10 @@
 |-------|-------|
 | **Status** | Proposed |
 | **Date** | 2025-01-27 |
-| **Owner** | Mike Mulcahy (Divinity10) |
-| **Contributors** | Scott |
+| **Owner** | Mike Mulcahy (Divinity10), Scott (scottcm) |
+| **Contributors** | |
+| **Module** | Platform |
+| **Tags** | hardware, gpu, performance |
 | **Depends On** | ADR-0001 |
 
 ---

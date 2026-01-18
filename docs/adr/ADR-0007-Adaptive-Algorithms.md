@@ -4,8 +4,10 @@
 |-------|-------|
 | **Status** | Proposed |
 | **Date** | 2025-01-27 |
-| **Owner** | Mike Mulcahy (Divinity10) |
-| **Contributors** | Scott |
+| **Owner** | Mike Mulcahy (Divinity10), Scott (scottcm) |
+| **Contributors** | |
+| **Module** | Intelligence |
+| **Tags** | adaptation, ewma, feedback, personalization |
 | **Depends On** | ADR-0001, ADR-0004, ADR-0006 |
 
 ---

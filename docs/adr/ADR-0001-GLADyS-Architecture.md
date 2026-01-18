@@ -4,8 +4,10 @@
 |-------|-------|
 | **Status** | Accepted |
 | **Date** | 2025-01-27 |
-| **Owner** | Mike Mulcahy (Divinity10) |
-| **Contributors** | Scott |
+| **Owner** | Mike Mulcahy (Divinity10), Scott (scottcm) |
+| **Contributors** | |
+| **Module** | Core |
+| **Tags** | architecture, patterns, components |
 
 ---
 
