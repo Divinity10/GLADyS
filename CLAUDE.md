@@ -56,6 +56,8 @@ feat(orchestrator): implement sensor registration
 fix(memory): correct embedding dimension mismatch
 ```
 
+**Important**: Do NOT include `Co-Authored-By: Claude` or any AI attribution in commit messages. Commits represent the project owners' decisions, regardless of who drafted the text.
+
 ### ADRs
 
 - Location: `docs/adr/`
@@ -117,3 +119,6 @@ Think of memory.md as a real-time scratchpad, not a summary document.
 | 0007 | Adaptation | EWMA, Bayesian confidence, user controls |
 | 0008 | Security | Permissions, sandboxing, age restrictions |
 | 0009 | Memory Contracts | Episodic ingest, compaction policy, provenance |
+| 0010 | Learning (Draft) | Learning pipeline, Bayesian inference, decay strategies |
+| 0011 | Actuators (Draft) | Physical device control, safety, rate limiting |
+| 0012 | Audit (Draft) | Append-only audit trail, tamper resistance |

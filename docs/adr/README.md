@@ -24,6 +24,9 @@ An ADR is a document that captures an important architectural decision made alon
 | [0007](ADR-0007-Adaptive-Algorithms.md) | Adaptive Algorithms | Intelligence | Proposed | EWMA adaptation, Bayesian confidence, feedback collection, user controls |
 | [0008](ADR-0008-Security-and-Privacy.md) | Security and Privacy | Security | Proposed | Permission system, sandboxing, shared memory, age restrictions, data retention |
 | [0009](ADR-0009-Memory-Contracts-and-Compaction-Policy.md) | Memory Contracts and Compaction Policy | Memory | Proposed | Episodic ingest/query contracts, configurable compaction tiers, provenance |
+| [0010](ADR-0010-Learning-and-Inference.md) | Learning and Inference | Intelligence | Draft | Learning pipeline, Bayesian inference, decay strategies, concept drift |
+| [0011](ADR-0011-Actuator-Subsystem.md) | Actuator Subsystem | Actuators | Draft | Physical device control, command validation, safety, rate limiting |
+| [0012](ADR-0012-Audit-Logging.md) | Audit Logging | Security | Draft | Append-only audit trail, tamper resistance, retention policy |
 
 ## ADR Status Lifecycle
 
