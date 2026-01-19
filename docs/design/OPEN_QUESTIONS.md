@@ -648,6 +648,116 @@ These concrete scenarios help validate design decisions. Each should work cleanl
 
 ---
 
+## 14. Architectural Gaps (Identified 2026-01-18)
+
+**Status**: Cataloged, needs triage
+**Priority**: Varies
+
+Gap analysis performed after ADR-0010/0011/0012 completion. These represent missing or underspecified components.
+
+### High Priority (Core Architecture)
+
+#### 14.1 Salience Subsystem
+**Gap**: The central routing mechanism is referenced in ADR-0001 but never specified.
+
+**Questions**:
+- How does something become salient?
+- What's the attention budget? Can it be exhausted?
+- How are competing stimuli prioritized?
+- What's the interface between salience and Executive?
+
+**Recommendation**: ADR-0013 (this is load-bearing infrastructure)
+
+#### 14.2 Executive Decision Loop
+**Gap**: ADR-0001 shows Executive as a box, ADR-0010 provides System 1/2, but the actual decision algorithm isn't specified.
+
+**Questions**:
+- What's the core decision cycle?
+- When to speak vs stay silent?
+- When to act vs suggest vs ask?
+- How does it integrate System 1 heuristics with System 2 (LLM)?
+
+**Recommendation**: Extend ADR-0001 or new ADR
+
+### Medium Priority (User Experience)
+
+#### 14.3 Output Routing / User Presence
+**Gap**: Executive decides WHAT to say; WHERE to deliver it is unspecified.
+
+**Questions**:
+- How is user presence detected?
+- Device capability awareness?
+- Escalation policy (tap shoulder → text → call)?
+- Multi-user privacy on shared speakers?
+
+**Recommendation**: ADR-0014 or detailed design doc
+
+**Reference**: memory.md Section 13 (Output Routing and User Presence)
+
+#### 14.4 Personality / Persona
+**Gap**: How GLADyS "feels" to interact with is touched on in ADR-0001 but not specified.
+
+**Questions**:
+- Verbosity preferences (terse vs detailed)?
+- Proactivity style (helpful butler vs invisible assistant)?
+- Humor, formality, confidence expression?
+- How does it handle uncertainty?
+- Per-user customization?
+
+**Recommendation**: `docs/design/PERSONALITY.md` (design doc, not ADR - this is UX, not architecture)
+
+#### 14.5 Multi-User / Household
+**Gap**: Mentioned as open question in ADR-0010 but it's architectural.
+
+**Questions**:
+- Whose preferences win when users conflict?
+- Per-user profiles vs household consensus?
+- Privacy between household members?
+- Voice identification for personalization?
+
+**Recommendation**: Design doc first, ADR when decisions solidify
+
+### Lower Priority (Operational)
+
+#### 14.6 Error Handling / Graceful Degradation
+**Gap**: Scattered mentions but no coherent strategy.
+
+**Questions**:
+- What happens when subsystems fail?
+- User communication about failures?
+- Self-healing behaviors?
+- Fallback chains?
+
+**Recommendation**: Design doc
+
+#### 14.7 Upgrade / Migration
+**Gap**: Not addressed.
+
+**Questions**:
+- Schema migration for memory/audit?
+- Plugin version compatibility?
+- Rolling upgrades?
+
+**Recommendation**: Defer until closer to v1.0
+
+#### 14.8 Testing Strategy
+**Gap**: Not addressed.
+
+**Questions**:
+- How do you regression test a learning system?
+- Simulation environments?
+- Preventing learned behavior drift?
+
+**Recommendation**: Defer until implementation phase
+
+### Documentation Gaps
+
+- **GLOSSARY.md**: Created 2026-01-18 - defines terms from neuroscience, ML, and project-specific concepts
+- **PERSONALITY.md**: Needed - detailed persona design
+- **EXECUTIVE_LOOP.md**: Needed if not covered by ADR
+
+---
+
 ## How to Use This File
 
 1. Add new questions when architectural gaps are identified
