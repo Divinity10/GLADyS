@@ -17,7 +17,7 @@ The Rust-based core that manages plugin lifecycle, message routing, and system c
 See: ADR-0001
 
 ### Salience
-*From neuroscience: the salience network filters what deserves conscious attention.*
+*Salience network identified by Seeley et al. (2007) in "Dissociable Intrinsic Connectivity Networks for Salience Processing and Executive Control." Centered on anterior insula and anterior cingulate cortex.*
 
 The subsystem that determines what's "important" or "attention-worthy" from the stream of sensor data and events. Not everything that happens deserves Executive attention. Salience filters, prioritizes, and routes.
 
@@ -30,7 +30,7 @@ The subsystem that determines what's "important" or "attention-worthy" from the 
 **Status:** Referenced in ADR-0001 but not fully specified. Identified as architectural gap.
 
 ### System 1 / System 2
-*From Kahneman's dual-process theory of cognition.*
+*Daniel Kahneman, "Thinking, Fast and Slow" (2011). Built on decades of work with Amos Tversky on cognitive biases. Terminology from Stanovich & West (2000).*
 
 | System | Speed | Characteristics | GLADyS Implementation |
 |--------|-------|-----------------|----------------------|
@@ -104,7 +104,7 @@ See: ADR-0011
 ## Memory
 
 ### Episodic Memory
-*From cognitive psychology: memory of specific events and experiences.*
+*Endel Tulving (1972). Distinguished from semantic memory in "Episodic and Semantic Memory" in Organization of Memory.*
 
 Raw event storage - what happened, when, in what context. The "what did I experience?" layer.
 
@@ -117,7 +117,7 @@ Raw event storage - what happened, when, in what context. The "what did I experi
 See: ADR-0004, ADR-0009
 
 ### Semantic Memory
-*From cognitive psychology: memory of facts and concepts.*
+*Endel Tulving (1972). General knowledge independent of personal experience, contrasted with episodic memory.*
 
 Derived knowledge - patterns, beliefs, learned associations. The "what do I know?" layer.
 
@@ -150,11 +150,15 @@ See: ADR-0010
 ## Learning
 
 ### EWMA (Exponentially Weighted Moving Average)
+*Standard statistical technique used in finance, signal processing, and ML.*
+
 A technique for tracking values that gives more weight to recent observations. Used for preference tracking.
 
 See: ADR-0007
 
 ### Bayesian Belief Model
+*Foundational probability theory concept. Modern conjugate prior framework covered in standard ML and Bayesian statistics coursework.*
+
 Statistical models that track uncertainty and update with evidence. GLADyS uses conjugate priors for efficiency.
 
 **MVP Models:**
@@ -172,7 +176,9 @@ The "effective sample size" of a Bayesian belief. Strong priors resist change fr
 See: ADR-0010
 
 ### Punishment Detection
-Behavioral signals that indicate negative feedback, used to adjust heuristic confidence.
+*From behavioral economics: detecting negative feedback signals to improve system behavior.*
+
+Behavioral signals that indicate user dissatisfaction, used to adjust heuristic confidence.
 
 | Signal | Weight |
 |--------|--------|
@@ -244,11 +250,11 @@ See: ADR-0012
 ## Design Philosophy
 
 ### Revealed Preference
-*From economics: infer preferences from behavior rather than stated claims.*
+*Economics concept (Samuelson, 1938) extended by behavioral economics (Thaler, Kahneman).*
 
-GLADyS learns from what users do, not just what they say. Actions reveal truth.
+GLADyS learns from user behavior patterns in addition to explicit preferences.
 
-See: ADR-0010, memory.md (Scott's Philosophy)
+See: ADR-0010
 
 ### Observability vs Explainability
 - **Observability:** User can see current beliefs and system state (required)
@@ -265,5 +271,29 @@ See: ADR-0010
 When adding new terms:
 1. Use the appropriate category or create a new one
 2. Note the source discipline if borrowed (neuroscience, economics, etc.)
-3. Reference relevant ADRs
-4. Include practical examples where helpful
+3. **Include attribution** for academic/theoretical concepts
+4. Reference relevant ADRs
+5. Include practical examples where helpful
+
+---
+
+## References
+
+Foundational sources for concepts used in GLADyS. These ideas have diffused widely through popular books, coursework, and articles.
+
+**Cognitive Psychology / Neuroscience:**
+- Kahneman, D. (2011). *Thinking, Fast and Slow*. Farrar, Straus and Giroux.
+- Pinker, S. (1997). *How the Mind Works*. Modular cognitive architecture, computational theory of mind.
+- Pinker, S. (1994). *The Language Instinct*. Language processing fundamentals.
+- Tulving, E. (1972). Episodic and semantic memory. In *Organization of Memory*.
+- Seeley, W. W., et al. (2007). Dissociable intrinsic connectivity networks for salience processing and executive control. *Journal of Neuroscience*, 27(9).
+
+**Behavioral Economics / Decision Theory:**
+- Thaler, R. & Sunstein, C. (2008). *Nudge*.
+- Thaler, R. (2015). *Misbehaving: The Making of Behavioral Economics*. (Nobel Prize 2017)
+- Kahneman, D. & Tversky, A. Prospect theory and cognitive biases (1970s-80s). (Nobel Prize 2002)
+- Samuelson, P. A. (1938). Revealed preference.
+
+**Statistics / Machine Learning:**
+- Gelman, A., et al. (2013). *Bayesian Data Analysis* (3rd ed.). CRC Press.
+- Standard ML coursework covering Bayesian methods, conjugate priors, EWMA.
