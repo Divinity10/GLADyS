@@ -30,6 +30,7 @@ obj/
 # Local config
 .env
 config/local.yaml
+.claude/
 
 # Personal working memory (per-user, not shared)
 memory.md
