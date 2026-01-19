@@ -758,6 +758,166 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 
 ---
 
+## 15. ADR-0004 Memory Schema Gaps (Identified 2026-01-19)
+
+**Status**: Partially resolved (2026-01-19)
+**Priority**: High (foundational)
+
+Deep review of ADR-0004 against ADR-0007, ADR-0009, ADR-0010, ADR-0012 reveals significant gaps. ADR-0004 was written before the learning and compaction ADRs and needs reconciliation.
+
+### 15.1 Schema Gaps (Missing Tables/Fields)
+
+#### ✅ Bayesian Pattern Storage (Resolved)
+**Gap**: ADR-0010 Section 3.3 specifies Bayesian model storage (`model_type`, `params`, `context_tags`, staleness tracking). ADR-0004 has no schema for this.
+
+**Resolution**: Added `learned_patterns` table (ADR-0004 Section 5.5)
+
+#### ✅ Heuristic Store (Resolved)
+**Gap**: ADR-0010 Section 3.2 defines a Heuristic Store for System 1 fast rules. No table exists.
+
+**Resolution**: Added `heuristics` table (ADR-0004 Section 5.6)
+
+#### ✅ Feedback Events (Resolved)
+**Gap**: ADR-0007 Section 4.3 defines `feedback_events` table. Not in ADR-0004.
+
+**Resolution**: Added `feedback_events` table (ADR-0004 Section 5.7)
+
+#### ✅ Episodes Table (Resolved)
+**Gap**: No first-class episode entity - only `episode_id` reference on events.
+
+**Resolution**: Added `episodes` table (Section 5.8) and `episode_events` junction table (Section 5.9)
+
+#### ✅ Staleness Tracking (Resolved)
+**Gap**: No staleness tracking on semantic_facts for drift detection.
+
+**Resolution**: Added `observation_count`, `last_observed`, `expected_period`, `variance_recent` to `semantic_facts` (Section 5.2)
+
+#### User Profile Schema Drift
+**Gap**: ADR-0004's `user_profile` table has simple EWMA fields (`short_term`, `long_term`, `stability`). ADR-0007's `AdaptiveParameter` model adds:
+- `bayesian_alpha`, `bayesian_beta` (Bayesian confidence)
+- `bounds_min`, `bounds_max` (safety bounds)
+- `frozen` (learning freeze)
+
+**Need**: Reconcile schemas.
+
+### 15.2 Cross-ADR Consistency Issues
+
+#### ADR-0004 vs ADR-0009 (Compaction)
+| Aspect | ADR-0004 | ADR-0009 | Action |
+|--------|----------|----------|--------|
+| Compaction policy | Nightly consolidation | Configurable tiers | ADR-0004 should defer to ADR-0009 |
+| Summary storage | `summarized_into UUID` | Richer schema with `topic`, `salience_aggregate` | Add `memory_summaries` table |
+| Provenance | `source_episodes UUID[]` | Hash-based minimal metadata | May need schema for hash provenance |
+
+#### ADR-0004 vs ADR-0010 (Learning)
+| Aspect | ADR-0004 | ADR-0010 | Action |
+|--------|----------|----------|--------|
+| Fact derivation | LLM-based `FactExtractor` | Pattern Detector subsystem | ADR-0010 implies structured pipeline |
+| Confidence decay | Not mentioned | Staleness detection | ✅ Added staleness fields to semantic_facts |
+| Context-aware beliefs | Not mentioned | Context-specific beliefs | Add context_tags |
+| Learning profiles | Not mentioned | Per-domain learning rates | Extend user_profile |
+
+#### ADR-0004 vs ADR-0012 (Audit)
+**Critical distinction** (from design discussions): Audit is ground truth; memory can contradict.
+
+**Gap**: ADR-0004 doesn't acknowledge this. Need guidance on when Executive queries Memory vs Audit:
+- Memory: context, patterns, beliefs (mutable, may be wrong)
+- Audit: "what actually happened" (immutable, always accurate)
+
+### 15.3 Performance Concerns
+
+#### HNSW Index on High-Volume Table
+```sql
+CREATE INDEX idx_episodic_embedding ON episodic_events
+    USING hnsw (embedding vector_cosine_ops);
+```
+HNSW indices are expensive to maintain on append-heavy tables. Consider:
+- Partial index (only non-archived)
+- Index rebuild during sleep mode
+- IVFFlat alternative (faster writes)
+
+#### GIN Index on JSONB Salience
+Slow to update on high-frequency writes. Consider extracting frequently-queried dimensions to dedicated columns.
+
+#### Partition Boundary Management
+ADR-0004 shows `FOR VALUES FROM (now() - interval '1 day')` but `now()` is evaluated at table creation. Need scheduled job for partition management (not specified).
+
+### 15.4 Extensibility Concerns
+
+#### Embedding Model Lock-in
+`embedding vector(384)` hardcodes dimension to all-MiniLM-L6-v2. Switching models requires schema migration.
+
+**Options**:
+1. Make dimension configurable
+2. Document migration strategy
+3. Store embedding model ID alongside vector
+
+#### Event Schema Versioning
+`structured JSONB` is flexible but no:
+- Schema registry for event types
+- Validation strategy
+- Versioning for format changes
+
+#### Multi-User Support
+ADR-0004 assumes single user. Multi-user households need:
+- `user_id` on `user_profile`
+- Privacy between household members
+- Conflict resolution for entity interpretations
+
+### 15.5 Open Questions
+
+**High Priority**:
+1. ✅ Where do Bayesian model parameters from ADR-0010 live? → `learned_patterns` table (Section 5.5)
+2. How does Executive know when to query Memory vs Audit?
+3. What's the embedding migration strategy when models change?
+4. ✅ Where does `expected_period` for staleness come from? → Configured per-pattern, stored in learned_patterns/semantic_facts
+5. How are context tags applied? Manual or automatic inference?
+
+**Medium Priority**:
+6. ✅ Under what load does L2 warm buffer become necessary? → Skip for MVP; add when flush latency >100ms observed
+7. Who creates new time partitions? Scheduled job? Orchestrator?
+8. When entities merge, who updates `entity_ids` arrays in `episodic_events`?
+9. How does Memory Controller know when "sleep mode" is active?
+10. Do L4 (cold) queries auto-warm results to L1?
+
+**Lower Priority**:
+11. What's the memory footprint of caching 1000 events with embeddings?
+12. How efficient are cross-partition queries?
+13. What's the write amplification from GIN indexes?
+
+### 15.6 Recommended Changes
+
+**Immediate (Pre-Implementation)**:
+1. ✅ Add Bayesian storage schema for ADR-0010 learned patterns → `learned_patterns` (Section 5.5)
+2. ✅ Add `feedback_events` table from ADR-0007 → Section 5.7
+3. ✅ Add staleness tracking to `semantic_facts` → Section 5.2
+4. Document Memory vs Audit query routing
+5. Document partition management strategy
+
+**Short-Term**:
+6. Reconcile `user_profile` schema with ADR-0007's `AdaptiveParameter`
+7. ✅ Add `heuristics` table for System 1 rules → Section 5.6
+8. Define embedding migration strategy
+9. Add `context_tags` to `semantic_facts`
+
+**Medium-Term**:
+10. ✅ Evaluate L2 necessity → Skip for MVP (decision documented in memory.md Section 18)
+11. Design schema versioning for event types
+12. Plan for multi-user support
+
+### 15.7 Inspiration Sources
+
+| Source | Relevance |
+|--------|-----------|
+| CPU Cache Hierarchy | Direct inspiration for L0-L4 design |
+| LSM Trees (RocksDB) | Write-optimized storage, tiered compaction |
+| Hippocampal Indexing Theory | Neuroscience basis for semantic/episodic split |
+| Complementary Learning Systems | Fast episodic + slow semantic validates dual-store |
+| Facebook FAISS | ANN search tradeoffs (IVF vs HNSW) |
+| Pinecone Architecture | Metadata filtering + vector search |
+
+---
+
 ## How to Use This File
 
 1. Add new questions when architectural gaps are identified

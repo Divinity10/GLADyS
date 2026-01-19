@@ -228,11 +228,15 @@ CREATE TABLE episodic_events (
     
     -- Entity references (extracted by Entity Extractor)
     entity_ids      UUID[] DEFAULT '{}',
-    
+
+    -- Episode association (see Section 5.8)
+    primary_episode_id UUID,                    -- Fast path: main episode this event belongs to
+    boundary_hint   TEXT,                       -- 'session_start', 'session_end', 'context_switch', NULL
+
     -- Lifecycle
     archived        BOOLEAN DEFAULT false,
     summarized_into UUID REFERENCES semantic_facts(id),
-    
+
     -- Metadata
     created_at      TIMESTAMPTZ DEFAULT now(),
     access_count    INTEGER DEFAULT 0
@@ -264,6 +268,10 @@ CREATE INDEX idx_episodic_salience ON episodic_events USING GIN (salience);
 
 -- GIN index for entity references
 CREATE INDEX idx_episodic_entities ON episodic_events USING GIN (entity_ids);
+
+-- Episode association index
+CREATE INDEX idx_episodic_episode ON episodic_events (primary_episode_id)
+    WHERE primary_episode_id IS NOT NULL;
 ```
 
 ### 5.2 Semantic Facts Table
@@ -287,7 +295,13 @@ CREATE TABLE semantic_facts (
     -- Confidence and provenance
     confidence      FLOAT NOT NULL DEFAULT 0.5 CHECK (confidence BETWEEN 0 AND 1),
     source_episodes UUID[] DEFAULT '{}',        -- Episodes that support this fact
-    
+
+    -- Staleness tracking (aligns with learned_patterns)
+    observation_count   INTEGER DEFAULT 1,
+    last_observed       TIMESTAMPTZ DEFAULT now(),
+    expected_period     INTERVAL,               -- NULL = no expected cadence
+    variance_recent     FLOAT,                  -- Drift detection
+
     -- Lifecycle
     created_at      TIMESTAMPTZ DEFAULT now(),
     updated_at      TIMESTAMPTZ DEFAULT now(),
@@ -305,9 +319,11 @@ CREATE INDEX idx_facts_predicate ON semantic_facts (predicate)
     WHERE superseded_by IS NULL;
 CREATE INDEX idx_facts_object ON semantic_facts (object_entity) 
     WHERE superseded_by IS NULL;
-CREATE INDEX idx_facts_embedding ON semantic_facts 
+CREATE INDEX idx_facts_embedding ON semantic_facts
     USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX idx_facts_confidence ON semantic_facts (confidence DESC) 
+CREATE INDEX idx_facts_confidence ON semantic_facts (confidence DESC)
+    WHERE superseded_by IS NULL;
+CREATE INDEX idx_facts_staleness ON semantic_facts (last_observed)
     WHERE superseded_by IS NULL;
 ```
 
@@ -488,6 +504,282 @@ CREATE INDEX idx_entities_fts ON entities
 | xX_Slayer_Xx | person | ["Slayer", "that guy"] | {"threat_level": 0.8, "relationship": "hostile"} |
 | Diamond Mine | place | ["the mine", "home base mine"] | {"coordinates": [100, 12, -50], "safety": 0.9} |
 | Enchanted Diamond Sword | item | ["my sword", "Slicer"] | {"enchantments": ["Sharpness V"], "durability": 0.6} |
+
+### 5.5 Learned Patterns Table
+
+Bayesian statistical patterns learned from observations. Supports ADR-0010 learning subsystem.
+
+```sql
+CREATE TABLE learned_patterns (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Pattern identification
+    description     TEXT NOT NULL,              -- Human-readable description
+    pattern_key     TEXT NOT NULL UNIQUE,       -- Programmatic identifier
+
+    -- Bayesian model configuration
+    model_type      VARCHAR(32) NOT NULL,       -- 'beta_binomial', 'normal_gamma', 'gamma_poisson'
+    params          JSONB NOT NULL,             -- Model-specific parameters
+    /*
+        Beta-Binomial: {"alpha": 2.0, "beta": 3.0}
+        Normal-Gamma: {"mu": 72.0, "kappa": 5.0, "alpha": 2.0, "beta": 1.0}
+        Gamma-Poisson: {"alpha": 3.0, "beta": 1.0}
+    */
+
+    -- Context scoping (patterns can be context-specific)
+    context_tags    JSONB DEFAULT '{}',         -- {"domain": "gaming", "time_of_day": "evening"}
+
+    -- Observation tracking
+    observation_count INTEGER DEFAULT 0,
+    last_observed   TIMESTAMPTZ,
+    first_observed  TIMESTAMPTZ DEFAULT now(),
+
+    -- Staleness detection (ADR-0010 Section 3.3)
+    expected_period INTERVAL,                   -- How often pattern should be observed
+    variance_recent FLOAT,                      -- Recent variance (drift detection)
+
+    -- Lifecycle
+    frozen          BOOLEAN DEFAULT FALSE,      -- User froze this pattern
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_patterns_key ON learned_patterns (pattern_key);
+CREATE INDEX idx_patterns_model_type ON learned_patterns (model_type);
+CREATE INDEX idx_patterns_context ON learned_patterns USING GIN (context_tags);
+CREATE INDEX idx_patterns_staleness ON learned_patterns (last_observed)
+    WHERE frozen = FALSE;
+```
+
+**Example Patterns:**
+
+| description | model_type | params | context_tags |
+|-------------|------------|--------|--------------|
+| User accepts proactive suggestions | beta_binomial | {"alpha": 15, "beta": 5} | {"domain": "home_automation"} |
+| Preferred thermostat temperature | normal_gamma | {"mu": 72, "kappa": 20, "alpha": 10, "beta": 2} | {} |
+| Weekly gaming sessions | gamma_poisson | {"alpha": 3, "beta": 1} | {"activity": "gaming"} |
+
+### 5.6 Heuristics Table
+
+System 1 fast rules derived from patterns. Enables quick decisions without LLM deliberation.
+
+```sql
+CREATE TABLE heuristics (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Rule definition
+    name            TEXT NOT NULL,              -- Human-readable name
+    condition       JSONB NOT NULL,             -- When to fire: {"event_type": "doorbell", "time": "evening"}
+    action          JSONB NOT NULL,             -- What to do: {"type": "notify", "priority": "high"}
+
+    -- Confidence and provenance
+    confidence      FLOAT NOT NULL DEFAULT 0.5 CHECK (confidence BETWEEN 0 AND 1),
+    source_pattern_ids UUID[] DEFAULT '{}',     -- Patterns that support this heuristic
+
+    -- Usage tracking
+    last_fired      TIMESTAMPTZ,
+    fire_count      INTEGER DEFAULT 0,
+    success_count   INTEGER DEFAULT 0,          -- Times user didn't override
+
+    -- Lifecycle
+    frozen          BOOLEAN DEFAULT FALSE,      -- User froze this heuristic
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_heuristics_condition ON heuristics USING GIN (condition);
+CREATE INDEX idx_heuristics_confidence ON heuristics (confidence DESC)
+    WHERE frozen = FALSE;
+CREATE INDEX idx_heuristics_patterns ON heuristics USING GIN (source_pattern_ids);
+```
+
+**Example Heuristics:**
+
+| name | condition | action | confidence |
+|------|-----------|--------|------------|
+| Evening doorbell → high priority | {"event": "doorbell", "time_range": "18:00-22:00"} | {"notify": true, "priority": "high", "device": "phone"} | 0.85 |
+| Low health in PvP → warn | {"game": "minecraft", "health_pct": "<0.3", "pvp_enabled": true} | {"speak": "Health critical!", "urgency": "immediate"} | 0.92 |
+| Thermostat oscillation → suppress | {"actuator": "thermostat", "changes_per_hour": ">3"} | {"suppress_for": "15min", "notify_once": true} | 0.78 |
+
+### 5.7 Feedback Events Table
+
+Records explicit and implicit user feedback for learning. Defined in ADR-0007.
+
+```sql
+CREATE TABLE feedback_events (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- What was the feedback about
+    target_type     TEXT NOT NULL,              -- 'action', 'suggestion', 'heuristic', 'pattern'
+    target_id       UUID,                       -- ID of the target (if applicable)
+    target_context  JSONB DEFAULT '{}',         -- Context at time of feedback
+
+    -- Feedback signal
+    feedback_type   TEXT NOT NULL,              -- 'explicit_positive', 'explicit_negative',
+                                                -- 'implicit_accept', 'implicit_reject',
+                                                -- 'undo', 'ignore', 'correction'
+    feedback_value  FLOAT,                      -- -1.0 to 1.0 for graded feedback
+    feedback_text   TEXT,                       -- User's explicit comment if any
+
+    -- Signal strength (how much to weight this)
+    weight          FLOAT NOT NULL DEFAULT 1.0 CHECK (weight BETWEEN 0 AND 1),
+
+    -- Processing status
+    processed       BOOLEAN DEFAULT FALSE,      -- Has learning system processed this?
+    processed_at    TIMESTAMPTZ,
+
+    -- Metadata
+    source          TEXT,                       -- Where feedback came from
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_feedback_timestamp ON feedback_events (timestamp DESC);
+CREATE INDEX idx_feedback_target ON feedback_events (target_type, target_id);
+CREATE INDEX idx_feedback_unprocessed ON feedback_events (timestamp)
+    WHERE processed = FALSE;
+CREATE INDEX idx_feedback_type ON feedback_events (feedback_type);
+```
+
+**Example Feedback Events:**
+
+| target_type | feedback_type | feedback_value | weight |
+|-------------|---------------|----------------|--------|
+| suggestion | explicit_negative | -1.0 | 1.0 |
+| action | undo | -0.8 | 0.8 |
+| heuristic | ignore | -0.3 | 0.3 |
+| pattern | correction | 0.0 | 1.0 |
+
+### 5.8 Episodes Table
+
+First-class representation of episode boundaries. Episodes group related events for consolidation and learning.
+
+```sql
+CREATE TABLE episodes (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    -- Temporal bounds
+    start_time      TIMESTAMPTZ NOT NULL,
+    end_time        TIMESTAMPTZ,                -- NULL = active (still receiving events)
+
+    -- Context
+    domain          TEXT,                       -- 'gaming', 'home', 'work', etc.
+    context_tags    JSONB DEFAULT '{}',         -- Additional context metadata
+
+    -- Summary (populated during consolidation)
+    summary         TEXT,
+    summary_embedding vector(384),
+
+    -- Salience (aggregated from constituent events)
+    max_threat          FLOAT,
+    max_opportunity     FLOAT,
+    max_goal_relevance  FLOAT,
+    aggregate_salience  FLOAT,                  -- MAX(threat, opportunity, goal_relevance)
+    salience_detail     JSONB DEFAULT '{}',     -- All dimensions for inspection
+
+    -- Consolidation lifecycle
+    -- 0=active, 1=closed, 2=facts extracted, 3=patterns integrated, 4=archived
+    consolidation_level INTEGER NOT NULL DEFAULT 0
+        CHECK (consolidation_level BETWEEN 0 AND 4),
+
+    -- Stats
+    event_count     INTEGER DEFAULT 0,
+
+    -- Metadata
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes
+CREATE INDEX idx_episodes_time ON episodes (start_time DESC);
+CREATE INDEX idx_episodes_domain ON episodes (domain)
+    WHERE consolidation_level < 4;
+CREATE INDEX idx_episodes_consolidation ON episodes (consolidation_level)
+    WHERE consolidation_level < 4;
+
+-- Salience indexes (partial - exclude archived)
+CREATE INDEX idx_episodes_threat ON episodes (max_threat DESC)
+    WHERE consolidation_level < 4 AND max_threat IS NOT NULL;
+CREATE INDEX idx_episodes_opportunity ON episodes (max_opportunity DESC)
+    WHERE consolidation_level < 4 AND max_opportunity IS NOT NULL;
+CREATE INDEX idx_episodes_aggregate ON episodes (aggregate_salience DESC)
+    WHERE consolidation_level < 4 AND aggregate_salience IS NOT NULL;
+
+-- Summary embedding for semantic search
+CREATE INDEX idx_episodes_embedding ON episodes
+    USING hnsw (summary_embedding vector_cosine_ops)
+    WHERE summary_embedding IS NOT NULL;
+```
+
+**Consolidation Levels:**
+
+| Level | Name | Description |
+|-------|------|-------------|
+| 0 | Active | Currently receiving events, end_time NULL |
+| 1 | Closed | No new events, pending processing |
+| 2 | Facts Extracted | Semantic facts derived from episode |
+| 3 | Patterns Integrated | Similar episodes merged, learned_patterns updated |
+| 4 | Archived | Compressed, minimal detail retained |
+
+**Example Episodes:**
+
+| domain | start_time | consolidation_level | max_threat | event_count |
+|--------|------------|---------------------|------------|-------------|
+| gaming | 2026-01-19 18:00 | 0 | 0.8 | 142 |
+| home | 2026-01-19 17:30 | 2 | 0.1 | 23 |
+| gaming | 2026-01-18 20:00 | 4 | 0.6 | 287 |
+
+### 5.9 Episode Events Junction Table
+
+Many-to-many relationship between events and episodes. Enables secondary/contextual associations beyond primary episode.
+
+```sql
+CREATE TABLE episode_events (
+    event_id        UUID NOT NULL REFERENCES episodic_events(id),
+    episode_id      UUID NOT NULL REFERENCES episodes(id),
+
+    -- Association metadata
+    association_type TEXT NOT NULL DEFAULT 'primary',
+        -- 'primary': Main temporal episode
+        -- 'contextual': Semantically related but different temporal episode
+        -- 'pattern': Part of recurring pattern across episodes
+        -- 'retrospective': Added during consolidation analysis
+    strength        FLOAT DEFAULT 1.0 CHECK (strength BETWEEN 0 AND 1),
+
+    -- Metadata
+    created_at      TIMESTAMPTZ DEFAULT now(),
+
+    PRIMARY KEY (event_id, episode_id)
+);
+
+-- For "get all events in episode X" (sorted by time via join)
+CREATE INDEX idx_ee_episode ON episode_events (episode_id);
+
+-- For "get all episodes containing event X"
+CREATE INDEX idx_ee_event ON episode_events (event_id);
+
+-- For filtering by association type
+CREATE INDEX idx_ee_type ON episode_events (association_type, episode_id);
+```
+
+**Association Types:**
+
+| Type | Description | Example |
+|------|-------------|---------|
+| primary | Main temporal episode | Event occurred during this episode |
+| contextual | Semantically related | Doorbell event relevant to both "gaming" and "home security" |
+| pattern | Recurring pattern | Part of "morning routine" pattern across multiple days |
+| retrospective | Added during analysis | Consolidation found this event relevant |
+
+**Usage Notes:**
+
+- Most events have exactly one `primary` association (matches `primary_episode_id` on event)
+- Secondary associations are sparse (~10% of events)
+- Use `primary_episode_id` FK on episodic_events for fast path queries
+- Use junction table for graph queries ("all episodes related to this event")
 
 ---
 
