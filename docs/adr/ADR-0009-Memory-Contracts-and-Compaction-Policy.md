@@ -40,13 +40,15 @@ ADR-0005.
 ### 3.1 Episodic Event Envelope (Ingest Contract)
 
 Required fields (minimum viable):
-- `episode_id` (UUID)
 - `timestamp` (UTC)
 - `source` (sensor/app identifier)
 - `raw` (free text)
 - `salience` (object with salience dimensions)
 
 Optional fields:
+- `episode_id` (UUID) - sensors typically don't know episode context; assigned by
+  Memory subsystem during ingest based on active episode, or by Episode Boundary
+  Detector when context switches are detected. See ADR-0004 Section 5.8.
 - `structured` (domain-specific JSON)
 - `embedding` (vector)
 - `tokens` (pre-tokenized payload)

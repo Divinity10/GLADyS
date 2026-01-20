@@ -212,17 +212,18 @@ Content is generated through the **skill pipeline** (see Section 7).
 
 ### 6.1 Trait Matrix
 
-From ADR-0001 Section 9.2, personality traits:
+From ADR-0015 (Response Model), personality traits use bipolar ranges:
 
 | Trait | Range | Effect on Executive |
 |-------|-------|-------------------|
-| humor | 0-1 | Likelihood of quips, joke injection |
-| sarcasm | 0-1 | Tone modifier, affects word choice |
-| formality | 0-1 | Register (casual ↔ professional) |
-| proactive | 0-1 | Response threshold, check-in frequency |
-| enthusiasm | 0-1 | Response speed, exclamation usage |
-| helpfulness | 0-1 | Suggestion frequency, detail level |
-| verbosity | 0-1 | Response length, detail inclusion |
+| humor_frequency | 0-1 | Likelihood of quips, joke injection |
+| irony | -1 to +1 | Communication mode (earnest ↔ heavily ironic) |
+| formality | -1 to +1 | Register (casual ↔ formal) |
+| proactivity | -1 to +1 | Response threshold, check-in frequency |
+| warmth | -1 to +1 | Emotional tone (cold ↔ warm) |
+| verbosity | -1 to +1 | Response length (terse ↔ elaborate) |
+
+See ADR-0015 Section 6 for complete Response Model specification.
 
 ### 6.2 Trait Application Points
 
@@ -231,10 +232,11 @@ Traits affect multiple decision stages:
 ```
                           ┌─────────────────────────────┐
                           │        TRAIT MATRIX          │
+                          │        (ADR-0015)            │
                           │                              │
-                          │  humor: 0.8                  │
-                          │  sarcasm: 0.6                │
-                          │  proactive: 0.5              │
+                          │  humor_frequency: 0.6        │
+                          │  irony: 0.5                  │
+                          │  proactivity: -0.2           │
                           │  ...                         │
                           └──────────────┬──────────────┘
                                          │
@@ -245,32 +247,31 @@ Traits affect multiple decision stages:
    │  Relevance  │               │  Response   │               │   Content   │
    │  Threshold  │               │   Type      │               │   Style     │
    │             │               │             │               │             │
-   │ proactive   │               │ humor →     │               │ sarcasm →   │
-   │ helpfulness │               │   Quip      │               │   tone      │
-   │             │               │ helpfulness │               │ formality → │
+   │ proactivity │               │ humor_freq  │               │ irony →     │
+   │ warmth      │               │   → Quip    │               │   tone      │
+   │             │               │ warmth      │               │ formality → │
    │             │               │   → Suggest │               │   register  │
    └─────────────┘               └─────────────┘               └─────────────┘
 ```
 
 ### 6.3 Context-Adaptive Traits
 
-Per ADR-0001 Section 9.3, traits shift based on context:
+Per ADR-0015 Section 10, traits shift based on context:
 
 ```yaml
 context_modifiers:
   high_threat:
-    proactive: +0.3      # More likely to speak
-    sarcasm: -0.4        # Less sarcastic
+    proactivity: +0.3    # More likely to speak
+    irony: -0.3          # More direct/sincere
     verbosity: -0.3      # Shorter responses
-    helpfulness: +0.2    # More helpful
 
   opportunity:
-    enthusiasm: +0.2     # More excited
-    humor: +0.1          # Slightly more jokes
+    warmth: +0.2         # More engaged
+    humor_frequency: +0.1 # Slightly more jokes
 
   user_struggling:
-    helpfulness: +0.3    # More helpful
-    sarcasm: -0.5        # Much less sarcastic
+    warmth: +0.3         # More supportive
+    irony: -0.3          # Less ironic subtext
     formality: -0.2      # More casual/friendly
 ```
 

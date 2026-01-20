@@ -56,6 +56,11 @@ Implement a hierarchical memory architecture inspired by CPU cache design, with 
 | L3 | Database Hot | PostgreSQL (RAM) | ~100K-1M rows | ~50-100ms | Last 24h-7d, indexed, queryable |
 | L4 | Database Cold | PostgreSQL (disk) | Unbounded | ~200-500ms | Archived, compressed, rarely accessed |
 
+> **MVP Scope (2026-01-20)**: Start with **L0 + L3 only**. L1 (Hot Cache) and L2 (Warm Buffer)
+> are deferred as premature optimization. Add them only if PostgreSQL query latency
+> consistently exceeds 50ms under load. L4 (Cold) deferred until retention/compaction
+> is implemented. Full design preserved in [docs/archive/MEMORY_HIERARCHY_L1_L2_DESIGN.md](../design/../archive/MEMORY_HIERARCHY_L1_L2_DESIGN.md).
+
 ### 4.2 Level 0: Context Window
 
 Directly embedded in LLM prompt. Managed by Executive.
@@ -243,6 +248,17 @@ CREATE TABLE episodic_events (
 ) PARTITION BY RANGE (timestamp);
 
 -- Partitions
+-- NOTE: The boundaries below are illustrative. PostgreSQL evaluates now() ONCE
+-- at table creation time, not dynamically. Production deployments MUST use a
+-- scheduled Partition Manager (see Section 8.1) that:
+--   1. Creates new partitions with fixed date boundaries (e.g., per-day or per-week)
+--   2. Detaches and archives old partitions based on retention policy
+--   3. Runs on a schedule (daily or weekly) to maintain partition coverage
+--
+-- Example of proper fixed-boundary partitioning:
+--   CREATE TABLE episodic_events_2026_01 PARTITION OF episodic_events
+--       FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
+
 CREATE TABLE episodic_events_current PARTITION OF episodic_events
     FOR VALUES FROM (now() - interval '1 day') TO (MAXVALUE);
 

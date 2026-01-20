@@ -6,6 +6,31 @@ This file tracks active architectural discussions that haven't yet crystallized 
 
 ---
 
+## Section Status Summary
+
+**Quick navigation for architecture review phase.**
+
+| Section | Topic | Status | Notes |
+|---------|-------|--------|-------|
+| §1 | Actuator/Effector Gap | ⚠️ Stale | Predates ADR-0011 - needs review |
+| §2 | Continuous vs Discrete | 🟡 Open | Still underspecified |
+| §3 | Tiered Actuator Security | 🟡 Open | Partially in ADR-0011 |
+| §4 | Latency Budget Diversity | ✅ Resolved | See §11 |
+| §5 | Learning System | ✅ Resolved | See ADR-0010 |
+| §6 | Actuator System | ✅ Resolved | See ADR-0011 |
+| §7 | Audit System | ✅ Resolved | See ADR-0012 |
+| §9 | Plugin Taxonomy | 🟡 Open | DAG questions remain |
+| §10 | Integration Plugin Model | ✅ Resolved | HA first approach |
+| §11 | Latency Profiles | ✅ Resolved | Profiles defined |
+| §12 | Cross-Cutting Integration | 🟡 Open | Still unresolved |
+| §13 | Output Routing | 🔴 Gap | Not addressed in any ADR |
+| §14 | Architectural Gaps | 🟡 Partial | Some resolved, some open |
+| §15 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
+
+**Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
+
+---
+
 ## 1. Actuator/Effector Subsystem Gap
 
 **Status**: Identified, needs ADR
@@ -685,13 +710,14 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 #### ✅ 14.4 Personality / Persona (Resolved)
 **Gap**: How GLADyS "feels" to interact with is touched on in ADR-0001 but not specified.
 
-**Resolution**: ADR-0015 (Personality Subsystem) - comprehensive two-model architecture:
-- **Identity Model** (pack-locked): Big 5 traits (0-1 scale), facet overrides, relationship stance, emotional core, defense mechanisms, values
+**Resolution**: ADR-0015 (Personality Subsystem) - MVP uses Response Model only:
 - **Response Model** (user-adjustable ±0.2): Communication traits (bipolar -1/+1), humor (frequency + weighted styles), affect, interaction
-- **Derivation Rules**: Identity → Response mapping for psychological consistency
-- **Three-tier customization**: Identity (locked), Response (bounded), Safety (full user control)
+- **Two-tier customization**: Response (bounded by pack), Safety (full user control)
 - Irony vs sarcasm distinction: irony is a communication mode affecting all speech, not just humor
 - Pack-based monetization model with customization bounds
+- **Forward-compatible**: Manifest supports optional `identity` block for future implementation
+
+**Deferred**: Identity Model (Big 5 traits + derivation rules) preserved in [PERSONALITY_IDENTITY_MODEL.md](PERSONALITY_IDENTITY_MODEL.md) for future consideration if personality drift or pack quality issues emerge.
 
 #### 14.5 Multi-User / Household
 **Gap**: Mentioned as open question in ADR-0010 but it's architectural.
@@ -742,6 +768,8 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 - **GLOSSARY.md**: Created 2026-01-18 - defines terms from neuroscience, ML, and project-specific concepts
 - ~~**PERSONALITY.md**: Needed~~ → Covered by ADR-0015 (Personality Subsystem)
 - ~~**EXECUTIVE_LOOP.md**: Needed~~ → Covered by ADR-0014 (Executive Decision Loop)
+- **PERSONALITY_IDENTITY_MODEL.md**: Created 2026-01-19 - preserves deferred Big 5 Identity Model design for future implementation
+- **PERSONALITY_TEMPLATES.md**: Created 2026-01-19 - 11 test archetypes for personality validation
 
 ---
 
