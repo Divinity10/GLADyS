@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-18
+**Last updated**: 2026-01-19
 
 ---
 
@@ -657,27 +657,15 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 
 ### High Priority (Core Architecture)
 
-#### 14.1 Salience Subsystem
+#### ✅ 14.1 Salience Subsystem (Resolved)
 **Gap**: The central routing mechanism is referenced in ADR-0001 but never specified.
 
-**Questions**:
-- How does something become salient?
-- What's the attention budget? Can it be exhausted?
-- How are competing stimuli prioritized?
-- What's the interface between salience and Executive?
+**Resolution**: ADR-0013 (Salience Subsystem) - covers pipeline architecture, attention budget, context profiles, Executive feedback, embedding model strategy, habituation decay.
 
-**Recommendation**: ADR-0013 (this is load-bearing infrastructure)
-
-#### 14.2 Executive Decision Loop
+#### ✅ 14.2 Executive Decision Loop (Resolved)
 **Gap**: ADR-0001 shows Executive as a box, ADR-0010 provides System 1/2, but the actual decision algorithm isn't specified.
 
-**Questions**:
-- What's the core decision cycle?
-- When to speak vs stay silent?
-- When to act vs suggest vs ask?
-- How does it integrate System 1 heuristics with System 2 (LLM)?
-
-**Recommendation**: Extend ADR-0001 or new ADR
+**Resolution**: ADR-0014 (Executive Decision Loop) - covers decision framework, personality integration, proactive scheduling, skill orchestration, output routing.
 
 ### Medium Priority (User Experience)
 
@@ -694,17 +682,16 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 
 **Reference**: memory.md Section 13 (Output Routing and User Presence)
 
-#### 14.4 Personality / Persona
+#### ✅ 14.4 Personality / Persona (Resolved)
 **Gap**: How GLADyS "feels" to interact with is touched on in ADR-0001 but not specified.
 
-**Questions**:
-- Verbosity preferences (terse vs detailed)?
-- Proactivity style (helpful butler vs invisible assistant)?
-- Humor, formality, confidence expression?
-- How does it handle uncertainty?
-- Per-user customization?
-
-**Recommendation**: `docs/design/PERSONALITY.md` (design doc, not ADR - this is UX, not architecture)
+**Resolution**: ADR-0015 (Personality Subsystem) - comprehensive two-model architecture:
+- **Identity Model** (pack-locked): Big 5 traits (0-1 scale), facet overrides, relationship stance, emotional core, defense mechanisms, values
+- **Response Model** (user-adjustable ±0.2): Communication traits (bipolar -1/+1), humor (frequency + weighted styles), affect, interaction
+- **Derivation Rules**: Identity → Response mapping for psychological consistency
+- **Three-tier customization**: Identity (locked), Response (bounded), Safety (full user control)
+- Irony vs sarcasm distinction: irony is a communication mode affecting all speech, not just humor
+- Pack-based monetization model with customization bounds
 
 #### 14.5 Multi-User / Household
 **Gap**: Mentioned as open question in ADR-0010 but it's architectural.
@@ -753,8 +740,8 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 ### Documentation Gaps
 
 - **GLOSSARY.md**: Created 2026-01-18 - defines terms from neuroscience, ML, and project-specific concepts
-- **PERSONALITY.md**: Needed - detailed persona design
-- **EXECUTIVE_LOOP.md**: Needed if not covered by ADR
+- ~~**PERSONALITY.md**: Needed~~ → Covered by ADR-0015 (Personality Subsystem)
+- ~~**EXECUTIVE_LOOP.md**: Needed~~ → Covered by ADR-0014 (Executive Decision Loop)
 
 ---
 
