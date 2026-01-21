@@ -33,6 +33,17 @@ Don't see your skillset? Open an issue—we might have something.
 3. **Set up locally**: See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
 4. **Make small PRs**: Fix a bug, improve docs, add tests—build trust first
 
+## Project Tracking
+
+GitHub's UI hides these in different places, so here are direct links:
+
+| What | Where | Purpose |
+|------|-------|---------|
+| [Project Board](https://github.com/orgs/Divinity10/projects/4) | Orgs → Projects | Kanban view of all work (Backlog → In Progress → Done) |
+| [Milestones](https://github.com/Divinity10/GLADyS/milestones) | Repo → Issues → Milestones | Group issues by release/phase (M0, M1, M2...) |
+| [Issues](https://github.com/Divinity10/GLADyS/issues) | Repo → Issues | Individual tasks and bugs |
+| [Labels](https://github.com/Divinity10/GLADyS/labels) | Repo → Issues → Labels | Categorize by subsystem and priority |
+
 ## How We Work
 
 ### Decision Making
