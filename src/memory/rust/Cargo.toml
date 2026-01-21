@@ -1,0 +1,34 @@
+[package]
+name = "gladys-memory"
+version = "0.1.0"
+edition = "2021"
+description = "GLADyS Memory Subsystem - Fast Path"
+authors = ["Mike Mulcahy", "Scott Mulcahy"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# gRPC client
+tonic = "0.12"
+prost = "0.13"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[[bin]]
+name = "memory-fast-path"
+path = "src/main.rs"

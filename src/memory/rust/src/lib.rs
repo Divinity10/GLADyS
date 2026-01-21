@@ -1,0 +1,325 @@
+//! GLADyS Memory Subsystem - Fast Path
+//!
+//! This crate implements the Rust fast path for the Memory subsystem.
+//! It handles:
+//! - L0 in-memory cache for recent events
+//! - Novelty detection (embedding similarity)
+//! - Heuristic lookup (System 1 fast rules)
+//! - gRPC client to Python storage backend
+
+use std::collections::HashMap;
+use uuid::Uuid;
+
+pub mod client;
+pub mod proto {
+    tonic::include_proto!("gladys.memory");
+}
+
+pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
+
+/// L0 in-memory cache for recent events and heuristics
+pub struct MemoryCache {
+    /// Recent events indexed by ID
+    events_by_id: HashMap<Uuid, CachedEvent>,
+    /// Heuristics indexed by ID
+    heuristics: HashMap<Uuid, CachedHeuristic>,
+    /// Configuration
+    config: CacheConfig,
+}
+
+/// Cached event in L0
+pub struct CachedEvent {
+    pub id: Uuid,
+    pub timestamp_ms: i64,
+    pub source: String,
+    pub raw_text: String,
+    pub embedding: Vec<f32>,
+    pub access_count: u32,
+}
+
+/// Cached heuristic for fast lookup
+pub struct CachedHeuristic {
+    pub id: Uuid,
+    pub name: String,
+    pub condition: serde_json::Value,
+    pub action: serde_json::Value,
+    pub confidence: f32,
+}
+
+/// Cache configuration
+pub struct CacheConfig {
+    /// Maximum number of events in cache
+    pub max_events: usize,
+    /// Novelty threshold (cosine similarity below this = novel)
+    pub novelty_threshold: f32,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            max_events: 1000,
+            novelty_threshold: 0.7,
+        }
+    }
+}
+
+impl MemoryCache {
+    pub fn new(config: CacheConfig) -> Self {
+        Self {
+            events_by_id: HashMap::new(),
+            heuristics: HashMap::new(),
+            config,
+        }
+    }
+
+    /// Check if an event is novel (not similar to anything in cache)
+    pub fn is_novel(&self, embedding: &[f32]) -> bool {
+        for event in self.events_by_id.values() {
+            let similarity = cosine_similarity(embedding, &event.embedding);
+            if similarity >= self.config.novelty_threshold {
+                return false; // Found similar event, not novel
+            }
+        }
+        true // No similar events found
+    }
+
+    /// Find the most similar event in cache.
+    /// Returns (event_id, similarity) if found above threshold.
+    pub fn find_similar(&self, embedding: &[f32], threshold: f32) -> Option<(Uuid, f32)> {
+        let mut best: Option<(Uuid, f32)> = None;
+
+        for event in self.events_by_id.values() {
+            let similarity = cosine_similarity(embedding, &event.embedding);
+            if similarity >= threshold {
+                match &best {
+                    None => best = Some((event.id, similarity)),
+                    Some((_, best_sim)) if similarity > *best_sim => {
+                        best = Some((event.id, similarity));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        best
+    }
+
+    /// Add an event to the cache.
+    /// Evicts oldest events if cache is full.
+    pub fn add_event(&mut self, event: CachedEvent) {
+        // Evict if at capacity
+        while self.events_by_id.len() >= self.config.max_events {
+            // Find oldest event (lowest timestamp)
+            if let Some(oldest_id) = self
+                .events_by_id
+                .values()
+                .min_by_key(|e| e.timestamp_ms)
+                .map(|e| e.id)
+            {
+                self.events_by_id.remove(&oldest_id);
+            } else {
+                break;
+            }
+        }
+
+        self.events_by_id.insert(event.id, event);
+    }
+
+    /// Get an event from cache.
+    pub fn get_event(&self, id: &Uuid) -> Option<&CachedEvent> {
+        self.events_by_id.get(id)
+    }
+
+    /// Get a mutable event from cache (for updating access count).
+    pub fn get_event_mut(&mut self, id: &Uuid) -> Option<&mut CachedEvent> {
+        self.events_by_id.get_mut(id)
+    }
+
+    /// Add a heuristic to the cache.
+    pub fn add_heuristic(&mut self, heuristic: CachedHeuristic) {
+        self.heuristics.insert(heuristic.id, heuristic);
+    }
+
+    /// Get a heuristic from cache.
+    pub fn get_heuristic(&self, id: &Uuid) -> Option<&CachedHeuristic> {
+        self.heuristics.get(id)
+    }
+
+    /// Get all heuristics above a confidence threshold.
+    pub fn get_heuristics_by_confidence(&self, min_confidence: f32) -> Vec<&CachedHeuristic> {
+        self.heuristics
+            .values()
+            .filter(|h| h.confidence >= min_confidence)
+            .collect()
+    }
+
+    /// Find matching heuristics for a given context
+    pub fn find_heuristics(&self, _context: &serde_json::Value) -> Vec<&CachedHeuristic> {
+        // TODO: Implement condition matching
+        // For now, return empty - will be implemented when we define condition format
+        Vec::new()
+    }
+
+    /// Get cache statistics.
+    pub fn stats(&self) -> CacheStats {
+        CacheStats {
+            event_count: self.events_by_id.len(),
+            heuristic_count: self.heuristics.len(),
+            max_events: self.config.max_events,
+        }
+    }
+}
+
+/// Cache statistics for monitoring.
+#[derive(Debug, Clone)]
+pub struct CacheStats {
+    pub event_count: usize,
+    pub heuristic_count: usize,
+    pub max_events: usize,
+}
+
+/// Compute cosine similarity between two vectors
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    dot / (norm_a * norm_b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cosine_similarity_identical() {
+        let a = vec![1.0, 0.0, 0.0];
+        let b = vec![1.0, 0.0, 0.0];
+        assert!((cosine_similarity(&a, &b) - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_cosine_similarity_orthogonal() {
+        let a = vec![1.0, 0.0, 0.0];
+        let b = vec![0.0, 1.0, 0.0];
+        assert!((cosine_similarity(&a, &b)).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_novelty_empty_cache() {
+        let cache = MemoryCache::new(CacheConfig::default());
+        let embedding = vec![0.1; 384];
+        assert!(cache.is_novel(&embedding));
+    }
+
+    #[test]
+    fn test_novelty_with_similar_event() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            novelty_threshold: 0.9,
+        });
+
+        let embedding = vec![1.0; 384];
+        cache.add_event(CachedEvent {
+            id: Uuid::new_v4(),
+            timestamp_ms: 1000,
+            source: "test".to_string(),
+            raw_text: "test event".to_string(),
+            embedding: embedding.clone(),
+            access_count: 0,
+        });
+
+        // Identical embedding should not be novel
+        assert!(!cache.is_novel(&embedding));
+
+        // Very different embedding should be novel
+        let different = vec![-1.0; 384];
+        assert!(cache.is_novel(&different));
+    }
+
+    #[test]
+    fn test_cache_eviction() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 3,
+            novelty_threshold: 0.9,
+        });
+
+        // Add 4 events to trigger eviction
+        for i in 0..4 {
+            cache.add_event(CachedEvent {
+                id: Uuid::new_v4(),
+                timestamp_ms: i * 1000,
+                source: "test".to_string(),
+                raw_text: format!("event {}", i),
+                embedding: vec![i as f32; 384],
+                access_count: 0,
+            });
+        }
+
+        // Should only have 3 events (oldest evicted)
+        assert_eq!(cache.stats().event_count, 3);
+    }
+
+    #[test]
+    fn test_find_similar() {
+        let mut cache = MemoryCache::new(CacheConfig::default());
+
+        let event_id = Uuid::new_v4();
+        let embedding = vec![1.0; 384];
+        cache.add_event(CachedEvent {
+            id: event_id,
+            timestamp_ms: 1000,
+            source: "test".to_string(),
+            raw_text: "test event".to_string(),
+            embedding: embedding.clone(),
+            access_count: 0,
+        });
+
+        // Should find the event with high similarity
+        let result = cache.find_similar(&embedding, 0.9);
+        assert!(result.is_some());
+        let (found_id, similarity) = result.unwrap();
+        assert_eq!(found_id, event_id);
+        assert!(similarity > 0.99);
+
+        // Should not find with very different embedding
+        let different = vec![-1.0; 384];
+        assert!(cache.find_similar(&different, 0.9).is_none());
+    }
+
+    #[test]
+    fn test_heuristics_by_confidence() {
+        let mut cache = MemoryCache::new(CacheConfig::default());
+
+        cache.add_heuristic(CachedHeuristic {
+            id: Uuid::new_v4(),
+            name: "low_confidence".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.3,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: Uuid::new_v4(),
+            name: "high_confidence".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.9,
+        });
+
+        let high_conf = cache.get_heuristics_by_confidence(0.5);
+        assert_eq!(high_conf.len(), 1);
+        assert_eq!(high_conf[0].name, "high_confidence");
+
+        let all = cache.get_heuristics_by_confidence(0.0);
+        assert_eq!(all.len(), 2);
+    }
+}

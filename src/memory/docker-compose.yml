@@ -1,0 +1,59 @@
+# GLADyS Memory Subsystem - Full Stack
+# Run: docker-compose up -d
+#
+# Services:
+#   - postgres: PostgreSQL with pgvector (port 5433)
+#   - python-storage: Python gRPC server (port 50051)
+#   - rust-fast-path: Rust fast path service (port 50052)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: gladys-memory-db
+    environment:
+      POSTGRES_USER: gladys
+      POSTGRES_PASSWORD: gladys
+      POSTGRES_DB: gladys
+    ports:
+      - "5433:5432"
+    volumes:
+      - gladys_pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gladys"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  python-storage:
+    build:
+      context: ./python
+      dockerfile: Dockerfile
+    container_name: gladys-memory-storage
+    environment:
+      STORAGE_HOST: postgres
+      STORAGE_PORT: 5432
+      STORAGE_USER: gladys
+      STORAGE_PASSWORD: gladys
+      STORAGE_DATABASE: gladys
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rust-fast-path:
+    build:
+      context: .
+      dockerfile: rust/Dockerfile
+    container_name: gladys-memory-fast-path
+    environment:
+      STORAGE_ADDRESS: http://python-storage:50051
+      RUST_LOG: info
+    ports:
+      - "50052:50052"
+    depends_on:
+      - python-storage
+
+volumes:
+  gladys_pgdata:

@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package gladys.memory;
+
+// Memory Storage Service - Python backend
+// Handles persistent storage, embeddings, and complex queries
+service MemoryStorage {
+    // Store a new episodic event
+    rpc StoreEvent(StoreEventRequest) returns (StoreEventResponse);
+
+    // Query events by time range
+    rpc QueryByTime(QueryByTimeRequest) returns (QueryEventsResponse);
+
+    // Query events by embedding similarity
+    rpc QueryBySimilarity(QueryBySimilarityRequest) returns (QueryEventsResponse);
+
+    // Generate embedding for text
+    rpc GenerateEmbedding(GenerateEmbeddingRequest) returns (GenerateEmbeddingResponse);
+
+    // Store/update a heuristic
+    rpc StoreHeuristic(StoreHeuristicRequest) returns (StoreHeuristicResponse);
+
+    // Query heuristics by condition match
+    rpc QueryHeuristics(QueryHeuristicsRequest) returns (QueryHeuristicsResponse);
+}
+
+// --- Events ---
+
+message EpisodicEvent {
+    string id = 1;                      // UUID
+    int64 timestamp_ms = 2;             // Unix timestamp milliseconds
+    string source = 3;                  // Sensor ID
+    string raw_text = 4;                // Natural language description
+    bytes embedding = 5;                // 384-dim float32 vector (serialized)
+    SalienceVector salience = 6;
+    string structured_json = 7;         // Domain-specific data as JSON string
+    repeated string entity_ids = 8;     // Referenced entity UUIDs
+}
+
+message SalienceVector {
+    float threat = 1;
+    float opportunity = 2;
+    float humor = 3;
+    float novelty = 4;
+    float goal_relevance = 5;
+    float social = 6;
+    float emotional = 7;                // -1.0 to 1.0
+    float actionability = 8;
+    float habituation = 9;
+}
+
+message StoreEventRequest {
+    EpisodicEvent event = 1;
+}
+
+message StoreEventResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message QueryByTimeRequest {
+    int64 start_ms = 1;
+    int64 end_ms = 2;
+    string source_filter = 3;           // Optional: filter by source
+    int32 limit = 4;
+}
+
+message QueryBySimilarityRequest {
+    bytes query_embedding = 1;          // 384-dim float32 vector
+    float similarity_threshold = 2;     // Minimum cosine similarity
+    int64 time_filter_hours = 3;        // Optional: limit to recent events
+    int32 limit = 4;
+}
+
+message QueryEventsResponse {
+    repeated EpisodicEvent events = 1;
+    string error = 2;
+}
+
+// --- Embeddings ---
+
+message GenerateEmbeddingRequest {
+    string text = 1;
+}
+
+message GenerateEmbeddingResponse {
+    bytes embedding = 1;                // 384-dim float32 vector
+    string error = 2;
+}
+
+// --- Heuristics ---
+
+message Heuristic {
+    string id = 1;                      // UUID
+    string name = 2;
+    string condition_json = 3;          // Matching condition as JSON
+    string action_json = 4;             // Action to take as JSON
+    float confidence = 5;
+    int64 last_fired_ms = 6;
+    int32 fire_count = 7;
+    int32 success_count = 8;
+}
+
+message StoreHeuristicRequest {
+    Heuristic heuristic = 1;
+}
+
+message StoreHeuristicResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message QueryHeuristicsRequest {
+    string event_context_json = 1;      // Context to match against conditions
+    float min_confidence = 2;
+}
+
+message QueryHeuristicsResponse {
+    repeated Heuristic heuristics = 1;
+    string error = 2;
+}

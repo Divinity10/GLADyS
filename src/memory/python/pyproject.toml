@@ -1,0 +1,43 @@
+[project]
+name = "gladys-memory"
+version = "0.1.0"
+description = "GLADyS Memory Subsystem - Storage Path"
+authors = [
+    { name = "Mike Mulcahy" },
+    { name = "Scott Mulcahy" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    # Database
+    "asyncpg>=0.29",
+    "pgvector>=0.3",
+
+    # gRPC
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+
+    # Embeddings
+    "sentence-transformers>=2.2",
+
+    # Utilities
+    "pydantic>=2.0",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
