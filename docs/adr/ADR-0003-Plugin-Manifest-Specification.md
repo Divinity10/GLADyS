@@ -333,7 +333,7 @@ sensor:
 ```yaml
 skill:
   # Skill category
-  category: string              # style_modifier | domain_expertise | capability | language
+  category: string              # style_modifier | domain_expertise | capability | language | outcome_evaluator
   
   # What this skill modifies
   modifies:
@@ -373,6 +373,14 @@ skill:
       max: number               # For numeric types
       options: string[]         # For enum type
       description: string
+
+  # Outcome signals (for category: outcome_evaluator only)
+  # See ADR-0010 §3.11 for reward shaping design
+  outcome_signals:
+    - event: string             # Event type from sensors
+      outcome: string           # positive | negative | neutral
+      magnitude: float          # 0.0 to 1.0 (signal strength)
+      description: string       # Human-readable explanation
 ```
 
 ### 6.2 Example: Irony Style Modifier
@@ -488,6 +496,168 @@ skill:
       default: "hints"
       options: ["none", "hints", "full"]
       description: "How much to reveal about game content"
+```
+
+### 6.4 Example: Minecraft Outcome Evaluator
+
+Outcome evaluators provide domain-specific reward signals for learning. See ADR-0010 §3.11 for the design pattern.
+
+```yaml
+plugin:
+  id: minecraft-outcome-evaluator
+  name: "Minecraft Outcome Evaluator"
+  version: "1.0.0"
+  type: skill
+  description: "Provides reward signals for Minecraft gameplay outcomes"
+  author: "Divinity10"
+
+resources:
+  gpu:
+    required: false
+  memory_mb: 64
+  models: []
+
+lifecycle:
+  startup:
+    timeout_ms: 1000
+  state:
+    persistent: false
+
+skill:
+  category: outcome_evaluator
+
+  modifies:
+    - decision_policy           # Influences future S1 heuristics via learning
+
+  activation:
+    sensors:
+      - sensor_id: minecraft-sensor
+
+  incompatible: []
+
+  # Outcome signals this evaluator provides
+  # Core system correlates decisions with these signals to update heuristics
+  outcome_signals:
+    - event: player_death
+      outcome: negative
+      magnitude: 1.0
+      description: "Player died - strong negative signal"
+
+    - event: player_damage
+      outcome: negative
+      magnitude: 0.3
+      description: "Player took damage"
+
+    - event: item_acquired
+      outcome: positive
+      magnitude: 0.1
+      description: "Player acquired an item"
+
+    - event: level_up
+      outcome: positive
+      magnitude: 0.5
+      description: "Player leveled up"
+
+    - event: achievement_unlocked
+      outcome: positive
+      magnitude: 0.7
+      description: "Player unlocked an achievement"
+
+    - event: mob_killed
+      outcome: positive
+      magnitude: 0.2
+      description: "Player killed a hostile mob"
+
+    - event: structure_placed
+      outcome: neutral
+      magnitude: 0.0
+      description: "Player placed blocks (context-dependent)"
+
+  # Correlation window: how long after a decision to wait for outcome signals
+  parameters:
+    - name: correlation_window_ms
+      type: integer
+      default: 10000
+      min: 1000
+      max: 60000
+      description: "Time window to correlate decisions with outcomes"
+
+    - name: decay_factor
+      type: float
+      default: 0.9
+      min: 0.5
+      max: 1.0
+      description: "How much to discount outcomes that occur later in the window"
+```
+
+### 6.5 Example: Home Automation Outcome Evaluator
+
+```yaml
+plugin:
+  id: home-outcome-evaluator
+  name: "Home Automation Outcome Evaluator"
+  version: "1.0.0"
+  type: skill
+  description: "Provides reward signals for home automation outcomes"
+  author: "Divinity10"
+
+resources:
+  gpu:
+    required: false
+  memory_mb: 64
+  models: []
+
+lifecycle:
+  startup:
+    timeout_ms: 1000
+  state:
+    persistent: false
+
+skill:
+  category: outcome_evaluator
+
+  modifies:
+    - decision_policy
+
+  activation:
+    sensors:
+      - sensor_id: home-assistant-sensor
+
+  incompatible: []
+
+  outcome_signals:
+    - event: user_manual_override
+      outcome: negative
+      magnitude: 0.8
+      description: "User manually changed what GLADyS just set"
+
+    - event: user_undo_within_60s
+      outcome: negative
+      magnitude: 1.0
+      description: "User reversed GLADyS action within a minute"
+
+    - event: setting_maintained_1h
+      outcome: positive
+      magnitude: 0.3
+      description: "User kept GLADyS setting for an hour"
+
+    - event: explicit_positive_feedback
+      outcome: positive
+      magnitude: 1.0
+      description: "User explicitly thanked or approved"
+
+    - event: comfort_complaint
+      outcome: negative
+      magnitude: 0.5
+      description: "User complained about temperature/lighting"
+
+  parameters:
+    - name: correlation_window_ms
+      type: integer
+      default: 60000
+      min: 10000
+      max: 300000
+      description: "Longer window for home automation (effects are slower)"
 ```
 
 ---
@@ -999,6 +1169,7 @@ manifest_version: "1.0"         # Schema version
 - ADR-0004: Memory Schema Details
 - ADR-0005: gRPC Service Contracts
 - ADR-0008: Security and Privacy (permission registry, age restrictions)
+- ADR-0010: Learning and Inference (outcome evaluator design, reward shaping)
 
 **Note:** Plugin permissions are defined in [ADR-0008](ADR-0008-Security-and-Privacy.md). All plugins must declare required and optional permissions with user-facing justifications.
 
