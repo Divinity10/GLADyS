@@ -251,17 +251,221 @@ System detects negative feedback through behavioral signals only (no emotion inf
 
 Punishment adjusts confidence on the specific heuristic that led to the action, NOT global risk tolerance.
 
-### 3.11 Risk Tolerance
+### 3.11 Outcome Evaluation (Reward Shaping)
 
-Risk tolerance is **user configuration**, NOT learned:
+**Status**: MVP Required
 
-```yaml
-risk_tolerance: 0.5  # 0 = conservative, 1 = aggressive
+Domain-specific outcome evaluation is provided by **Packs**, not core system. This is reward shaping from reinforcement learning.
+
+#### 3.11.1 Design Pattern
+
+```
+Pack provides: OutcomeEvaluator implementation
+Core provides: Queue decisions, wait for signals, update based on comparison
 ```
 
-Rationale: User may want AI to compensate for their own tendencies (risk-averse person wants proactive AI, or vice versa).
+The core system does NOT know what "good" or "bad" means in any domain. Packs define this through OutcomeEvaluator:
 
-### 3.12 Config vs Behavior Conflict
+```yaml
+# Pack manifest includes outcome_evaluator
+pack:
+  id: minecraft-companion
+  outcome_evaluator:
+    skill_type: outcome_evaluator
+    signals:
+      - event: player_death
+        outcome: negative
+        magnitude: 1.0
+      - event: player_damage
+        outcome: negative
+        magnitude: 0.3
+      - event: item_acquired
+        outcome: positive
+        magnitude: 0.1
+      - event: level_up
+        outcome: positive
+        magnitude: 0.5
+```
+
+#### 3.11.2 Core System Responsibilities
+
+1. **Queue** decisions with context (what triggered, what S1 decided, confidence)
+2. **Wait** for outcome signals from sensors (game events, user feedback)
+3. **Correlate** decisions to outcomes within a time window
+4. **Update** heuristic confidence based on outcome evaluator scoring
+5. **Log** for audit trail
+
+#### 3.11.3 Rationale
+
+This separates concerns cleanly:
+- Core: Generic learning machinery
+- Packs: Domain-specific reward knowledge
+
+A home automation pack knows "user manually adjusts thermostat after GLADyS change = negative outcome."
+A gaming pack knows "player death within 10 seconds of ignoring warning = GLADyS was right."
+
+### 3.12 Deferred Validation Queue (Experience Replay)
+
+**Status**: MVP Required
+
+System 1 decisions are queued for LLM validation during idle time. This is **experience replay** from reinforcement learning.
+
+#### 3.12.1 Motivation
+
+- S1 makes fast decisions (<5ms) that may be wrong
+- Immediate LLM validation is expensive (200-500ms)
+- Local LLM = no per-query cost, but latency still matters
+- Solution: Queue S1 decisions, validate in batch during sleep mode
+
+#### 3.12.2 Three-Way Comparison
+
+For each deferred decision:
+
+| Component | Value | Timing |
+|-----------|-------|--------|
+| **S1 Decision** | What System 1 chose | Real-time |
+| **LLM Decision** | What System 2 would choose | Deferred validation |
+| **Actual Outcome** | What happened | From OutcomeEvaluator |
+
+Learning signals:
+- S1 = LLM = Good outcome: S1 heuristic reinforced
+- S1 ≠ LLM, LLM = Good outcome: S1 heuristic needs correction
+- S1 = LLM = Bad outcome: Both need calibration (rare edge case)
+- S1 ≠ LLM, S1 = Good outcome: S1 heuristic may be better than LLM for this case
+
+#### 3.12.3 Queue Structure (MVP)
+
+Simple FIFO queue with configurable max size:
+
+```yaml
+deferred_validation:
+  enabled: true
+  max_queue_size: 1000
+  retention_hours: 72  # Drop unvalidated decisions after this
+  priority: fifo       # Post-MVP: prioritized replay
+```
+
+#### 3.12.4 Biological Inspiration
+
+This mirrors **hippocampal replay during sleep** - the brain replays recent experiences during sleep to consolidate learning. GLADyS does the same during sleep mode.
+
+### 3.13 RL-Inspired Techniques
+
+Classification by implementation priority and triggers for when to add sophistication.
+
+#### 3.13.1 MVP Required
+
+| Technique | Implementation | Rationale |
+|-----------|----------------|-----------|
+| **Outcome Evaluator** | Pack-provided callbacks | Core learning needs domain signals |
+| **Deferred Queue** | Simple FIFO | Experience replay is fundamental |
+| **Context-dependent rates** | Per-domain learning_rate (§3.5) | Already designed |
+
+#### 3.13.2 Post-MVP (Implement When Metrics Indicate)
+
+| Technique | Description | Trigger Metric | Monitoring |
+|-----------|-------------|----------------|------------|
+| **Prioritized Replay** | Replay surprising events more often | S1 accuracy < 70% in domain after 1000+ decisions | Track accuracy per domain |
+| **Prediction Error** | Adjust confidence based on expected vs actual | Confidence calibration error > 0.2 | Compare predicted vs actual outcome rates |
+| **Exploration Epsilon** | Random S1 bypass to prevent local optima | S1 decision diversity < threshold | Track unique decisions per context |
+| **Hebbian Association** | "Fire together, wire together" pattern discovery | Users frequently ask "how did you know?" | Track explanation queries |
+
+#### 3.13.3 Deferred (Not Planned for Near-Term)
+
+| Technique | Description | Why Deferred |
+|-----------|-------------|--------------|
+| **Eligibility Traces** | Credit assignment for multi-step sequences | Adds hot-path complexity; implement if multi-step credit is problematic |
+| **Full TD(λ)** | Temporal difference with eligibility | Overkill for current scope |
+
+#### 3.13.4 Implementation Notes
+
+**All Post-MVP techniques have zero hot-path cost** - they run during sleep mode batch processing only.
+
+**Prioritized Replay** changes queue from FIFO to priority queue ordered by TD-error magnitude (difference between predicted and actual outcome).
+
+**Exploration Epsilon** adds a small probability (e.g., 5%) that S1 is bypassed even when confident, allowing discovery of better heuristics. User-configurable with default off.
+
+### 3.14 Fine-Tuning Strategy
+
+**Status**: Post-MVP, requires Leah input
+
+In addition to online learning (EWMA + Bayesian), GLADyS may use periodic fine-tuning of the underlying LLM:
+
+| Learning Type | Scope | Timing | What Changes |
+|---------------|-------|--------|--------------|
+| **EWMA + Bayesian** | Per-user | Online | Preference weights in memory |
+| **Fine-tuning** | Global | Batch | Model weights |
+
+#### 3.14.1 Fine-Tuning Use Cases
+
+- Personality calibration (global response styles)
+- Domain knowledge updates (new game mechanics)
+- Pack-specific adaptations
+
+#### 3.14.2 Relationship to Online Learning
+
+Fine-tuning and online learning are **complementary**, not either/or:
+- Fine-tuning updates the model's base capabilities
+- Online learning personalizes for individual users
+- RAG provides user-specific context at inference time
+
+#### 3.14.3 Open Questions
+
+1. What triggers fine-tuning runs? (Data volume, performance degradation, scheduled)
+2. How to prevent catastrophic forgetting?
+3. Hosting considerations for open-source models (GPT-OSS 20B/120B)
+
+### 3.15 Implementation Language
+
+**Status**: Design decision
+
+The learning subsystem has two layers:
+
+| Layer | Language | Rationale |
+|-------|----------|-----------|
+| **Fast Path** | Rust | Novelty detection, heuristic matching, L0 cache - called on every event |
+| **Storage Path** | Python | PostgreSQL queries, embedding generation - I/O bound |
+
+This matches the System 1 / System 2 split:
+- Rust handles the hot path where latency matters (<5ms target)
+- Python handles the slower path where I/O dominates anyway
+
+### 3.16 Risk Tolerance
+
+Risk tolerance has **two components**:
+
+```yaml
+risk_tolerance:
+  configured: 0.5     # User's stated preference (0 = conservative, 1 = aggressive)
+  observed: null      # Learned from behavior (null until sufficient data)
+  weight_observed: 0.7  # How much to trust observed vs configured
+```
+
+#### 3.16.1 Rationale
+
+People lie and misunderstand themselves. A user who says "I'm risk-tolerant" but consistently rejects proactive suggestions reveals a different preference through behavior. **Revealed preference trumps stated preference** (per design philosophy).
+
+#### 3.16.2 Learning Risk Tolerance
+
+Observed risk tolerance is inferred from:
+- Acceptance rate of uncertain suggestions
+- Time-to-override for GLADyS actions
+- Explicit feedback patterns
+- Domain-specific variation (may be risk-seeking in gaming, risk-averse in home automation)
+
+#### 3.16.3 Conflict Resolution
+
+When configured and observed diverge significantly:
+1. Flag to user once: "Your stated preference is X but your behavior suggests Y"
+2. Offer to update configured value
+3. If user maintains configured value, respect it (they may want GLADyS to compensate for their tendencies)
+4. Continue tracking observed value for future reference
+
+#### 3.16.4 Cold Start
+
+Until sufficient behavioral data exists (`observed: null`), use `configured` value only. This is why template selection during onboarding matters - it sets reasonable defaults until learning kicks in.
+
+### 3.17 Config vs Behavior Conflict
 
 When learned behavior conflicts with explicit configuration:
 1. Flag conflict to user once
@@ -270,7 +474,48 @@ When learned behavior conflicts with explicit configuration:
 
 Example: User configures "always suggest X" but consistently rejects X → notify once, then follow config.
 
-### 3.13 Design Principles
+### 3.18 Implementation Monitoring
+
+Metrics to track for triggering Post-MVP enhancements.
+
+#### 3.18.1 Core Metrics (MVP)
+
+| Metric | Description | Storage |
+|--------|-------------|---------|
+| `s1_accuracy_by_domain` | % of S1 decisions validated correct by LLM | Per-domain counter |
+| `s1_confidence_calibration` | Correlation between S1 confidence and actual correctness | Rolling histogram |
+| `decision_diversity` | Unique S1 decisions per context type | Per-context set |
+| `outcome_rate_by_heuristic` | Success rate for each learned heuristic | Per-heuristic counter |
+
+#### 3.18.2 Triggering Sophistication
+
+| Metric Threshold | Triggered Enhancement | Rationale |
+|------------------|----------------------|-----------|
+| `s1_accuracy < 70%` after 1000 decisions | Prioritized Replay | S1 is making too many mistakes; need smarter replay |
+| `calibration_error > 0.2` | Prediction Error Calibration | S1 is over/under confident |
+| `diversity_ratio < 0.1` | Exploration Epsilon | S1 is stuck in local optima |
+| `explanation_query_rate > 0.05` | Hebbian Association | Users frequently ask how GLADyS knew something |
+
+#### 3.18.3 Dashboard Queries
+
+These metrics should be exposed in observability dashboards (per ADR-0006):
+
+```sql
+-- S1 accuracy by domain (last 7 days)
+SELECT domain,
+       COUNT(*) FILTER (WHERE s1_correct) * 100.0 / COUNT(*) as accuracy
+FROM deferred_validation_results
+WHERE validated_at > NOW() - INTERVAL '7 days'
+GROUP BY domain;
+
+-- Confidence calibration
+SELECT confidence_bucket,
+       AVG(CASE WHEN correct THEN 1.0 ELSE 0.0 END) as actual_accuracy
+FROM deferred_validation_results
+GROUP BY FLOOR(s1_confidence * 10) / 10.0 as confidence_bucket;
+```
+
+### 3.19 Design Principles
 
 | Principle | Implication |
 |-----------|-------------|
@@ -294,6 +539,11 @@ Example: User configures "always suggest X" but consistently rejects X → notif
 4. **Causal vs correlational**: Specific algorithms for distinguishing causation from correlation
 5. **Belief visualization**: How does user inspect current beliefs? (UI concern)
 6. **Multi-user households**: Whose preferences win? Per-user profiles? Household consensus?
+7. **Fine-tuning triggers**: What triggers fine-tuning runs? (Data volume, performance degradation, scheduled) - requires Leah input
+8. **Catastrophic forgetting**: How to prevent fine-tuning from degrading existing capabilities?
+9. **Model hosting**: Infrastructure for GPT-OSS 20B/120B fine-tuning and deployment
+10. **Outcome correlation window**: How long to wait for outcome signals after a decision? (Domain-specific?)
+11. **Deferred queue overflow**: What happens when validation backlog exceeds queue size?
 
 ---
 

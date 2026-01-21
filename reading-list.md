@@ -28,9 +28,81 @@ Personal reading recommendations for improving GLADyS design understanding. Not 
 
 ### Reinforcement Learning: An Introduction - Sutton & Barto (2018, 2nd ed)
 **Why**: Standard RL text. Relevant to reward signals, learning from feedback, exploration vs exploitation. Free PDF available.
+- **Chapter 6**: Temporal Difference Learning - core concept for prediction error
+- **Chapter 8**: Planning and Learning - experience replay fundamentals
+- **Chapter 13**: Policy Gradient Methods - exploration vs exploitation
+- Free PDF: http://incompleteideas.net/book/the-book.html
 
 ### Bayesian Data Analysis - Gelman et al. (2013, 3rd ed)
 **Why**: Reference for conjugate priors, hierarchical models. More rigorous than coursework coverage. Consult specific chapters as needed rather than reading cover-to-cover.
+
+---
+
+## Priority 3.5: Learning Architecture (ADR-0010 Related) - NEW
+
+These resources support the deferred validation and outcome-based learning design.
+
+### Experience Replay
+
+**Playing Atari with Deep Reinforcement Learning - Mnih et al. (2013)**
+**Why**: Introduces experience replay in deep RL. GLADyS's deferred validation queue is essentially experience replay.
+- https://arxiv.org/abs/1312.5602
+
+**Prioritized Experience Replay - Schaul et al. (2015)**
+**Why**: Replay surprising/important experiences more often. Post-MVP enhancement for GLADyS.
+- https://arxiv.org/abs/1511.05952
+- Key metric: TD-error magnitude determines priority
+
+### Reward Shaping
+
+**Reward Shaping in Reinforcement Learning - Ng, Harada, Russell (1999)**
+**Why**: Formal treatment of how shaped rewards preserve optimal policy. Directly relevant to pack-provided OutcomeEvaluator design.
+- "Policy invariance under reward transformations"
+- ICML 1999
+
+**Designing Reward Functions - OpenAI Blog**
+**Why**: Practical examples of reward shaping pitfalls. Cautions about reward hacking.
+- https://openai.com/research/faulty-reward-functions
+
+### Prediction Error & Dopamine
+
+**A Neural Substrate of Prediction and Reward - Schultz et al. (1997)**
+**Why**: Seminal paper showing dopamine neurons encode prediction error, not reward itself. Biological basis for temporal difference learning.
+- Science 275(5306):1593-9
+- "Dopamine neurons report an error in the prediction of reward"
+
+**Dopamine, uncertainty and TD learning - Niv (2009)**
+**Why**: Connects TD learning to dopamine signaling. Good overview of computational neuroscience of reward.
+- Behavioral and Brain Functions 5:6
+
+### Exploration vs Exploitation
+
+**Exploration exploitation in Go: UCT for Monte-Carlo Go**
+**Why**: Upper Confidence Bounds for balancing exploration. Relevant to epsilon parameter design.
+
+**Curiosity-driven Exploration by Self-Supervised Prediction - Pathak et al. (2017)**
+**Why**: Intrinsic motivation via prediction error. Could inform novelty detection in GLADyS.
+- https://arxiv.org/abs/1705.05363
+
+### Hebbian Learning
+
+**Organization of Behavior - Donald Hebb (1949)**
+**Why**: Original source of "neurons that fire together, wire together". Historical reference.
+- Classic, cited but rarely read in full
+
+**Hebbian Learning and Spiking Neurons - Gerstner & Kistler (2002)**
+**Why**: Modern treatment of Hebbian learning. Chapter 10 specifically.
+- https://neuronaldynamics.epfl.ch/online/Ch10.html (free online)
+
+### Sleep and Memory Consolidation
+
+**Sleep-dependent memory consolidation - Stickgold (2005)**
+**Why**: How sleep consolidates memories. Scientific basis for GLADyS "sleep mode" processing.
+- Nature 437, 1272-1278
+
+**Reactivation of hippocampal ensemble memories during sleep - Wilson & McNaughton (1994)**
+**Why**: Hippocampal replay during sleep. Biological experience replay.
+- Science 265(5172):676-9
 
 ---
 

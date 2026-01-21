@@ -25,7 +25,8 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §12 | Cross-Cutting Integration | 🟡 Open | Still unresolved |
 | §13 | Output Routing | 🔴 Gap | Not addressed in any ADR |
 | §14 | Architectural Gaps | 🟡 Partial | Some resolved, some open |
-| §15 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
+| §15 | Deployment Model | 🔴 Gap | NEW - deployment configs, resource constraints |
+| §16 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -773,7 +774,52 @@ Gap analysis performed after ADR-0010/0011/0012 completion. These represent miss
 
 ---
 
-## 15. ADR-0004 Memory Schema Gaps (Identified 2026-01-19)
+## 15. Deployment Model and Resource Constraints (Identified 2026-01-20)
+
+**Status**: Open
+**Priority**: High (affects architecture decisions)
+
+### Problem
+
+ADR-0001 states "local-first" but this doesn't address:
+- What if user doesn't have a gaming rig?
+- What combinations of local/network/cloud are supported?
+- Where can the database live?
+- What are minimum hardware requirements?
+
+### Deployment Spectrum
+
+| Configuration | Example | Implications |
+|---------------|---------|--------------|
+| **Fully local** | Gaming rig | Ideal. All processing on single machine. |
+| **Local network** | Home server + client | Database/LLM on server, sensors on client. 1-5ms network latency. |
+| **Remote cloud** | Cloud LLM API | Privacy concerns. 50-200ms network latency. Data residency questions. |
+
+### Open Questions
+
+1. **Minimum specs**: What hardware is required to run GLADyS at all?
+2. **Database locality**: Can PostgreSQL be remote (local network or cloud)?
+3. **LLM locality**: Local-only? Cloud fallback? User choice?
+4. **Hybrid configurations**: Which components can be split across machines?
+5. **Privacy vs performance trade-off**: When is remote acceptable? How does user control this?
+
+### Relationship to ADRs
+
+- **ADR-0001**: Says "local-first" but doesn't define deployment configurations
+- **ADR-0008**: Security model assumes local processing but doesn't address network boundaries
+- **ADR-0004**: Memory design assumes local database (50ms query target)
+
+### What This Is NOT About
+
+This is NOT about:
+- Fine-tuning LLMs (learning happens in preference layer per ADR-0010, not model weights)
+- Needing "model control" for self-learning (ADR-0010 uses EWMA + Bayesian, not LLM training)
+
+The LLM is a black box. The question is: where does that black box live?
+
+---
+
+## 16. ADR-0004 Memory Schema Gaps (Identified 2026-01-19)
 
 **Status**: Partially resolved (2026-01-19)
 **Priority**: High (foundational)
