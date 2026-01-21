@@ -70,7 +70,7 @@ The system is organized into tiers based on activation patterns:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         ORCHESTRATION (Rust)                            │
+│                        ORCHESTRATION (Python)                           │
 │  • Clock tick generation                                                │
 │  • Component lifecycle                                                  │
 │  • Message routing via gRPC                                             │
@@ -102,16 +102,17 @@ The system is organized into tiers based on activation patterns:
 
 | Component | Language | Rationale |
 |-----------|----------|-----------|
-| Orchestration | Rust | Long-running reliability, memory safety, excellent async. Learning opportunity with contained scope. |
+| Orchestration | Python | Message routing, DAG execution, health checks. Sync model is lazy via Memory—Orchestrator is NOT doing temporal correlation. Not performance-critical (LLM dominates latency budget). |
 | Sensors | Python | Unmatched AI ecosystem (Whisper, transformers, YOLO). C++ inference underneath means same speed as any language. |
 | Salience Gateway | Python | Needs embedding models, small LLM. AI ecosystem advantage. Shares process with Memory for efficiency. |
-| Memory | Python | Vector DB clients, embedding models. PostgreSQL via standard libraries. IPC overhead avoided by co-locating with Salience. |
+| Memory | Hybrid Rust/Python | **Two-layer architecture**: Rust fast path (<5ms) for novelty detection, heuristic lookup, reasoning cache. Python storage path (<50ms) for PostgreSQL queries, embedding generation. Rust justified for hot path called on every event. See ADR-0010 §3.15. |
 | Executive | C# | Semantic Kernel (Microsoft-maintained). Strong OOP for complex state. Team's primary language. Type safety for personality/policy logic. |
 | Output (TTS) | Python | TTS models (Piper, Coqui, Bark) are Python-first. |
+| Audio Service | Rust | **Post-MVP**: Wake word detection + Voice Activity Detection. Real-time DSP benefits from Rust. This is the legitimate Rust project for Scott's learning. |
 
 ### 5.1 Inter-Process Communication
 
-Components communicate via gRPC, managed by the Rust orchestration layer. The Salience Gateway and Memory Controller share a process to avoid IPC overhead on the hot path (memory is accessed every tick).
+Components communicate via gRPC, managed by the Python orchestration layer. The Salience Gateway and Memory Controller share a process to avoid IPC overhead on the hot path (memory is accessed every tick).
 
 **Transport abstraction:** Implement `ISensorTransport` interface with `GrpcTransport`, `WebSocketTransport`, `MqttTransport` implementations. Sensor manifest declares preferred transport. Enables future flexibility.
 
@@ -583,7 +584,7 @@ Design with abstraction layer for future addition of:
 
 1. **Polyglot complexity:** Three languages increases cognitive load and tooling requirements.
 2. **IPC overhead:** Cross-process communication adds latency. Mitigated by co-locating hot-path components.
-3. **Rust learning curve:** Orchestration development may be slower initially.
+3. **Rust learning curve:** Memory fast path and Audio Service (post-MVP) use Rust, which may be slower initially as team learns.
 4. **Vector DB maintenance:** Embedding generation and index management add operational burden.
 
 ### 17.3 Neutral
@@ -602,6 +603,13 @@ Design with abstraction layer for future addition of:
 - ADR-0006: Observability & Monitoring
 - ADR-0007: Adaptive Algorithms
 - ADR-0008: Security and Privacy
+- ADR-0009: Memory Contracts
+- ADR-0010: Learning and Inference (Memory two-layer architecture)
+- ADR-0011: Actuators
+- ADR-0012: Audit
+- ADR-0013: Salience
+- ADR-0014: Executive
+- ADR-0015: Personality
 
 ---
 
