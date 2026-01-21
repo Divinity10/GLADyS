@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-19
+**Last updated**: 2026-01-21
 
 ---
 
@@ -27,6 +27,7 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §14 | Architectural Gaps | 🟡 Partial | Some resolved, some open |
 | §15 | Deployment Model | 🔴 Gap | NEW - deployment configs, resource constraints |
 | §16 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
+| §17 | Heuristic Condition Matching | 🟡 Open | MVP design decided, impl deferred to Phase 3 |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -976,6 +977,71 @@ ADR-0004 assumes single user. Multi-user households need:
 | Complementary Learning Systems | Fast episodic + slow semantic validates dual-store |
 | Facebook FAISS | ANN search tradeoffs (IVF vs HNSW) |
 | Pinecone Architecture | Metadata filtering + vector search |
+
+---
+
+## 17. Heuristic Condition Matching (Memory Subsystem)
+
+**Status**: Design decision made, implementation deferred
+**Priority**: Medium (blocks full System 1 fast path)
+**Created**: 2026-01-21
+
+### Context
+
+The Memory subsystem's Rust fast path includes heuristic lookup for System 1 responses. A heuristic has:
+- **Condition**: When to fire (stored as JSONB)
+- **Action**: What to do (stored as JSONB)
+- **Confidence**: How reliable (0.0-1.0)
+
+The question: How does the Rust fast path match an incoming event context against stored heuristic conditions?
+
+### Design Decision: Simple Exact-Match for MVP
+
+**Approach**: Start with exact key-value matching on condition fields.
+
+A condition like:
+```json
+{"source": "discord", "event_type": "user_joined"}
+```
+
+Matches if the incoming event context has those exact values. Additional fields in the context are ignored (partial match).
+
+**Rationale**:
+1. Covers common use cases (source-specific rules, event-type rules)
+2. Simple to implement in Rust (no complex query engine)
+3. Fast (<1ms matching against cached heuristics)
+4. JSONB schema allows future extension without migration
+
+### Future Extensions (Not MVP)
+
+When simple matching proves insufficient, consider:
+
+| Extension | Use Case | Complexity |
+|-----------|----------|------------|
+| Pattern matching | `{"raw_text": {"$contains": "hello"}}` | Medium |
+| Numeric comparisons | `{"temperature": {"$gt": 75}}` | Medium |
+| Embedding similarity | `{"embedding_similar_to": <vector>}` | High |
+| Boolean logic | `{"$or": [...], "$and": [...]}` | Medium |
+
+### Implementation Notes
+
+- Matching happens in Rust (`find_heuristics()` in [lib.rs](../../src/memory/rust/src/lib.rs:154))
+- Heuristics are cached in L0 for fast access
+- Python storage handles persistence; Rust handles hot-path matching
+- When to implement: Phase 3 (Orchestrator integration) when the full event flow is wired up
+
+### Open Questions
+
+1. **Wildcard support**: Should `{"source": "*"}` match any source?
+2. **Null handling**: Does missing field in context fail match or pass?
+3. **Case sensitivity**: Is `"Discord"` == `"discord"`?
+4. **Nested matching**: Support `{"context.user.role": "admin"}`?
+
+### Relationship to Other Components
+
+- **ADR-0010**: Defines heuristics as System 1 learned rules
+- **ADR-0004**: Defines `heuristics` table schema (JSONB condition/action)
+- **Orchestrator**: Will call Memory fast path to check for matching heuristics before invoking LLM
 
 ---
 

@@ -2,170 +2,89 @@
 
 **G**eneralized **L**ogical **A**daptive **Dy**namic **S**ystem
 
-> ⚠️ **DRAFT STATUS**: This project is currently in the design phase. All documentation represents proposed architecture and is subject to change. No implementation code exists yet.
+A local-first, privacy-focused AI assistant that learns and adapts. Not just a chatbot—a system that remembers, learns, and acts.
 
-## Overview
+*Neurotoxin module sold separately.*
 
-GLADyS is a local-first, brain-inspired AI assistant designed to observe, learn, and assist users in real-time contexts such as gaming, productivity, and smart home control.
+## Concept
 
-### Key Characteristics
+GLADyS is an AI assistant that perceives its environment through **sensors** (game state, smart home devices, calendars) and interacts through **actuators** (sending messages, controlling devices, triggering actions).
 
-| Characteristic | Description |
-|----------------|-------------|
-| **Local-first** | All data stays on your device by default |
-| **Privacy-focused** | Explicit opt-in for any cloud features |
-| **Extensible** | Plugin system for sensors and skills |
-| **Adaptive** | Learns user preferences over time |
-| **Personality-driven** | Configurable personalities (e.g., Murderbot, Helpful Assistant) |
+The architecture draws from:
+- **Neuroscience**: Hippocampal memory consolidation, complementary learning systems
+- **Cognitive science**: System 1 (fast/intuitive) and System 2 (slow/deliberate) thinking
+- **Reinforcement learning**: Learning from outcomes, not just instructions
 
-## Project Status
+Key principles:
+- **Learns, doesn't just respond**: Builds heuristics from experience, remembers context across sessions
+- **Configurable personality**: Some users want a cheerful helper. Others want an antisocial introvert who will save your life but would rather be watching shows—and please don't make eye contact.
+- **Local-first**: Your data stays on your machine; you control what (if anything) leaves
 
-```
-[██░░░░░░░░] 20% - Design Phase
-```
+## Vision
 
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **Architecture Design** | ✅ Complete | Core architecture decisions documented |
-| **Security Design** | ✅ Complete | Permission model, sandboxing, privacy policies |
-| **API Design** | ✅ Complete | gRPC service contracts defined |
-| **Implementation** | ⏳ Not Started | Waiting on design finalization |
-| **Testing** | ⏳ Not Started | — |
-| **Alpha Release** | ⏳ Not Started | — |
+- **Gaming**: Minecraft, RuneScape, game state awareness. *What else? WoW, FFXIV, Path of Exile? [Let us know!](https://github.com/Divinity10/GLADyS/issues)*
+- **Smart home**: Doorbell, thermostats, lighting
+- **Productivity**: Calendar and email awareness
+- **Health**: CGM, smartwatch, fitness data
 
-## Architecture Overview
+## Current Focus
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                           GLADyS                                │
-│                                                                 │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐                        │
-│  │ Visual  │  │  Audio  │  │  Game   │   SENSORS              │
-│  │ Sensor  │  │ Sensor  │  │(Aperture│   (Python)             │
-│  └────┬────┘  └────┬────┘  └────┬────┘                        │
-│       │            │            │                              │
-│       └────────────┼────────────┘                              │
-│                    ▼                                           │
-│  ┌─────────────────────────────────────────────────────────┐  │
-│  │              ORCHESTRATOR (Rust)                        │  │
-│  │  • Shared memory for images                             │  │
-│  │  • Security enforcement                                 │  │
-│  │  • Plugin lifecycle                                     │  │
-│  └─────────────────────────┬───────────────────────────────┘  │
-│                            │                                   │
-│       ┌────────────────────┼────────────────────┐             │
-│       ▼                    ▼                    ▼             │
-│  ┌─────────┐        ┌───────────┐        ┌──────────┐        │
-│  │SALIENCE │        │  MEMORY   │        │EXECUTIVE │        │
-│  │ GATEWAY │        │ CONTROLLER│        │  (C#)    │        │
-│  │(Python) │        │ (Python)  │        │          │        │
-│  └─────────┘        └───────────┘        └────┬─────┘        │
-│                                               │               │
-│                                               ▼               │
-│                                        ┌──────────┐          │
-│                                        │  OUTPUT  │          │
-│                                        │  (TTS)   │          │
-│                                        └──────────┘          │
-│                                                               │
-└───────────────────────────────────────────────────────────────┘
-```
+1. Memory subsystem (PoC complete)
+2. Orchestrator
+3. Learning pipeline
+4. First sensor integration
+
+## Status
+
+| Component | Status |
+|-----------|--------|
+| Architecture Design | 🔄 Core defined, evolving |
+| Memory Subsystem | 🧪 Proof of concept |
+| Orchestrator | ⏳ Not started |
+| Executive | ⏳ Not started |
+| Sensors | ⏳ Not started |
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Orchestrator | Rust |
+| Memory | Rust + Python + PostgreSQL |
+| Executive | C# |
+| Sensors/Skills | Various |
+| Communication | gRPC |
 
 ## Documentation
 
-### Architecture Decision Records
+| Doc | Purpose |
+|-----|---------|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to get involved |
+| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Development setup |
+| [docs/adr/](docs/adr/) | Architecture decisions |
+| [docs/design/OPEN_QUESTIONS.md](docs/design/OPEN_QUESTIONS.md) | Active design discussions |
 
-All architectural decisions are documented as ADRs in [`docs/adr/`](docs/adr/README.md).
+## Quick Start
 
-| ADR | Title |
-|-----|-------|
-| [0001](docs/adr/ADR-0001-GLADyS-Architecture.md) | GLADyS Architecture |
-| [0002](docs/adr/ADR-0002-Hardware-Requirements.md) | Hardware Requirements |
-| [0003](docs/adr/ADR-0003-Plugin-Manifest-Specification.md) | Plugin Manifest Specification |
-| [0004](docs/adr/ADR-0004-Memory-Schema-Details.md) | Memory Schema Details |
-| [0005](docs/adr/ADR-0005-gRPC-Service-Contracts.md) | gRPC Service Contracts |
-| [0006](docs/adr/ADR-0006-Observability-and-Monitoring.md) | Observability and Monitoring |
-| [0007](docs/adr/ADR-0007-Adaptive-Algorithms.md) | Adaptive Algorithms |
-| [0008](docs/adr/ADR-0008-Security-and-Privacy.md) | Security and Privacy |
+```bash
+# Run the Memory subsystem
+cd src/memory
+python run.py start
+```
 
-## Technology Stack
+See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for full setup.
 
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Orchestrator | Rust | Performance, memory safety |
-| Sensors | Python | ML ecosystem, rapid development |
-| Salience Gateway | Python | ML models |
-| Memory Controller | Python | ML models, PostgreSQL integration |
-| Executive | C# | Strong LLM tooling |
-| Database | PostgreSQL + pgvector | Relational + vector search |
-| Communication | gRPC | Performance, strong typing |
-| Observability | Prometheus, Loki, Jaeger, Grafana | Industry standard |
+## Owners
 
-## Hardware Requirements
+- **Mike Mulcahy** (Divinity10) - Lead
+- **Scott Mulcahy** (scottcm)
 
-### Minimum (Phase 1)
+## Contributors
 
-- CPU: Modern 6+ core
-- RAM: 32GB DDR4
-- GPU: RTX 2070 8GB or equivalent
-- Storage: 100GB SSD
-
-### Recommended (Phase 2)
-
-- CPU: Modern 8+ core
-- RAM: 64GB DDR4
-- GPU: RTX 3090 24GB (or dual GPU setup)
-- Storage: 250GB NVMe SSD
-
-See [ADR-0002](docs/adr/ADR-0002-Hardware-Requirements.md) for details.
-
-## Security & Privacy
-
-Security is a foundational design principle, not an afterthought.
-
-| Principle | Implementation |
-|-----------|----------------|
-| Local-first | Data stays on device by default |
-| Minimal collection | Only collect what's needed, discard raw data |
-| Fail closed | Deny by default |
-| Defense in depth | Multiple security layers |
-| Transparency | Users can see what's collected |
-
-### Age Restrictions
-
-| Age | Access Level |
-|-----|--------------|
-| 13-15 | Game sensors only, limited permissions |
-| 16-17 | All 1st party, signed 3rd party |
-| 18+ | Full access |
-
-See [ADR-0008](docs/adr/ADR-0008-Security-and-Privacy.md) for the complete security model.
-
-## Game Integration
-
-GLADyS can integrate with games through **Aperture**, a bridge mod that exposes game data via local APIs. This provides more accurate data than screen capture alone.
-
-See [ADR-0008 Section 13](docs/adr/ADR-0008-Security-and-Privacy.md#13-game-mod-integration) for details.
-
-## Contributing
-
-> 🚧 Contribution guidelines will be added once implementation begins.
-
-At this stage, contributions are focused on:
-
-- Architecture feedback via GitHub Issues
-- ADR review and discussion
-- Use case proposals
-
-## License
-
-TBD
-
-## Contact
-
-- **Owners**: Mike Mulcahy (Divinity10), Scott Mulcahy (scottcm)
+- **Leah DeYoung** (LDeYoung17)
 
 ---
 
 <p align="center">
-  <i>Named in memory of Gladys — grandmother, inspiration.</i>
+  <i>Named in memory of Gladys — grandmother, great-grandmother, inspiration.<br/>
+  Any resemblance to murderous AI constructs is purely coincidental. The cake is not a lie.</i>
 </p>

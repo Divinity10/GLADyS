@@ -1,0 +1,76 @@
+# Contributing to GLADyS
+
+GLADyS (**G**eneralized **L**ogical **A**daptive **Dy**namic **S**ystem) is a general-purpose adaptive AI assistant. We're building it to be local-first, privacy-focused, and user-controlled.
+
+## What We're Building
+
+GLADyS learns and adapts to help with:
+- **Gaming**: Minecraft companion, game state awareness
+- **Smart home**: Sensors, thermostats, lighting automation
+- **Productivity**: Calendar awareness, task management
+- **Health/Wellness**: Activity tracking, habit formation
+
+It's not just a chatbot—it's a system that remembers, learns, and acts.
+
+## What We Need
+
+We're looking for contributors with experience in:
+
+| Area | Technologies | What You'd Work On |
+|------|--------------|-------------------|
+| **Core systems** | Rust | Orchestrator, fast paths, performance-critical code |
+| **ML/Storage** | Python, PostgreSQL | Memory subsystem, embeddings, semantic search |
+| **User interface** | C#/.NET | Executive layer, user interactions |
+| **Integrations** | Various | Sensors (Discord, Minecraft, Home Assistant, etc.) |
+| **DevOps** | Docker, gRPC | Build systems, deployment, observability |
+
+Don't see your skillset? Open an issue—we might have something.
+
+## How to Get Involved
+
+1. **Read the architecture**: Start with [docs/adr/](docs/adr/) to understand design decisions
+2. **Pick an area**: Look at open issues or ask what needs help
+3. **Set up locally**: See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+4. **Make small PRs**: Fix a bug, improve docs, add tests—build trust first
+
+## How We Work
+
+### Decision Making
+
+Significant decisions are documented in **Architecture Decision Records (ADRs)** in `docs/adr/`. If you want to propose a change to architecture:
+
+1. Open an issue to discuss
+2. If there's consensus, draft an ADR
+3. ADR gets reviewed and merged
+
+### Code Style
+
+- **Rust**: Standard rustfmt, clippy clean
+- **Python**: PEP 8, type hints required
+- **C#**: .NET conventions
+
+### Commits
+
+Format: `type(scope): message`
+
+```
+feat(orchestrator): add sensor registration
+fix(memory): correct embedding dimension
+doc(ADR): add actuator specification
+```
+
+### Pull Requests
+
+- Keep PRs focused (one feature/fix per PR)
+- Include tests for new functionality
+- Update docs if behavior changes
+- Reference related issues
+
+## Project Owners
+
+- **Mike Mulcahy** (Divinity10) - Lead
+- **Scott Mulcahy** (scottcm)
+
+## Questions?
+
+Open an issue or check existing discussions. We're happy to help you find a good first contribution.
