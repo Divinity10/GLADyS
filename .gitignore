@@ -36,6 +36,14 @@ config/local.yaml
 memory.md
 **/memory-*.md
 
+# Implementation prompts and plans (working docs, not committed)
+docs/design/*_PROMPT.md
+docs/design/*_IMPL_PROMPT.md
+docs/design/IMPLEMENTATION_PLAN.md
+
+# Windows device names
+nul
+
 # Logs
 *.log
 logs/
