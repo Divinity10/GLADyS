@@ -14,7 +14,7 @@
 
 ## 1. Context and Problem Statement
 
-GLADyS consists of multiple components written in different languages (Rust orchestrator, Python sensors/salience/memory, C# executive). These components must communicate reliably with low latency.
+GLADyS consists of multiple components written in different languages (Python orchestrator/sensors/salience/memory, C# executive, Rust memory fast-path). These components must communicate reliably with low latency.
 
 This ADR defines the gRPC service contracts, message formats, communication patterns, and supporting infrastructure (auth, tracing, error handling).
 
@@ -37,7 +37,7 @@ This ADR defines the gRPC service contracts, message formats, communication patt
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         ORCHESTRATOR (Rust)                              │
+│                         ORCHESTRATOR (Python)                            │
 │                                                                          │
 │   • Message broker (pub/sub fan-out)                                     │
 │   • Lifecycle management                                                 │

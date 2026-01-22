@@ -1,0 +1,38 @@
+[project]
+name = "gladys-orchestrator"
+version = "0.1.0"
+description = "GLADyS Orchestrator - Central event routing and coordination"
+authors = [
+    { name = "Mike Mulcahy" },
+    { name = "Scott Mulcahy" },
+]
+requires-python = ">=3.11"
+dependencies = [
+    # gRPC
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+
+    # Async support
+    "grpcio-reflection>=1.60",
+
+    # Utilities
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

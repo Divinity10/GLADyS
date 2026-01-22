@@ -583,7 +583,7 @@ def configure_tracing(service_name: str):
     return trace.get_tracer(service_name)
 ```
 
-#### Rust Orchestrator
+#### Rust Memory Fast Path
 
 ```rust
 // Using tracing + opentelemetry crates
@@ -594,16 +594,16 @@ use tracing_subscriber::Registry;
 
 fn init_tracing() -> Result<(), Box<dyn Error>> {
     let tracer = new_agent_pipeline()
-        .with_service_name("orchestrator")
+        .with_service_name("memory-fast-path")
         .with_endpoint("localhost:6831")
         .install_batch(opentelemetry::runtime::Tokio)?;
-    
+
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-    
+
     let subscriber = Registry::default()
         .with(telemetry)
         .with(tracing_subscriber::fmt::layer());
-    
+
     tracing::subscriber::set_global_default(subscriber)?;
     Ok(())
 }

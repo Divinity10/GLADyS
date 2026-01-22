@@ -1,0 +1,89 @@
+syntax = "proto3";
+package gladys.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// ============================================================================
+// REQUEST METADATA (included in all RPCs)
+// ============================================================================
+
+message RequestMetadata {
+    string request_id = 1;          // UUID, generated at origin
+    string trace_id = 2;            // OpenTelemetry trace ID
+    string span_id = 3;             // OpenTelemetry span ID
+    int64 timestamp_ms = 4;         // Request creation time (Unix ms)
+    string source_component = 5;    // Originating component ID
+}
+
+// ============================================================================
+// EVENTS
+// ============================================================================
+
+message Event {
+    string id = 1;                              // UUID
+    google.protobuf.Timestamp timestamp = 2;
+    string source = 3;                          // Sensor ID
+
+    // Content
+    string raw_text = 4;                        // Natural language description
+    google.protobuf.Struct structured = 5;     // Domain-specific fields
+
+    // Salience (populated by Salience Gateway)
+    SalienceVector salience = 6;
+
+    // Entity references (populated by Entity Extractor)
+    repeated string entity_ids = 7;
+
+    // Optional pre-tokenized payload (for LLM injection)
+    repeated int32 tokens = 8;
+    string tokenizer_id = 9;
+
+    // Metadata
+    RequestMetadata metadata = 15;
+}
+
+message SalienceVector {
+    float threat = 1;               // 0-1
+    float opportunity = 2;          // 0-1
+    float humor = 3;                // 0-1
+    float novelty = 4;              // 0-1
+    float goal_relevance = 5;       // 0-1
+    float social = 6;               // 0-1
+    float emotional = 7;            // -1 to 1
+    float actionability = 8;        // 0-1
+    float habituation = 9;          // 0-1
+}
+
+// ============================================================================
+// COMPONENT STATUS
+// ============================================================================
+
+enum ComponentState {
+    COMPONENT_STATE_UNKNOWN = 0;
+    COMPONENT_STATE_STARTING = 1;
+    COMPONENT_STATE_ACTIVE = 2;
+    COMPONENT_STATE_PAUSED = 3;
+    COMPONENT_STATE_STOPPING = 4;
+    COMPONENT_STATE_STOPPED = 5;
+    COMPONENT_STATE_ERROR = 6;
+    COMPONENT_STATE_DEAD = 7;
+}
+
+message ComponentStatus {
+    string component_id = 1;
+    ComponentState state = 2;
+    string message = 3;             // Human-readable status
+    google.protobuf.Timestamp last_heartbeat = 4;
+    map<string, string> metrics = 5;  // Key-value metrics
+}
+
+// ============================================================================
+// ERRORS
+// ============================================================================
+
+message ErrorDetail {
+    string code = 1;                // Machine-readable error code
+    string message = 2;             // Human-readable message
+    map<string, string> metadata = 3;
+}

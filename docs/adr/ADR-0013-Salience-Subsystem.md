@@ -63,6 +63,21 @@ Sensors → Preprocessors → [SALIENCE GATEWAY] → Executive
                            Memory    Feedback
 ```
 
+### 4.1.1 The "Amygdala" Architecture
+
+Salience and Memory's fast path work together as the functional equivalent of the brain's amygdala - the fast threat/opportunity detector:
+
+- **Salience Gateway** (Python): Receives events, applies evaluation pipeline, routes based on scores
+- **Memory Fast Path** (Rust): Provides heuristic lookup, novelty detection, pattern matching (<5ms)
+- **Together**: Fast context-aware salience evaluation without LLM latency
+
+Per ADR-0001 §5.1, Salience and Memory share a process to avoid IPC overhead on this hot path. The Python Salience layer queries the Rust fast path for:
+- Threat/opportunity pattern matches (heuristics table)
+- Novelty scores (recent event similarity)
+- Context retrieval (what does this event mean in current situation?)
+
+This enables the Stage 2 heuristic evaluation (5-20ms) without requiring embedding generation or LLM inference for most events.
+
 The Salience Gateway:
 - **Receives**: Processed events from preprocessors (or raw events from sensors without preprocessors)
 - **Outputs to Executive**: Filtered, prioritized events that warrant attention

@@ -28,6 +28,8 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §15 | Deployment Model | 🔴 Gap | NEW - deployment configs, resource constraints |
 | §16 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
 | §17 | Heuristic Condition Matching | 🟡 Open | MVP design decided, impl deferred to Phase 3 |
+| §18 | Orchestrator Language | ✅ Resolved | Python - see SUBSYSTEM_OVERVIEW.md §3, ORCHESTRATOR_IMPL_PROMPT.md |
+| §19 | PoC vs ADR-0005 Gaps | 🟡 Open | Simplified contracts for MVP |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -1042,6 +1044,49 @@ When simple matching proves insufficient, consider:
 - **ADR-0010**: Defines heuristics as System 1 learned rules
 - **ADR-0004**: Defines `heuristics` table schema (JSONB condition/action)
 - **Orchestrator**: Will call Memory fast path to check for matching heuristics before invoking LLM
+
+---
+
+## 19. PoC Implementation vs ADR-0005 Spec Gaps
+
+**Status**: Tracked for post-MVP
+**Priority**: Low (intentional simplification)
+**Created**: 2026-01-22
+
+### Context
+
+The PoC implementation uses simplified gRPC contracts compared to ADR-0005 specifications. This is intentional - the ADR defines the target architecture, while the PoC proves the core concept with minimal viable contracts.
+
+### SalienceGateway Service
+
+| Aspect | ADR-0005 §4.5 Spec | PoC Implementation |
+|--------|--------------------|--------------------|
+| Package | `gladys.v1` | `gladys.memory` |
+| Service name | `SalienceGatewayService` | `SalienceGateway` |
+| RPCs | `EvaluateEvent`, `EvaluateEventBatch`, `ModulateSalience` | `EvaluateSalience` only |
+| Request | Full `Event` + `EvaluationContext` | Flat fields (event_id, source, raw_text, structured_json, entity_ids) |
+| Response | Enriched event + relevant memories + user profile + should_process | Salience vector + from_cache + matched_heuristic_id |
+
+### Rationale for Simplification
+
+1. **Minimal viable path**: PoC needs to prove event → salience → routing works
+2. **Avoid premature complexity**: Rich context can be added when needed
+3. **Faster iteration**: Simpler contracts = faster debugging
+4. **Memory retrieval deferred**: `relevant_memories` in response requires additional Memory integration
+
+### Post-MVP Expansion Path
+
+When expanding to full ADR-0005 spec:
+
+1. Add `EvaluateEventBatch` for throughput optimization
+2. Add `ModulateSalience` for Executive feedback loop
+3. Expand request to include `EvaluationContext` (active goals, focus entities)
+4. Expand response to include relevant memories and user profile snapshot
+5. Migrate to `gladys.v1` package for consistency
+
+### No Action Required
+
+This is documentation of intentional scope limitation, not a bug or oversight.
 
 ---
 

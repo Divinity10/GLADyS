@@ -1,0 +1,193 @@
+syntax = "proto3";
+package gladys.v1;
+
+import "common.proto";
+import "google/protobuf/timestamp.proto";
+
+// ============================================================================
+// ORCHESTRATOR SERVICE
+// ============================================================================
+
+service OrchestratorService {
+    // --------------------------------------------------------------------
+    // Event Routing
+    // --------------------------------------------------------------------
+
+    // Sensors publish events through this streaming RPC
+    // Orchestrator fans out to subscribers
+    rpc PublishEvents(stream Event) returns (stream EventAck);
+
+    // Components subscribe to receive events
+    rpc SubscribeEvents(SubscribeRequest) returns (stream Event);
+
+    // --------------------------------------------------------------------
+    // Component Lifecycle
+    // --------------------------------------------------------------------
+
+    // Register a component with the orchestrator
+    rpc RegisterComponent(RegisterRequest) returns (RegisterResponse);
+
+    // Unregister (graceful shutdown)
+    rpc UnregisterComponent(UnregisterRequest) returns (UnregisterResponse);
+
+    // Send lifecycle command to a component
+    rpc SendCommand(CommandRequest) returns (CommandResponse);
+
+    // --------------------------------------------------------------------
+    // Health & Status
+    // --------------------------------------------------------------------
+
+    // Components send periodic heartbeats
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+    // Get status of all components
+    rpc GetSystemStatus(SystemStatusRequest) returns (SystemStatusResponse);
+
+    // --------------------------------------------------------------------
+    // Service Discovery
+    // --------------------------------------------------------------------
+
+    // Resolve component address by ID
+    rpc ResolveComponent(ResolveRequest) returns (ResolveResponse);
+}
+
+// ----------------------------------------------------------------------------
+// Event Routing Messages
+// ----------------------------------------------------------------------------
+
+message EventAck {
+    string event_id = 1;
+    bool accepted = 2;
+    string error_message = 3;       // If not accepted
+}
+
+message SubscribeRequest {
+    string subscriber_id = 1;
+    repeated string source_filters = 2;   // Empty = all sources
+    repeated string event_types = 3;      // Empty = all types
+}
+
+// ----------------------------------------------------------------------------
+// Registration Messages
+// ----------------------------------------------------------------------------
+
+message RegisterRequest {
+    string component_id = 1;
+    string component_type = 2;      // sensor, salience, executive, output, memory
+    string address = 3;             // host:port
+    ComponentCapabilities capabilities = 4;
+    RequestMetadata metadata = 15;
+}
+
+message ComponentCapabilities {
+    // Transport mode (for sensors)
+    TransportMode transport_mode = 1;
+    int32 batch_size = 2;
+    int32 batch_interval_ms = 3;
+
+    // Supported instructions (for configurable sensors)
+    bool configurable = 4;
+    repeated string supported_instructions = 5;
+
+    // Instance policy
+    InstancePolicy instance_policy = 6;
+}
+
+enum TransportMode {
+    TRANSPORT_MODE_UNSPECIFIED = 0;
+    TRANSPORT_MODE_STREAMING = 1;
+    TRANSPORT_MODE_BATCHED = 2;
+    TRANSPORT_MODE_EVENT = 3;
+}
+
+enum InstancePolicy {
+    INSTANCE_POLICY_SINGLE = 0;     // Default: only one instance allowed
+    INSTANCE_POLICY_MULTIPLE = 1;   // Multiple instances allowed
+}
+
+message RegisterResponse {
+    bool success = 1;
+    string error_message = 2;
+    string assigned_id = 3;         // May differ from requested if conflict
+}
+
+message UnregisterRequest {
+    string component_id = 1;
+    RequestMetadata metadata = 15;
+}
+
+message UnregisterResponse {
+    bool success = 1;
+}
+
+// ----------------------------------------------------------------------------
+// Command Messages
+// ----------------------------------------------------------------------------
+
+message CommandRequest {
+    string target_component_id = 1;
+    Command command = 2;
+    RequestMetadata metadata = 15;
+}
+
+enum Command {
+    COMMAND_UNSPECIFIED = 0;
+    COMMAND_START = 1;
+    COMMAND_STOP = 2;
+    COMMAND_PAUSE = 3;
+    COMMAND_RESUME = 4;
+    COMMAND_RELOAD = 5;
+    COMMAND_HEALTH_CHECK = 6;
+}
+
+message CommandResponse {
+    bool success = 1;
+    string error_message = 2;
+    ComponentStatus status = 3;
+}
+
+// ----------------------------------------------------------------------------
+// Health Messages
+// ----------------------------------------------------------------------------
+
+message HeartbeatRequest {
+    string component_id = 1;
+    ComponentState state = 2;
+    map<string, string> metrics = 3;
+    RequestMetadata metadata = 15;
+}
+
+message HeartbeatResponse {
+    bool acknowledged = 1;
+    repeated PendingCommand pending_commands = 2;  // Commands queued for this component
+}
+
+message PendingCommand {
+    string command_id = 1;
+    Command command = 2;
+}
+
+message SystemStatusRequest {
+    RequestMetadata metadata = 15;
+}
+
+message SystemStatusResponse {
+    repeated ComponentStatus components = 1;
+    google.protobuf.Timestamp timestamp = 2;
+}
+
+// ----------------------------------------------------------------------------
+// Service Discovery Messages
+// ----------------------------------------------------------------------------
+
+message ResolveRequest {
+    string component_id = 1;
+    string component_type = 2;      // Alternative: resolve by type
+    RequestMetadata metadata = 15;
+}
+
+message ResolveResponse {
+    bool found = 1;
+    string address = 2;
+    ComponentCapabilities capabilities = 3;
+}

@@ -91,6 +91,133 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
     )
 
 
+class SalienceGatewayServicer(memory_pb2_grpc.SalienceGatewayServicer):
+    """gRPC servicer for Salience Gateway - the 'amygdala'.
+
+    Co-located with Memory per ADR-0001 §5.1.
+    Provides fast salience evaluation for incoming events.
+    """
+
+    def __init__(
+        self,
+        storage: MemoryStorage,
+        embeddings: EmbeddingGenerator,
+    ):
+        self.storage = storage
+        self.embeddings = embeddings
+
+    async def EvaluateSalience(self, request, context):
+        """Evaluate salience for an event.
+
+        Uses heuristics from Memory + novelty detection.
+        Returns salience vector with all dimensions.
+        """
+        try:
+            # Step 1: Check for matching heuristics
+            matched_heuristic = None
+            salience = self._default_salience()
+
+            # Query heuristics that might match this event
+            heuristics = await self.storage.query_heuristics(min_confidence=0.5)
+
+            for h in heuristics:
+                if self._heuristic_matches(h, request):
+                    matched_heuristic = h
+                    # Apply heuristic's salience boost
+                    salience = self._apply_heuristic_salience(salience, h)
+                    break
+
+            # Step 2: Novelty detection via embedding similarity
+            if request.raw_text:
+                embedding = self.embeddings.generate(request.raw_text)
+                # Check if similar events exist (low novelty) or not (high novelty)
+                similar = await self.storage.query_by_similarity(
+                    query_embedding=embedding,
+                    threshold=0.85,
+                    hours=24,
+                    limit=5,
+                )
+                if len(similar) == 0:
+                    # Novel event - boost novelty
+                    salience["novelty"] = max(salience["novelty"], 0.7)
+                elif len(similar) < 3:
+                    # Somewhat novel
+                    salience["novelty"] = max(salience["novelty"], 0.4)
+                else:
+                    # Common event - habituation
+                    salience["habituation"] = min(0.8, salience["habituation"] + 0.3)
+
+            # Build response
+            salience_proto = memory_pb2.SalienceVector(
+                threat=salience["threat"],
+                opportunity=salience["opportunity"],
+                humor=salience["humor"],
+                novelty=salience["novelty"],
+                goal_relevance=salience["goal_relevance"],
+                social=salience["social"],
+                emotional=salience["emotional"],
+                actionability=salience["actionability"],
+                habituation=salience["habituation"],
+            )
+
+            return memory_pb2.EvaluateSalienceResponse(
+                salience=salience_proto,
+                from_cache=matched_heuristic is not None,
+                matched_heuristic_id=str(matched_heuristic["id"]) if matched_heuristic else "",
+            )
+
+        except Exception as e:
+            return memory_pb2.EvaluateSalienceResponse(error=str(e))
+
+    def _default_salience(self) -> dict:
+        """Default salience values."""
+        return {
+            "threat": 0.0,
+            "opportunity": 0.0,
+            "humor": 0.0,
+            "novelty": 0.1,
+            "goal_relevance": 0.0,
+            "social": 0.0,
+            "emotional": 0.0,
+            "actionability": 0.0,
+            "habituation": 0.0,
+        }
+
+    def _heuristic_matches(self, heuristic: dict, request) -> bool:
+        """Check if a heuristic matches the request context.
+
+        Simple pattern matching for MVP. Can be extended with more
+        sophisticated matching logic.
+        """
+        condition = heuristic.get("condition", {})
+
+        # Match by source
+        if "source" in condition:
+            if condition["source"] != request.source:
+                return False
+
+        # Match by keywords in raw_text
+        if "keywords" in condition:
+            keywords = condition["keywords"]
+            if isinstance(keywords, list):
+                text_lower = request.raw_text.lower()
+                if not any(kw.lower() in text_lower for kw in keywords):
+                    return False
+
+        return True
+
+    def _apply_heuristic_salience(self, salience: dict, heuristic: dict) -> dict:
+        """Apply salience modifiers from a matched heuristic."""
+        action = heuristic.get("action", {})
+        salience_boost = action.get("salience", {})
+
+        for key, value in salience_boost.items():
+            if key in salience:
+                salience[key] = max(salience[key], value)
+
+        return salience
+
+
 class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
     """gRPC servicer for Memory Storage."""
 
@@ -228,15 +355,19 @@ async def serve(
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
 
-    # Add servicer
+    # Add servicers
     memory_pb2_grpc.add_MemoryStorageServicer_to_server(
         MemoryStorageServicer(storage, embeddings),
+        server,
+    )
+    memory_pb2_grpc.add_SalienceGatewayServicer_to_server(
+        SalienceGatewayServicer(storage, embeddings),
         server,
     )
 
     server.add_insecure_port(f"{host}:{port}")
     await server.start()
-    print(f"Memory Storage gRPC server started on {host}:{port}")
+    print(f"Memory Storage + Salience Gateway gRPC server started on {host}:{port}")
 
     try:
         await server.wait_for_termination()

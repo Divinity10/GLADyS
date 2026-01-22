@@ -101,22 +101,33 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 
 ### Synchronization Model (Resolved)
 
-**Approach**: Lazy synchronization via Memory with per-sensor batching.
+**Approach**: Lazy synchronization via Memory. Sensors emit events, Orchestrator creates moments.
 
 | Concept | Definition |
 |---------|------------|
 | **Event** | Raw signal from sensor with timestamp |
-| **Moment** | Batched events from one source within configurable time window |
+| **Collection interval** | How often a sensor samples/emits events (sensor-determined) |
+| **Moment** | Events accumulated by Orchestrator within configurable time window (Orchestrator-determined) |
 | **Context** | Collection of recent moments across sources (retrieved from Memory) |
 
-**Per-sensor batch windows**:
+**Key distinction**: Collection interval ≠ batching. Sensors emit events at their natural rate. The Orchestrator accumulates them into "moments" for Executive consumption.
 
-| Sensor Type | Batch Window | Rationale |
-|-------------|--------------|-----------|
-| Game events | 50ms | Low latency needed for combat |
-| Temperature | 5000ms | Changes slowly |
-| Doorbell | 0ms (immediate) | Requires instant response |
-| Audio chunks | Per-utterance | Natural speech boundaries |
+**Typical collection intervals** (sensor guidelines, not requirements):
+
+| Sensor Type | Collection Interval | Notes |
+|-------------|---------------------|-------|
+| Game events | Real-time/async | Events as they occur |
+| Temperature | 5 min | Changes slowly |
+| CGM (glucose) | 1-5 min | Medical device rate |
+| Doorbell | Real-time | Event on ring/motion |
+| Email | 15 min | Check periodically |
+| Audio | Continuous | Stream with chunking |
+
+**Moment window** (Orchestrator setting, configurable):
+- Default: 50-100ms for real-time scenarios (gaming, conversation)
+- Configurable per context
+- MVP: Static setting; post-MVP: learned/dynamic adjustment
+- High-salience events bypass moment accumulation (immediate to Executive)
 
 **Synchronization approach**:
 1. Events flow **asynchronously** to Memory with timestamps
@@ -143,20 +154,28 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 | Throughput | >100 events/sec | Sustained |
 | Memory footprint | TBD | Depends on buffering strategy |
 
-### Language Consideration
+### Language Decision
 
-**ADR-0001 says**: Rust
+**Language**: Python
 
-**Rationale given**: Performance-critical routing
+**ADR-0001 originally said Rust**, rationale was "performance-critical routing." This was updated to Python after sync model resolution and architecture review (2026-01-21).
 
-**Updated assessment** (after sync model resolution):
-- Sync model is "lazy via Memory" - Orchestrator is NOT doing temporal correlation
-- Orchestrator is message passing + DAG execution + health checks
-- This is NOT performance-critical work (LLM dominates latency budget)
-- **Rust is no longer justified for Orchestrator** based on current design
-- Python or Go would suffice for this workload
+**Why Python is correct** (confirmed after deep dive 2026-01-21):
 
-**Note**: See Section 12 for where Rust IS justified (audio pipeline).
+1. **Amygdala architecture**: Salience + Memory fast path (Rust) together form the "amygdala" - the fast threat/opportunity detector. They share a process per ADR-0001. The heavy evaluation happens there, not in Orchestrator.
+
+2. **Orchestrator's actual job**:
+   - Receives events from sensors/preprocessors
+   - Queries Salience+Memory for salience score (I/O call)
+   - Routes based on score: HIGH → immediate to Executive, LOW → accumulate for next tick
+   - Manages clock ticks, plugin lifecycle, health checks
+   - This is I/O + simple comparison, NOT compute-intensive
+
+3. **Context comes from Memory**: Threat patterns, semantic knowledge, domain rules all stored in Memory. Salience applies those patterns. Orchestrator doesn't need this knowledge - it just routes based on returned scores.
+
+4. **Performance is achievable**: <5ms per hop with Python gRPC (~1-3ms local). >100 events/sec with asyncio. The compute-heavy work is in Salience+Memory's Rust fast path.
+
+**Note**: See Section 12 for where Rust IS justified (Memory fast path, audio pipeline).
 
 ---
 
