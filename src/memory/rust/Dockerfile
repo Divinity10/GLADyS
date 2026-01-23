@@ -5,7 +5,7 @@
 # so proto files are accessible
 
 # Build stage
-FROM rust:1.75-bookworm AS builder
+FROM rust:1.83-bookworm AS builder
 
 # Install protobuf compiler
 RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
@@ -34,8 +34,8 @@ RUN cargo build --release
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies (netcat-openbsd for healthcheck)
+RUN apt-get update && apt-get install -y ca-certificates netcat-openbsd && rm -rf /var/lib/apt/lists/*
 
 # Copy binary from builder
 COPY --from=builder /app/target/release/memory-fast-path /usr/local/bin/

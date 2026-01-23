@@ -81,12 +81,16 @@ def cmd_start(args: argparse.Namespace) -> int:
     """Start the Orchestrator server."""
     setup_logging(args.verbose)
 
-    config = OrchestratorConfig(
-        host=args.host,
-        port=args.port,
-        moment_window_ms=args.moment_window,
-        high_salience_threshold=args.salience_threshold,
-    )
+    # Start with env vars / defaults, then override with explicit CLI args
+    config = OrchestratorConfig()
+    if args.host != "0.0.0.0":
+        config = config.model_copy(update={"host": args.host})
+    if args.port is not None:
+        config = config.model_copy(update={"port": args.port})
+    if args.moment_window != 100:
+        config = config.model_copy(update={"moment_window_ms": args.moment_window})
+    if args.salience_threshold != 0.7:
+        config = config.model_copy(update={"high_salience_threshold": args.salience_threshold})
 
     print(f"Starting GLADyS Orchestrator on {config.host}:{config.port}")
     print(f"  Moment window: {config.moment_window_ms}ms")
@@ -117,7 +121,7 @@ def main() -> int:
     # start command
     start_parser = subparsers.add_parser("start", help="Start the Orchestrator server")
     start_parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
-    start_parser.add_argument("--port", type=int, default=50051, help="Port to listen on")
+    start_parser.add_argument("--port", type=int, default=None, help="Port to listen on (default: 50050)")
     start_parser.add_argument(
         "--moment-window",
         type=int,

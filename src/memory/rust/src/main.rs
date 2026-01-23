@@ -6,14 +6,20 @@
 //! - L0 in-memory cache for recent events
 //! - Novelty detection via embedding similarity
 //! - Heuristic lookup for System 1 fast responses
+//! - gRPC server for SalienceGateway service
 //! - Communication with Python storage backend via gRPC
 
-use gladys_memory::{CacheConfig, ClientConfig, MemoryCache, StorageClient};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+use gladys_memory::{
+    CacheConfig, ClientConfig, MemoryCache, ServerConfig, StorageClient, run_server,
+};
 use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
+    // Initialize tracing (logging)
     tracing_subscriber::fmt::init();
 
     info!("Starting GLADyS Memory Fast Path");
@@ -25,36 +31,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "L0 cache initialized"
     );
 
-    // Try to connect to Python storage backend
+    // Wrap cache in Arc<RwLock> for shared access across async tasks
+    let cache = Arc::new(RwLock::new(cache));
+
+    // Try to connect to Python storage backend (for loading heuristics, etc.)
     let client_config = ClientConfig::default();
     info!(address = %client_config.address, "Connecting to storage backend");
 
-    let storage_client = match StorageClient::connect(client_config).await {
+    let _storage_client = match StorageClient::connect(client_config).await {
         Ok(client) => {
             info!("Connected to Python storage backend");
             Some(client)
         }
         Err(e) => {
-            warn!("Failed to connect to storage backend: {}. Running in cache-only mode.", e);
+            warn!("Failed to connect to storage backend: {}. Running standalone.", e);
             None
         }
     };
 
-    // Log initial state
-    if storage_client.is_some() {
-        info!("Memory Fast Path running with storage backend");
-    } else {
-        info!("Memory Fast Path running in standalone mode (no storage backend)");
-    }
+    // TODO: Load heuristics from storage into cache on startup
+    // This would populate the cache with learned rules from the database
 
-    // TODO: Start listening for requests from Orchestrator
-    // The Orchestrator will send events to be processed through the fast path
+    // Start the gRPC server
+    let server_config = ServerConfig::default(); // Listens on 0.0.0.0:50052
+    info!(
+        host = %server_config.host,
+        port = server_config.port,
+        "Starting gRPC server"
+    );
 
-    info!("Memory Fast Path ready");
+    // This runs until the server is shut down (Ctrl+C)
+    run_server(server_config, cache).await?;
 
-    // Keep running until interrupted
-    tokio::signal::ctrl_c().await?;
-    info!("Shutting down Memory Fast Path");
-
+    info!("Memory Fast Path shutdown complete");
     Ok(())
 }

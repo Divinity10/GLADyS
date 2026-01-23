@@ -45,10 +45,10 @@ class EventRouter:
     4. Otherwise → accumulate into current moment
     """
 
-    def __init__(self, config: OrchestratorConfig):
+    def __init__(self, config: OrchestratorConfig, salience_client=None):
         self.config = config
         self._subscribers: dict[str, Subscriber] = {}
-        self._salience_client = None  # Will be initialized with actual gRPC client
+        self._salience_client = salience_client
 
     async def route_event(self, event: Any, accumulator: Any) -> dict:
         """
@@ -88,10 +88,13 @@ class EventRouter:
         Query Salience+Memory for salience evaluation.
 
         This is where we call the "amygdala" (Salience+Memory shared process).
-        For MVP, this returns a mock salience if the service isn't available.
+        Falls back to default salience if service unavailable (graceful degradation).
         """
-        # TODO: Implement actual gRPC call to Salience+Memory
-        # For now, return event's existing salience or default low salience
+        # If salience client is available, use it
+        if self._salience_client:
+            return await self._salience_client.evaluate_salience(event)
+
+        # Fallback: use event's existing salience if present
         if hasattr(event, "salience") and event.salience:
             return {
                 "threat": event.salience.threat,
@@ -106,7 +109,11 @@ class EventRouter:
             }
 
         # Default: low salience (will be accumulated into moment)
-        logger.debug(f"No salience service available, using default low salience")
+        logger.debug("No salience service available, using default low salience")
+        return self._default_salience()
+
+    def _default_salience(self) -> dict:
+        """Default salience values when service unavailable."""
         return {
             "threat": 0.0,
             "opportunity": 0.0,

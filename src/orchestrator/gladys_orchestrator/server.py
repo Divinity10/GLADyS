@@ -12,6 +12,7 @@ from .config import OrchestratorConfig
 from .registry import ComponentRegistry
 from .router import EventRouter
 from .accumulator import MomentAccumulator
+from .clients.salience_client import SalienceMemoryClient
 
 # Generated proto imports
 from .generated import common_pb2
@@ -33,10 +34,11 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     - Send moments on configurable tick (default 100ms)
     """
 
-    def __init__(self, config: OrchestratorConfig):
+    def __init__(self, config: OrchestratorConfig, salience_client: SalienceMemoryClient | None = None):
         self.config = config
         self.registry = ComponentRegistry()
-        self.router = EventRouter(config)
+        self._salience_client = salience_client
+        self.router = EventRouter(config, salience_client)
         self.accumulator = MomentAccumulator(config)
         self._running = False
 
@@ -238,9 +240,18 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
     if config is None:
         config = OrchestratorConfig()
 
+    # Create and connect salience client
+    salience_client = SalienceMemoryClient(config.salience_memory_address)
+    try:
+        await salience_client.connect()
+        logger.info(f"Connected to Salience+Memory at {config.salience_memory_address}")
+    except Exception as e:
+        logger.warning(f"Could not connect to Salience+Memory: {e}. Using graceful degradation.")
+        salience_client = None
+
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
 
-    servicer = OrchestratorServicer(config)
+    servicer = OrchestratorServicer(config, salience_client)
     await servicer.start()
 
     # Add servicer to server
@@ -263,6 +274,8 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
         await server.wait_for_termination()
     finally:
         await servicer.stop()
+        if salience_client:
+            await salience_client.close()
         await server.stop(grace=5)
 
 

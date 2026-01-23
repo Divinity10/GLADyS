@@ -31,11 +31,11 @@ RUN useradd -m gladys && chown -R gladys:gladys /app
 USER gladys
 
 # Default port
-EXPOSE 50051
+EXPOSE 50050
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50051')).result(timeout=5)" || exit 1
+    CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50050')).result(timeout=5)" || exit 1
 
 # Run the server
 ENTRYPOINT ["python", "run.py"]

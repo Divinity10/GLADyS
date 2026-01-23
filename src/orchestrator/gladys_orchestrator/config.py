@@ -1,14 +1,18 @@
 """Orchestrator configuration."""
 
-from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 
-class OrchestratorConfig(BaseModel):
-    """Configuration for the Orchestrator service."""
+class OrchestratorConfig(BaseSettings):
+    """Configuration for the Orchestrator service.
+
+    Reads from environment variables (case-insensitive).
+    E.g., SALIENCE_MEMORY_ADDRESS=memory:50051
+    """
 
     # Server settings
     host: str = "0.0.0.0"
-    port: int = 50051
+    port: int = 50050  # Different from Memory (50051) to avoid conflicts
 
     # Moment accumulation settings
     # NOTE: 1Hz (1000ms) is too slow for responsive UX per architecture review 2026-01-21
@@ -27,5 +31,5 @@ class OrchestratorConfig(BaseModel):
     max_workers: int = 10
 
     # Downstream service addresses (will be resolved via service discovery in prod)
-    salience_memory_address: str = "localhost:50052"
+    salience_memory_address: str = "localhost:50051"  # Memory's SalienceGateway
     executive_address: str = "localhost:50053"

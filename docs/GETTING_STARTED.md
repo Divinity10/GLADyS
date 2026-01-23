@@ -61,7 +61,7 @@ cd src/memory/rust && cargo test
 
 ### "I want to work on Orchestrator"
 
-The brain. Routes events, manages attention, coordinates everything.
+The brain. Routes events, manages attention, coordinates everything. Python + gRPC.
 
 **Local setup:**
 ```bash
@@ -69,11 +69,21 @@ The brain. Routes events, manages attention, coordinates everything.
 cd src/memory && python run.py start
 
 # Then work on Orchestrator
-cd src/orchestrator    # (doesn't exist yet)
-cargo build
+cd src/orchestrator
+uv sync              # Python dependencies
+uv run python run.py # Run the server
 ```
 
-**You need:** Rust toolchain
+**You need:** Python 3.11+, uv
+
+**Run tests:**
+```bash
+cd src/orchestrator && uv run pytest
+```
+
+**Key files:**
+- [src/orchestrator/README.md](../src/orchestrator/README.md) - Full details
+- [src/orchestrator/proto/orchestrator.proto](../src/orchestrator/proto/orchestrator.proto) - API contract
 
 **Key ADRs:**
 - [ADR-0001](adr/ADR-0001-Architecture-and-Component-Design.md) - Overall architecture
@@ -130,13 +140,23 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 
 ## Common Tasks
 
-### Running everything
+### Running the full stack (integration test)
 
 ```bash
-# Start Memory
+cd src/integration
+docker compose up -d    # Starts PostgreSQL, Memory (Python + Rust), Orchestrator
+docker compose ps       # Check status
+docker compose logs -f  # Follow logs
+```
+
+### Running individual subsystems
+
+```bash
+# Memory only
 cd src/memory && python run.py start
 
-# (Future: start other subsystems similarly)
+# Orchestrator (requires Memory)
+cd src/orchestrator && uv run python run.py
 ```
 
 ### Checking what's running
@@ -164,7 +184,10 @@ cd src/memory && python run.py reset   # Deletes all data, fresh start
 |------|-------|
 | Architecture decisions | [docs/adr/](adr/) |
 | Open design questions | [docs/design/OPEN_QUESTIONS.md](design/OPEN_QUESTIONS.md) |
+| Performance baseline | [docs/design/PERFORMANCE_BASELINE.md](design/PERFORMANCE_BASELINE.md) |
 | Memory subsystem | [src/memory/](../src/memory/) |
+| Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
+| Integration tests | [src/integration/](../src/integration/) |
 | gRPC contracts | `src/*/proto/*.proto` |
 
 ## Getting Help

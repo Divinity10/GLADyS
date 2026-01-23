@@ -1,0 +1,94 @@
+# GLADyS Integration Test - Orchestrator + Memory (Python & Rust)
+# Run: docker-compose up -d
+#
+# Services:
+#   - postgres: PostgreSQL with pgvector (port 5433)
+#   - memory-python: Python Memory + SalienceGateway (port 50051)
+#   - memory-rust: Rust Fast Path SalienceGateway (port 50052)
+#   - orchestrator: Python Orchestrator (port 50050)
+#
+# Performance comparison:
+#   - Default: Orchestrator uses Python (50051)
+#   - To use Rust: SALIENCE_MEMORY_ADDRESS=memory-rust:50052
+#
+# Test flow:
+#   1. Client sends event to Orchestrator (50050)
+#   2. Orchestrator queries SalienceGateway (Python or Rust)
+#   3. Orchestrator routes based on salience score
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: gladys-integration-db
+    environment:
+      POSTGRES_USER: gladys
+      POSTGRES_PASSWORD: gladys
+      POSTGRES_DB: gladys
+    ports:
+      - "5433:5432"
+    volumes:
+      - ../memory/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gladys"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  memory-python:
+    build:
+      context: ../memory/python
+      dockerfile: Dockerfile
+    container_name: gladys-integration-memory-python
+    environment:
+      STORAGE_HOST: postgres
+      STORAGE_PORT: 5432
+      STORAGE_USER: gladys
+      STORAGE_PASSWORD: gladys
+      STORAGE_DATABASE: gladys
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50051')).result(timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  memory-rust:
+    build:
+      context: ../memory
+      dockerfile: rust/Dockerfile
+    container_name: gladys-integration-memory-rust
+    environment:
+      RUST_LOG: info
+      # Rust fast path can call Python for storage operations
+      STORAGE_ADDRESS: http://memory-python:50051
+    ports:
+      - "50052:50052"
+    depends_on:
+      memory-python:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "50052"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  orchestrator:
+    build:
+      context: ../orchestrator
+      dockerfile: Dockerfile
+    container_name: gladys-integration-orchestrator
+    environment:
+      # Switch between Python (50051) and Rust (50052) here:
+      # SALIENCE_MEMORY_ADDRESS: memory-python:50051  # Python path
+      SALIENCE_MEMORY_ADDRESS: memory-rust:50052      # Rust fast path
+    ports:
+      - "50050:50050"
+    depends_on:
+      memory-rust:
+        condition: service_healthy

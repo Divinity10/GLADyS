@@ -5,17 +5,24 @@
 //! - L0 in-memory cache for recent events
 //! - Novelty detection (embedding similarity)
 //! - Heuristic lookup (System 1 fast rules)
+//! - gRPC server for SalienceGateway service
 //! - gRPC client to Python storage backend
 
 use std::collections::HashMap;
 use uuid::Uuid;
 
 pub mod client;
+pub mod server;
 pub mod proto {
     tonic::include_proto!("gladys.memory");
 }
 
+// Re-export types from modules
 pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
+pub use server::{ServerConfig, SalienceService, run_server};
+
+// Note: CacheConfig, MemoryCache, CachedEvent, CachedHeuristic, CacheStats are already
+// defined as pub structs in this file, so they are automatically public exports.
 
 /// L0 in-memory cache for recent events and heuristics
 pub struct MemoryCache {
