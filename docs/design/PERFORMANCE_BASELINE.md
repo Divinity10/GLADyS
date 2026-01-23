@@ -13,6 +13,27 @@ GLADyS uses a two-tier architecture for salience evaluation:
 
 The fast path exists because the slow path cannot scale to real-time event processing.
 
+## Configuration
+
+Both paths are always running. The Orchestrator is configured to use one or the other via environment variable:
+
+```yaml
+# In src/integration/docker-compose.yml
+environment:
+  # Fast path (default) - use for production
+  SALIENCE_MEMORY_ADDRESS: memory-rust:50052
+
+  # Slow path - use for debugging or when cache isn't populated
+  # SALIENCE_MEMORY_ADDRESS: memory-python:50051
+```
+
+| Path | Port | When to Use |
+|------|------|-------------|
+| Rust fast path | 50052 | Default. Production use. Cache is populated. |
+| Python slow path | 50051 | Debugging. Cold start. Need full ML pipeline. |
+
+**Note**: Both services expose the same `SalienceGateway` gRPC interface. Switching paths requires only changing the address - no code changes.
+
 ## Benchmark Results (2026-01-22)
 
 ### Test Conditions
