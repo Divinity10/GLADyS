@@ -77,6 +77,54 @@ doc(ADR): add actuator specification
 - Update docs if behavior changes
 - Reference related issues
 
+## Development Workflows
+
+### Regenerating Proto Stubs
+
+When `.proto` files change, regenerate the Python stubs:
+
+```bash
+# From project root
+python scripts/proto_sync.py
+
+# Or use make (if available)
+make proto
+```
+
+This script:
+1. Finds a Python environment with `grpc_tools` installed
+2. Regenerates all Python stubs for memory and orchestrator modules
+3. Fixes import issues (absolute → relative) in generated files
+4. Verifies generated files have valid Python syntax
+
+**Proto locations:**
+- `src/memory/proto/memory.proto` → `src/memory/python/gladys_memory/`
+- `src/orchestrator/proto/*.proto` → `src/orchestrator/gladys_orchestrator/generated/`
+
+**Important:** The `memory.proto` file must be identical in both `src/memory/proto/` and `src/orchestrator/proto/`. The contract test (`tests/test_proto_contract.py`) enforces this.
+
+### Configuration
+
+The Memory subsystem uses Pydantic Settings for configuration. Settings can come from:
+1. Environment variables (highest priority)
+2. `.env` file in the module directory
+3. Code defaults (lowest priority)
+
+**Environment variable prefixes:**
+- `STORAGE_*` - Database connection (host, port, database, user, password)
+- `EMBEDDING_*` - Embedding model (model_name, embedding_dim)
+- `SALIENCE_*` - Salience evaluation (thresholds, time windows)
+- `GRPC_*` - gRPC server (host, port, max_workers)
+
+Example:
+```bash
+export STORAGE_HOST=postgres.local
+export STORAGE_PORT=5432
+export SALIENCE_NOVELTY_SIMILARITY_THRESHOLD=0.9
+```
+
+See `src/memory/python/gladys_memory/config.py` for all available settings.
+
 ## Project Owners
 
 - **Mike Mulcahy** (Divinity10) - Lead

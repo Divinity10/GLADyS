@@ -23,13 +23,14 @@ COPY rust/build.rs ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
 
 # Build dependencies only (cached if Cargo.toml unchanged)
-RUN cargo build --release && rm -rf src target/release/deps/gladys*
+# Remove binary AND deps to force recompilation of actual source
+RUN cargo build --release && rm -rf src target/release/deps/gladys* target/release/memory-fast-path
 
 # Copy actual source code
 COPY rust/src ./src
 
-# Build the real binary
-RUN cargo build --release
+# Build the real binary (touch source to ensure Cargo sees it as changed)
+RUN touch src/main.rs src/lib.rs && cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim

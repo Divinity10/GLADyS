@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::proto::{
     memory_storage_client::MemoryStorageClient, EpisodicEvent, GenerateEmbeddingRequest,
-    Heuristic, QueryByTimeRequest, QueryBySimilarityRequest, QueryHeuristicsRequest,
+    Heuristic, HeuristicMatch, QueryByTimeRequest, QueryBySimilarityRequest, QueryHeuristicsRequest,
     SalienceVector, StoreEventRequest, StoreHeuristicRequest,
 };
 
@@ -170,12 +170,15 @@ impl StorageClient {
     }
 
     /// Store a heuristic.
+    /// If generate_embedding is true, the storage service will generate an embedding
+    /// from condition_text (requires the heuristic to have condition_text set).
     #[instrument(skip(self, heuristic), fields(heuristic_id = %heuristic.id))]
-    pub async fn store_heuristic(&mut self, heuristic: Heuristic) -> Result<(), ClientError> {
+    pub async fn store_heuristic(&mut self, heuristic: Heuristic, generate_embedding: bool) -> Result<(), ClientError> {
         debug!("Storing heuristic");
 
         let request = StoreHeuristicRequest {
             heuristic: Some(heuristic),
+            generate_embedding,
         };
 
         let response = self.client.store_heuristic(request).await?.into_inner();
@@ -189,17 +192,21 @@ impl StorageClient {
     }
 
     /// Query heuristics above a confidence threshold.
+    /// Returns HeuristicMatch which includes similarity scores (CBR schema).
     #[instrument(skip(self))]
     pub async fn query_heuristics(
         &mut self,
         min_confidence: f32,
-        event_context_json: Option<&str>,
-    ) -> Result<Vec<Heuristic>, ClientError> {
+        limit: i32,
+    ) -> Result<Vec<HeuristicMatch>, ClientError> {
         debug!("Querying heuristics");
 
         let request = QueryHeuristicsRequest {
-            event_context_json: event_context_json.unwrap_or("{}").to_string(),
+            query_text: String::new(),      // Empty = get all
+            query_embedding: Vec::new(),
+            min_similarity: 0.0,
             min_confidence,
+            limit,
         };
 
         let response = self.client.query_heuristics(request).await?.into_inner();
@@ -208,8 +215,8 @@ impl StorageClient {
             return Err(ClientError::StorageError(response.error));
         }
 
-        debug!(count = response.heuristics.len(), "Retrieved heuristics");
-        Ok(response.heuristics)
+        debug!(count = response.matches.len(), "Retrieved heuristics");
+        Ok(response.matches)
     }
 
     /// Get the client configuration.
@@ -297,7 +304,7 @@ impl EventBuilder {
     }
 }
 
-/// Builder for creating Heuristic messages.
+/// Builder for creating Heuristic messages (CBR schema).
 pub struct HeuristicBuilder {
     heuristic: Heuristic,
 }
@@ -308,28 +315,42 @@ impl HeuristicBuilder {
             heuristic: Heuristic {
                 id: id.to_string(),
                 name: name.to_string(),
-                condition_json: "{}".to_string(),
-                action_json: "{}".to_string(),
+                condition_text: String::new(),
+                condition_embedding: Vec::new(),
+                similarity_threshold: 0.7,
+                effects_json: "{}".to_string(),
                 confidence: 0.5,
+                learning_rate: 0.1,
+                origin: "user".to_string(),
+                origin_id: String::new(),
+                next_heuristic_ids: Vec::new(),
+                is_terminal: true,
                 last_fired_ms: 0,
                 fire_count: 0,
                 success_count: 0,
+                created_at_ms: chrono_now_ms(),
+                updated_at_ms: chrono_now_ms(),
             },
         }
     }
 
-    pub fn condition_json(mut self, json: &str) -> Self {
-        self.heuristic.condition_json = json.to_string();
+    pub fn condition_text(mut self, text: &str) -> Self {
+        self.heuristic.condition_text = text.to_string();
         self
     }
 
-    pub fn action_json(mut self, json: &str) -> Self {
-        self.heuristic.action_json = json.to_string();
+    pub fn effects_json(mut self, json: &str) -> Self {
+        self.heuristic.effects_json = json.to_string();
         self
     }
 
     pub fn confidence(mut self, confidence: f32) -> Self {
         self.heuristic.confidence = confidence;
+        self
+    }
+
+    pub fn origin(mut self, origin: &str) -> Self {
+        self.heuristic.origin = origin.to_string();
         self
     }
 
@@ -379,13 +400,15 @@ mod tests {
     fn test_heuristic_builder() {
         let id = Uuid::new_v4();
         let heuristic = HeuristicBuilder::new(id, "greet_user")
-            .condition_json(r#"{"event_type": "user_entered"}"#)
-            .action_json(r#"{"say": "Hello!"}"#)
+            .condition_text("user entered the room")
+            .effects_json(r#"{"salience": {"social": 0.7}}"#)
             .confidence(0.9)
+            .origin("test")
             .build();
 
         assert_eq!(heuristic.id, id.to_string());
         assert_eq!(heuristic.name, "greet_user");
         assert_eq!(heuristic.confidence, 0.9);
+        assert_eq!(heuristic.condition_text, "user entered the room");
     }
 }

@@ -87,12 +87,15 @@ def cmd_start(args: argparse.Namespace) -> int:
         config = config.model_copy(update={"host": args.host})
     if args.port is not None:
         config = config.model_copy(update={"port": args.port})
+    if args.salience_address:
+        config = config.model_copy(update={"salience_memory_address": args.salience_address})
     if args.moment_window != 100:
         config = config.model_copy(update={"moment_window_ms": args.moment_window})
     if args.salience_threshold != 0.7:
         config = config.model_copy(update={"high_salience_threshold": args.salience_threshold})
 
     print(f"Starting GLADyS Orchestrator on {config.host}:{config.port}")
+    print(f"  Salience Service: {config.salience_memory_address}")
     print(f"  Moment window: {config.moment_window_ms}ms")
     print(f"  High salience threshold: {config.high_salience_threshold}")
 
@@ -122,6 +125,10 @@ def main() -> int:
     start_parser = subparsers.add_parser("start", help="Start the Orchestrator server")
     start_parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     start_parser.add_argument("--port", type=int, default=None, help="Port to listen on (default: 50050)")
+    start_parser.add_argument(
+        "--salience-address",
+        help="Address of Salience+Memory service (e.g., localhost:50051 for Python, localhost:50052 for Rust)",
+    )
     start_parser.add_argument(
         "--moment-window",
         type=int,

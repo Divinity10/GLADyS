@@ -93,7 +93,7 @@ async fn test_store_and_query_event() {
     assert!(found, "Should find stored event by similarity");
 }
 
-/// Test storing and querying heuristics.
+/// Test storing and querying heuristics (CBR schema).
 #[tokio::test]
 async fn test_store_and_query_heuristic() {
     let config = test_config();
@@ -105,21 +105,24 @@ async fn test_store_and_query_heuristic() {
         }
     };
 
-    // Create and store heuristic
+    // Create and store heuristic using CBR schema
     let h_id = Uuid::new_v4();
     let heuristic = HeuristicBuilder::new(h_id, "rust_test_heuristic")
-        .condition_json(r#"{"source": "rust_test"}"#)
-        .action_json(r#"{"action": "log_event"}"#)
+        .condition_text("rust test integration event")
+        .effects_json(r#"{"salience": {"novelty": 0.8}}"#)
         .confidence(0.85)
         .build();
 
-    client.store_heuristic(heuristic).await.unwrap();
+    // generate_embedding=true to create embedding from condition_text
+    client.store_heuristic(heuristic, true).await.unwrap();
 
-    // Query heuristics
-    let results = client.query_heuristics(0.5, None).await.unwrap();
+    // Query heuristics - returns HeuristicMatch wrappers
+    let results = client.query_heuristics(0.5, 10).await.unwrap();
 
-    // Find our heuristic
-    let found = results.iter().any(|h| h.id == h_id.to_string());
+    // Find our heuristic in the matches
+    let found = results.iter().any(|m| {
+        m.heuristic.as_ref().map_or(false, |h| h.id == h_id.to_string())
+    });
     assert!(found, "Should find stored heuristic");
 }
 

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub mod client;
+pub mod config;
 pub mod server;
 pub mod proto {
     tonic::include_proto!("gladys.memory");
@@ -19,7 +20,8 @@ pub mod proto {
 
 // Re-export types from modules
 pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
-pub use server::{ServerConfig, SalienceService, run_server};
+pub use config::{Config, ServerConfig, StorageConfig, SalienceConfig, RefreshConfig};
+pub use server::{SalienceService, run_server};
 
 // Note: CacheConfig, MemoryCache, CachedEvent, CachedHeuristic, CacheStats are already
 // defined as pub structs in this file, so they are automatically public exports.
@@ -53,22 +55,8 @@ pub struct CachedHeuristic {
     pub confidence: f32,
 }
 
-/// Cache configuration
-pub struct CacheConfig {
-    /// Maximum number of events in cache
-    pub max_events: usize,
-    /// Novelty threshold (cosine similarity below this = novel)
-    pub novelty_threshold: f32,
-}
-
-impl Default for CacheConfig {
-    fn default() -> Self {
-        Self {
-            max_events: 1000,
-            novelty_threshold: 0.7,
-        }
-    }
-}
+// Re-export CacheConfig from config module
+pub use config::CacheConfig;
 
 impl MemoryCache {
     pub fn new(config: CacheConfig) -> Self {

@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-21
+**Last updated**: 2026-01-23
 
 ---
 
@@ -27,9 +27,13 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §14 | Architectural Gaps | 🟡 Partial | Some resolved, some open |
 | §15 | Deployment Model | 🔴 Gap | NEW - deployment configs, resource constraints |
 | §16 | ADR-0004 Schema Gaps | 🟡 Partial | Some resolved, some open |
-| §17 | Heuristic Condition Matching | 🟡 Open | MVP design decided, impl deferred to Phase 3 |
+| §17 | Heuristic Condition Matching | ✅ Superseded | See §22 - fuzzy matching required for PoC |
 | §18 | Orchestrator Language | ✅ Resolved | Python - see SUBSYSTEM_OVERVIEW.md §3, ORCHESTRATOR_IMPL_PROMPT.md |
 | §19 | PoC vs ADR-0005 Gaps | 🟡 Open | Simplified contracts for MVP |
+| §20 | TD Learning for Heuristics | 🟡 Open | Confidence updates designed in §22; feedback endpoint needed |
+| §21 | Heuristic Storage Model | ✅ Resolved | Transaction log pattern for modifications |
+| §22 | Heuristic Data Structure | ✅ Resolved | CBR + fuzzy matching + heuristic formation |
+| §23 | Heuristic Learning Infrastructure | 🟡 Open | Credit assignment + tuning mode (deferred) |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -984,9 +988,10 @@ ADR-0004 assumes single user. Multi-user households need:
 
 ## 17. Heuristic Condition Matching (Memory Subsystem)
 
-**Status**: Design decision made, implementation deferred
-**Priority**: Medium (blocks full System 1 fast path)
+**Status**: ✅ Superseded by §22
+**Priority**: N/A
 **Created**: 2026-01-21
+**Superseded**: 2026-01-23 - Fuzzy matching via embeddings is required, not optional. See §22 for final design.
 
 ### Context
 
@@ -1087,6 +1092,558 @@ When expanding to full ADR-0005 spec:
 ### No Action Required
 
 This is documentation of intentional scope limitation, not a bug or oversight.
+
+---
+
+## 20. Heuristic Learning via TD Learning (Reward Prediction Error)
+
+**Status**: Open - needs minimal PoC design
+**Priority**: High (core learning mechanism)
+**Created**: 2026-01-23
+
+### Context
+
+ADR-0010 defines the Learning Pipeline with System 1 (heuristics) and System 2 (LLM reasoning). The question: **how do heuristics get created and updated from successful reasoning?**
+
+Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 §5.6), but the mechanism for:
+1. Creating heuristics from novel reasoning
+2. Updating heuristic confidence based on outcomes
+
+...is underspecified.
+
+### The Learning Loop (TD Learning)
+
+The proposed mechanism follows **Temporal Difference (TD) Learning** - specifically reward prediction error:
+
+```
+1. Event arrives → SalienceGateway evaluates (current heuristics)
+2. Orchestrator routes to Executive (System 2 reasoning)
+3. Executive produces response/action
+4. System observes OUTCOME
+5. Compare: actual_outcome vs predicted_outcome
+6. If outcome BETTER than prediction → strengthen heuristic / increase salience
+7. If outcome WORSE than prediction → weaken heuristic / decrease salience
+8. If novel pattern succeeds → CREATE new heuristic
+```
+
+**Key insight**: This is how biological brains work. The dopamine system signals prediction error, not reward itself. "Better than expected" drives learning, not "good outcome."
+
+### Minimal PoC Requirements
+
+To prove this architecture is achievable, we need:
+
+#### 1. Outcome Tracking (Simplest Case)
+**What**: Link an action to its observable outcome
+**Minimal**: User feedback (thumbs up/down on response)
+**Example**: "That fire warning was helpful" → positive outcome for threat→alert heuristic
+
+#### 2. Prediction Recording
+**What**: Before action, record what we expected to happen
+**Minimal**: Store expected salience impact with each heuristic fire
+**Example**: Heuristic H1 predicted "user will appreciate warning" with confidence 0.7
+
+#### 3. Delta Calculation
+**What**: Compare prediction to reality
+**Minimal**: `delta = outcome_score - predicted_score`
+**Example**: User thumbs-up (1.0) vs prediction (0.7) → delta = +0.3 → strengthen
+
+#### 4. Confidence Update
+**What**: Adjust heuristic confidence based on delta
+**Minimal**: `new_confidence = old_confidence + learning_rate * delta`
+**Example**: confidence 0.7 + (0.1 * 0.3) = 0.73
+
+#### 5. Heuristic Creation (Stretch Goal)
+**What**: When novel reasoning succeeds, extract pattern as new heuristic
+**Minimal**: Log successful reasoning traces for manual pattern extraction
+**Later**: LLM-assisted pattern extraction from successful traces
+
+### What This Does NOT Require for PoC
+
+- ❌ Automatic outcome detection (use explicit user feedback)
+- ❌ Complex pattern extraction (log traces, create heuristics manually)
+- ❌ Multi-step credit assignment (single action → single outcome)
+- ❌ Causal inference (correlation is sufficient for PoC)
+
+### Implementation Sketch
+
+```
+# Simplified flow for PoC
+
+# On heuristic fire:
+prediction = {
+    "heuristic_id": "H123",
+    "predicted_outcome": 0.7,  # confidence
+    "timestamp": now(),
+    "event_id": "E456"
+}
+store(prediction)
+
+# On user feedback:
+outcome = get_feedback(event_id="E456")  # 1.0 or 0.0
+prediction = lookup_prediction(event_id="E456")
+delta = outcome - prediction.predicted_outcome
+update_heuristic_confidence(
+    heuristic_id=prediction.heuristic_id,
+    delta=delta,
+    learning_rate=0.1
+)
+```
+
+### Relationship to Existing ADRs
+
+| ADR | Relevance |
+|-----|-----------|
+| ADR-0004 §5.6 | `heuristics` table has `confidence`, `fire_count`, `success_count` fields |
+| ADR-0007 | EWMA for adaptive parameters - same principle applies to confidence |
+| ADR-0010 | Learning Pipeline - TD learning fits into System 1 adaptation |
+| ADR-0012 | Audit trail captures events for outcome correlation |
+
+### Open Questions
+
+1. **Outcome attribution**: When user says "that was helpful", which heuristic/action gets credit?
+2. **Delayed feedback**: User reacts 10 minutes later - how to correlate?
+3. **Negative outcomes**: How to detect "that was wrong" without explicit feedback?
+4. **Heuristic extraction**: What pattern format makes sense for automated creation?
+5. **Exploration vs exploitation**: Should system occasionally ignore heuristics to learn?
+
+### Next Steps
+
+1. Add `predictions` table to schema (minimal: heuristic_id, event_id, predicted_outcome, timestamp)
+2. Add feedback endpoint to Executive (minimal: event_id + positive/negative)
+3. Implement delta calculation and confidence update in Memory
+4. Log reasoning traces for future heuristic extraction
+
+### Why This Matters
+
+Without TD learning, heuristics are static. With it, GLADyS can:
+- Get better at threat detection over time
+- Learn user-specific salience patterns
+- Reduce LLM calls by strengthening reliable heuristics
+- Self-correct when heuristics prove wrong
+
+---
+
+## 21. Heuristic Storage Model (Transaction Log)
+
+**Status**: ✅ Resolved
+**Priority**: High (foundational for learning)
+**Created**: 2026-01-23
+
+### Decision
+
+Use a **transaction log pattern** for heuristic modifications:
+
+- `heuristics` table: Current state only (fast to query)
+- `heuristic_history` table: Append-only modification log (audit trail)
+
+### Schema
+
+```sql
+-- Current state only
+CREATE TABLE heuristics (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  condition_json JSONB NOT NULL,
+  effects_json JSONB NOT NULL,       -- salience modifiers + actions
+  confidence FLOAT DEFAULT 0.5,
+  origin TEXT NOT NULL,              -- 'built_in', 'pack', 'learned', 'user'
+  origin_id TEXT,                    -- pack ID, training ID, or null
+  learning_rate FLOAT DEFAULT 0.1,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Append-only transaction log
+CREATE TABLE heuristic_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  heuristic_id UUID REFERENCES heuristics(id),
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  modification_type TEXT NOT NULL,   -- 'create', 'confidence_update', 'effects_change', 'revert'
+  field_changed TEXT,                -- 'confidence', 'effects_json', etc.
+  old_value JSONB,
+  new_value JSONB,
+  reason TEXT,                       -- 'positive_feedback', 'training', 'manual', 'pack_update'
+  trigger_event_id UUID,             -- what caused this change
+  user_id UUID                       -- for multi-user (nullable for MVP)
+);
+
+-- Index for common queries
+CREATE INDEX idx_heuristic_history_heuristic_id ON heuristic_history(heuristic_id);
+CREATE INDEX idx_heuristic_history_timestamp ON heuristic_history(timestamp);
+```
+
+### Rationale
+
+| Concern | How Transaction Log Addresses It |
+|---------|----------------------------------|
+| **Fast lookup** | Query `heuristics` directly - no joins needed |
+| **Revert capability** | Find last good state in history, apply |
+| **Audit trail** | Full record of why/when changes happened |
+| **Learning analysis** | Plot confidence over time from history |
+| **Multi-user ready** | Add `user_id` to history; user-scoped views later |
+| **Pack updates** | Compare origin version to current, merge or warn |
+| **Debugging** | See exactly what changed and why |
+
+### Modification Types
+
+| Type | When Used |
+|------|-----------|
+| `create` | New heuristic added (from pack, learning, or user) |
+| `confidence_update` | TD learning adjusted confidence |
+| `effects_change` | Action or salience modifiers changed |
+| `condition_change` | Matching condition was refined |
+| `revert` | Rolled back to previous state |
+| `disable` | Heuristic deactivated (not deleted) |
+
+### Relationship to Other Systems
+
+- **ADR-0012 (Audit)**: Similar append-only pattern; heuristic_history is learning-specific audit
+- **ADR-0010 (Learning)**: TD learning writes to heuristic_history
+- **feedback_events**: Trigger for confidence updates; linked via `trigger_event_id`
+
+### Open for Future
+
+- Multi-user: Add `user_id` to create user-scoped heuristic variants
+- Pack versioning: Track which pack version created/modified a heuristic
+- Conflict resolution: When pack updates conflict with user modifications
+
+---
+
+## 22. Heuristic Data Structure (CBR + Fuzzy Matching + Heuristic Formation)
+
+**Status**: ✅ Resolved
+**Priority**: High (foundational for PoC)
+**Created**: 2026-01-23
+**Updated**: 2026-01-23 - Revised to CBR approach with heuristic formation
+
+### Context
+
+Following §21 (Transaction Log), we needed to finalize the heuristic data structure. After design discussion, we chose **Case-Based Reasoning (CBR)** over behavior trees for PoC, as it's more brain-like and simpler to implement.
+
+**Critical insight**: Without heuristic formation, GLADyS is just "a fancy chatbot" - it can respond, but it can't learn new patterns from experience.
+
+### Key Design Decisions
+
+| Aspect | Decision | Rationale |
+|--------|----------|-----------|
+| **Approach** | Case-Based Reasoning (CBR) | More brain-like than behavior trees; well-studied |
+| **Structure** | Flat list with competition | Highest (similarity × confidence) wins |
+| **Matching** | Embedding similarity via pgvector | Without fuzzy logic, we're just an expert system |
+| **Learning** | TD learning updates confidence | Heuristics improve based on feedback |
+| **Formation** | LLM-assisted pattern extraction | Reasoning → Heuristic migration (the differentiator) |
+| **Tree fields** | Keep in schema, don't implement | Forward-compatible for post-PoC |
+
+### Why CBR Over Behavior Trees
+
+| Aspect | Behavior Trees | CBR |
+|--------|---------------|-----|
+| Brain-like? | No (explicit control flow) | Yes (associative memory) |
+| Conflict resolution | Tree traversal | Competition (winner takes all) |
+| Learning | Modify tree structure | Adjust confidence weights |
+| Complexity | Medium | Low |
+| Interpretability | High (trace path) | Medium (see which fired) |
+
+For PoC, CBR proves the core concept with less machinery. Tree structure can be added post-PoC if needed.
+
+### Why Fuzzy Matching is Required
+
+**Without fuzzy logic, GLADyS is just an expert system.** The PoC must prove brain-like semantic matching works.
+
+Fuzzy matching enables:
+- "That looks like fire" matching against learned fire patterns
+- Novel inputs matching similar-enough stored conditions
+- Gradual degradation (close match = lower confidence) instead of binary fail
+
+### Heuristic Formation: The Differentiator
+
+This is what makes GLADyS a brain, not a chatbot. Without it, we have static patterns that get tuned but never grow.
+
+**Flow**:
+```
+1. Event arrives → no heuristic match → send to Executive (LLM)
+2. Executive reasons → produces response
+3. User provides feedback (positive/negative)
+4. If positive: ask LLM to extract generalizable pattern
+5. LLM outputs: condition description + action template
+6. Generate embedding for condition text
+7. Store as new heuristic with confidence=0.3 (low, must earn trust)
+8. Next similar event → heuristic matches → LLM skipped
+```
+
+**Pattern Extraction Prompt**:
+```
+You just helped with this situation:
+
+Context: {event context}
+Your response: {llm response}
+User feedback: positive
+
+Extract a generalizable heuristic:
+- condition: A general description of when this pattern applies
+- action: What to do when the condition matches
+
+Be general enough to match similar situations, specific enough to be useful.
+Output as JSON: {"condition": "...", "action": {...}}
+```
+
+**Garbage Heuristic Mitigation**:
+1. Low initial confidence (0.3) - must prove useful
+2. TD learning reduces confidence if outcomes are bad
+3. Manual review before activation (post-PoC option)
+
+### Schema (Extends §21)
+
+```sql
+CREATE TABLE heuristics (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+
+  -- Condition: fuzzy (embedding)
+  condition_text TEXT,                    -- Human-readable, used for embedding
+  condition_embedding VECTOR(384),        -- Semantic vector for fuzzy match
+  similarity_threshold FLOAT DEFAULT 0.7, -- Min cosine similarity to match
+
+  -- Effects (salience modifiers + actions)
+  effects_json JSONB NOT NULL,
+
+  -- Forward-compatible: tree structure (not implemented in PoC)
+  next_heuristic_ids UUID[],              -- Reserved for future tree traversal
+  is_terminal BOOLEAN DEFAULT true,       -- Reserved for future tree traversal
+
+  -- Learning (from §21)
+  confidence FLOAT DEFAULT 0.5,
+  learning_rate FLOAT DEFAULT 0.1,
+  origin TEXT NOT NULL,                   -- 'built_in', 'pack', 'learned', 'user'
+  origin_id TEXT,                         -- Pack ID, reasoning trace ID, etc.
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- pgvector index for semantic search
+CREATE INDEX idx_heuristics_embedding ON heuristics
+  USING ivfflat (condition_embedding vector_cosine_ops);
+```
+
+### Matching Algorithm (CBR)
+
+```
+1. Generate embedding for incoming event context
+2. Query pgvector: SELECT *,
+     1 - (condition_embedding <=> input_embedding) as similarity
+   FROM heuristics
+   WHERE 1 - (condition_embedding <=> input_embedding) > similarity_threshold
+3. Score each match: score = similarity × confidence
+4. Winner = argmax(score)
+5. Execute winner's effects_json
+6. Log: heuristic_id, similarity, confidence, event_id (for observability)
+```
+
+### Prior Art
+
+| System | What We Borrowed |
+|--------|------------------|
+| **Case-Based Reasoning** | Store examples, match by similarity, adapt |
+| **Prototype Learning** | Similarity-based classification |
+| **Associative Memory** | Pattern completion, competition |
+| **k-NN** | Nearest neighbor for action selection |
+
+### Example: Heuristic Formation Flow
+
+```
+Event: "Player health dropped to 15% while fighting skeleton"
+→ No heuristic match (novel situation)
+→ LLM Response: "Watch out! You're low on health. Consider healing."
+→ User: 👍 (positive feedback)
+
+Pattern Extraction:
+LLM outputs: {
+  "condition": "Player health critically low during combat",
+  "action": {"type": "alert", "message": "Low health - consider healing"}
+}
+
+→ Generate embedding for "Player health critically low during combat"
+→ Store heuristic:
+  - origin: "learned"
+  - origin_id: "reasoning_trace_abc123"
+  - confidence: 0.3
+
+Next time:
+Event: "Player at 20% health fighting zombie"
+→ Embedding similar to "Player health critically low during combat"
+→ Heuristic fires → immediate alert → LLM skipped
+```
+
+### What This Proves (PoC Goals)
+
+| Goal | How It's Proven |
+|------|-----------------|
+| Sensor → Response | Event flow through system |
+| Fast path (heuristics) | Heuristic match skips LLM |
+| Slow path (reasoning) | LLM handles novel situations |
+| Fuzzy matching | Embedding similarity handles variation |
+| Learning | Confidence updates from feedback |
+| **Heuristic formation** | Reasoning traces become new heuristics |
+
+### Tuning Levers
+
+| Lever | Effect |
+|-------|--------|
+| Add examples | Cover more cases (via heuristic formation) |
+| Remove examples | Eliminate bad patterns |
+| Adjust confidence | Strengthen/weaken specific heuristics |
+| Adjust similarity_threshold | Global or per-heuristic sensitivity |
+| Learning rate | How fast feedback changes confidence |
+| Initial confidence for new heuristics | How cautious about new patterns (default 0.3) |
+
+### Observability (Post-PoC: "MRI" System)
+
+For PoC, minimal logging:
+- Which heuristic fired
+- Similarity score
+- Confidence at time of fire
+- Event ID for correlation
+
+Post-PoC expansion:
+- Visualization of heuristic activations
+- Confidence trends over time
+- Heuristic formation history
+- Reasoning trace viewer
+
+### Relationship to Other Systems
+
+| Component | Interaction |
+|-----------|-------------|
+| **Memory (Rust)** | Caches heuristics in L0; executes fast-path matching |
+| **Memory (Python)** | Stores heuristics; generates embeddings for conditions |
+| **SalienceGateway** | Returns matched heuristic effects as salience modifiers |
+| **Executive** | Receives feedback; triggers pattern extraction |
+| **TD Learning (§20)** | Updates confidence based on outcome feedback |
+| **Transaction Log (§21)** | Records all heuristic modifications |
+
+### Implementation Additions Needed
+
+| Component | Status | Work |
+|-----------|--------|------|
+| LLM integration | ✅ Have it | - |
+| Heuristic storage | ✅ Have it | - |
+| Embedding generation | ✅ Have it | - |
+| Feedback endpoint | ❌ Need it | Add `ProvideFeedback` to Executive proto |
+| Pattern extraction prompt | ❌ Need it | LLM prompt engineering |
+| Heuristic creation flow | ❌ Need it | Wire feedback → extraction → storage |
+
+### Open for Future
+
+- **Tree structure**: Schema supports `next_heuristic_ids`, implement when conditional branching needed
+- **Compound actions**: Schema supports `effects_json` array, implement when needed
+- **A/B testing**: Multiple heuristics compete for exploration vs exploitation
+- **Automatic negative feedback**: Infer bad outcomes without explicit user input
+
+---
+
+## 23. Heuristic Learning Infrastructure (Deferred to Post-PoC)
+
+**Status**: Open - deferred until prerequisites met
+**Priority**: Medium (needed for real learning, not PoC)
+**Created**: 2026-01-23
+
+### Context
+
+These items are required for production-quality heuristic learning but are deferred until the basic feedback loop is working end-to-end. The `feedback_events` table exists but nothing writes to it yet.
+
+### 23.1 Credit Assignment (Feedback Time Window)
+
+**Problem**: When a user says "that was helpful", which heuristic gets credit? The most recent? All heuristics fired in the last N seconds?
+
+**Current state**: No feedback endpoint exists. The feedback → heuristic correlation isn't implemented.
+
+**Design sketch**:
+```python
+# Config settings (now in config.py pattern)
+FEEDBACK_TIME_WINDOW_SECONDS = 60  # How far back to look for heuristics
+DEV_MODE = False  # Enable verbose logging of credit assignment
+
+# On feedback:
+1. Find all heuristic fires in last FEEDBACK_TIME_WINDOW_SECONDS
+2. Weight by recency: newer = more credit
+3. Update confidence for each weighted by credit share
+4. If DEV_MODE: log full attribution breakdown
+```
+
+**Prerequisites**:
+- `ProvideFeedback` RPC endpoint (implemented ✅)
+- Feedback → event_id correlation (missing)
+- Heuristic fire tracking (have `fire_count`, need timestamp log)
+- `feedback_events` table writes (missing)
+
+**Config settings to add**:
+- `FEEDBACK_TIME_WINDOW_SECONDS`: How far back to attribute credit (default: 60)
+- `FEEDBACK_RECENCY_DECAY`: Exponential decay factor for older events (default: 0.5)
+- `DEV_MODE`: Enable verbose logging of all attribution decisions
+
+### 23.2 Tuning Mode (Near-Miss Logging)
+
+**Problem**: How do you tune similarity thresholds? You need to see what *almost* matched but didn't.
+
+**Current state**: Heuristic matching only logs fires, not near-misses.
+
+**Design sketch**:
+```python
+# Config settings
+TUNING_MODE = False
+TUNING_THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]  # Show what would match at each
+
+# On event evaluation:
+if TUNING_MODE:
+    for threshold in TUNING_THRESHOLDS:
+        matches = query_heuristics(similarity > threshold)
+        log.info(f"At threshold {threshold}: {len(matches)} matches")
+        for m in matches:
+            log.info(f"  - {m.name}: sim={m.similarity:.2f}, conf={m.confidence:.2f}")
+```
+
+**Prerequisites**:
+- Significant event traffic through SalienceGateway
+- Heuristics with meaningful conditions (not just test data)
+- Observability infrastructure (ADR-0006 stack)
+
+**Config settings to add**:
+- `TUNING_MODE`: Enable near-miss logging (default: False)
+- `TUNING_THRESHOLDS`: List of thresholds to evaluate (default: [0.5, 0.6, 0.7, 0.8, 0.9])
+- `TUNING_LOG_LEVEL`: Logging verbosity for tuning output (default: INFO)
+
+### Why Deferred
+
+| Item | Prerequisite | Status |
+|------|-------------|--------|
+| Credit assignment | Feedback endpoint | ✅ Implemented |
+| Credit assignment | Event → heuristic fire log | ❌ Missing |
+| Credit assignment | `feedback_events` writes | ❌ Missing |
+| Tuning mode | Real traffic | ❌ Need integration test load |
+| Tuning mode | Meaningful heuristics | ❌ Only test heuristics exist |
+
+### When to Revisit
+
+Revisit credit assignment when:
+1. Integration tests show feedback flowing end-to-end
+2. At least 3 heuristics exist and are being evaluated
+3. User can trigger explicit feedback via Executive
+
+Revisit tuning mode when:
+1. Running load tests or real workloads
+2. Threshold tuning is actively needed
+3. Observability stack (Grafana/Loki) is deployed
+
+### Relationship to Other Systems
+
+| System | Interaction |
+|--------|-------------|
+| **Config (config.py)** | Will add settings for both features |
+| **feedback_events table** | Credit assignment writes here |
+| **heuristic_history table** | Records confidence changes from credit |
+| **Observability (ADR-0006)** | Tuning mode logs go to Loki |
+| **§20 (TD Learning)** | Credit assignment feeds into confidence updates |
+| **§22 (CBR Schema)** | Tuning mode evaluates against this schema |
 
 ---
 

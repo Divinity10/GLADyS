@@ -90,6 +90,16 @@ class SalienceVector(_message.Message):
     habituation: float
     def __init__(self, threat: _Optional[float] = ..., opportunity: _Optional[float] = ..., humor: _Optional[float] = ..., novelty: _Optional[float] = ..., goal_relevance: _Optional[float] = ..., social: _Optional[float] = ..., emotional: _Optional[float] = ..., actionability: _Optional[float] = ..., habituation: _Optional[float] = ...) -> None: ...
 
+class Moment(_message.Message):
+    __slots__ = ("events", "start_time", "end_time")
+    EVENTS_FIELD_NUMBER: _ClassVar[int]
+    START_TIME_FIELD_NUMBER: _ClassVar[int]
+    END_TIME_FIELD_NUMBER: _ClassVar[int]
+    events: _containers.RepeatedCompositeFieldContainer[Event]
+    start_time: _timestamp_pb2.Timestamp
+    end_time: _timestamp_pb2.Timestamp
+    def __init__(self, events: _Optional[_Iterable[_Union[Event, _Mapping]]] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., end_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
 class ComponentStatus(_message.Message):
     __slots__ = ("component_id", "state", "message", "last_heartbeat", "metrics")
     class MetricsEntry(_message.Message):

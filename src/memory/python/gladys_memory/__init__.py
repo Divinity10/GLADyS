@@ -9,7 +9,9 @@ It handles:
 
 __version__ = "0.1.0"
 
+from .config import settings, MemorySettings
 from .storage import MemoryStorage
 from .embeddings import EmbeddingGenerator
+from .grpc_server import serve
 
-__all__ = ["MemoryStorage", "EmbeddingGenerator"]
+__all__ = ["MemoryStorage", "EmbeddingGenerator", "settings", "MemorySettings", "serve"]

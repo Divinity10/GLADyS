@@ -11,13 +11,14 @@ from uuid import uuid4
 import numpy as np
 import pytest
 
-from gladys_memory.storage import MemoryStorage, EpisodicEvent, StorageConfig
+from gladys_memory.config import StorageSettings
+from gladys_memory.storage import MemoryStorage, EpisodicEvent
 
 
 @pytest.fixture
 def storage_config():
     """Configuration for test database."""
-    return StorageConfig(
+    return StorageSettings(
         host="localhost",
         port=5433,
         database="gladys",

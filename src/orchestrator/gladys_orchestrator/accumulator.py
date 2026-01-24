@@ -2,27 +2,39 @@
 
 Accumulates low-salience events into "moments" that are sent
 to Executive on a configurable tick (default 100ms).
+
+Events accumulated here already have salience evaluated and attached
+(by the router) so Executive receives ready-to-process events.
 """
 
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .config import OrchestratorConfig
+
+if TYPE_CHECKING:
+    from .generated.common_pb2 import Event
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class Moment:
-    """A collection of events accumulated within a time window."""
+    """
+    A collection of events accumulated within a time window.
 
-    events: list[Any] = field(default_factory=list)
+    Events are timestamp-ordered (by arrival) and have their salience
+    already evaluated and attached. This internal representation is
+    converted to proto Moment for transmission to Executive.
+    """
+
+    events: list = field(default_factory=list)  # list[Event] with salience attached
     start_time_ms: int = 0
     end_time_ms: int = 0
 
-    def add(self, event: Any) -> None:
+    def add(self, event) -> None:
         """Add an event to this moment."""
         self.events.append(event)
         now = int(time.time() * 1000)

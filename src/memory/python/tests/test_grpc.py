@@ -13,13 +13,14 @@ import numpy as np
 import pytest
 
 from gladys_memory import memory_pb2, memory_pb2_grpc
+from gladys_memory.config import StorageSettings
 from gladys_memory.embeddings import EmbeddingGenerator
 from gladys_memory.grpc_server import MemoryStorageServicer, _embedding_to_bytes, _bytes_to_embedding
-from gladys_memory.storage import MemoryStorage, StorageConfig, EpisodicEvent
+from gladys_memory.storage import MemoryStorage, EpisodicEvent
 
 
 # Test configuration
-TEST_CONFIG = StorageConfig(
+TEST_CONFIG = StorageSettings(
     host="localhost",
     port=5433,
     database="gladys",
@@ -237,9 +238,10 @@ class TestMemoryStorageServicer:
         heuristic = memory_pb2.Heuristic(
             id=str(h_id),
             name="test_heuristic",
-            condition_json=json.dumps({"event_type": "greeting"}),
-            action_json=json.dumps({"response": "wave"}),
+            condition_text="greeting hello wave",
+            effects_json=json.dumps({"response": "wave"}),
             confidence=0.8,
+            origin="test",
         )
 
         request = memory_pb2.StoreHeuristicRequest(heuristic=heuristic)
@@ -268,8 +270,8 @@ class TestMemoryStorageServicer:
         response = await servicer.QueryHeuristics(request, None)
 
         assert response.error == ""
-        # Find our heuristic
-        found = any(h.id == str(h_id) for h in response.heuristics)
+        # Find our heuristic in matches (CBR schema returns HeuristicMatch)
+        found = any(m.heuristic.id == str(h_id) for m in response.matches)
         assert found, f"Heuristic {h_id} not found in results"
 
     @pytest.mark.asyncio
@@ -293,5 +295,5 @@ class TestMemoryStorageServicer:
 
         assert response.error == ""
         # Our low-confidence heuristic should NOT be found
-        found = any(h.id == str(h_id) for h in response.heuristics)
+        found = any(m.heuristic.id == str(h_id) for m in response.matches)
         assert not found, f"Low-confidence heuristic {h_id} should not be in results"

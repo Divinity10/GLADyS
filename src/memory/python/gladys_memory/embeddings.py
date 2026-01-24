@@ -4,6 +4,8 @@ from typing import Optional
 
 import numpy as np
 
+from .config import settings
+
 
 class EmbeddingGenerator:
     """Generate embeddings using sentence-transformers.
@@ -11,13 +13,20 @@ class EmbeddingGenerator:
     Uses all-MiniLM-L6-v2 by default (384 dimensions).
     """
 
-    # Default model as specified in ADR-0004
-    DEFAULT_MODEL = "all-MiniLM-L6-v2"
-    EMBEDDING_DIM = 384
-
     def __init__(self, model_name: Optional[str] = None):
-        self.model_name = model_name or self.DEFAULT_MODEL
+        emb_cfg = settings.embedding
+        self.model_name = model_name or emb_cfg.model_name
+        self.embedding_dim = emb_cfg.embedding_dim
         self._model = None
+
+    # Keep class constants for backwards compatibility
+    @property
+    def DEFAULT_MODEL(self) -> str:
+        return settings.embedding.model_name
+
+    @property
+    def EMBEDDING_DIM(self) -> int:
+        return settings.embedding.embedding_dim
 
     def _load_model(self):
         """Lazy-load the embedding model."""

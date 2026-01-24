@@ -12,6 +12,7 @@ from .config import OrchestratorConfig
 from .registry import ComponentRegistry
 from .router import EventRouter
 from .accumulator import MomentAccumulator
+from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
 
 # Generated proto imports
@@ -34,11 +35,17 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     - Send moments on configurable tick (default 100ms)
     """
 
-    def __init__(self, config: OrchestratorConfig, salience_client: SalienceMemoryClient | None = None):
+    def __init__(
+        self,
+        config: OrchestratorConfig,
+        salience_client: SalienceMemoryClient | None = None,
+        executive_client: ExecutiveClient | None = None,
+    ):
         self.config = config
         self.registry = ComponentRegistry()
         self._salience_client = salience_client
-        self.router = EventRouter(config, salience_client)
+        self._executive_client = executive_client
+        self.router = EventRouter(config, salience_client, executive_client)
         self.accumulator = MomentAccumulator(config)
         self._running = False
 
@@ -249,9 +256,18 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
         logger.warning(f"Could not connect to Salience+Memory: {e}. Using graceful degradation.")
         salience_client = None
 
+    # Create and connect executive client
+    executive_client = ExecutiveClient(config.executive_address)
+    try:
+        await executive_client.connect()
+        logger.info(f"Connected to Executive at {config.executive_address}")
+    except Exception as e:
+        logger.warning(f"Could not connect to Executive: {e}. Moments will be logged only.")
+        executive_client = None
+
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
 
-    servicer = OrchestratorServicer(config, salience_client)
+    servicer = OrchestratorServicer(config, salience_client, executive_client)
     await servicer.start()
 
     # Add servicer to server
@@ -276,6 +292,8 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
         await servicer.stop()
         if salience_client:
             await salience_client.close()
+        if executive_client:
+            await executive_client.close()
         await server.stop(grace=5)
 
 

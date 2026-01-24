@@ -1,0 +1,58 @@
+syntax = "proto3";
+package gladys.v1;
+
+import "common.proto";
+
+// ExecutiveService - the decision-making component.
+// Receives events/moments from Orchestrator and processes them.
+service ExecutiveService {
+    // Process a high-salience event immediately (bypasses moment accumulation)
+    rpc ProcessEvent(ProcessEventRequest) returns (ProcessEventResponse);
+
+    // Process an accumulated moment (batch of events on tick)
+    rpc ProcessMoment(ProcessMomentRequest) returns (ProcessMomentResponse);
+
+    // Provide feedback on a previous response (for heuristic formation)
+    rpc ProvideFeedback(ProvideFeedbackRequest) returns (ProvideFeedbackResponse);
+}
+
+// Request to process a single high-salience event
+message ProcessEventRequest {
+    Event event = 1;                    // Event with salience populated
+    bool immediate = 2;                 // True = high salience, bypassed moment
+    RequestMetadata metadata = 15;
+}
+
+message ProcessEventResponse {
+    bool accepted = 1;
+    string error_message = 2;
+    string response_id = 3;             // ID of this response (for feedback correlation)
+    string response_text = 4;           // The LLM's response text (if any)
+}
+
+// Request to process an accumulated moment
+message ProcessMomentRequest {
+    Moment moment = 1;                  // Accumulated events
+    RequestMetadata metadata = 15;
+}
+
+message ProcessMomentResponse {
+    bool accepted = 1;
+    string error_message = 2;
+    int32 events_processed = 3;         // How many events were acted on
+    // Future: decisions made, actions queued, etc.
+}
+
+// Request to provide feedback on a previous LLM response
+message ProvideFeedbackRequest {
+    string event_id = 1;                // Which event/response this feedback is for
+    bool positive = 2;                  // Thumbs up (true) or down (false)
+    string response_id = 3;             // ID of the LLM response being rated (optional)
+    RequestMetadata metadata = 15;
+}
+
+message ProvideFeedbackResponse {
+    bool accepted = 1;
+    string error_message = 2;
+    string created_heuristic_id = 3;    // ID of new heuristic (if positive feedback created one)
+}

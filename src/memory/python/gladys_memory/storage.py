@@ -1,8 +1,7 @@
 """PostgreSQL storage backend for GLADyS Memory."""
 
 import json
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
@@ -10,6 +9,8 @@ from uuid import UUID
 import asyncpg
 import numpy as np
 from pgvector.asyncpg import register_vector
+
+from .config import settings, StorageSettings
 
 
 @dataclass
@@ -26,26 +27,15 @@ class EpisodicEvent:
     entity_ids: Optional[list[UUID]] = None
 
 
-@dataclass
-class StorageConfig:
-    """Configuration for PostgreSQL connection.
-
-    Reads from environment variables if available:
-      STORAGE_HOST, STORAGE_PORT, STORAGE_DATABASE, STORAGE_USER, STORAGE_PASSWORD
-    """
-
-    host: str = field(default_factory=lambda: os.environ.get("STORAGE_HOST", "localhost"))
-    port: int = field(default_factory=lambda: int(os.environ.get("STORAGE_PORT", "5433")))
-    database: str = field(default_factory=lambda: os.environ.get("STORAGE_DATABASE", "gladys"))
-    user: str = field(default_factory=lambda: os.environ.get("STORAGE_USER", "gladys"))
-    password: str = field(default_factory=lambda: os.environ.get("STORAGE_PASSWORD", "gladys"))
+# Keep StorageConfig as alias for backwards compatibility
+StorageConfig = StorageSettings
 
 
 class MemoryStorage:
     """PostgreSQL + pgvector storage backend."""
 
-    def __init__(self, config: Optional[StorageConfig] = None):
-        self.config = config or StorageConfig()
+    def __init__(self, config: Optional[StorageSettings] = None):
+        self.config = config or settings.storage
         self._pool: Optional[asyncpg.Pool] = None
 
     async def connect(self) -> None:
@@ -56,8 +46,8 @@ class MemoryStorage:
             database=self.config.database,
             user=self.config.user,
             password=self.config.password,
-            min_size=2,
-            max_size=10,
+            min_size=self.config.pool_min_size,
+            max_size=self.config.pool_max_size,
             setup=self._setup_connection,
         )
 

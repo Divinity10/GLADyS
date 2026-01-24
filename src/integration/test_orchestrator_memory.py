@@ -30,8 +30,10 @@ from gladys_orchestrator.generated import memory_pb2
 from gladys_orchestrator.generated import memory_pb2_grpc
 
 
-ORCHESTRATOR_ADDRESS = "localhost:50050"
-MEMORY_ADDRESS = "localhost:50051"
+import os
+
+ORCHESTRATOR_ADDRESS = os.environ.get("ORCHESTRATOR_ADDRESS", "localhost:50050")
+MEMORY_ADDRESS = os.environ.get("SALIENCE_MEMORY_ADDRESS", "localhost:50051")
 
 
 async def wait_for_service(address: str, name: str, timeout: float = 30.0) -> bool:
@@ -56,19 +58,19 @@ async def setup_test_heuristic() -> str:
     stub = memory_pb2_grpc.MemoryStorageStub(channel)
 
     heuristic_id = str(uuid4())
+
+    # Use new CBR schema - condition_text for matching, effects_json for action
     heuristic = memory_pb2.Heuristic(
         id=heuristic_id,
         name="threat_detector",
-        condition_json=json.dumps({
-            "source": "test",
-            "keywords": ["danger", "threat", "attack"],
-        }),
-        action_json=json.dumps({
+        condition_text="danger threat attack hostile enemy",  # Keywords for matching
+        effects_json=json.dumps({
             "salience": {
                 "threat": 0.9,  # High threat = immediate routing
             },
         }),
         confidence=0.95,
+        origin="test",
     )
 
     request = memory_pb2.StoreHeuristicRequest(heuristic=heuristic)
