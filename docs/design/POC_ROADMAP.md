@@ -231,7 +231,7 @@ Second time (next day):
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1b | Semantic Memory | Store multiple entities with same name | 🔴 Not built |
+| 1b | Semantic Memory | Store multiple entities with same name | ✅ Done |
 | 2b | Entity Resolution | Detect ambiguity | 🔴 Not built |
 | — | Clarification Flow | Ask user, process response | 🔴 Not built |
 | 4 | Context Tracking | Remember clarification in conversation | 🔴 Not built |

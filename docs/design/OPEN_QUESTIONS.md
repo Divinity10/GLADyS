@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-24 (§24 Semantic Memory Architecture resolved)
+**Last updated**: 2026-01-24 (§25 Skill Architecture design captured)
 
 ---
 
@@ -35,6 +35,7 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §22 | Heuristic Data Structure | ✅ Resolved | CBR + fuzzy matching + heuristic formation |
 | §23 | Heuristic Learning Infrastructure | 🟡 Open | Credit assignment + tuning mode (deferred) |
 | §24 | Semantic Memory Architecture | ✅ Resolved | PostgreSQL, LLM plans, context retrieval |
+| §25 | Skill Architecture Design | 🟡 Design captured | Post-PoC: managed clients, skill autonomy |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -1800,6 +1801,114 @@ relationships:
 | **Executive** | Queries semantic memory for context before LLM planning |
 | **Skill Registry** | Provides capability manifest for planning context |
 | **Heuristics** | Can reference entities in condition matching |
+
+---
+
+## 25. Skill Architecture Design Direction
+
+**Status**: Design captured (pre-PoC)
+**Priority**: Medium (PoC uses simple model; full design for post-PoC)
+**Created**: 2026-01-24
+
+### Context
+
+During Phase 3 planning (Skill Registry), several design questions emerged about how skills interact with core services (Memory, LLM, Orchestrator). These decisions are captured here but **not implemented in PoC** - the PoC uses a simpler "Executive mediates everything" model.
+
+### Skill Categories (from ADR-0003)
+
+| Category | Purpose | Example |
+|----------|---------|---------|
+| `style_modifier` | Adjust tone/personality | formal_mode, sarcasm_enabled |
+| `domain_expertise` | Passive knowledge | minecraft-expertise (knows about Minecraft) |
+| `capability` | Active abilities | minecraft-skill (can check_player_status) |
+| `language` | Translation/localization | spanish, pirate_speak |
+| `outcome_evaluator` | Assess results | was_helpful, achieved_goal |
+
+**Key distinction**: `domain_expertise` is knowledge (passive), `capability` is action (active methods).
+
+### Design Decisions (Post-PoC)
+
+| Topic | Direction | Rationale |
+|-------|-----------|-----------|
+| **Skill dependencies** | Skills declare `requires: [memory, llm]` in manifest | Explicit > implicit; validates at load time |
+| **LLM access** | Executive provides managed client with queuing/rate-limiting | Prevents runaway LLM calls; centralized cost control |
+| **Actuator routing** | Skills propose actions, Orchestrator dispatches to actuators | Safety and audit logging stay centralized |
+| **Skill heuristics** | Skills can contribute heuristics on load | Pack ships with fast-path rules |
+| **Memory access** | For simple cases, Executive assembles context; for autonomous skills, provide Memory client | Two-tier model based on complexity |
+
+### Scenario Analysis
+
+#### Simple Case: "Is Steve online?"
+**Model**: Executive mediates everything
+
+```
+1. User query → Executive
+2. Executive queries Memory (entity lookup, relationship expansion)
+3. Executive queries Skill Registry ("what can check player status?")
+4. Executive calls minecraft-skill.check_player("Buggy")
+5. Executive composes response
+```
+
+Skill has no direct Memory access. Executive assembles all context.
+
+#### Complex Case: Evony Battle Planning
+**Model**: Autonomous skill with infrastructure access
+
+```
+1. User query → Executive identifies "attack planning" capability
+2. Executive delegates to evony-expertise skill
+3. Skill queries Memory (past scout reports, battle outcomes)
+4. Skill queries Sensors (current troop counts)
+5. Skill uses LLM client (strategic reasoning)
+6. Skill returns plan to Executive
+7. Executive validates, routes to actuators
+```
+
+Skill needs direct Memory and LLM access because the data requirements are domain-specific.
+
+### Skill Manifest Extension (Post-PoC)
+
+```yaml
+plugin_id: evony-expertise
+type: skill
+category: domain_expertise
+
+# NEW: Resource dependencies
+requires:
+  - memory       # Can query entities/events
+  - llm          # Can use managed LLM client
+  - sensors:     # Can subscribe to specific sensors
+      - evony-game-state
+
+# NEW: Advertised capabilities
+capabilities:
+  - attack_planning
+  - defense_analysis
+  - resource_optimization
+
+# NEW: Heuristics to register on load
+contributes_heuristics:
+  - condition: "user asks about attacking in Evony"
+    action: {delegate: "evony-expertise", method: "plan_attack"}
+```
+
+### Why PoC Uses Simple Model
+
+| Reason | Detail |
+|--------|--------|
+| **Prove core loop** | Event → salience → routing → response |
+| **Avoid infrastructure** | No managed LLM client, no skill sandboxing |
+| **Focus** | Heuristic learning is the differentiator, not skill autonomy |
+
+The simple model where Executive mediates everything is sufficient to prove "Is Steve online?" works.
+
+### Open for Post-PoC
+
+1. **Skill sandboxing**: How to prevent misbehaving skills from overwhelming Memory/LLM?
+2. **Managed LLM client API**: Rate limiting, queue management, cost tracking
+3. **Skill lifecycle**: Hot reload, version conflicts, dependency resolution
+4. **Multi-skill coordination**: When multiple skills could handle a query
+5. **Heuristic conflict**: What if pack heuristic conflicts with learned heuristic?
 
 ---
 

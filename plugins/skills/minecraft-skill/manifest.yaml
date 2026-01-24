@@ -1,0 +1,132 @@
+# Minecraft Skill - Capability type (can DO things, not just provide knowledge)
+# See ADR-0003 for manifest specification
+
+manifest_version: "1.0"
+
+plugin:
+  id: minecraft-skill
+  name: "Minecraft Skill"
+  version: "1.0.0"
+  type: skill
+  description: "Provides active capabilities for Minecraft - can check player status, query game state"
+  author: "GLADyS Team"
+
+resources:
+  gpu:
+    required: false
+  memory_mb: 128
+  models: []
+  dependencies:
+    python: []
+
+lifecycle:
+  startup:
+    timeout_ms: 2000
+  state:
+    persistent: false
+
+skill:
+  category: capability
+
+  # What sensors this skill requires to function
+  activation:
+    sensors:
+      - sensor_id: minecraft-sensor
+
+  # Capabilities this skill provides (for discovery by Skill Registry)
+  # These are the high-level things this skill "can do"
+  capabilities:
+    - check_player_status      # Can determine if a player is online
+    - query_player_location    # Can get a player's location
+    - query_inventory          # Can check inventory contents
+    - send_chat_message        # Can send messages in game
+
+  # Methods - the actual callable functions (capability skill extension)
+  # This section extends ADR-0003 for capability-type skills
+  methods:
+    - name: check_player
+      description: "Check if a player is currently online in the game"
+      capabilities: [check_player_status]  # Which capabilities this method provides
+      parameters:
+        - name: player_name
+          type: string
+          required: true
+          description: "The in-game character name to check"
+      returns:
+        type: object
+        properties:
+          online: boolean
+          last_seen: string  # ISO timestamp
+          location: string   # Optional, if available
+
+    - name: get_player_location
+      description: "Get the current location of an online player"
+      capabilities: [query_player_location]
+      parameters:
+        - name: player_name
+          type: string
+          required: true
+          description: "The in-game character name"
+      returns:
+        type: object
+        properties:
+          x: integer
+          y: integer
+          z: integer
+          dimension: string  # overworld, nether, end
+
+    - name: check_inventory
+      description: "Check what items are in a player's inventory"
+      capabilities: [query_inventory]
+      parameters:
+        - name: player_name
+          type: string
+          required: true
+          description: "The in-game character name"
+        - name: item_filter
+          type: string
+          required: false
+          description: "Optional filter for specific item types"
+      returns:
+        type: array
+        items:
+          type: object
+          properties:
+            item: string
+            count: integer
+            slot: integer
+
+    - name: send_message
+      description: "Send a chat message in the game"
+      capabilities: [send_chat_message]
+      parameters:
+        - name: message
+          type: string
+          required: true
+          description: "The message to send"
+        - name: target
+          type: string
+          required: false
+          description: "Optional: specific player to message (whisper)"
+      returns:
+        type: object
+        properties:
+          success: boolean
+          message_id: string
+
+  # Incompatible with other skills
+  incompatible: []
+
+  # Configurable parameters for this skill
+  parameters:
+    - name: server_address
+      type: string
+      default: "localhost"
+      description: "Minecraft server address to connect to"
+
+    - name: polling_interval_ms
+      type: integer
+      default: 1000
+      min: 100
+      max: 10000
+      description: "How often to poll for player status updates"
