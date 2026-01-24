@@ -2,6 +2,26 @@
 
 You're a contributor. Here's how to get productive.
 
+## Contents
+
+- [Prerequisites](#prerequisites-everyone)
+- [Architecture Overview](#architecture-overview)
+- [Pick Your Area](#pick-your-area)
+  - [Memory](#i-want-to-work-on-memory)
+  - [Orchestrator](#i-want-to-work-on-orchestrator)
+  - [Executive](#i-want-to-work-on-executive)
+  - [Sensors](#i-want-to-build-a-sensor)
+  - [Skills/Actuators](#i-want-to-build-a-skillactuator)
+- [Common Tasks](#common-tasks)
+  - [Running the full stack](#running-the-full-stack)
+  - [Development workflow](#development-workflow)
+  - [Service Ports](#service-ports)
+  - [Configuration](#configuration)
+  - [Running locally](#running-services-locally-outside-docker)
+  - [Connecting to services](#connecting-to-running-services)
+- [Technical Notes: Heuristic Matching](#technical-notes-heuristic-matching)
+- [Where to Find Things](#where-to-find-things)
+
 ## Prerequisites (Everyone)
 
 - **Git**: You have this if you're reading this
@@ -39,7 +59,14 @@ Everything communicates via **gRPC**. Each subsystem runs as a separate service.
 
 The storage and retrieval layer. Rust fast path + Python ML/storage.
 
-**Local setup:**
+**Easiest: Use the full stack (recommended)**
+```bash
+make up   # Starts everything including Memory
+# Edit Python code - changes auto-reload (volume mounted)
+# Edit Rust code - run `make rust-rebuild`
+```
+
+**Local setup (for isolated development):**
 ```bash
 cd src/memory
 docker compose up -d postgres    # Just the database
@@ -54,8 +81,10 @@ cd src/memory/rust && cargo test
 ```
 
 **Key files:**
-- [src/memory/README.md](../src/memory/README.md) - Full details
+- [src/memory/python/gladys_memory/grpc_server.py](../src/memory/python/gladys_memory/grpc_server.py) - Python gRPC server
+- [src/memory/rust/src/server.rs](../src/memory/rust/src/server.rs) - Rust fast path
 - [src/memory/proto/memory.proto](../src/memory/proto/memory.proto) - API contract
+- [src/memory/python/gladys_memory/config.py](../src/memory/python/gladys_memory/config.py) - Configuration
 
 ---
 
@@ -63,15 +92,21 @@ cd src/memory/rust && cargo test
 
 The brain. Routes events, manages attention, coordinates everything. Python + gRPC.
 
-**Local setup:**
+**Easiest: Use the full stack (recommended)**
 ```bash
-# Start Memory (dependency)
+make up   # Starts everything including Orchestrator
+# Edit code - changes auto-reload (volume mounted)
+```
+
+**Local setup (for isolated development):**
+```bash
+# Start Memory first (dependency)
 cd src/memory && python run.py start
 
-# Then work on Orchestrator
+# Then start Orchestrator
 cd src/orchestrator
-uv sync              # Python dependencies
-uv run python run.py # Run the server
+uv sync
+uv run python run.py start --salience-address localhost:50051
 ```
 
 **You need:** Python 3.11+, uv
@@ -82,8 +117,10 @@ cd src/orchestrator && uv run pytest
 ```
 
 **Key files:**
-- [src/orchestrator/README.md](../src/orchestrator/README.md) - Full details
+- [src/orchestrator/gladys_orchestrator/router.py](../src/orchestrator/gladys_orchestrator/router.py) - Event routing logic
+- [src/orchestrator/gladys_orchestrator/server.py](../src/orchestrator/gladys_orchestrator/server.py) - gRPC server
 - [src/orchestrator/proto/orchestrator.proto](../src/orchestrator/proto/orchestrator.proto) - API contract
+- [src/orchestrator/run.py](../src/orchestrator/run.py) - CLI entry point
 
 **Key ADRs:**
 - [ADR-0001](adr/ADR-0001-Architecture-and-Component-Design.md) - Overall architecture
@@ -93,20 +130,24 @@ cd src/orchestrator && uv run pytest
 
 ### "I want to work on Executive"
 
-User-facing decision layer. C#/.NET.
+User-facing decision layer. Production will be C#/.NET, but we have a Python stub for PoC.
 
-**Local setup:**
+**Current state:** Python stub exists at `src/executive/stub_server.py`
+
+**Local setup (using the stub):**
 ```bash
-# Start dependencies
-cd src/memory && python run.py start
-# (Eventually: start Orchestrator too)
-
-# Then work on Executive
-cd src/executive    # (doesn't exist yet)
-dotnet build
+make up   # Starts all services including executive-stub
 ```
 
-**You need:** .NET SDK
+**Features:**
+- `ProcessMoment` RPC - handles accumulated events
+- Optional Ollama LLM integration (set `OLLAMA_URL` env var)
+- `ProvideFeedback` RPC - pattern extraction for heuristic formation
+- File-based heuristic storage (PoC only)
+
+**Key files:**
+- [src/executive/stub_server.py](../src/executive/stub_server.py) - Python stub implementation
+- [src/orchestrator/proto/executive.proto](../src/orchestrator/proto/executive.proto) - API contract
 
 **Key ADRs:**
 - [ADR-0014](adr/ADR-0014-Executive-Decision-Loop-and-Proactive-Behavior.md) - Executive design
@@ -140,42 +181,50 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 
 ## Common Tasks
 
-### Running the full stack (integration test)
+### Running the full stack
+
+Use the Makefile (recommended):
+
+```bash
+make up          # Start all services (postgres, memory, rust, orchestrator, executive)
+make down        # Stop all services
+make restart     # Restart services
+make benchmark   # Run performance benchmark
+```
+
+Or manually:
 
 ```bash
 cd src/integration
-docker compose up -d    # Starts PostgreSQL, Memory (Python + Rust), Orchestrator
+docker compose up -d    # Starts all 5 services
 docker compose ps       # Check status
 docker compose logs -f  # Follow logs
 ```
 
-### Running individual subsystems
+### Development workflow
 
+**Python changes** auto-reload (source mounted as volumes):
 ```bash
-# Memory only
-cd src/memory && python run.py start
+# Just edit the code - changes are live immediately
+```
 
-# Orchestrator (requires Memory)
-cd src/orchestrator && uv run python run.py
+**Rust changes** require rebuild:
+```bash
+make rust-rebuild   # Rebuild only the Rust container
 ```
 
 ### Checking what's running
 
 ```bash
-docker ps    # Shows all running containers
+docker ps                        # All running containers
+docker compose -f src/integration/docker-compose.yml ps   # GLADyS services
 ```
 
 ### Viewing logs
 
 ```bash
-cd src/memory && python run.py logs    # Memory logs
-# Or: docker compose logs -f
-```
-
-### Resetting a subsystem
-
-```bash
-cd src/memory && python run.py reset   # Deletes all data, fresh start
+docker compose -f src/integration/docker-compose.yml logs -f           # All services
+docker compose -f src/integration/docker-compose.yml logs memory-python  # Specific service
 ```
 
 ### Regenerating proto stubs
@@ -183,14 +232,42 @@ cd src/memory && python run.py reset   # Deletes all data, fresh start
 After modifying `.proto` files:
 
 ```bash
-python scripts/proto_sync.py   # Or: make proto
+make proto   # Regenerates all Python stubs, fixes imports, validates Rust compiles
 ```
 
-This regenerates all Python stubs and fixes import issues.
+This uses `scripts/proto_sync.py` which:
+- Regenerates Python stubs for memory and orchestrator
+- Fixes relative imports in generated files
+- Validates Rust compilation against proto changes
+
+### Service Ports
+
+When running the full stack, services are available at:
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Orchestrator | `localhost:50050` | Main entry point - send events here |
+| Memory (Python) | `localhost:50051` | Storage + SalienceGateway (slow path) |
+| Memory (Rust) | `localhost:50052` | SalienceGateway only (fast path) |
+| Executive | `localhost:50053` | Decision-making + LLM |
+| PostgreSQL | `localhost:5433` | Database (mapped from container's 5432) |
+
+**Default flow**: Orchestrator → Rust fast path (50052) → Executive
 
 ### Configuration
 
-Memory uses Pydantic Settings. Override via environment variables:
+**Environment variables** (set before `make up` or in shell):
+
+```bash
+# Switch Orchestrator to use Python path instead of Rust
+export SALIENCE_MEMORY_ADDRESS=memory-python:50051
+
+# Enable LLM in Executive (point to your Ollama server)
+export OLLAMA_URL=http://192.168.1.100:11434
+export OLLAMA_MODEL=gemma:2b
+```
+
+**Memory (Python) settings** - see `src/memory/python/gladys_memory/config.py`:
 
 ```bash
 # Database
@@ -205,9 +282,66 @@ export SALIENCE_WORD_OVERLAP_MIN=2
 export GRPC_PORT=50051
 ```
 
-See `src/memory/python/gladys_memory/config.py` for all settings.
+**Rust fast path** uses identical env vars - see `src/memory/rust/src/config.rs`.
 
-Rust fast path uses identical environment variables. See `src/memory/rust/src/config.rs`.
+### Running services locally (outside Docker)
+
+For development, you can run individual services locally:
+
+**Orchestrator:**
+```bash
+cd src/orchestrator
+uv run python run.py start --salience-address localhost:50051
+```
+
+Options:
+- `--host HOST` - bind address (default: 0.0.0.0)
+- `--port PORT` - listen port (default: 50050)
+- `--salience-address ADDR` - Memory service (default: localhost:50051)
+- `--moment-window MS` - accumulation window (default: 100ms)
+- `--salience-threshold FLOAT` - immediate routing threshold (default: 0.7)
+
+**Memory (Python):**
+```bash
+cd src/memory/python
+uv run python -m gladys_memory.grpc_server
+```
+
+**Memory (Rust):**
+```bash
+cd src/memory/rust
+STORAGE_ADDRESS=http://localhost:50051 cargo run
+```
+
+### Connecting to running services
+
+**Python client example:**
+```python
+import grpc
+from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
+
+channel = grpc.insecure_channel('localhost:50050')
+stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+
+# Send an event
+response = stub.IngestEvent(orchestrator_pb2.IngestEventRequest(
+    event=orchestrator_pb2.Event(
+        id="test-1",
+        source="my-sensor",
+        raw_text="Something happened",
+    )
+))
+```
+
+**grpcurl (CLI testing):**
+```bash
+# List services
+grpcurl -plaintext localhost:50050 list
+
+# Call a method
+grpcurl -plaintext -d '{"event": {"id": "1", "source": "test", "raw_text": "hello"}}' \
+  localhost:50050 gladys.orchestrator.OrchestratorService/IngestEvent
+```
 
 ## Technical Notes: Heuristic Matching
 
@@ -262,8 +396,11 @@ export SALIENCE_WORD_OVERLAP_RATIO=0.3
 | Performance baseline | [docs/design/PERFORMANCE_BASELINE.md](design/PERFORMANCE_BASELINE.md) |
 | Memory subsystem | [src/memory/](../src/memory/) |
 | Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
+| Executive stub | [src/executive/](../src/executive/) |
 | Integration tests | [src/integration/](../src/integration/) |
 | gRPC contracts | `src/*/proto/*.proto` |
+| Makefile targets | `make help` |
+| Proto sync script | [scripts/proto_sync.py](../scripts/proto_sync.py) |
 
 ## Getting Help
 

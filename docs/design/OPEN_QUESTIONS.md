@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-23
+**Last updated**: 2026-01-23 (benchmark verification complete, dev workflow documented)
 
 ---
 
