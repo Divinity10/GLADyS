@@ -1,7 +1,7 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
-.PHONY: proto test help up down restart benchmark rust-rebuild exec-rebuild verify
+.PHONY: proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
 
 # Default target
 help:
@@ -9,26 +9,28 @@ help:
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
-	@echo "  verify        Verify environment (Docker, containers, gRPC services)"
-	@echo "  proto         Regenerate all gRPC stubs from .proto files"
-	@echo "  test          Run all tests"
-	@echo "  up            Start Docker services (Python code changes auto-reload)"
+	@echo "Local Development (preferred):"
+	@echo "  verify-local  Check local environment (PostgreSQL, pgvector, tables)"
+	@echo ""
+	@echo "Docker Development:"
+	@echo "  verify        Verify Docker environment (containers, gRPC services)"
+	@echo "  up            Start Docker services"
 	@echo "  down          Stop Docker services"
 	@echo "  restart       Restart Docker services"
-	@echo "  rust-rebuild  Rebuild Rust container (required after Rust code changes)"
-	@echo "  exec-rebuild  Rebuild Executive container (required after proto changes)"
+	@echo "  rust-rebuild  Rebuild Rust container (after Rust code changes)"
+	@echo "  exec-rebuild  Rebuild Executive container (after proto changes)"
+	@echo ""
+	@echo "Common:"
+	@echo "  proto         Regenerate all gRPC stubs from .proto files"
+	@echo "  test          Run all tests"
 	@echo "  benchmark     Run salience benchmark"
 	@echo "  help          Show this help"
-	@echo ""
-	@echo "Development workflow:"
-	@echo "  1. make verify        - Check environment is ready"
-	@echo "  2. make up            - Start services"
-	@echo "  3. Edit Python code   - Changes auto-reload (volume mounted)"
-	@echo "  4. Edit Rust code     - Run 'make rust-rebuild'"
-	@echo "  5. make benchmark     - Run performance benchmark"
 
-# Verify environment is ready for development
+# Verify local environment (PostgreSQL, no Docker)
+verify-local:
+	python scripts/verify_local.py
+
+# Verify Docker environment
 verify:
 	python scripts/verify_env.py
 
