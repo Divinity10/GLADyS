@@ -299,3 +299,442 @@ class MemoryStorage:
                 """,
                 heuristic_id,
             )
+
+    # =========================================================================
+    # Entity Operations (Semantic Memory)
+    # =========================================================================
+
+    async def store_entity(
+        self,
+        id: UUID,
+        canonical_name: str,
+        entity_type: str,
+        aliases: Optional[list[str]] = None,
+        attributes: Optional[dict] = None,
+        embedding: Optional[np.ndarray] = None,
+        source: Optional[str] = None,
+    ) -> None:
+        """Store or update an entity."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        await self._pool.execute(
+            """
+            INSERT INTO entities (
+                id, canonical_name, aliases, entity_type,
+                attributes, embedding, source
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (id) DO UPDATE SET
+                canonical_name = EXCLUDED.canonical_name,
+                aliases = EXCLUDED.aliases,
+                entity_type = EXCLUDED.entity_type,
+                attributes = EXCLUDED.attributes,
+                embedding = COALESCE(EXCLUDED.embedding, entities.embedding),
+                last_seen = NOW(),
+                mention_count = entities.mention_count + 1,
+                updated_at = NOW()
+            """,
+            id,
+            canonical_name,
+            aliases or [],
+            entity_type,
+            attributes or {},
+            embedding,
+            source,
+        )
+
+    async def query_entities_by_name(
+        self,
+        name_query: str,
+        entity_type: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Query entities by name (case-insensitive prefix match)."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        if entity_type:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, canonical_name, aliases, entity_type, attributes,
+                       embedding, source, first_seen, last_seen, mention_count,
+                       created_at, updated_at
+                FROM entities
+                WHERE merged_into IS NULL
+                  AND entity_type = $1
+                  AND (
+                      LOWER(canonical_name) LIKE LOWER($2) || '%'
+                      OR EXISTS (
+                          SELECT 1 FROM unnest(aliases) AS alias
+                          WHERE LOWER(alias) LIKE LOWER($2) || '%'
+                      )
+                  )
+                ORDER BY mention_count DESC
+                LIMIT $3
+                """,
+                entity_type,
+                name_query,
+                limit,
+            )
+        else:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, canonical_name, aliases, entity_type, attributes,
+                       embedding, source, first_seen, last_seen, mention_count,
+                       created_at, updated_at
+                FROM entities
+                WHERE merged_into IS NULL
+                  AND (
+                      LOWER(canonical_name) LIKE LOWER($1) || '%'
+                      OR EXISTS (
+                          SELECT 1 FROM unnest(aliases) AS alias
+                          WHERE LOWER(alias) LIKE LOWER($1) || '%'
+                      )
+                  )
+                ORDER BY mention_count DESC
+                LIMIT $2
+                """,
+                name_query,
+                limit,
+            )
+
+        return [self._row_to_entity_dict(row) for row in rows]
+
+    async def query_entities_by_similarity(
+        self,
+        query_embedding: np.ndarray,
+        min_similarity: float = 0.7,
+        entity_type: Optional[str] = None,
+        limit: int = 10,
+    ) -> list[tuple[dict[str, Any], float]]:
+        """Query entities by embedding similarity."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        if entity_type:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, canonical_name, aliases, entity_type, attributes,
+                       embedding, source, first_seen, last_seen, mention_count,
+                       created_at, updated_at,
+                       1 - (embedding <=> $1) AS similarity
+                FROM entities
+                WHERE merged_into IS NULL
+                  AND embedding IS NOT NULL
+                  AND entity_type = $2
+                  AND 1 - (embedding <=> $1) >= $3
+                ORDER BY embedding <=> $1
+                LIMIT $4
+                """,
+                query_embedding,
+                entity_type,
+                min_similarity,
+                limit,
+            )
+        else:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, canonical_name, aliases, entity_type, attributes,
+                       embedding, source, first_seen, last_seen, mention_count,
+                       created_at, updated_at,
+                       1 - (embedding <=> $1) AS similarity
+                FROM entities
+                WHERE merged_into IS NULL
+                  AND embedding IS NOT NULL
+                  AND 1 - (embedding <=> $1) >= $2
+                ORDER BY embedding <=> $1
+                LIMIT $3
+                """,
+                query_embedding,
+                min_similarity,
+                limit,
+            )
+
+        return [(self._row_to_entity_dict(row), row["similarity"]) for row in rows]
+
+    async def get_entity_by_id(self, entity_id: UUID) -> Optional[dict[str, Any]]:
+        """Get a single entity by ID."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        row = await self._pool.fetchrow(
+            """
+            SELECT id, canonical_name, aliases, entity_type, attributes,
+                   embedding, source, first_seen, last_seen, mention_count,
+                   created_at, updated_at
+            FROM entities
+            WHERE id = $1 AND merged_into IS NULL
+            """,
+            entity_id,
+        )
+
+        return self._row_to_entity_dict(row) if row else None
+
+    def _row_to_entity_dict(self, row: asyncpg.Record) -> dict[str, Any]:
+        """Convert entity row to dictionary."""
+        return {
+            "id": row["id"],
+            "canonical_name": row["canonical_name"],
+            "aliases": list(row["aliases"]) if row["aliases"] else [],
+            "entity_type": row["entity_type"],
+            "attributes": row["attributes"] or {},
+            "embedding": np.array(row["embedding"]) if row["embedding"] is not None else None,
+            "source": row["source"],
+            "first_seen": row["first_seen"],
+            "last_seen": row["last_seen"],
+            "mention_count": row["mention_count"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    # =========================================================================
+    # Relationship Operations (Semantic Memory)
+    # =========================================================================
+
+    async def store_relationship(
+        self,
+        id: UUID,
+        subject_id: UUID,
+        predicate: str,
+        object_id: UUID,
+        attributes: Optional[dict] = None,
+        confidence: float = 1.0,
+        source: Optional[str] = None,
+        source_event_id: Optional[UUID] = None,
+    ) -> None:
+        """Store or update a relationship."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        await self._pool.execute(
+            """
+            INSERT INTO relationships (
+                id, subject_id, predicate, object_id,
+                attributes, confidence, source, source_event_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (subject_id, predicate, object_id) DO UPDATE SET
+                attributes = EXCLUDED.attributes,
+                confidence = EXCLUDED.confidence,
+                source = COALESCE(EXCLUDED.source, relationships.source),
+                updated_at = NOW()
+            """,
+            id,
+            subject_id,
+            predicate,
+            object_id,
+            attributes or {},
+            confidence,
+            source,
+            source_event_id,
+        )
+
+    async def get_relationships(
+        self,
+        entity_id: UUID,
+        predicate_filter: Optional[str] = None,
+        include_incoming: bool = True,
+        include_outgoing: bool = True,
+        min_confidence: float = 0.0,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Get relationships for an entity.
+
+        Returns relationships with the related entity included.
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        results = []
+
+        # Outgoing relationships (entity is subject)
+        if include_outgoing:
+            if predicate_filter:
+                rows = await self._pool.fetch(
+                    """
+                    SELECT r.id, r.subject_id, r.predicate, r.object_id,
+                           r.attributes, r.confidence, r.source, r.source_event_id,
+                           r.created_at, r.updated_at,
+                           e.id AS related_id, e.canonical_name, e.aliases,
+                           e.entity_type, e.attributes AS entity_attrs
+                    FROM relationships r
+                    JOIN entities e ON r.object_id = e.id
+                    WHERE r.subject_id = $1
+                      AND r.predicate = $2
+                      AND r.confidence >= $3
+                      AND e.merged_into IS NULL
+                    ORDER BY r.confidence DESC
+                    LIMIT $4
+                    """,
+                    entity_id,
+                    predicate_filter,
+                    min_confidence,
+                    limit,
+                )
+            else:
+                rows = await self._pool.fetch(
+                    """
+                    SELECT r.id, r.subject_id, r.predicate, r.object_id,
+                           r.attributes, r.confidence, r.source, r.source_event_id,
+                           r.created_at, r.updated_at,
+                           e.id AS related_id, e.canonical_name, e.aliases,
+                           e.entity_type, e.attributes AS entity_attrs
+                    FROM relationships r
+                    JOIN entities e ON r.object_id = e.id
+                    WHERE r.subject_id = $1
+                      AND r.confidence >= $2
+                      AND e.merged_into IS NULL
+                    ORDER BY r.confidence DESC
+                    LIMIT $3
+                    """,
+                    entity_id,
+                    min_confidence,
+                    limit,
+                )
+            results.extend([self._row_to_relationship_with_entity(row) for row in rows])
+
+        # Incoming relationships (entity is object)
+        if include_incoming:
+            remaining = limit - len(results)
+            if remaining > 0:
+                if predicate_filter:
+                    rows = await self._pool.fetch(
+                        """
+                        SELECT r.id, r.subject_id, r.predicate, r.object_id,
+                               r.attributes, r.confidence, r.source, r.source_event_id,
+                               r.created_at, r.updated_at,
+                               e.id AS related_id, e.canonical_name, e.aliases,
+                               e.entity_type, e.attributes AS entity_attrs
+                        FROM relationships r
+                        JOIN entities e ON r.subject_id = e.id
+                        WHERE r.object_id = $1
+                          AND r.predicate = $2
+                          AND r.confidence >= $3
+                          AND e.merged_into IS NULL
+                        ORDER BY r.confidence DESC
+                        LIMIT $4
+                        """,
+                        entity_id,
+                        predicate_filter,
+                        min_confidence,
+                        remaining,
+                    )
+                else:
+                    rows = await self._pool.fetch(
+                        """
+                        SELECT r.id, r.subject_id, r.predicate, r.object_id,
+                               r.attributes, r.confidence, r.source, r.source_event_id,
+                               r.created_at, r.updated_at,
+                               e.id AS related_id, e.canonical_name, e.aliases,
+                               e.entity_type, e.attributes AS entity_attrs
+                        FROM relationships r
+                        JOIN entities e ON r.subject_id = e.id
+                        WHERE r.object_id = $1
+                          AND r.confidence >= $2
+                          AND e.merged_into IS NULL
+                        ORDER BY r.confidence DESC
+                        LIMIT $3
+                        """,
+                        entity_id,
+                        min_confidence,
+                        remaining,
+                    )
+                results.extend([self._row_to_relationship_with_entity(row) for row in rows])
+
+        return results
+
+    def _row_to_relationship_with_entity(self, row: asyncpg.Record) -> dict[str, Any]:
+        """Convert relationship+entity row to dictionary."""
+        return {
+            "relationship": {
+                "id": row["id"],
+                "subject_id": row["subject_id"],
+                "predicate": row["predicate"],
+                "object_id": row["object_id"],
+                "attributes": row["attributes"] or {},
+                "confidence": row["confidence"],
+                "source": row["source"],
+                "source_event_id": row["source_event_id"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            },
+            "related_entity": {
+                "id": row["related_id"],
+                "canonical_name": row["canonical_name"],
+                "aliases": list(row["aliases"]) if row["aliases"] else [],
+                "entity_type": row["entity_type"],
+                "attributes": row["entity_attrs"] or {},
+            },
+        }
+
+    async def expand_context(
+        self,
+        entity_ids: list[UUID],
+        max_hops: int = 2,
+        max_entities: int = 20,
+        min_confidence: float = 0.5,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Expand context around entities for LLM prompts.
+
+        Returns (entities, relationships) for the context graph.
+        Uses BFS to traverse up to max_hops from starting entities.
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Track visited entities and collected relationships
+        visited_ids: set[UUID] = set()
+        all_entities: list[dict[str, Any]] = []
+        all_relationships: list[dict[str, Any]] = []
+
+        # BFS frontier
+        frontier = list(entity_ids)
+
+        for hop in range(max_hops + 1):
+            if not frontier or len(all_entities) >= max_entities:
+                break
+
+            # Get entities in current frontier
+            for eid in frontier:
+                if eid in visited_ids:
+                    continue
+                if len(all_entities) >= max_entities:
+                    break
+
+                entity = await self.get_entity_by_id(eid)
+                if entity:
+                    all_entities.append(entity)
+                    visited_ids.add(eid)
+
+            # Get relationships for frontier (only if more hops to go)
+            if hop < max_hops:
+                next_frontier = []
+                for eid in frontier:
+                    if eid not in visited_ids:
+                        continue  # Skip if not actually visited
+
+                    rels = await self.get_relationships(
+                        entity_id=eid,
+                        min_confidence=min_confidence,
+                        limit=10,  # Limit per entity to avoid explosion
+                    )
+
+                    for rel_data in rels:
+                        rel = rel_data["relationship"]
+                        related = rel_data["related_entity"]
+
+                        # Add relationship if not duplicate
+                        rel_key = (rel["subject_id"], rel["predicate"], rel["object_id"])
+                        if not any(
+                            (r["subject_id"], r["predicate"], r["object_id"]) == rel_key
+                            for r in all_relationships
+                        ):
+                            all_relationships.append(rel)
+
+                        # Add related entity ID to next frontier
+                        related_id = related["id"]
+                        if related_id not in visited_ids:
+                            next_frontier.append(related_id)
+
+                frontier = next_frontier
+
+        return all_entities, all_relationships

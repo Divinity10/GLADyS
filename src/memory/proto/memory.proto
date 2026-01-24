@@ -22,6 +22,23 @@ service MemoryStorage {
 
     // Query heuristics by condition match
     rpc QueryHeuristics(QueryHeuristicsRequest) returns (QueryHeuristicsResponse);
+
+    // --- Semantic Memory (Entities & Relationships) ---
+
+    // Store or update an entity
+    rpc StoreEntity(StoreEntityRequest) returns (StoreEntityResponse);
+
+    // Query entities by name, type, or embedding
+    rpc QueryEntities(QueryEntitiesRequest) returns (QueryEntitiesResponse);
+
+    // Store a relationship between entities
+    rpc StoreRelationship(StoreRelationshipRequest) returns (StoreRelationshipResponse);
+
+    // Get relationships for an entity (1-hop context)
+    rpc GetRelationships(GetRelationshipsRequest) returns (GetRelationshipsResponse);
+
+    // Expand context: get entity + relationships + related entities (for LLM prompts)
+    rpc ExpandContext(ExpandContextRequest) returns (ExpandContextResponse);
 }
 
 // Salience Gateway Service - the "amygdala"
@@ -181,4 +198,109 @@ message EvaluateSalienceResponse {
     string matched_heuristic_id = 3;    // ID of matched heuristic (if any)
     string error = 4;
     bool novelty_detection_skipped = 5; // True if skip_novelty_detection was set
+}
+
+// --- Semantic Memory: Entities ---
+
+message Entity {
+    string id = 1;                          // UUID
+    string canonical_name = 2;              // Primary name (e.g., "Steve")
+    repeated string aliases = 3;            // Alternative names (e.g., ["Steven", "Steve M."])
+    string entity_type = 4;                 // person, game_character, game, place, device, etc.
+    string attributes_json = 5;             // Flexible key-value storage as JSON
+    bytes embedding = 6;                    // 384-dim float32 vector for similarity search
+    string source = 7;                      // Where first encountered
+    int64 first_seen_ms = 8;
+    int64 last_seen_ms = 9;
+    int32 mention_count = 10;
+    int64 created_at_ms = 11;
+    int64 updated_at_ms = 12;
+}
+
+message StoreEntityRequest {
+    Entity entity = 1;
+    bool generate_embedding = 2;            // If true, generate embedding from name + type + attributes
+}
+
+message StoreEntityResponse {
+    bool success = 1;
+    string error = 2;
+    string entity_id = 3;                   // ID of created/updated entity
+}
+
+message QueryEntitiesRequest {
+    string name_query = 1;                  // Search by name (exact or prefix)
+    string entity_type = 2;                 // Filter by type
+    bytes query_embedding = 3;              // Similarity search by embedding
+    float min_similarity = 4;               // Minimum cosine similarity (default 0.7)
+    int32 limit = 5;                        // Max results (default 10)
+}
+
+message QueryEntitiesResponse {
+    repeated EntityMatch matches = 1;
+    string error = 2;
+}
+
+message EntityMatch {
+    Entity entity = 1;
+    float similarity = 2;                   // Cosine similarity (if embedding search)
+}
+
+// --- Semantic Memory: Relationships ---
+
+message Relationship {
+    string id = 1;                          // UUID
+    string subject_id = 2;                  // Entity UUID (from)
+    string predicate = 3;                   // Relationship type (e.g., "has_character", "plays_in")
+    string object_id = 4;                   // Entity UUID (to)
+    string attributes_json = 5;             // Optional relationship properties
+    float confidence = 6;                   // Confidence in this relationship (0-1)
+    string source = 7;                      // Provenance: 'user', 'inferred', 'pack:minecraft'
+    string source_event_id = 8;             // Optional: episodic event that established this
+    int64 created_at_ms = 9;
+    int64 updated_at_ms = 10;
+}
+
+message StoreRelationshipRequest {
+    Relationship relationship = 1;
+}
+
+message StoreRelationshipResponse {
+    bool success = 1;
+    string error = 2;
+    string relationship_id = 3;
+}
+
+message GetRelationshipsRequest {
+    string entity_id = 1;                   // Get relationships for this entity
+    string predicate_filter = 2;            // Optional: filter by predicate type
+    bool include_incoming = 3;              // Include relationships where entity is object (default true)
+    bool include_outgoing = 4;              // Include relationships where entity is subject (default true)
+    float min_confidence = 5;               // Minimum confidence filter (default 0)
+    int32 limit = 6;                        // Max results (default 50)
+}
+
+message GetRelationshipsResponse {
+    repeated RelationshipWithEntity relationships = 1;
+    string error = 2;
+}
+
+message RelationshipWithEntity {
+    Relationship relationship = 1;
+    Entity related_entity = 2;              // The entity on the "other side" of the relationship
+}
+
+// --- Context Expansion (for LLM prompts) ---
+
+message ExpandContextRequest {
+    repeated string entity_ids = 1;         // Starting entities (extracted from user query)
+    int32 max_hops = 2;                     // How many hops to traverse (default 2, max 3)
+    int32 max_entities = 3;                 // Max total entities to return (default 20)
+    float min_confidence = 4;               // Minimum relationship confidence (default 0.5)
+}
+
+message ExpandContextResponse {
+    repeated Entity entities = 1;           // All entities in the context graph
+    repeated Relationship relationships = 2; // All relationships in the context
+    string error = 3;
 }

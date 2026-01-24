@@ -66,6 +66,31 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.QueryHeuristicsRequest.SerializeToString,
                 response_deserializer=memory__pb2.QueryHeuristicsResponse.FromString,
                 _registered_method=True)
+        self.StoreEntity = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/StoreEntity',
+                request_serializer=memory__pb2.StoreEntityRequest.SerializeToString,
+                response_deserializer=memory__pb2.StoreEntityResponse.FromString,
+                _registered_method=True)
+        self.QueryEntities = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/QueryEntities',
+                request_serializer=memory__pb2.QueryEntitiesRequest.SerializeToString,
+                response_deserializer=memory__pb2.QueryEntitiesResponse.FromString,
+                _registered_method=True)
+        self.StoreRelationship = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/StoreRelationship',
+                request_serializer=memory__pb2.StoreRelationshipRequest.SerializeToString,
+                response_deserializer=memory__pb2.StoreRelationshipResponse.FromString,
+                _registered_method=True)
+        self.GetRelationships = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetRelationships',
+                request_serializer=memory__pb2.GetRelationshipsRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetRelationshipsResponse.FromString,
+                _registered_method=True)
+        self.ExpandContext = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/ExpandContext',
+                request_serializer=memory__pb2.ExpandContextRequest.SerializeToString,
+                response_deserializer=memory__pb2.ExpandContextResponse.FromString,
+                _registered_method=True)
 
 
 class MemoryStorageServicer(object):
@@ -115,6 +140,43 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def StoreEntity(self, request, context):
+        """--- Semantic Memory (Entities & Relationships) ---
+
+        Store or update an entity
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QueryEntities(self, request, context):
+        """Query entities by name, type, or embedding
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StoreRelationship(self, request, context):
+        """Store a relationship between entities
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRelationships(self, request, context):
+        """Get relationships for an entity (1-hop context)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ExpandContext(self, request, context):
+        """Expand context: get entity + relationships + related entities (for LLM prompts)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MemoryStorageServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -147,6 +209,31 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.QueryHeuristics,
                     request_deserializer=memory__pb2.QueryHeuristicsRequest.FromString,
                     response_serializer=memory__pb2.QueryHeuristicsResponse.SerializeToString,
+            ),
+            'StoreEntity': grpc.unary_unary_rpc_method_handler(
+                    servicer.StoreEntity,
+                    request_deserializer=memory__pb2.StoreEntityRequest.FromString,
+                    response_serializer=memory__pb2.StoreEntityResponse.SerializeToString,
+            ),
+            'QueryEntities': grpc.unary_unary_rpc_method_handler(
+                    servicer.QueryEntities,
+                    request_deserializer=memory__pb2.QueryEntitiesRequest.FromString,
+                    response_serializer=memory__pb2.QueryEntitiesResponse.SerializeToString,
+            ),
+            'StoreRelationship': grpc.unary_unary_rpc_method_handler(
+                    servicer.StoreRelationship,
+                    request_deserializer=memory__pb2.StoreRelationshipRequest.FromString,
+                    response_serializer=memory__pb2.StoreRelationshipResponse.SerializeToString,
+            ),
+            'GetRelationships': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRelationships,
+                    request_deserializer=memory__pb2.GetRelationshipsRequest.FromString,
+                    response_serializer=memory__pb2.GetRelationshipsResponse.SerializeToString,
+            ),
+            'ExpandContext': grpc.unary_unary_rpc_method_handler(
+                    servicer.ExpandContext,
+                    request_deserializer=memory__pb2.ExpandContextRequest.FromString,
+                    response_serializer=memory__pb2.ExpandContextResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -313,6 +400,141 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/QueryHeuristics',
             memory__pb2.QueryHeuristicsRequest.SerializeToString,
             memory__pb2.QueryHeuristicsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StoreEntity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/StoreEntity',
+            memory__pb2.StoreEntityRequest.SerializeToString,
+            memory__pb2.StoreEntityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def QueryEntities(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/QueryEntities',
+            memory__pb2.QueryEntitiesRequest.SerializeToString,
+            memory__pb2.QueryEntitiesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StoreRelationship(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/StoreRelationship',
+            memory__pb2.StoreRelationshipRequest.SerializeToString,
+            memory__pb2.StoreRelationshipResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRelationships(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetRelationships',
+            memory__pb2.GetRelationshipsRequest.SerializeToString,
+            memory__pb2.GetRelationshipsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ExpandContext(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/ExpandContext',
+            memory__pb2.ExpandContextRequest.SerializeToString,
+            memory__pb2.ExpandContextResponse.FromString,
             options,
             channel_credentials,
             insecure,

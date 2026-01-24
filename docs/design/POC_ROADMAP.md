@@ -277,10 +277,10 @@ System: [Heuristic confidence too low, doesn't fire]
 |-------|-----------|-------------|--------|-----------|
 | 0 | Storage | PostgreSQL + pgvector | ✅ Done | Local DB working |
 | 1a | Episodic Memory | Event storage/retrieval | ✅ Done | Events store, query works |
-| 1b | Semantic Memory | Entity + relationship storage | 🔴 Not built | — |
+| 1b | Semantic Memory | Entity + relationship storage | ✅ Done | test_semantic_memory.py |
 | 1c | Procedural Memory | Heuristic storage | ✅ Done | Heuristics store to DB |
 | 2a | Event Retrieval | Query events by time/similarity | ⚠️ Partial | Time works, similarity untested |
-| 2b | Entity Retrieval | Query entities, traverse relationships | 🔴 Not built | — |
+| 2b | Entity Retrieval | Query entities, traverse relationships | ✅ Done | test_semantic_memory.py |
 | 2c | Heuristic Matching | Match events to heuristics | ✅ Done | test_killer_feature.py |
 | 3 | Skill Registry | Capability discovery | 🔴 Not built | — |
 | 4a | LLM Reasoning | Process events with LLM | ✅ Done | Executive stub + Ollama |

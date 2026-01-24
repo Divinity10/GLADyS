@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-23 (benchmark verification complete, dev workflow documented)
+**Last updated**: 2026-01-24 (§24 Semantic Memory Architecture resolved)
 
 ---
 
@@ -34,6 +34,7 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §21 | Heuristic Storage Model | ✅ Resolved | Transaction log pattern for modifications |
 | §22 | Heuristic Data Structure | ✅ Resolved | CBR + fuzzy matching + heuristic formation |
 | §23 | Heuristic Learning Infrastructure | 🟡 Open | Credit assignment + tuning mode (deferred) |
+| §24 | Semantic Memory Architecture | ✅ Resolved | PostgreSQL, LLM plans, context retrieval |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -1644,6 +1645,161 @@ Revisit tuning mode when:
 | **Observability (ADR-0006)** | Tuning mode logs go to Loki |
 | **§20 (TD Learning)** | Credit assignment feeds into confidence updates |
 | **§22 (CBR Schema)** | Tuning mode evaluates against this schema |
+
+---
+
+## 24. Semantic Memory Architecture (Graph DB vs Relational)
+
+**Status**: ✅ Resolved
+**Priority**: High (foundational for PoC Phase 1)
+**Created**: 2026-01-24
+
+### Context
+
+Semantic memory stores entities (people, places, things) and their relationships. The design question was: should we use a graph database (Neo4j) or relational tables (PostgreSQL)?
+
+### Key Insight: LLM Reasons, Graph Provides Context
+
+The critical realization is that **the LLM does the reasoning, not the graph**. The semantic memory is a knowledge store that provides context for LLM planning, not a reasoning engine.
+
+For "Is Steve online?":
+- **Not**: Graph mechanically traverses Steve → Buggy → Minecraft → check_status
+- **Yes**: Retrieve Steve's context (1-2 hops), give to LLM, LLM creates a plan
+
+This changes the requirements from "deep graph traversal" to "efficient context retrieval."
+
+### Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **PostgreSQL for semantic memory** | Context retrieval (1-2 hops), not graph algorithms. Single DB simplifies joins with events/heuristics. |
+| **LLM is a planner, not an answerer** | Executive creates executable plans; doesn't answer questions directly. |
+| **Heuristics cache plans, not answers** | When heuristic fires, skip LLM planning step, still execute skills. |
+| **Plan execution is primary** | MCP tools optional for simple cases (optimization path). |
+| **Entity extraction + 1-2 hop expansion** | Context retrieval strategy for LLM prompts. |
+
+### Why Not Graph DB
+
+| Factor | Assessment |
+|--------|------------|
+| Traversal depth needed | 1-2 hops for context (shallow) |
+| Graph algorithms needed | No (no PageRank, community detection, etc.) |
+| Join with other data | Yes (events, heuristics in PostgreSQL) |
+| Operational complexity | Single DB preferred |
+| Query patterns | Context retrieval, not path finding |
+
+A personal assistant has hundreds to low thousands of entities with shallow relationships. PostgreSQL with simple joins handles this well.
+
+### Heuristic Effects Structure
+
+Heuristics can contain either simple tool calls or multi-step plans:
+
+```json
+// Simple - direct tool call (could use MCP)
+{"type": "tool_call", "tool": "weather", "params": {"location": "home"}}
+
+// Complex - multi-step plan (needs execution layer)
+{"type": "plan", "steps": [
+  {"skill": "minecraft", "method": "check_player", "params": {"player": "Buggy"}},
+  {"skill": "notify", "method": "respond", "params": {"template": "steve_status"}}
+]}
+```
+
+### Context Retrieval for LLM Planning
+
+The Executive assembles context before calling the LLM:
+
+1. **Entity extraction** - Pull names/keywords from query
+2. **Expand relationships** - For each entity, get 1-2 hops of context
+3. **Include skill manifest** - What capabilities exist
+4. **Assemble prompt** - Entity context + skills + query
+
+Example prompt assembly:
+```
+User query: "Is Steve online?"
+
+Context:
+- Steve: person, friend
+  - plays Minecraft as "Buggy"
+  - uses Discord as "SteveD"
+
+Available skills:
+- minecraft: can check player status
+- discord: can check user presence
+
+What action should be taken?
+```
+
+### Brain Analogy Note
+
+The brain is a reference architecture, not a blueprint. We're borrowing organizational principles (salience, memory hierarchy, executive planning) that evolution tuned for these problems. Where the analogy helps, we use it. Where it doesn't fit, we don't force it.
+
+### Schema (Implemented 2026-01-24)
+
+**Migration**: [002_relationships.sql](../../src/memory/migrations/002_relationships.sql)
+
+**Note**: The `entities` table already existed in [001_initial_schema.sql](../../src/memory/migrations/001_initial_schema.sql).
+
+#### entities table (existing)
+```sql
+CREATE TABLE entities (
+    id              UUID PRIMARY KEY,
+    canonical_name  TEXT NOT NULL,          -- "Steve"
+    aliases         TEXT[] DEFAULT '{}',    -- ["Steven", "Steve M."]
+    entity_type     TEXT NOT NULL,          -- person, game_character, game, device
+    attributes      JSONB DEFAULT '{}',     -- Flexible key-value
+    embedding       vector(384),            -- For similarity search
+    first_seen      TIMESTAMPTZ,
+    last_seen       TIMESTAMPTZ,
+    mention_count   INTEGER DEFAULT 1,
+    merged_into     UUID REFERENCES entities(id),  -- Deduplication
+    created_at      TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ
+);
+```
+
+#### relationships table (new)
+```sql
+CREATE TABLE relationships (
+    id              UUID PRIMARY KEY,
+    subject_id      UUID NOT NULL REFERENCES entities(id),
+    predicate       TEXT NOT NULL,          -- 'has_character', 'plays_in', 'lives_at'
+    object_id       UUID NOT NULL REFERENCES entities(id),
+    attributes      JSONB DEFAULT '{}',     -- Optional properties
+    confidence      FLOAT DEFAULT 1.0,      -- 0-1
+    source          TEXT,                   -- 'user', 'inferred', 'pack:minecraft'
+    source_event_id UUID,                   -- Optional provenance
+    created_at      TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ,
+    UNIQUE (subject_id, predicate, object_id)
+);
+```
+
+#### Proto RPCs (added to memory.proto)
+- `StoreEntity` / `QueryEntities` - Entity CRUD
+- `StoreRelationship` / `GetRelationships` - Relationship CRUD
+- `ExpandContext` - Get entity + N hops of relationships for LLM prompt assembly
+
+#### "Is Steve online?" Example Data
+```
+entities:
+  - Steve (type=person)
+  - Buggy (type=game_character)
+  - Minecraft (type=game)
+
+relationships:
+  - Steve --[has_character]--> Buggy
+  - Buggy --[plays_in]--> Minecraft
+```
+
+### Relationship to Other Systems
+
+| Component | Interaction |
+|-----------|-------------|
+| **Memory (Python)** | Stores entities/relationships, provides retrieval API |
+| **Executive** | Queries semantic memory for context before LLM planning |
+| **Skill Registry** | Provides capability manifest for planning context |
+| **Heuristics** | Can reference entities in condition matching |
 
 ---
 
