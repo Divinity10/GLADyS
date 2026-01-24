@@ -27,6 +27,9 @@ service MemoryStorage {
     // Used by Rust fast path on cache miss - faster than embedding similarity
     rpc QueryMatchingHeuristics(QueryMatchingHeuristicsRequest) returns (QueryHeuristicsResponse);
 
+    // Update heuristic confidence based on feedback (TD learning)
+    rpc UpdateHeuristicConfidence(UpdateHeuristicConfidenceRequest) returns (UpdateHeuristicConfidenceResponse);
+
     // --- Semantic Memory (Entities & Relationships) ---
 
     // Store or update an entity
@@ -191,6 +194,22 @@ message HeuristicMatch {
     Heuristic heuristic = 1;
     float similarity = 2;                   // Cosine similarity to query
     float score = 3;                        // similarity × confidence
+}
+
+// --- TD Learning: Confidence Updates ---
+
+message UpdateHeuristicConfidenceRequest {
+    string heuristic_id = 1;                // UUID of the heuristic to update
+    bool positive = 2;                      // True = positive feedback, False = negative
+    float learning_rate = 3;                // Optional: override default 0.1
+}
+
+message UpdateHeuristicConfidenceResponse {
+    bool success = 1;
+    string error = 2;
+    float old_confidence = 3;               // Confidence before update
+    float new_confidence = 4;               // Confidence after update
+    float delta = 5;                        // The change applied (for logging)
 }
 
 // --- Salience Evaluation ---

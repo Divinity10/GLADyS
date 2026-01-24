@@ -49,8 +49,8 @@ async def run_test():
         from gladys_memory import memory_pb2, memory_pb2_grpc
     except ImportError:
         try:
-            # Fallback to generated subdirectory (orchestrator structure)
-            from gladys_memory.generated import memory_pb2, memory_pb2_grpc
+            # Fallback to orchestrator's generated stubs
+            from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
         except ImportError:
             print("ERROR: Memory proto stubs not available")
             print("Run: make proto")

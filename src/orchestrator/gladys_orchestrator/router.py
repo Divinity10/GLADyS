@@ -132,6 +132,8 @@ class EventRouter:
 
         Events sent to Executive (via moment or immediate) should have
         salience already populated so Executive doesn't need to re-evaluate.
+
+        Also attaches matched_heuristic_id for TD learning feedback correlation.
         """
         if not hasattr(event, "salience"):
             logger.warning(f"Event {getattr(event, 'id', 'unknown')} has no salience field")
@@ -154,6 +156,11 @@ class EventRouter:
 
             # Copy the salience vector into the event's salience field
             event.salience.CopyFrom(salience_vector)
+
+            # Attach matched heuristic ID for TD learning (if present)
+            matched_heuristic = salience.get("_matched_heuristic", "")
+            if matched_heuristic and hasattr(event, "matched_heuristic_id"):
+                event.matched_heuristic_id = matched_heuristic
         else:
             # Non-proto event (e.g., test mocks) - salience already attached or not applicable
             logger.debug(f"Event {getattr(event, 'id', 'unknown')} has non-proto salience, skipping attach")

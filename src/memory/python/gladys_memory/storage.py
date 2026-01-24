@@ -369,6 +369,74 @@ class MemoryStorage:
                 heuristic_id,
             )
 
+    async def update_heuristic_confidence(
+        self,
+        heuristic_id: UUID,
+        positive: bool,
+        learning_rate: Optional[float] = None,
+    ) -> tuple[float, float, float]:
+        """
+        Update heuristic confidence based on feedback (TD learning).
+
+        Uses formula: new_confidence = clamp(old_confidence + learning_rate * delta, 0, 1)
+        where delta = +1.0 for positive feedback, -1.0 for negative feedback.
+
+        Args:
+            heuristic_id: UUID of the heuristic to update
+            positive: True for positive feedback, False for negative
+            learning_rate: Optional override (default uses heuristic's stored rate, or 0.1)
+
+        Returns:
+            Tuple of (old_confidence, new_confidence, delta)
+
+        Raises:
+            RuntimeError: If not connected to database
+            ValueError: If heuristic not found
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Get current confidence
+        row = await self._pool.fetchrow(
+            """
+            SELECT confidence
+            FROM heuristics
+            WHERE id = $1
+            """,
+            heuristic_id,
+        )
+
+        if not row:
+            raise ValueError(f"Heuristic not found: {heuristic_id}")
+
+        old_confidence = float(row["confidence"])
+        # Default learning rate is 0.1 (10% adjustment per feedback)
+        # In future, this could be stored per-heuristic in the database
+        lr = learning_rate if learning_rate is not None else 0.1
+
+        # TD learning: delta is +1 for positive, -1 for negative
+        delta = 1.0 if positive else -1.0
+        change = lr * delta
+
+        # Clamp to [0, 1]
+        new_confidence = max(0.0, min(1.0, old_confidence + change))
+
+        # Update database
+        await self._pool.execute(
+            """
+            UPDATE heuristics
+            SET confidence = $2,
+                success_count = success_count + CASE WHEN $3 THEN 1 ELSE 0 END,
+                updated_at = NOW()
+            WHERE id = $1
+            """,
+            heuristic_id,
+            new_confidence,
+            positive,
+        )
+
+        return (old_confidence, new_confidence, change)
+
     # =========================================================================
     # Entity Operations (Semantic Memory)
     # =========================================================================

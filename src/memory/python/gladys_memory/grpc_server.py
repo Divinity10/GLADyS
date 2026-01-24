@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import struct
 from concurrent import futures
 from datetime import datetime, timezone
@@ -9,6 +10,8 @@ from uuid import UUID
 
 import grpc
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from .config import settings
 from .storage import MemoryStorage, EpisodicEvent, StorageSettings
@@ -311,6 +314,52 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             return memory_pb2.QueryHeuristicsResponse(matches=matches)
         except Exception as e:
             return memory_pb2.QueryHeuristicsResponse(error=str(e))
+
+    async def UpdateHeuristicConfidence(self, request, context):
+        """Update heuristic confidence based on feedback (TD learning).
+
+        Implements the TD learning formula:
+        new_confidence = clamp(old_confidence + learning_rate * delta, 0, 1)
+
+        where delta = +1.0 for positive feedback, -1.0 for negative.
+        """
+        try:
+            heuristic_id = request.heuristic_id
+            if not heuristic_id:
+                return memory_pb2.UpdateHeuristicConfidenceResponse(
+                    success=False, error="No heuristic_id provided"
+                )
+
+            # Use provided learning_rate or None to use heuristic's stored rate
+            learning_rate = request.learning_rate if request.learning_rate > 0 else None
+
+            old_conf, new_conf, delta = await self.storage.update_heuristic_confidence(
+                heuristic_id=UUID(heuristic_id),
+                positive=request.positive,
+                learning_rate=learning_rate,
+            )
+
+            logger.info(
+                f"TD_LEARNING: heuristic={heuristic_id}, "
+                f"positive={request.positive}, "
+                f"old={old_conf:.3f}, new={new_conf:.3f}, delta={delta:.3f}"
+            )
+
+            return memory_pb2.UpdateHeuristicConfidenceResponse(
+                success=True,
+                old_confidence=old_conf,
+                new_confidence=new_conf,
+                delta=delta,
+            )
+        except ValueError as e:
+            return memory_pb2.UpdateHeuristicConfidenceResponse(
+                success=False, error=str(e)
+            )
+        except Exception as e:
+            logger.error(f"UpdateHeuristicConfidence error: {e}")
+            return memory_pb2.UpdateHeuristicConfidenceResponse(
+                success=False, error=str(e)
+            )
 
     # =========================================================================
     # Semantic Memory: Entities

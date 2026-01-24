@@ -39,6 +39,9 @@ message Event {
     repeated int32 tokens = 8;
     string tokenizer_id = 9;
 
+    // Heuristic that matched this event (for TD learning feedback)
+    string matched_heuristic_id = 10;
+
     // Metadata
     RequestMetadata metadata = 15;
 }

@@ -216,6 +216,52 @@ class MemoryClient:
             logger.warning(f"Memory StoreHeuristic failed: {e}")
             return False, str(e)
 
+    async def update_heuristic_confidence(
+        self,
+        heuristic_id: str,
+        positive: bool,
+        learning_rate: float | None = None,
+    ) -> tuple[bool, str, float, float]:
+        """Update heuristic confidence based on feedback (TD learning).
+
+        Args:
+            heuristic_id: UUID of the heuristic to update
+            positive: True for positive feedback, False for negative
+            learning_rate: Optional learning rate override
+
+        Returns:
+            Tuple of (success, error_or_empty, old_confidence, new_confidence)
+        """
+        if not self._available or not self._stub:
+            return False, "Memory service not available", 0.0, 0.0
+
+        try:
+            request = memory_pb2.UpdateHeuristicConfidenceRequest(
+                heuristic_id=heuristic_id,
+                positive=positive,
+            )
+            if learning_rate is not None:
+                request.learning_rate = learning_rate
+
+            response = await self._stub.UpdateHeuristicConfidence(request)
+
+            if response.success:
+                logger.info(
+                    f"TD_LEARNING: heuristic={heuristic_id}, positive={positive}, "
+                    f"old={response.old_confidence:.3f}, new={response.new_confidence:.3f}"
+                )
+                return True, "", response.old_confidence, response.new_confidence
+            else:
+                logger.warning(f"UpdateHeuristicConfidence failed: {response.error}")
+                return False, response.error, 0.0, 0.0
+
+        except grpc.aio.AioRpcError as e:
+            logger.warning(f"UpdateHeuristicConfidence RPC error: {e.code()} - {e.details()}")
+            return False, str(e.details()), 0.0, 0.0
+        except Exception as e:
+            logger.warning(f"UpdateHeuristicConfidence failed: {e}")
+            return False, str(e), 0.0, 0.0
+
 
 def format_event_for_llm(event: Any) -> str:
     """Format a single event for LLM context."""
@@ -273,6 +319,7 @@ class ReasoningTrace:
     context: str  # Formatted event context
     response: str  # LLM response
     timestamp: float
+    matched_heuristic_id: str | None = None  # For TD learning confidence updates
 
     def age_seconds(self) -> float:
         return time.time() - self.timestamp
@@ -380,7 +427,13 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             del self.reasoning_traces[rid]
         return len(old_ids)
 
-    def _store_trace(self, event_id: str, context: str, response: str) -> str:
+    def _store_trace(
+        self,
+        event_id: str,
+        context: str,
+        response: str,
+        matched_heuristic_id: str | None = None,
+    ) -> str:
         """Store a reasoning trace and return the response_id."""
         response_id = str(uuid.uuid4())
         self.reasoning_traces[response_id] = ReasoningTrace(
@@ -389,6 +442,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             context=context,
             response=response,
             timestamp=time.time(),
+            matched_heuristic_id=matched_heuristic_id,
         )
         # Cleanup old traces periodically
         if len(self.reasoning_traces) > 100:
@@ -425,13 +479,19 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             if llm_response:
                 response_text = llm_response.strip()
                 logger.info(f"GLADyS: {response_text}")
+                # Extract matched heuristic ID for TD learning (if present)
+                matched_heuristic = getattr(event, "matched_heuristic_id", "") or ""
                 # Store reasoning trace for potential heuristic formation
                 response_id = self._store_trace(
                     event_id=event.id,
                     context=event_context,
                     response=response_text,
+                    matched_heuristic_id=matched_heuristic if matched_heuristic else None,
                 )
-                logger.debug(f"Stored reasoning trace: response_id={response_id}")
+                logger.debug(
+                    f"Stored reasoning trace: response_id={response_id}, "
+                    f"matched_heuristic={matched_heuristic or 'none'}"
+                )
 
         return executive_pb2.ProcessEventResponse(
             accepted=True,
@@ -490,17 +550,52 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         3. Store as new heuristic (via Memory service)
 
         If negative feedback:
-        - TODO: TD learning to decrease confidence of matched heuristic
+        - TD learning: decrease confidence of the matched heuristic
         """
         logger.info(
             f"FEEDBACK: response_id={request.response_id}, "
             f"event_id={request.event_id}, positive={request.positive}"
         )
 
-        # For negative feedback, just acknowledge for now
-        # TD learning (confidence decrease) will be added later
+        # Handle negative feedback with TD learning
         if not request.positive:
-            logger.info("Negative feedback received - TD learning not yet implemented")
+            # Look up the reasoning trace to find which heuristic matched
+            trace = self.reasoning_traces.get(request.response_id)
+            if not trace:
+                logger.warning(
+                    f"Negative feedback: no reasoning trace for response_id={request.response_id}"
+                )
+                return executive_pb2.ProvideFeedbackResponse(
+                    accepted=True,
+                    error_message="Reasoning trace not found or expired",
+                )
+
+            if not trace.matched_heuristic_id:
+                logger.info(
+                    f"Negative feedback: no heuristic was matched for this event "
+                    f"(response_id={request.response_id}, event_id={trace.event_id})"
+                )
+                return executive_pb2.ProvideFeedbackResponse(accepted=True)
+
+            # Call Memory service to decrease heuristic confidence
+            if self.memory_client:
+                success, error, old_conf, new_conf = await self.memory_client.update_heuristic_confidence(
+                    heuristic_id=trace.matched_heuristic_id,
+                    positive=False,
+                )
+                if success:
+                    logger.info(
+                        f"TD_LEARNING: Negative feedback decreased confidence for heuristic "
+                        f"{trace.matched_heuristic_id}: {old_conf:.3f} -> {new_conf:.3f}"
+                    )
+                else:
+                    logger.warning(
+                        f"TD_LEARNING: Failed to update confidence for heuristic "
+                        f"{trace.matched_heuristic_id}: {error}"
+                    )
+            else:
+                logger.warning("TD_LEARNING: Memory service not available for confidence update")
+
             return executive_pb2.ProvideFeedbackResponse(accepted=True)
 
         # Look up the reasoning trace
@@ -562,6 +657,23 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
                 accepted=True,
                 error_message=f"Pattern parsing failed: {e}",
             )
+
+        # TD learning: if there was a matched heuristic, increase its confidence
+        if trace.matched_heuristic_id and self.memory_client:
+            success, error, old_conf, new_conf = await self.memory_client.update_heuristic_confidence(
+                heuristic_id=trace.matched_heuristic_id,
+                positive=True,
+            )
+            if success:
+                logger.info(
+                    f"TD_LEARNING: Positive feedback increased confidence for heuristic "
+                    f"{trace.matched_heuristic_id}: {old_conf:.3f} -> {new_conf:.3f}"
+                )
+            else:
+                logger.warning(
+                    f"TD_LEARNING: Failed to update confidence for heuristic "
+                    f"{trace.matched_heuristic_id}: {error}"
+                )
 
         # Create and store the new heuristic
         heuristic_id = str(uuid.uuid4())

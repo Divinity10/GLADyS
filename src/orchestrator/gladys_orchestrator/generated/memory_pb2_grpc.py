@@ -71,6 +71,11 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.QueryMatchingHeuristicsRequest.SerializeToString,
                 response_deserializer=memory__pb2.QueryHeuristicsResponse.FromString,
                 _registered_method=True)
+        self.UpdateHeuristicConfidence = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/UpdateHeuristicConfidence',
+                request_serializer=memory__pb2.UpdateHeuristicConfidenceRequest.SerializeToString,
+                response_deserializer=memory__pb2.UpdateHeuristicConfidenceResponse.FromString,
+                _registered_method=True)
         self.StoreEntity = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/StoreEntity',
                 request_serializer=memory__pb2.StoreEntityRequest.SerializeToString,
@@ -153,6 +158,13 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def UpdateHeuristicConfidence(self, request, context):
+        """Update heuristic confidence based on feedback (TD learning)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def StoreEntity(self, request, context):
         """--- Semantic Memory (Entities & Relationships) ---
 
@@ -227,6 +239,11 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.QueryMatchingHeuristics,
                     request_deserializer=memory__pb2.QueryMatchingHeuristicsRequest.FromString,
                     response_serializer=memory__pb2.QueryHeuristicsResponse.SerializeToString,
+            ),
+            'UpdateHeuristicConfidence': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateHeuristicConfidence,
+                    request_deserializer=memory__pb2.UpdateHeuristicConfidenceRequest.FromString,
+                    response_serializer=memory__pb2.UpdateHeuristicConfidenceResponse.SerializeToString,
             ),
             'StoreEntity': grpc.unary_unary_rpc_method_handler(
                     servicer.StoreEntity,
@@ -445,6 +462,33 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/QueryMatchingHeuristics',
             memory__pb2.QueryMatchingHeuristicsRequest.SerializeToString,
             memory__pb2.QueryHeuristicsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateHeuristicConfidence(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/UpdateHeuristicConfidence',
+            memory__pb2.UpdateHeuristicConfidenceRequest.SerializeToString,
+            memory__pb2.UpdateHeuristicConfidenceResponse.FromString,
             options,
             channel_credentials,
             insecure,
