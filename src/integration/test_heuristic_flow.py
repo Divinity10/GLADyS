@@ -2,12 +2,12 @@
 """Test script to verify the heuristic formation flow.
 
 This script:
-1. Sends an event to Orchestrator
+1. Sends an event directly to Executive (skip Orchestrator for PoC testing)
 2. Sends positive feedback to Executive
 3. Verifies the heuristic was stored in Memory
 
 Usage:
-    python src/integration/test_heuristic_flow.py
+    cd src/orchestrator && uv run python ../integration/test_heuristic_flow.py
 """
 
 import asyncio
@@ -20,38 +20,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
 
 import grpc
 
-from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
 from gladys_orchestrator.generated import executive_pb2, executive_pb2_grpc
 from gladys_orchestrator.generated import common_pb2
 
 
-async def test_event_flow():
-    """Send an event and get a response with response_id."""
-    print("\n=== Step 1: Send Event to Orchestrator ===")
-
-    async with grpc.aio.insecure_channel("localhost:50050") as channel:
-        stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
-
-        # Send a high-salience event (threat > 0.7 triggers immediate processing)
-        event = common_pb2.Event(
-            id="test-event-1",
-            source="test-sensor",
-            raw_text="DANGER! There's a hostile mob approaching from the north!",
-        )
-
-        # Set high salience to trigger immediate routing to Executive
-        request = orchestrator_pb2.IngestEventRequest(event=event)
-
-        print(f"  Sending event: {event.raw_text}")
-        response = await stub.IngestEvent(request)
-        print(f"  Response: accepted={response.accepted}")
-
-    return "test-event-1"
-
-
-async def test_feedback_flow(event_id: str):
-    """Send positive feedback and check if heuristic is created."""
-    print("\n=== Step 2: Send Feedback to Executive ===")
+async def test_event_and_feedback():
+    """Send an event to Executive, then provide positive feedback to create a heuristic."""
+    print("\n=== Step 1: Send Event and Feedback to Executive ===")
 
     async with grpc.aio.insecure_channel("localhost:50053") as channel:
         stub = executive_pb2_grpc.ExecutiveServiceStub(channel)
@@ -98,7 +73,7 @@ async def test_feedback_flow(event_id: str):
 
 async def check_heuristics_in_memory():
     """Query Memory to see if heuristics exist."""
-    print("\n=== Step 3: Check Heuristics in Memory ===")
+    print("\n=== Step 2: Check Heuristics in Memory ===")
 
     try:
         from gladys_memory.generated import memory_pb2, memory_pb2_grpc
@@ -135,11 +110,8 @@ async def main():
     print("Heuristic Formation Flow Test")
     print("=" * 60)
 
-    # Step 1: Send event
-    event_id = await test_event_flow()
-
-    # Step 2: Send feedback (triggers heuristic creation if LLM available)
-    heuristic_id = await test_feedback_flow(event_id)
+    # Step 1 & 2: Send event to Executive, then feedback
+    heuristic_id = await test_event_and_feedback()
 
     # Step 3: Check Memory for heuristics
     await check_heuristics_in_memory()
@@ -149,7 +121,7 @@ async def main():
         print("SUCCESS: Heuristic was created and stored in Memory!")
     else:
         print("PARTIAL: Event flow works, but heuristic creation requires LLM")
-        print("  To enable: Set OLLAMA_URL in docker-compose.yml")
+        print("  Ensure OLLAMA_URL and OLLAMA_MODEL are set in .env")
     print("=" * 60)
 
 

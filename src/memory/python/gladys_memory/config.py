@@ -4,8 +4,25 @@ Uses pydantic-settings for environment variable and config file support.
 All magic numbers and tunable parameters should live here.
 """
 
+from pathlib import Path
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Find project root .env (search up from this file)
+def _find_env_file() -> Path | None:
+    """Search up directory tree to find .env file."""
+    current = Path(__file__).parent
+    for _ in range(10):  # Max 10 levels up
+        env_path = current / ".env"
+        if env_path.exists():
+            return env_path
+        if current.parent == current:
+            break
+        current = current.parent
+    return None
+
+_ENV_FILE = _find_env_file()
 
 
 class StorageSettings(BaseSettings):
@@ -13,12 +30,12 @@ class StorageSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="STORAGE_",
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 
     host: str = Field(default="localhost", description="PostgreSQL host")
-    port: int = Field(default=5433, description="PostgreSQL port")
+    port: int = Field(default=5432, description="PostgreSQL port")
     database: str = Field(default="gladys", description="Database name")
     user: str = Field(default="gladys", description="Database user")
     password: str = Field(default="gladys", description="Database password")
@@ -33,7 +50,7 @@ class EmbeddingSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="EMBEDDING_",
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 
@@ -52,7 +69,7 @@ class SalienceSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="SALIENCE_",
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 
@@ -121,7 +138,7 @@ class ServerSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="GRPC_",
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 
@@ -134,7 +151,7 @@ class MemorySettings(BaseSettings):
     """Top-level memory settings - composes all sub-settings."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         extra="ignore",
     )
 

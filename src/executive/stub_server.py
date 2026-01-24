@@ -7,10 +7,10 @@ for integration testing. The real Executive will be in C#/.NET.
 Usage:
     python stub_server.py [--port PORT] [--memory-address ADDRESS]
 
-Environment variables:
+Environment variables (or use .env file):
+    OLLAMA_URL: URL of Ollama server (required for LLM features)
+    OLLAMA_MODEL: Model to use (required for LLM features)
     MEMORY_ADDRESS: Address of Memory service for heuristic storage (e.g., localhost:50051)
-    OLLAMA_URL: URL of Ollama server (default: http://localhost:11434)
-    OLLAMA_MODEL: Model to use (default: gemma:2b)
     HEURISTIC_STORE_PATH: Path to heuristics JSON file (fallback when Memory unavailable)
 """
 
@@ -29,6 +29,13 @@ from typing import Any
 
 import aiohttp
 
+# Load .env file (searches up directory tree to find project root .env)
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+except ImportError:
+    pass  # dotenv not installed, rely on environment variables
+
 # Add orchestrator and memory to path for generated protos
 sys.path.insert(0, str(Path(__file__).parent.parent / "orchestrator"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
@@ -41,15 +48,20 @@ from gladys_orchestrator.generated import executive_pb2_grpc
 from gladys_orchestrator.generated import common_pb2
 
 # Memory proto imports (for StoreHeuristic RPC)
+# Try orchestrator's generated stubs first (same protos), then memory's
 try:
-    from gladys_memory.generated import memory_pb2
-    from gladys_memory.generated import memory_pb2_grpc
+    from gladys_orchestrator.generated import memory_pb2
+    from gladys_orchestrator.generated import memory_pb2_grpc
     MEMORY_PROTO_AVAILABLE = True
 except ImportError:
-    # Fallback for local development without memory protos
-    MEMORY_PROTO_AVAILABLE = False
-    memory_pb2 = None
-    memory_pb2_grpc = None
+    try:
+        from gladys_memory.generated import memory_pb2
+        from gladys_memory.generated import memory_pb2_grpc
+        MEMORY_PROTO_AVAILABLE = True
+    except ImportError:
+        MEMORY_PROTO_AVAILABLE = False
+        memory_pb2 = None
+        memory_pb2_grpc = None
 
 logger = logging.getLogger(__name__)
 
@@ -667,8 +679,8 @@ def main():
     parser = argparse.ArgumentParser(description="Executive stub server for testing")
     parser.add_argument("--port", type=int, default=50053, help="Port to listen on")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logging")
-    parser.add_argument("--ollama-url", type=str, default=None, help="Ollama server URL")
-    parser.add_argument("--ollama-model", type=str, default="gemma:2b", help="Ollama model name")
+    parser.add_argument("--ollama-url", type=str, default=None, help="Ollama server URL (or set OLLAMA_URL)")
+    parser.add_argument("--ollama-model", type=str, default=None, help="Ollama model name (or set OLLAMA_MODEL)")
     parser.add_argument(
         "--memory-address",
         type=str,
