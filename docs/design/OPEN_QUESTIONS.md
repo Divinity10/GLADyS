@@ -1930,7 +1930,7 @@ Gemini performed a comprehensive 9-chunk code review of the GLADyS codebase. Aft
 
 | Item | Priority | Effort | Status |
 |------|----------|--------|--------|
-| gRPC error handling: Use proper status codes | High | Low | ❌ TODO |
+| gRPC error handling: Use proper status codes | High | Low | ✅ Done |
 | Document Executive stub as C# reference | Medium | Low | ❌ TODO |
 | Consider `websearch_to_tsquery` for search | Low | Medium | ❌ TODO |
 

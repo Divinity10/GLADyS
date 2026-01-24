@@ -113,7 +113,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             await self.storage.store_event(event)
             return memory_pb2.StoreEventResponse(success=True)
         except Exception as e:
-            return memory_pb2.StoreEventResponse(success=False, error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryByTime(self, request, context):
         """Query events by time range."""
@@ -133,14 +133,14 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             proto_events = [_event_to_proto(e) for e in events]
             return memory_pb2.QueryEventsResponse(events=proto_events)
         except Exception as e:
-            return memory_pb2.QueryEventsResponse(error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryBySimilarity(self, request, context):
         """Query events by embedding similarity."""
         try:
             query_embedding = _bytes_to_embedding(request.query_embedding)
             if query_embedding is None:
-                return memory_pb2.QueryEventsResponse(error="No query embedding provided")
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No query embedding provided")
 
             threshold = request.similarity_threshold if request.similarity_threshold > 0 else 0.7
             hours = request.time_filter_hours if request.time_filter_hours > 0 else None
@@ -156,20 +156,20 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             proto_events = [_event_to_proto(e) for e, _ in results]
             return memory_pb2.QueryEventsResponse(events=proto_events)
         except Exception as e:
-            return memory_pb2.QueryEventsResponse(error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def GenerateEmbedding(self, request, context):
         """Generate embedding for text."""
         try:
             if not request.text:
-                return memory_pb2.GenerateEmbeddingResponse(error="No text provided")
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No text provided")
 
             embedding = self.embeddings.generate(request.text)
             return memory_pb2.GenerateEmbeddingResponse(
                 embedding=_embedding_to_bytes(embedding)
             )
         except Exception as e:
-            return memory_pb2.GenerateEmbeddingResponse(error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def StoreHeuristic(self, request, context):
         """Store or update a heuristic.
@@ -212,7 +212,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 heuristic_id=h.id,
             )
         except Exception as e:
-            return memory_pb2.StoreHeuristicResponse(success=False, error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryHeuristics(self, request, context):
         """Query heuristics with CBR matching.
@@ -261,7 +261,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
             return memory_pb2.QueryHeuristicsResponse(matches=matches)
         except Exception as e:
-            return memory_pb2.QueryHeuristicsResponse(error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryMatchingHeuristics(self, request, context):
         """Query heuristics using PostgreSQL text search.
@@ -272,7 +272,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         try:
             event_text = request.event_text
             if not event_text:
-                return memory_pb2.QueryHeuristicsResponse(error="No event_text provided")
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No event_text provided")
 
             min_confidence = request.min_confidence if request.min_confidence > 0 else 0.0
             limit = request.limit if request.limit > 0 else 10
@@ -313,7 +313,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
             return memory_pb2.QueryHeuristicsResponse(matches=matches)
         except Exception as e:
-            return memory_pb2.QueryHeuristicsResponse(error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def UpdateHeuristicConfidence(self, request, context):
         """Update heuristic confidence based on feedback (TD learning).
@@ -326,9 +326,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         try:
             heuristic_id = request.heuristic_id
             if not heuristic_id:
-                return memory_pb2.UpdateHeuristicConfidenceResponse(
-                    success=False, error="No heuristic_id provided"
-                )
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No heuristic_id provided")
 
             # Use provided learning_rate or None to use heuristic's stored rate
             learning_rate = request.learning_rate if request.learning_rate > 0 else None
@@ -352,14 +350,11 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 delta=delta,
             )
         except ValueError as e:
-            return memory_pb2.UpdateHeuristicConfidenceResponse(
-                success=False, error=str(e)
-            )
+            # Heuristic not found
+            await context.abort(grpc.StatusCode.NOT_FOUND, str(e))
         except Exception as e:
             logger.error(f"UpdateHeuristicConfidence error: {e}")
-            return memory_pb2.UpdateHeuristicConfidenceResponse(
-                success=False, error=str(e)
-            )
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     # =========================================================================
     # Semantic Memory: Entities
@@ -411,7 +406,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 entity_id=str(entity_id),
             )
         except Exception as ex:
-            return memory_pb2.StoreEntityResponse(success=False, error=str(ex))
+            await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
     async def QueryEntities(self, request, context):
         """Query entities by name, type, or embedding."""
@@ -457,7 +452,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
             return memory_pb2.QueryEntitiesResponse(matches=matches)
         except Exception as ex:
-            return memory_pb2.QueryEntitiesResponse(error=str(ex))
+            await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
     def _entity_dict_to_proto(self, entity_dict: dict) -> memory_pb2.Entity:
         """Convert entity dict to proto message."""
@@ -513,7 +508,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 relationship_id=str(rel_id),
             )
         except Exception as ex:
-            return memory_pb2.StoreRelationshipResponse(success=False, error=str(ex))
+            await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
     async def GetRelationships(self, request, context):
         """Get relationships for an entity."""
@@ -564,7 +559,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
             return memory_pb2.GetRelationshipsResponse(relationships=relationships)
         except Exception as ex:
-            return memory_pb2.GetRelationshipsResponse(error=str(ex))
+            await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
     async def ExpandContext(self, request, context):
         """Expand context for LLM prompts."""
@@ -604,7 +599,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 relationships=proto_relationships,
             )
         except Exception as ex:
-            return memory_pb2.ExpandContextResponse(error=str(ex))
+            await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
 
 async def serve(
