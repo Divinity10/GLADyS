@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-24 (§25 Skill Architecture design captured)
+**Last updated**: 2026-01-24 (§26 Gemini review action items tracked)
 
 ---
 
@@ -36,6 +36,7 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §23 | Heuristic Learning Infrastructure | 🟡 Open | Credit assignment + tuning mode (deferred) |
 | §24 | Semantic Memory Architecture | ✅ Resolved | PostgreSQL, LLM plans, context retrieval |
 | §25 | Skill Architecture Design | 🟡 Design captured | Post-PoC: managed clients, skill autonomy |
+| §26 | Gemini Review Action Items | 🟡 Tracked | gRPC errors, stub docs, tsquery |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -1909,6 +1910,85 @@ The simple model where Executive mediates everything is sufficient to prove "Is 
 3. **Skill lifecycle**: Hot reload, version conflicts, dependency resolution
 4. **Multi-skill coordination**: When multiple skills could handle a query
 5. **Heuristic conflict**: What if pack heuristic conflicts with learned heuristic?
+
+---
+
+## 26. Gemini Code Review Action Items (2026-01-24)
+
+**Status**: Tracked
+**Priority**: Medium
+**Created**: 2026-01-24
+
+### Context
+
+Gemini performed a comprehensive 9-chunk code review of the GLADyS codebase. After assessment, most concerns were either:
+1. Misunderstandings (conflating ADR vision with PoC scope)
+2. Already resolved (trait scales, episode_id nullability)
+3. Future work not blocking PoC
+
+### Action Items (Worth Doing)
+
+| Item | Priority | Effort | Status |
+|------|----------|--------|--------|
+| gRPC error handling: Use proper status codes | High | Low | ❌ TODO |
+| Document Executive stub as C# reference | Medium | Low | ❌ TODO |
+| Consider `websearch_to_tsquery` for search | Low | Medium | ❌ TODO |
+
+#### 26.1 gRPC Error Handling
+
+**Issue**: The gRPC server returns 200 OK with error in response payload. This breaks retry logic - clients can't distinguish "worked but empty" from "failed."
+
+**Current code** (grpc_server.py):
+```python
+return StoreHeuristicResponse(success=False, error=str(e))  # 200 OK with error
+```
+
+**Recommended**:
+```python
+await context.abort(grpc.StatusCode.INTERNAL, str(e))  # Proper gRPC error
+```
+
+**Scope**: All error paths in `grpc_server.py`
+
+#### 26.2 Document Executive Stub as Reference
+
+**Issue**: The Executive stub (`stub_server.py`) contains production-quality logic for TD learning and pattern extraction. This should be formally documented as the reference implementation for the eventual C# Executive.
+
+**Action**: Add a design doc noting:
+- `PATTERN_EXTRACTION_PROMPT` is the canonical format
+- TD learning formula is authoritative
+- `_store_trace` / `_cleanup_old_traces` patterns should be ported
+
+#### 26.3 PostgreSQL Text Search Improvement
+
+**Issue**: Current heuristic/entity search uses manual regex. PostgreSQL's `websearch_to_tsquery` provides better tokenization.
+
+**Current** (if implemented):
+```python
+ILIKE '%fire%warning%'  # Fragile
+```
+
+**Better**:
+```sql
+WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warning')
+```
+
+**Priority**: Low - current search is working for PoC.
+
+### Resolved/Non-Issues
+
+| Item | Assessment |
+|------|------------|
+| ADR trait scale mismatch | **Already fixed** - ADR-0003 §7.1 correctly uses -1 to +1 |
+| Episode ID nullability | **No issue** - Both ADR-0004 and ADR-0009 agree it's optional |
+| Skill Registry blocking | **Disagree** - Learning is higher priority for PoC |
+| Over-engineering concerns | **Disagree** - ADRs describe vision; PoC implements subset |
+| Observability complexity | **Not implemented yet** - Will add as needed |
+| Novelty detection missing | **Acknowledged** - Marked as "Not Implemented" in PoC scope |
+
+### Notes
+
+The review correctly identified that the import path hacks (`sys.path.insert`) in test files are fragile. This should be addressed when setting up proper Python packaging (post-PoC).
 
 ---
 
