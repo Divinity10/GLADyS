@@ -70,6 +70,8 @@ impl StorageConfig {
 pub struct CacheConfig {
     /// Maximum number of events to store (default: 1000)
     pub max_events: usize,
+    /// Maximum number of heuristics to cache (LRU eviction, default: 50)
+    pub max_heuristics: usize,
     /// Novelty threshold - similarity below this = novel (default: 0.7)
     pub novelty_threshold: f32,
 }
@@ -81,6 +83,10 @@ impl Default for CacheConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(1000),
+            max_heuristics: env::var("CACHE_MAX_HEURISTICS")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(50),
             novelty_threshold: env::var("CACHE_NOVELTY_THRESHOLD")
                 .ok()
                 .and_then(|s| s.parse().ok())

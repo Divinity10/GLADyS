@@ -3,19 +3,19 @@
 #
 # Services:
 #   - postgres: PostgreSQL with pgvector (port 5433)
-#   - memory-python: Python Memory + SalienceGateway (port 50051)
-#   - memory-rust: Rust Fast Path SalienceGateway (port 50052)
+#   - memory-python: Python Memory Storage (port 50051)
+#   - memory-rust: Rust SalienceGateway (port 50052)
 #   - orchestrator: Python Orchestrator (port 50050)
 #   - executive-stub: Python Executive with optional LLM (port 50053)
+#
+# Architecture:
+#   - Python handles storage: PostgreSQL CRUD, embedding generation, text search
+#   - Rust handles salience: LRU cache, queries Python on cache miss
+#   - No bulk loading - heuristics fetched on demand via QueryMatchingHeuristics RPC
 #
 # Development workflow:
 #   - Python code changes: Auto-reload (source mounted as volumes)
 #   - Rust code changes: Run 'make rust-rebuild' to rebuild container
-#   - Run 'make benchmark' to test performance
-#
-# Salience path configuration:
-#   - Default: Orchestrator uses Rust fast path (50052)
-#   - To use Python: SALIENCE_MEMORY_ADDRESS=memory-python:50051
 #
 # LLM configuration (optional):
 #   - Set OLLAMA_URL env var to enable LLM responses in Executive
@@ -23,7 +23,7 @@
 #
 # Test flow:
 #   1. Client sends event to Orchestrator (50050)
-#   2. Orchestrator queries SalienceGateway (Python or Rust)
+#   2. Orchestrator queries SalienceGateway (Rust fast path)
 #   3. Orchestrator routes based on salience score
 #   4. High salience → immediate to Executive (+ LLM if configured)
 #   5. Low salience → accumulate into moment, send on tick (100ms)
@@ -57,8 +57,6 @@ services:
       STORAGE_USER: gladys
       STORAGE_PASSWORD: gladys
       STORAGE_DATABASE: gladys
-      # Set to true for apples-to-apples benchmark (skip embedding generation)
-      SALIENCE_SKIP_NOVELTY_DETECTION: ${SALIENCE_SKIP_NOVELTY_DETECTION:-false}
     ports:
       - "50051:50051"
     # DEV: Mount source so code changes don't require rebuild

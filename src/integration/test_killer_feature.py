@@ -6,15 +6,26 @@ This test proves that:
 2. When matched, the response is from cache (no LLM call)
 3. Latency is dramatically lower (~1ms vs ~49ms with embeddings)
 
+Architecture:
+    - Python (port 50051): Stores heuristics to PostgreSQL, provides QueryMatchingHeuristics RPC
+    - Rust (port 50052): LRU cache, queries Python on cache miss
+    - No bulk loading - heuristics loaded on demand via text search
+
 Usage:
-    # Start Memory service first:
+    # Terminal 1 - Start Python Memory service (storage):
     cd src/memory/python && uv run python -m gladys_memory.grpc_server
 
-    # Then run this test:
+    # Terminal 2 - Start Rust fast path (salience):
+    cd src/memory/rust && cargo run
+
+    # Terminal 3 - Run this test:
     cd src/integration && uv run python test_killer_feature.py
+
+Note: Rust queries Python on cache miss - no refresh interval needed.
 """
 
 import asyncio
+import os
 import sys
 import time
 import uuid
@@ -25,6 +36,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "orchestrator"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
 
 import grpc
+
+# Configurable addresses
+PYTHON_ADDRESS = os.environ.get("PYTHON_ADDRESS", "localhost:50051")
+RUST_ADDRESS = os.environ.get("RUST_ADDRESS", "localhost:50052")
 
 
 async def run_test():
@@ -44,21 +59,35 @@ async def run_test():
     print("=" * 70)
     print("KILLER FEATURE TEST: Heuristics Skip LLM Reasoning")
     print("=" * 70)
+    print(f"\n  Python (storage):  {PYTHON_ADDRESS}")
+    print(f"  Rust (salience):   {RUST_ADDRESS}")
 
+    # Connect to Python (storage)
     try:
-        channel = grpc.aio.insecure_channel("localhost:50051")
-        # Quick connection check
-        await asyncio.wait_for(channel.channel_ready(), timeout=3.0)
+        python_channel = grpc.aio.insecure_channel(PYTHON_ADDRESS)
+        await asyncio.wait_for(python_channel.channel_ready(), timeout=3.0)
     except Exception as e:
-        print(f"\nERROR: Cannot connect to Memory service at localhost:50051")
+        print(f"\nERROR: Cannot connect to Python Memory service at {PYTHON_ADDRESS}")
         print(f"  {e}")
-        print("\nStart the Memory service first:")
+        print("\nStart the Python Memory service first:")
         print("  cd src/memory/python && uv run python -m gladys_memory.grpc_server")
         return False
 
-    async with channel:
-        storage_stub = memory_pb2_grpc.MemoryStorageStub(channel)
-        salience_stub = memory_pb2_grpc.SalienceGatewayStub(channel)
+    # Connect to Rust (salience)
+    try:
+        rust_channel = grpc.aio.insecure_channel(RUST_ADDRESS)
+        await asyncio.wait_for(rust_channel.channel_ready(), timeout=3.0)
+    except Exception as e:
+        print(f"\nERROR: Cannot connect to Rust fast path at {RUST_ADDRESS}")
+        print(f"  {e}")
+        print("\nStart the Rust fast path:")
+        print("  cd src/memory/rust && cargo run")
+        await python_channel.close()
+        return False
+
+    async with python_channel, rust_channel:
+        storage_stub = memory_pb2_grpc.MemoryStorageStub(python_channel)
+        salience_stub = memory_pb2_grpc.SalienceGatewayStub(rust_channel)
 
         # ============================================================
         # Step 1: Store a heuristic directly
@@ -91,6 +120,9 @@ async def run_test():
         print(f"  Stored heuristic: id={store_response.heuristic_id}")
         print(f"  Condition: '{heuristic.condition_text}'")
 
+        # No need to wait for cache refresh - Rust queries Python on cache miss
+        print("\n[Step 1b] Rust will query Python on cache miss (no refresh wait needed)")
+
         # ============================================================
         # Step 2: Baseline - Evaluate salience WITHOUT matching heuristic
         # ============================================================
@@ -100,7 +132,6 @@ async def run_test():
             event_id="baseline-event",
             source="test-sensor",
             raw_text="The weather is nice today, sunny and warm",
-            skip_novelty_detection=True,  # Skip embedding for apples-to-apples
         )
 
         start = time.perf_counter()
@@ -126,7 +157,6 @@ async def run_test():
             event_id="matching-event",
             source="game-sensor",
             raw_text="Alert: Player has low health detected! Need to find shelter fast.",
-            skip_novelty_detection=True,  # Skip embedding for apples-to-apples
         )
 
         start = time.perf_counter()
@@ -136,25 +166,6 @@ async def run_test():
         print(f"  from_cache: {matching_response.from_cache}")
         print(f"  matched_heuristic_id: '{matching_response.matched_heuristic_id}'")
         print(f"  latency: {matching_latency_ms:.2f} ms")
-
-        # ============================================================
-        # Step 4: Compare with FULL path (embedding generation)
-        # ============================================================
-        print("\n[Step 4] Comparison: Full path with embedding generation...")
-
-        full_request = memory_pb2.EvaluateSalienceRequest(
-            event_id="full-path-event",
-            source="game-sensor",
-            raw_text="Another alert about player status and game state",
-            skip_novelty_detection=False,  # Include embedding generation
-        )
-
-        start = time.perf_counter()
-        full_response = await salience_stub.EvaluateSalience(full_request)
-        full_latency_ms = (time.perf_counter() - start) * 1000
-
-        print(f"  latency: {full_latency_ms:.2f} ms")
-        print(f"  novelty_detection_skipped: {full_response.novelty_detection_skipped}")
 
         # ============================================================
         # Results
@@ -171,12 +182,9 @@ async def run_test():
 
         print(f"\n  Heuristic matched:     {'YES' if heuristic_matched else 'NO'}")
         print(f"  Baseline matched:      {'YES' if baseline_response.from_cache else 'NO'}")
-        print(f"\n  Latency comparison:")
-        print(f"    - Cached path:       {matching_latency_ms:.2f} ms")
-        print(f"    - Full path:         {full_latency_ms:.2f} ms")
-        if full_latency_ms > 0:
-            speedup = full_latency_ms / matching_latency_ms if matching_latency_ms > 0 else float('inf')
-            print(f"    - Speedup:           {speedup:.1f}x faster")
+        print(f"\n  Latency (Rust fast path):")
+        print(f"    - Baseline:          {baseline_latency_ms:.2f} ms")
+        print(f"    - Matching event:    {matching_latency_ms:.2f} ms")
 
         print("\n" + "=" * 70)
 
@@ -193,7 +201,9 @@ async def run_test():
             return False
         else:
             print("FAILED: Heuristic did not match the similar event")
-            print("  Check word overlap thresholds in SalienceSettings")
+            print("  Possible causes:")
+            print("  - Rust cache not yet refreshed (wait longer)")
+            print("  - Word overlap threshold too high")
             print("=" * 70)
             return False
 

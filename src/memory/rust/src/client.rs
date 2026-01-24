@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::proto::{
     memory_storage_client::MemoryStorageClient, EpisodicEvent, GenerateEmbeddingRequest,
     Heuristic, HeuristicMatch, QueryByTimeRequest, QueryBySimilarityRequest, QueryHeuristicsRequest,
-    SalienceVector, StoreEventRequest, StoreHeuristicRequest,
+    QueryMatchingHeuristicsRequest, SalienceVector, StoreEventRequest, StoreHeuristicRequest,
 };
 
 /// Errors from the storage client.
@@ -216,6 +216,33 @@ impl StorageClient {
         }
 
         debug!(count = response.matches.len(), "Retrieved heuristics");
+        Ok(response.matches)
+    }
+
+    /// Query heuristics matching event text using PostgreSQL full-text search.
+    /// Used for cache-miss lookups - faster than embedding similarity.
+    #[instrument(skip(self, event_text))]
+    pub async fn query_matching_heuristics(
+        &mut self,
+        event_text: &str,
+        min_confidence: f32,
+        limit: i32,
+    ) -> Result<Vec<HeuristicMatch>, ClientError> {
+        debug!("Querying matching heuristics via text search");
+
+        let request = QueryMatchingHeuristicsRequest {
+            event_text: event_text.to_string(),
+            min_confidence,
+            limit,
+        };
+
+        let response = self.client.query_matching_heuristics(request).await?.into_inner();
+
+        if !response.error.is_empty() {
+            return Err(ClientError::StorageError(response.error));
+        }
+
+        debug!(count = response.matches.len(), "Retrieved matching heuristics");
         Ok(response.matches)
     }
 

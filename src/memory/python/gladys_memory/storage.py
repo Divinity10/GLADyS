@@ -267,6 +267,75 @@ class MemoryStorage:
 
         return [dict(row) for row in rows]
 
+    async def query_matching_heuristics(
+        self,
+        event_text: str,
+        min_confidence: float = 0.0,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Query heuristics matching event text using PostgreSQL full-text search.
+
+        Uses tsvector/tsquery with OR semantics for partial matching.
+        Also updates last_accessed for LRU tracking.
+
+        Args:
+            event_text: The event text to match against heuristic conditions
+            min_confidence: Minimum confidence threshold
+            limit: Maximum number of results
+
+        Returns:
+            List of matching heuristics with similarity ranking
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Extract words from event text, filter short/common words, join with OR
+        # This allows partial matching (any word match) instead of AND (all words must match)
+        import re
+        words = re.findall(r'\b\w{3,}\b', event_text.lower())  # Words 3+ chars
+        stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has', 'her', 'was', 'one', 'our', 'out', 'his', 'has', 'had', 'this', 'that', 'with', 'they', 'been', 'have', 'from', 'will', 'what', 'when', 'where', 'need', 'fast'}
+        filtered_words = [w for w in words if w not in stop_words]
+
+        if not filtered_words:
+            return []
+
+        # Build OR-based tsquery: word1 | word2 | word3
+        or_query = ' | '.join(filtered_words)
+
+        rows = await self._pool.fetch(
+            """
+            SELECT id, name, condition, action, confidence,
+                   source_pattern_ids, last_fired, fire_count, success_count,
+                   frozen, created_at, updated_at,
+                   ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
+            FROM heuristics
+            WHERE condition_tsv @@ to_tsquery('english', $1)
+              AND confidence >= $2
+              AND frozen = false
+            ORDER BY rank DESC, confidence DESC
+            LIMIT $3
+            """,
+            or_query,
+            min_confidence,
+            limit,
+        )
+
+        result = [dict(row) for row in rows]
+
+        # Update last_accessed for LRU tracking (fire in background)
+        if result:
+            heuristic_ids = [row["id"] for row in result]
+            await self._pool.execute(
+                """
+                UPDATE heuristics
+                SET last_accessed = NOW()
+                WHERE id = ANY($1)
+                """,
+                heuristic_ids,
+            )
+
+        return result
+
     async def update_heuristic_fired(
         self,
         heuristic_id: UUID,

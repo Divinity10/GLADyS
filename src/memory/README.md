@@ -108,17 +108,17 @@ response = client.StoreEpisode(StoreEpisodeRequest(source="test", raw_text="Hell
                    ▼
 ┌──────────────────────────────────────┐
 │       Rust Fast Path (port 50052)    │  ← Call this one
-│  • In-memory cache                   │
-│  • Fast heuristic lookup             │
-│  • Routes to Python when needed      │
+│  • LRU cache (50 heuristics max)     │
+│  • Word-overlap matching (~1ms)      │
+│  • Queries Python on cache miss      │
 └──────────────────┬───────────────────┘
-                   │
+                   │ QueryMatchingHeuristics RPC
                    ▼
 ┌──────────────────────────────────────┐
 │     Python Storage (port 50051)      │
+│  • PostgreSQL text search (tsvector) │
 │  • Embedding generation (ML model)   │
 │  • PostgreSQL + pgvector             │
-│  • Semantic similarity search        │
 └──────────────────────────────────────┘
 ```
 

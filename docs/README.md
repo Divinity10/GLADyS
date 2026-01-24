@@ -21,6 +21,7 @@
 | What You Need | Where to Look |
 |---------------|---------------|
 | High-level system understanding | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) |
+| **Running services (local/Docker)** | [DEVELOPMENT.md](design/DEVELOPMENT.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |
 | Open design questions | [OPEN_QUESTIONS.md](design/OPEN_QUESTIONS.md) |
 | Architecture review status | [ARCHITECTURE_REVIEW.md](design/ARCHITECTURE_REVIEW.md) |

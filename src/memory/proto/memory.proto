@@ -20,8 +20,12 @@ service MemoryStorage {
     // Store/update a heuristic
     rpc StoreHeuristic(StoreHeuristicRequest) returns (StoreHeuristicResponse);
 
-    // Query heuristics by condition match
+    // Query heuristics by condition match (embedding similarity)
     rpc QueryHeuristics(QueryHeuristicsRequest) returns (QueryHeuristicsResponse);
+
+    // Query heuristics by text search (PostgreSQL tsvector)
+    // Used by Rust fast path on cache miss - faster than embedding similarity
+    rpc QueryMatchingHeuristics(QueryMatchingHeuristicsRequest) returns (QueryHeuristicsResponse);
 
     // --- Semantic Memory (Entities & Relationships) ---
 
@@ -168,6 +172,14 @@ message QueryHeuristicsRequest {
     float min_similarity = 3;               // Minimum similarity threshold
     float min_confidence = 4;               // Minimum confidence filter
     int32 limit = 5;                        // Max results to return
+}
+
+// Query for text-search based matching (faster than embedding similarity)
+// Uses PostgreSQL tsvector/tsquery for word-overlap matching
+message QueryMatchingHeuristicsRequest {
+    string event_text = 1;                  // Event text to match against heuristic conditions
+    float min_confidence = 2;               // Minimum confidence filter (default 0.0)
+    int32 limit = 3;                        // Max results to return (default 10)
 }
 
 message QueryHeuristicsResponse {

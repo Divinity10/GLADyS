@@ -46,13 +46,15 @@ pub struct CachedEvent {
     pub access_count: u32,
 }
 
-/// Cached heuristic for fast lookup
+/// Cached heuristic for fast lookup (with LRU tracking)
 pub struct CachedHeuristic {
     pub id: Uuid,
     pub name: String,
     pub condition: serde_json::Value,
     pub action: serde_json::Value,
     pub confidence: f32,
+    /// Last accessed time for LRU eviction
+    pub last_accessed_ms: i64,
 }
 
 // Re-export CacheConfig from config module
@@ -130,9 +132,37 @@ impl MemoryCache {
         self.events_by_id.get_mut(id)
     }
 
-    /// Add a heuristic to the cache.
-    pub fn add_heuristic(&mut self, heuristic: CachedHeuristic) {
+    /// Add a heuristic to the cache with LRU eviction.
+    /// Evicts least-recently-accessed heuristics if cache is full.
+    pub fn add_heuristic(&mut self, mut heuristic: CachedHeuristic) {
+        // Set last_accessed to now if not set
+        if heuristic.last_accessed_ms == 0 {
+            heuristic.last_accessed_ms = current_time_ms();
+        }
+
+        // Evict if at capacity
+        while self.heuristics.len() >= self.config.max_heuristics {
+            // Find least recently accessed heuristic
+            if let Some(oldest_id) = self
+                .heuristics
+                .values()
+                .min_by_key(|h| h.last_accessed_ms)
+                .map(|h| h.id)
+            {
+                self.heuristics.remove(&oldest_id);
+            } else {
+                break;
+            }
+        }
+
         self.heuristics.insert(heuristic.id, heuristic);
+    }
+
+    /// Touch a heuristic (update last_accessed for LRU).
+    pub fn touch_heuristic(&mut self, id: &Uuid) {
+        if let Some(h) = self.heuristics.get_mut(id) {
+            h.last_accessed_ms = current_time_ms();
+        }
     }
 
     /// Get a heuristic from cache.
@@ -171,6 +201,14 @@ pub struct CacheStats {
     pub event_count: usize,
     pub heuristic_count: usize,
     pub max_events: usize,
+}
+
+/// Get current time in milliseconds since Unix epoch.
+fn current_time_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 /// Compute cosine similarity between two vectors
@@ -219,6 +257,7 @@ mod tests {
     fn test_novelty_with_similar_event() {
         let mut cache = MemoryCache::new(CacheConfig {
             max_events: 100,
+            max_heuristics: 50,
             novelty_threshold: 0.9,
         });
 
@@ -244,6 +283,7 @@ mod tests {
     fn test_cache_eviction() {
         let mut cache = MemoryCache::new(CacheConfig {
             max_events: 3,
+            max_heuristics: 50,
             novelty_threshold: 0.9,
         });
 
@@ -300,6 +340,7 @@ mod tests {
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
             confidence: 0.3,
+            last_accessed_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -308,6 +349,7 @@ mod tests {
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
             confidence: 0.9,
+            last_accessed_ms: 0,
         });
 
         let high_conf = cache.get_heuristics_by_confidence(0.5);
@@ -316,5 +358,127 @@ mod tests {
 
         let all = cache.get_heuristics_by_confidence(0.0);
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn test_heuristic_lru_eviction() {
+        // Create cache with max_heuristics = 3
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 3,
+            novelty_threshold: 0.9,
+        });
+
+        // Add 3 heuristics with different last_accessed times
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id1,
+            name: "first".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 1000, // Oldest
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id2,
+            name: "second".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 2000,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id3,
+            name: "third".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 3000, // Newest
+        });
+
+        assert_eq!(cache.stats().heuristic_count, 3);
+
+        // Add a 4th heuristic - should evict the oldest (id1)
+        let id4 = Uuid::new_v4();
+        cache.add_heuristic(CachedHeuristic {
+            id: id4,
+            name: "fourth".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 4000,
+        });
+
+        assert_eq!(cache.stats().heuristic_count, 3);
+        assert!(cache.get_heuristic(&id1).is_none()); // id1 should be evicted
+        assert!(cache.get_heuristic(&id2).is_some());
+        assert!(cache.get_heuristic(&id3).is_some());
+        assert!(cache.get_heuristic(&id4).is_some());
+    }
+
+    #[test]
+    fn test_heuristic_touch_updates_lru() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 3,
+            novelty_threshold: 0.9,
+        });
+
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+        let id3 = Uuid::new_v4();
+
+        // Add heuristics with id1 being oldest
+        cache.add_heuristic(CachedHeuristic {
+            id: id1,
+            name: "first".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 1000,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id2,
+            name: "second".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 2000,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id3,
+            name: "third".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 3000,
+        });
+
+        // Touch id1 - should update its last_accessed to now
+        cache.touch_heuristic(&id1);
+
+        // Now id2 should be the oldest (since id1 was touched)
+        // Add a 4th heuristic - should evict id2
+        let id4 = Uuid::new_v4();
+        cache.add_heuristic(CachedHeuristic {
+            id: id4,
+            name: "fourth".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            confidence: 0.5,
+            last_accessed_ms: 0, // Will be set by add_heuristic
+        });
+
+        assert!(cache.get_heuristic(&id1).is_some()); // id1 was touched, should survive
+        assert!(cache.get_heuristic(&id2).is_none()); // id2 should be evicted (was oldest)
+        assert!(cache.get_heuristic(&id3).is_some());
+        assert!(cache.get_heuristic(&id4).is_some());
     }
 }

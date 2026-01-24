@@ -2,13 +2,19 @@
 //!
 //! This module implements the SalienceGateway service, which evaluates
 //! salience for incoming events using heuristics and novelty detection.
+//!
+//! Architecture:
+//! - Uses a small LRU cache of recently matched heuristics
+//! - On cache miss, queries Python storage via QueryMatchingHeuristics RPC
+//! - Adds matched heuristics to the local cache (with LRU eviction)
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
-use tracing::info;
+use tracing::{info, debug, warn};
 
-use crate::config::{SalienceConfig, ServerConfig};
+use crate::config::{SalienceConfig, ServerConfig, StorageConfig};
+use crate::client::{ClientConfig, StorageClient};
 use crate::proto::salience_gateway_server::SalienceGateway;
 use crate::proto::{EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceVector};
 use crate::{CachedHeuristic, MemoryCache};
@@ -17,24 +23,90 @@ use crate::{CachedHeuristic, MemoryCache};
 ///
 /// This is the "amygdala" - it evaluates how important/urgent an event is
 /// by checking heuristics (learned rules) and novelty (is this new?).
+///
+/// On cache miss, queries Python storage for matching heuristics.
 pub struct SalienceService {
-    /// Shared reference to the in-memory cache.
-    /// Arc = shared ownership across async tasks
-    /// RwLock = multiple readers OR one writer at a time
+    /// Shared reference to the in-memory LRU cache.
     cache: Arc<RwLock<MemoryCache>>,
     /// Configuration for salience evaluation
     config: SalienceConfig,
+    /// Storage configuration for querying Python on cache miss
+    storage_config: Option<StorageConfig>,
 }
 
 impl SalienceService {
     /// Create a new SalienceService with the given cache and config.
     pub fn new(cache: Arc<RwLock<MemoryCache>>) -> Self {
-        Self::with_config(cache, SalienceConfig::default())
+        Self::with_config(cache, SalienceConfig::default(), None)
     }
 
     /// Create a new SalienceService with explicit config.
-    pub fn with_config(cache: Arc<RwLock<MemoryCache>>, config: SalienceConfig) -> Self {
-        Self { cache, config }
+    pub fn with_config(
+        cache: Arc<RwLock<MemoryCache>>,
+        config: SalienceConfig,
+        storage_config: Option<StorageConfig>,
+    ) -> Self {
+        Self { cache, config, storage_config }
+    }
+
+    /// Query Python storage for matching heuristics.
+    /// Returns matched heuristics if found.
+    async fn query_storage_for_heuristics(
+        &self,
+        event_text: &str,
+    ) -> Option<Vec<CachedHeuristic>> {
+        let storage_config = self.storage_config.as_ref()?;
+
+        let client_config = ClientConfig {
+            address: storage_config.address.clone(),
+            connect_timeout: storage_config.connect_timeout(),
+            request_timeout: storage_config.request_timeout(),
+        };
+
+        match StorageClient::connect(client_config).await {
+            Ok(mut client) => {
+                match client.query_matching_heuristics(
+                    event_text,
+                    self.config.min_heuristic_confidence,
+                    10, // limit
+                ).await {
+                    Ok(matches) => {
+                        let heuristics: Vec<CachedHeuristic> = matches
+                            .into_iter()
+                            .filter_map(|m| {
+                                let h = m.heuristic?;
+                                let id = uuid::Uuid::parse_str(&h.id).ok()?;
+                                let condition = serde_json::json!({ "text": h.condition_text });
+                                let action: serde_json::Value = serde_json::from_str(&h.effects_json)
+                                    .unwrap_or(serde_json::json!({}));
+                                Some(CachedHeuristic {
+                                    id,
+                                    name: h.name,
+                                    condition,
+                                    action,
+                                    confidence: h.confidence,
+                                    last_accessed_ms: 0,
+                                })
+                            })
+                            .collect();
+                        if heuristics.is_empty() {
+                            None
+                        } else {
+                            debug!(count = heuristics.len(), "Found heuristics from storage");
+                            Some(heuristics)
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to query storage for heuristics: {}", e);
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to connect to storage: {}", e);
+                None
+            }
+        }
     }
 
     /// Check if a heuristic matches the request.
@@ -173,12 +245,10 @@ impl SalienceGateway for SalienceService {
         let mut matched_heuristic_id = String::new();
         let mut from_cache = false;
 
-        // Step 1: Check for matching heuristics
+        // Step 1: Check local LRU cache for matching heuristics
+        let mut matched_id_for_touch: Option<uuid::Uuid> = None;
         {
-            // Acquire read lock on cache
             let cache = self.cache.read().await;
-
-            // Get high-confidence heuristics (using config threshold)
             let heuristics = cache.get_heuristics_by_confidence(self.config.min_heuristic_confidence);
 
             for h in heuristics {
@@ -186,27 +256,56 @@ impl SalienceGateway for SalienceService {
                     info!(
                         heuristic_id = %h.id,
                         heuristic_name = %h.name,
-                        "Heuristic matched"
+                        "Heuristic matched (from local cache)"
                     );
                     matched_heuristic_id = h.id.to_string();
+                    matched_id_for_touch = Some(h.id);
                     from_cache = true;
                     Self::apply_heuristic_salience(&mut salience, h);
                     break;
                 }
             }
+        }
 
-            // Step 2: Novelty detection
-            // For now, we don't have embeddings in the request, so we use
-            // a simplified check. In production, we'd:
-            // 1. Generate embedding for raw_text (via Python service)
-            // 2. Check cache.is_novel(&embedding)
-            //
-            // For MVP, we boost novelty if no similar text was recently seen
-            // This is a placeholder - real novelty needs embeddings
-            if !req.raw_text.is_empty() && !from_cache {
-                // No heuristic matched = potentially novel situation
-                salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+        // Update last_accessed for LRU if we found a match
+        if let Some(id) = matched_id_for_touch {
+            let mut cache = self.cache.write().await;
+            cache.touch_heuristic(&id);
+        }
+
+        // Step 2: On cache miss, query Python storage
+        if !from_cache && !req.raw_text.is_empty() {
+            debug!("Cache miss, querying storage for heuristics");
+            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text).await {
+                // Add to local cache and check for match
+                let mut cache = self.cache.write().await;
+                for h in heuristics_from_storage {
+                    // Add to cache (LRU eviction handled automatically)
+                    let h_id = h.id;
+                    let h_name = h.name.clone();
+                    cache.add_heuristic(h);
+
+                    // Use the first match from storage
+                    if matched_heuristic_id.is_empty() {
+                        if let Some(cached_h) = cache.get_heuristic(&h_id) {
+                            info!(
+                                heuristic_id = %h_id,
+                                heuristic_name = %h_name,
+                                "Heuristic matched (from storage query)"
+                            );
+                            matched_heuristic_id = h_id.to_string();
+                            from_cache = true;
+                            Self::apply_heuristic_salience(&mut salience, cached_h);
+                        }
+                    }
+                }
             }
+        }
+
+        // Step 3: Novelty detection
+        // If still no match, this is a potentially novel situation
+        if !from_cache && !req.raw_text.is_empty() {
+            salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
         }
 
         info!(
@@ -234,16 +333,19 @@ impl SalienceGateway for SalienceService {
 ///
 /// This function creates the tonic server, registers our SalienceGateway
 /// service, and listens for incoming connections.
+///
+/// The storage_config is used for cache-miss queries to Python storage.
 pub async fn run_server(
     server_config: ServerConfig,
     salience_config: SalienceConfig,
+    storage_config: StorageConfig,
     cache: Arc<RwLock<MemoryCache>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::proto::salience_gateway_server::SalienceGatewayServer;
     use tonic::transport::Server;
 
     let addr = format!("{}:{}", server_config.host, server_config.port).parse()?;
-    let service = SalienceService::with_config(cache, salience_config);
+    let service = SalienceService::with_config(cache, salience_config, Some(storage_config));
 
     info!("Starting SalienceGateway gRPC server on {}", addr);
 
@@ -275,6 +377,7 @@ mod tests {
                 }
             }),
             confidence: 0.95,
+            last_accessed_ms: 0,
         };
 
         // Should match - contains "danger"
@@ -284,6 +387,7 @@ mod tests {
             raw_text: "DANGER! Enemy approaching!".to_string(),
             structured_json: String::new(),
             entity_ids: vec![],
+            skip_novelty_detection: false,
         };
         assert!(SalienceService::heuristic_matches(&heuristic, &request, &config));
 
@@ -294,6 +398,7 @@ mod tests {
             raw_text: "DANGER! Enemy approaching!".to_string(),
             structured_json: String::new(),
             entity_ids: vec![],
+            skip_novelty_detection: false,
         };
         assert!(!SalienceService::heuristic_matches(&heuristic, &request2, &config));
 
@@ -304,6 +409,7 @@ mod tests {
             raw_text: "Everything is fine.".to_string(),
             structured_json: String::new(),
             entity_ids: vec![],
+            skip_novelty_detection: false,
         };
         assert!(!SalienceService::heuristic_matches(&heuristic, &request3, &config));
     }
@@ -321,6 +427,7 @@ mod tests {
                 }
             }),
             confidence: 0.95,
+            last_accessed_ms: 0,
         };
 
         let mut salience = SalienceVector {
