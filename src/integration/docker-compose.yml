@@ -122,12 +122,18 @@ services:
   # LLM Configuration:
   #   Set OLLAMA_URL to your Ollama server (e.g., http://host.docker.internal:11434)
   #   Set OLLAMA_MODEL to the model name (default: gemma:2b)
+  #
+  # Memory Configuration:
+  #   MEMORY_ADDRESS: Address of Memory service for heuristic storage
+  #   Default: memory-python:50051 (uses Python path for storage operations)
   executive-stub:
     build:
       context: ..
       dockerfile: executive/Dockerfile
     container_name: gladys-integration-executive-stub
     environment:
+      # Memory service address for storing learned heuristics
+      MEMORY_ADDRESS: memory-python:50051
       # Uncomment and set to your Ollama server URL to enable LLM responses
       # OLLAMA_URL: http://host.docker.internal:11434
       # OLLAMA_MODEL: gemma:2b
@@ -135,6 +141,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma:2b}
     ports:
       - "50053:50053"
+    depends_on:
+      memory-python:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50053')).result(timeout=5)"]
       interval: 10s

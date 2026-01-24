@@ -105,25 +105,30 @@ def fix_relative_imports(output_dir: Path, proto_name: str) -> None:
 
     We need:
         from . import foo_pb2 as foo__pb2
+
+    This applies to BOTH _pb2.py AND _pb2_grpc.py files.
     """
     base_name = proto_name.replace(".proto", "")
-    grpc_file = output_dir / f"{base_name}_pb2_grpc.py"
 
-    if not grpc_file.exists():
-        return
+    # Fix both _pb2.py and _pb2_grpc.py files
+    for suffix in ["_pb2.py", "_pb2_grpc.py"]:
+        gen_file = output_dir / f"{base_name}{suffix}"
 
-    content = grpc_file.read_text()
+        if not gen_file.exists():
+            continue
 
-    # Pattern: import X_pb2 as X__pb2
-    # Replace with: from . import X_pb2 as X__pb2
-    pattern = r'^import (\w+_pb2) as (\w+__pb2)$'
-    replacement = r'from . import \1 as \2'
+        content = gen_file.read_text()
 
-    new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+        # Pattern: import X_pb2 as X__pb2
+        # Replace with: from . import X_pb2 as X__pb2
+        pattern = r'^import (\w+_pb2) as (\w+__pb2)$'
+        replacement = r'from . import \1 as \2'
 
-    if new_content != content:
-        grpc_file.write_text(new_content)
-        print(f"    Fixed imports in {grpc_file.name}")
+        new_content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+
+        if new_content != content:
+            gen_file.write_text(new_content)
+            print(f"    Fixed imports in {gen_file.name}")
 
 
 def verify_python_syntax(file_path: Path) -> bool:

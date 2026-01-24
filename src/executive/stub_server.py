@@ -5,12 +5,13 @@ This is a minimal Python implementation of the Executive service
 for integration testing. The real Executive will be in C#/.NET.
 
 Usage:
-    python stub_server.py [--port PORT]
+    python stub_server.py [--port PORT] [--memory-address ADDRESS]
 
 Environment variables:
+    MEMORY_ADDRESS: Address of Memory service for heuristic storage (e.g., localhost:50051)
     OLLAMA_URL: URL of Ollama server (default: http://localhost:11434)
     OLLAMA_MODEL: Model to use (default: gemma:2b)
-    HEURISTIC_STORE_PATH: Path to heuristics JSON file (default: heuristics.json)
+    HEURISTIC_STORE_PATH: Path to heuristics JSON file (fallback when Memory unavailable)
 """
 
 import argparse
@@ -28,8 +29,9 @@ from typing import Any
 
 import aiohttp
 
-# Add orchestrator to path for generated protos
+# Add orchestrator and memory to path for generated protos
 sys.path.insert(0, str(Path(__file__).parent.parent / "orchestrator"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
 
 import grpc
 from grpc_reflection.v1alpha import reflection
@@ -37,6 +39,17 @@ from grpc_reflection.v1alpha import reflection
 from gladys_orchestrator.generated import executive_pb2
 from gladys_orchestrator.generated import executive_pb2_grpc
 from gladys_orchestrator.generated import common_pb2
+
+# Memory proto imports (for StoreHeuristic RPC)
+try:
+    from gladys_memory.generated import memory_pb2
+    from gladys_memory.generated import memory_pb2_grpc
+    MEMORY_PROTO_AVAILABLE = True
+except ImportError:
+    # Fallback for local development without memory protos
+    MEMORY_PROTO_AVAILABLE = False
+    memory_pb2 = None
+    memory_pb2_grpc = None
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +109,100 @@ class OllamaClient:
         except Exception as e:
             logger.warning(f"Ollama request failed: {e}")
             return None
+
+
+class MemoryClient:
+    """Async gRPC client for Memory service's StoreHeuristic RPC."""
+
+    def __init__(self, address: str = "localhost:50051"):
+        self.address = address
+        self._channel: grpc.aio.Channel | None = None
+        self._stub = None
+        self._available: bool | None = None
+
+    async def connect(self) -> bool:
+        """Connect to the Memory service."""
+        if not MEMORY_PROTO_AVAILABLE:
+            logger.warning("Memory proto stubs not available - cannot connect")
+            self._available = False
+            return False
+
+        try:
+            self._channel = grpc.aio.insecure_channel(self.address)
+            # Wait for channel to be ready (with timeout)
+            await asyncio.wait_for(
+                self._channel.channel_ready(),
+                timeout=5.0,
+            )
+            self._stub = memory_pb2_grpc.MemoryStorageStub(self._channel)
+            self._available = True
+            logger.info(f"Connected to Memory service at {self.address}")
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(f"Memory service not available at {self.address} (timeout)")
+            self._available = False
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to connect to Memory service: {e}")
+            self._available = False
+            return False
+
+    async def close(self) -> None:
+        """Close the gRPC channel."""
+        if self._channel:
+            await self._channel.close()
+            self._channel = None
+            self._stub = None
+
+    async def store_heuristic(self, heuristic: "Heuristic") -> tuple[bool, str]:
+        """Store a heuristic via the Memory service.
+
+        Args:
+            heuristic: The Heuristic dataclass to store
+
+        Returns:
+            Tuple of (success, heuristic_id or error_message)
+        """
+        if not self._available or not self._stub:
+            return False, "Memory service not available"
+
+        try:
+            # Convert effects_json dict to JSON string
+            effects_json_str = json.dumps(heuristic.effects_json) if heuristic.effects_json else "{}"
+
+            # Build the proto Heuristic message
+            proto_heuristic = memory_pb2.Heuristic(
+                id=heuristic.id,
+                name=heuristic.name,
+                condition_text=heuristic.condition_text,
+                effects_json=effects_json_str,
+                confidence=heuristic.confidence,
+                origin=heuristic.origin,
+                origin_id=heuristic.origin_id,
+                created_at_ms=int(heuristic.created_at * 1000),
+            )
+
+            # Call StoreHeuristic RPC with generate_embedding=True
+            request = memory_pb2.StoreHeuristicRequest(
+                heuristic=proto_heuristic,
+                generate_embedding=True,
+            )
+
+            response = await self._stub.StoreHeuristic(request)
+
+            if response.success:
+                logger.info(f"Stored heuristic in Memory: id={response.heuristic_id}")
+                return True, response.heuristic_id
+            else:
+                logger.warning(f"Memory StoreHeuristic failed: {response.error}")
+                return False, response.error
+
+        except grpc.aio.AioRpcError as e:
+            logger.warning(f"Memory StoreHeuristic RPC error: {e.code()} - {e.details()}")
+            return False, str(e.details())
+        except Exception as e:
+            logger.warning(f"Memory StoreHeuristic failed: {e}")
+            return False, str(e)
 
 
 def format_event_for_llm(event: Any) -> str:
@@ -237,6 +344,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
     def __init__(
         self,
         ollama_client: OllamaClient | None = None,
+        memory_client: MemoryClient | None = None,
         heuristic_store: HeuristicStore | None = None,
     ):
         self.events_received = 0
@@ -244,6 +352,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self.total_events_in_moments = 0
         self.heuristics_created = 0
         self.ollama = ollama_client
+        self.memory_client = memory_client
+        # File-based store as fallback when Memory service unavailable
         self.heuristic_store = heuristic_store or HeuristicStore()
         # Reasoning trace storage: response_id -> ReasoningTrace
         self.reasoning_traces: dict[str, ReasoningTrace] = {}
@@ -454,12 +564,27 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             created_at=time.time(),
         )
 
-        self.heuristic_store.add(heuristic)
+        # Try to store via Memory service (preferred path)
+        stored_via_memory = False
+        if self.memory_client:
+            success, result = await self.memory_client.store_heuristic(heuristic)
+            if success:
+                stored_via_memory = True
+                logger.info(f"Stored heuristic via Memory service: id={result}")
+            else:
+                logger.warning(f"Memory service storage failed: {result}, falling back to file storage")
+
+        # Fallback to file-based storage if Memory not available
+        if not stored_via_memory:
+            self.heuristic_store.add(heuristic)
+            logger.info(f"Stored heuristic via file storage: id={heuristic_id}")
+
         self.heuristics_created += 1
 
         logger.info(
             f"HEURISTIC CREATED: id={heuristic_id}, "
-            f"condition='{condition}', origin_id={trace.response_id}"
+            f"condition='{condition}', origin_id={trace.response_id}, "
+            f"storage={'memory' if stored_via_memory else 'file'}"
         )
 
         # Clean up the used trace
@@ -475,6 +600,7 @@ async def serve(
     port: int = 50053,
     ollama_url: str | None = None,
     ollama_model: str = "gemma:2b",
+    memory_address: str | None = None,
     heuristic_store_path: str = "heuristics.json",
 ) -> None:
     """Start the Executive stub server."""
@@ -490,12 +616,23 @@ async def serve(
             logger.warning(f"Ollama not available at {ollama_url} - running without LLM")
             ollama_client = None
 
-    # Initialize heuristic store
+    # Initialize Memory client for heuristic storage
+    memory_client = None
+    if memory_address:
+        memory_client = MemoryClient(address=memory_address)
+        if await memory_client.connect():
+            logger.info(f"Connected to Memory service at {memory_address}")
+        else:
+            logger.warning(f"Memory service not available at {memory_address} - using file storage")
+            memory_client = None
+
+    # Initialize file-based heuristic store (fallback)
     heuristic_store = HeuristicStore(heuristic_store_path)
-    logger.info(f"Heuristic store: {heuristic_store_path} ({len(heuristic_store.heuristics)} loaded)")
+    logger.info(f"Heuristic file store: {heuristic_store_path} ({len(heuristic_store.heuristics)} loaded)")
 
     servicer = ExecutiveServicer(
         ollama_client=ollama_client,
+        memory_client=memory_client,
         heuristic_store=heuristic_store,
     )
     executive_pb2_grpc.add_ExecutiveServiceServicer_to_server(servicer, server)
@@ -511,12 +648,18 @@ async def serve(
     server.add_insecure_port(address)
 
     logger.info(f"Starting Executive stub server on {address}")
+    if memory_client:
+        logger.info(f"  Heuristic storage: Memory service ({memory_address})")
+    else:
+        logger.info(f"  Heuristic storage: File ({heuristic_store_path})")
     logger.info("(This is a test stub - the real Executive will be C#/.NET)")
     await server.start()
 
     try:
         await server.wait_for_termination()
     finally:
+        if memory_client:
+            await memory_client.close()
         await server.stop(grace=5)
 
 
@@ -527,16 +670,23 @@ def main():
     parser.add_argument("--ollama-url", type=str, default=None, help="Ollama server URL")
     parser.add_argument("--ollama-model", type=str, default="gemma:2b", help="Ollama model name")
     parser.add_argument(
+        "--memory-address",
+        type=str,
+        default=None,
+        help="Memory service address for heuristic storage (e.g., localhost:50051)",
+    )
+    parser.add_argument(
         "--heuristic-store",
         type=str,
         default="heuristics.json",
-        help="Path to heuristics JSON file",
+        help="Path to heuristics JSON file (fallback when Memory unavailable)",
     )
     args = parser.parse_args()
 
     # Environment variables override CLI args
     ollama_url = os.environ.get("OLLAMA_URL", args.ollama_url)
     ollama_model = os.environ.get("OLLAMA_MODEL", args.ollama_model)
+    memory_address = os.environ.get("MEMORY_ADDRESS", args.memory_address)
     heuristic_store_path = os.environ.get("HEURISTIC_STORE_PATH", args.heuristic_store)
 
     level = logging.DEBUG if args.verbose else logging.INFO
@@ -550,6 +700,7 @@ def main():
             args.port,
             ollama_url=ollama_url,
             ollama_model=ollama_model,
+            memory_address=memory_address,
             heuristic_store_path=heuristic_store_path,
         ))
     except KeyboardInterrupt:

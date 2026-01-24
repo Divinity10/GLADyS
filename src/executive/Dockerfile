@@ -11,23 +11,41 @@ WORKDIR /app
 # Install dependencies including grpc tools for proto generation
 RUN pip install --no-cache-dir grpcio grpcio-tools grpcio-reflection aiohttp
 
-# Copy proto files from orchestrator (context is src/)
+# Copy proto files from orchestrator and memory (context is src/)
 COPY orchestrator/proto/ proto/
+COPY memory/proto/memory.proto proto/
 
-# Create package structure
+# Create package structure for orchestrator and memory protos
 RUN mkdir -p /app/gladys_orchestrator/generated && \
+    mkdir -p /app/gladys_memory/generated && \
     touch /app/gladys_orchestrator/__init__.py && \
-    touch /app/gladys_orchestrator/generated/__init__.py
+    touch /app/gladys_orchestrator/generated/__init__.py && \
+    touch /app/gladys_memory/__init__.py && \
+    touch /app/gladys_memory/generated/__init__.py
 
-# Generate proto stubs
+# Generate orchestrator proto stubs (executive.proto, common.proto, orchestrator.proto)
 RUN python -m grpc_tools.protoc \
     --proto_path=proto \
     --python_out=gladys_orchestrator/generated \
     --grpc_python_out=gladys_orchestrator/generated \
-    proto/*.proto || true
+    proto/executive.proto proto/common.proto proto/orchestrator.proto || true
 
-# Fix relative imports in generated files
+# Generate memory proto stubs
+RUN python -m grpc_tools.protoc \
+    --proto_path=proto \
+    --python_out=gladys_memory/generated \
+    --grpc_python_out=gladys_memory/generated \
+    proto/memory.proto || true
+
+# Fix relative imports in generated files (orchestrator)
 RUN for f in gladys_orchestrator/generated/*_pb2*.py; do \
+    if [ -f "$f" ]; then \
+        sed -i 's/^import \([a-z_]*_pb2\)/from . import \1/g' "$f"; \
+    fi; \
+    done
+
+# Fix relative imports in generated files (memory)
+RUN for f in gladys_memory/generated/*_pb2*.py; do \
     if [ -f "$f" ]; then \
         sed -i 's/^import \([a-z_]*_pb2\)/from . import \1/g' "$f"; \
     fi; \
