@@ -20,7 +20,7 @@ pub mod proto {
 
 // Re-export types from modules
 pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
-pub use config::{Config, ServerConfig, StorageConfig, SalienceConfig, RefreshConfig};
+pub use config::{Config, ServerConfig, StorageConfig, SalienceConfig};
 pub use server::{SalienceService, run_server};
 
 // Note: CacheConfig, MemoryCache, CachedEvent, CachedHeuristic, CacheStats are already

@@ -137,36 +137,6 @@ impl Default for SalienceConfig {
     }
 }
 
-/// Heuristic refresh configuration.
-#[derive(Debug, Clone)]
-pub struct RefreshConfig {
-    /// Interval between heuristic refreshes in seconds (default: 5)
-    pub interval_secs: u64,
-    /// Maximum heuristics to load per refresh (default: 100)
-    pub max_heuristics: i32,
-}
-
-impl Default for RefreshConfig {
-    fn default() -> Self {
-        Self {
-            interval_secs: env::var("REFRESH_INTERVAL_SECS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(5),
-            max_heuristics: env::var("REFRESH_MAX_HEURISTICS")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(100),
-        }
-    }
-}
-
-impl RefreshConfig {
-    pub fn interval(&self) -> Duration {
-        Duration::from_secs(self.interval_secs)
-    }
-}
-
 /// Root configuration that aggregates all config sections.
 #[derive(Debug, Clone, Default)]
 pub struct Config {
@@ -174,7 +144,6 @@ pub struct Config {
     pub storage: StorageConfig,
     pub cache: CacheConfig,
     pub salience: SalienceConfig,
-    pub refresh: RefreshConfig,
 }
 
 impl Config {
@@ -190,9 +159,9 @@ impl Config {
             server_port = self.server.port,
             storage_address = %self.storage.address,
             cache_max_events = self.cache.max_events,
+            cache_max_heuristics = self.cache.max_heuristics,
             novelty_threshold = self.cache.novelty_threshold,
             min_heuristic_confidence = self.salience.min_heuristic_confidence,
-            refresh_interval_secs = self.refresh.interval_secs,
             "Configuration loaded"
         );
     }
