@@ -8,6 +8,7 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::info;
 
+use crate::config::{SalienceConfig, ServerConfig};
 use crate::proto::salience_gateway_server::SalienceGateway;
 use crate::proto::{EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceVector};
 use crate::{CachedHeuristic, MemoryCache};
@@ -21,28 +22,71 @@ pub struct SalienceService {
     /// Arc = shared ownership across async tasks
     /// RwLock = multiple readers OR one writer at a time
     cache: Arc<RwLock<MemoryCache>>,
+    /// Configuration for salience evaluation
+    config: SalienceConfig,
 }
 
 impl SalienceService {
-    /// Create a new SalienceService with the given cache.
+    /// Create a new SalienceService with the given cache and config.
     pub fn new(cache: Arc<RwLock<MemoryCache>>) -> Self {
-        Self { cache }
+        Self::with_config(cache, SalienceConfig::default())
+    }
+
+    /// Create a new SalienceService with explicit config.
+    pub fn with_config(cache: Arc<RwLock<MemoryCache>>, config: SalienceConfig) -> Self {
+        Self { cache, config }
     }
 
     /// Check if a heuristic matches the request.
     ///
-    /// Simple keyword and source matching for MVP.
-    fn heuristic_matches(heuristic: &CachedHeuristic, request: &EvaluateSalienceRequest) -> bool {
+    /// CBR-style word overlap matching for MVP.
+    /// True CBR would use embedding similarity.
+    ///
+    /// NOTE: This is a placeholder implementation using naive word matching.
+    /// Production should use embedding similarity via Python service.
+    fn heuristic_matches(
+        heuristic: &CachedHeuristic,
+        request: &EvaluateSalienceRequest,
+        config: &SalienceConfig,
+    ) -> bool {
         let condition = &heuristic.condition;
 
-        // Match by source if specified in condition
+        // CBR format: match by text keywords (word overlap)
+        if let Some(condition_text) = condition.get("text").and_then(|v| v.as_str()) {
+            let condition_lower = condition_text.to_lowercase();
+            let request_lower = request.raw_text.to_lowercase();
+
+            // Split into words, strip punctuation, and find overlap
+            let condition_words: std::collections::HashSet<String> = condition_lower
+                .split_whitespace()
+                .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
+                .filter(|w| !w.is_empty())
+                .collect();
+            let request_words: std::collections::HashSet<String> = request_lower
+                .split_whitespace()
+                .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
+                .filter(|w| !w.is_empty())
+                .collect();
+
+            let overlap: std::collections::HashSet<_> =
+                condition_words.intersection(&request_words).collect();
+
+            // Match if overlap meets configured thresholds
+            let min_overlap = std::cmp::max(
+                config.min_word_overlap,
+                (condition_words.len() as f32 * config.word_overlap_ratio) as usize,
+            );
+            return overlap.len() >= min_overlap;
+        }
+
+        // Legacy format: match by source if specified
         if let Some(source) = condition.get("source").and_then(|v| v.as_str()) {
             if source != request.source {
                 return false;
             }
         }
 
-        // Match by keywords in raw_text
+        // Legacy format: match by keywords in raw_text
         if let Some(keywords) = condition.get("keywords").and_then(|v| v.as_array()) {
             let text_lower = request.raw_text.to_lowercase();
             let has_match = keywords.iter().any(|kw| {
@@ -113,12 +157,12 @@ impl SalienceGateway for SalienceService {
             "Evaluating salience"
         );
 
-        // Start with default salience values
+        // Start with default salience values (using config)
         let mut salience = SalienceVector {
             threat: 0.0,
             opportunity: 0.0,
             humor: 0.0,
-            novelty: 0.1, // Small baseline novelty
+            novelty: self.config.baseline_novelty,
             goal_relevance: 0.0,
             social: 0.0,
             emotional: 0.0,
@@ -134,11 +178,11 @@ impl SalienceGateway for SalienceService {
             // Acquire read lock on cache
             let cache = self.cache.read().await;
 
-            // Get high-confidence heuristics
-            let heuristics = cache.get_heuristics_by_confidence(0.5);
+            // Get high-confidence heuristics (using config threshold)
+            let heuristics = cache.get_heuristics_by_confidence(self.config.min_heuristic_confidence);
 
             for h in heuristics {
-                if Self::heuristic_matches(h, &req) {
+                if Self::heuristic_matches(h, &req, &self.config) {
                     info!(
                         heuristic_id = %h.id,
                         heuristic_name = %h.name,
@@ -161,7 +205,7 @@ impl SalienceGateway for SalienceService {
             // This is a placeholder - real novelty needs embeddings
             if !req.raw_text.is_empty() && !from_cache {
                 // No heuristic matched = potentially novel situation
-                salience.novelty = salience.novelty.max(0.4);
+                salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
             }
         }
 
@@ -178,38 +222,28 @@ impl SalienceGateway for SalienceService {
             from_cache,
             matched_heuristic_id,
             error: String::new(),
+            // Rust fast path never does novelty detection (no embedding model)
+            novelty_detection_skipped: true,
         }))
     }
 }
 
-/// Configuration for the gRPC server
-pub struct ServerConfig {
-    pub host: String,
-    pub port: u16,
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            host: "0.0.0.0".to_string(),
-            port: 50052,
-        }
-    }
-}
+// ServerConfig is defined in config module and re-exported from lib.rs
 
 /// Start the gRPC server.
 ///
 /// This function creates the tonic server, registers our SalienceGateway
 /// service, and listens for incoming connections.
 pub async fn run_server(
-    config: ServerConfig,
+    server_config: ServerConfig,
+    salience_config: SalienceConfig,
     cache: Arc<RwLock<MemoryCache>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::proto::salience_gateway_server::SalienceGatewayServer;
     use tonic::transport::Server;
 
-    let addr = format!("{}:{}", config.host, config.port).parse()?;
-    let service = SalienceService::new(cache);
+    let addr = format!("{}:{}", server_config.host, server_config.port).parse()?;
+    let service = SalienceService::with_config(cache, salience_config);
 
     info!("Starting SalienceGateway gRPC server on {}", addr);
 
@@ -227,6 +261,7 @@ mod tests {
 
     #[test]
     fn test_heuristic_keyword_matching() {
+        let config = SalienceConfig::default();
         let heuristic = CachedHeuristic {
             id: uuid::Uuid::new_v4(),
             name: "threat_detector".to_string(),
@@ -250,7 +285,7 @@ mod tests {
             structured_json: String::new(),
             entity_ids: vec![],
         };
-        assert!(SalienceService::heuristic_matches(&heuristic, &request));
+        assert!(SalienceService::heuristic_matches(&heuristic, &request, &config));
 
         // Should not match - wrong source
         let request2 = EvaluateSalienceRequest {
@@ -260,7 +295,7 @@ mod tests {
             structured_json: String::new(),
             entity_ids: vec![],
         };
-        assert!(!SalienceService::heuristic_matches(&heuristic, &request2));
+        assert!(!SalienceService::heuristic_matches(&heuristic, &request2, &config));
 
         // Should not match - no keywords
         let request3 = EvaluateSalienceRequest {
@@ -270,7 +305,7 @@ mod tests {
             structured_json: String::new(),
             entity_ids: vec![],
         };
-        assert!(!SalienceService::heuristic_matches(&heuristic, &request3));
+        assert!(!SalienceService::heuristic_matches(&heuristic, &request3, &config));
     }
 
     #[test]

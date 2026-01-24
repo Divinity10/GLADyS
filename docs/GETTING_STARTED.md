@@ -178,6 +178,81 @@ cd src/memory && python run.py logs    # Memory logs
 cd src/memory && python run.py reset   # Deletes all data, fresh start
 ```
 
+### Regenerating proto stubs
+
+After modifying `.proto` files:
+
+```bash
+python scripts/proto_sync.py   # Or: make proto
+```
+
+This regenerates all Python stubs and fixes import issues.
+
+### Configuration
+
+Memory uses Pydantic Settings. Override via environment variables:
+
+```bash
+# Database
+export STORAGE_HOST=localhost
+export STORAGE_PORT=5433
+
+# Salience tuning
+export SALIENCE_NOVELTY_SIMILARITY_THRESHOLD=0.85
+export SALIENCE_WORD_OVERLAP_MIN=2
+
+# Server
+export GRPC_PORT=50051
+```
+
+See `src/memory/python/gladys_memory/config.py` for all settings.
+
+Rust fast path uses identical environment variables. See `src/memory/rust/src/config.rs`.
+
+## Technical Notes: Heuristic Matching
+
+**Why do we have two matching approaches?**
+
+GLADyS has two paths for salience evaluation:
+
+| Path | Language | Matching Method | Use Case |
+|------|----------|-----------------|----------|
+| **Slow path** | Python | Embedding similarity (pgvector) | Semantic matching, production quality |
+| **Fast path** | Rust | Word overlap | Low-latency MVP, no embedding model |
+
+**Embedding similarity (pgvector)** compares the *meaning* of text:
+- "DANGER! Hostile approaching!" matches "threat detected" because they're semantically similar
+- Handles synonyms, paraphrasing, different word forms
+- Requires an embedding model (Python has access to this)
+
+**Word overlap (Rust MVP)** does literal keyword matching:
+- "DANGER! Hostile approaching!" matches if heuristic contains words like "danger", "hostile"
+- Case-insensitive, strips punctuation
+- Fast but brittle - misses semantic relationships
+
+**Why does Rust use word overlap?**
+
+The Rust fast path is optimized for sub-millisecond latency. Loading an embedding model into Rust would add startup time and memory overhead. The word-overlap approach is a placeholder that:
+
+1. Demonstrates the fast-path architecture
+2. Works for explicit keyword triggers
+3. Will be replaced when we add embedding support
+
+**Configuration for word matching:**
+
+```bash
+# Minimum word overlap count (default: 2)
+export SALIENCE_MIN_WORD_OVERLAP=2
+
+# Minimum overlap ratio (default: 0.3 = 30% of condition words must match)
+export SALIENCE_WORD_OVERLAP_RATIO=0.3
+```
+
+**Production roadmap:**
+- Short term: Word overlap for explicit triggers
+- Medium term: Rust calls Python for embeddings when needed
+- Long term: Rust-native embedding model (ONNX runtime)
+
 ## Where to Find Things
 
 | What | Where |

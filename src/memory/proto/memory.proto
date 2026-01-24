@@ -97,36 +97,71 @@ message GenerateEmbeddingResponse {
     string error = 2;
 }
 
-// --- Heuristics ---
+// --- Heuristics (CBR Design per §22) ---
 
 message Heuristic {
-    string id = 1;                      // UUID
-    string name = 2;
-    string condition_json = 3;          // Matching condition as JSON
-    string action_json = 4;             // Action to take as JSON
-    float confidence = 5;
-    int64 last_fired_ms = 6;
-    int32 fire_count = 7;
-    int32 success_count = 8;
+    string id = 1;                          // UUID
+    string name = 2;                        // Human-readable name
+
+    // Condition: fuzzy matching via embedding
+    string condition_text = 3;              // Human-readable, used for embedding generation
+    bytes condition_embedding = 4;          // 384-dim float32 vector (serialized)
+    float similarity_threshold = 5;         // Min cosine similarity to match (default 0.7)
+
+    // Effects (salience modifiers + actions)
+    string effects_json = 6;                // JSONB equivalent - action to take
+
+    // Learning
+    float confidence = 7;                   // 0.0-1.0, default 0.5
+    float learning_rate = 8;                // TD learning rate, default 0.1
+
+    // Provenance
+    string origin = 9;                      // 'built_in', 'pack', 'learned', 'user'
+    string origin_id = 10;                  // Pack ID, reasoning trace ID, etc.
+
+    // Tree structure (reserved for future, not implemented in PoC)
+    repeated string next_heuristic_ids = 11;
+    bool is_terminal = 12;                  // Default true
+
+    // Stats
+    int64 last_fired_ms = 13;
+    int32 fire_count = 14;
+    int32 success_count = 15;
+
+    // Timestamps
+    int64 created_at_ms = 16;
+    int64 updated_at_ms = 17;
 }
 
 message StoreHeuristicRequest {
     Heuristic heuristic = 1;
+    bool generate_embedding = 2;            // If true, server generates embedding from condition_text
 }
 
 message StoreHeuristicResponse {
     bool success = 1;
     string error = 2;
+    string heuristic_id = 3;                // ID of created/updated heuristic
 }
 
 message QueryHeuristicsRequest {
-    string event_context_json = 1;      // Context to match against conditions
-    float min_confidence = 2;
+    // For embedding-based matching (CBR)
+    string query_text = 1;                  // Text to embed and match against conditions
+    bytes query_embedding = 2;              // Pre-computed embedding (if available)
+    float min_similarity = 3;               // Minimum similarity threshold
+    float min_confidence = 4;               // Minimum confidence filter
+    int32 limit = 5;                        // Max results to return
 }
 
 message QueryHeuristicsResponse {
-    repeated Heuristic heuristics = 1;
+    repeated HeuristicMatch matches = 1;
     string error = 2;
+}
+
+message HeuristicMatch {
+    Heuristic heuristic = 1;
+    float similarity = 2;                   // Cosine similarity to query
+    float score = 3;                        // similarity × confidence
 }
 
 // --- Salience Evaluation ---
@@ -137,6 +172,7 @@ message EvaluateSalienceRequest {
     string raw_text = 3;                // Event text for novelty/semantic eval
     string structured_json = 4;         // Domain-specific context as JSON
     repeated string entity_ids = 5;     // Referenced entities
+    bool skip_novelty_detection = 6;    // Skip embedding-based novelty (for benchmarking)
 }
 
 message EvaluateSalienceResponse {
@@ -144,4 +180,5 @@ message EvaluateSalienceResponse {
     bool from_cache = 2;                // True if result was cached/heuristic
     string matched_heuristic_id = 3;    // ID of matched heuristic (if any)
     string error = 4;
+    bool novelty_detection_skipped = 5; // True if skip_novelty_detection was set
 }

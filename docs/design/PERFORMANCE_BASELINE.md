@@ -34,35 +34,67 @@ environment:
 
 **Note**: Both services expose the same `SalienceGateway` gRPC interface. Switching paths requires only changing the address - no code changes.
 
-## Benchmark Results (2026-01-22)
+## Benchmark Results (2026-01-23)
 
 ### Test Conditions
 
 - **Environment**: Docker containers on Windows (WSL2)
 - **Hardware**: Development machine (not production representative)
-- **Data state**: Empty cache (Rust), empty database (Python)
 - **Request pattern**: Sequential, 100 requests per service
 - **Script**: `src/integration/benchmark_salience.py`
+- **Path verification**: Each response includes `novelty_detection_skipped` field to confirm code path
 
-### Raw Results
+### Apples-to-Apples Comparison (Cached Heuristics + Word Overlap)
 
-| Metric | Fast Path (Rust) | Slow Path (Python) |
-|--------|------------------|-------------------|
-| Min | 0.7 ms | 31.2 ms |
-| Median | 1.0 ms | 48.2 ms |
-| Mean | 1.1 ms | 53.2 ms |
-| p95 | 1.9 ms | 78.2 ms |
-| Max | 2.8 ms | 303.5 ms |
+Both paths using cached heuristics and word-overlap matching only.
+
+| Metric | Rust (cached) | Python (cached) | Speedup |
+|--------|---------------|-----------------|---------|
+| Min | 0.7 ms | 0.9 ms | 1.3x |
+| Median | 1.0 ms | 1.3 ms | 1.3x |
+| Mean | 1.0 ms | 1.8 ms | **1.7x** |
+| p95 | 1.7 ms | 2.1 ms | 1.3x |
+| Max | 2.1 ms | 43.3 ms | 20x |
+
+**Path verification**: Python cached 100/100 novelty skipped, Rust 100/100 novelty skipped.
+
+### Full Python Path (DB Query + Embeddings + Novelty Detection)
+
+| Metric | Rust | Python (full) | Speedup |
+|--------|------|---------------|---------|
+| Mean | 1.0 ms | 49.4 ms | **48.1x** |
+
+**Path verification**: Python full 0/100 novelty skipped (embedding generation confirmed).
+
+### Overhead Breakdown
+
+| Component | Latency |
+|-----------|---------|
+| Rust (baseline) | 1.0 ms |
+| Python runtime overhead | ~0.7 ms |
+| Embedding/novelty overhead | ~47.6 ms |
+| **Total Python (full)** | ~49.4 ms |
+
+The 0.7ms "Python runtime overhead" represents the minimal difference between:
+- Python async/await vs Rust async (tokio)
+- Python gRPC (grpcio) vs Rust gRPC (tonic)
+- Python object allocation vs Rust memory management
+
+**Note**: With proper caching, Python and Rust are nearly equivalent for cached heuristic lookup (1.7x difference). The 48x speedup for full path is almost entirely due to embedding generation (~47.6ms).
 
 ### Important Caveats
 
 **These results represent floor values, not realistic expectations.**
 
 The benchmark measured:
-- **Rust**: Empty cache, no heuristics to iterate, no lock contention
-- **Python**: Empty database, minimal query time, no vector comparisons
+- **Rust**: Cached heuristics, word-overlap matching, no embedding model
+- **Python (cached)**: Cached heuristics, word-overlap matching, no embedding generation
+- **Python (full)**: DB query for heuristics, word-overlap, embedding generation, novelty detection
 
-Both paths will be slower in production with real data and load.
+Both paths will be slower in production with:
+- More heuristics to iterate
+- Lock contention under concurrent load
+- Network latency variation
 
 ## Realistic Estimates
 
@@ -70,33 +102,34 @@ Based on expected production conditions:
 
 | Path | Benchmark Floor | Realistic Estimate | Throughput |
 |------|-----------------|-------------------|------------|
-| Fast path | ~1 ms | **5-10 ms** | 100-200 events/sec |
-| Slow path | ~53 ms | **100+ ms** | ~10 events/sec |
+| Fast path (Rust) | ~1.0 ms | **3-10 ms** | 100-300 events/sec |
+| Python cached (word-overlap) | ~1.8 ms | **5-15 ms** | 70-200 events/sec |
+| Python full (embeddings) | ~49 ms | **80-150 ms** | ~7-12 events/sec |
 
-### Why Fast Path Will Be Slower
+### Key Insight
+
+With proper caching, Python and Rust have nearly identical performance for cached heuristic lookup (~1.7x difference). The massive speedup (48x) only matters when:
+- Embedding generation is required (novelty detection)
+- Cache misses require DB queries
+
+For most production traffic (cache hits), either path performs well.
+
+### Why Paths Will Be Slower in Production
 
 - **Network overhead**: gRPC over Docker network
-- **Lock contention**: `RwLock` under concurrent requests
+- **Lock contention**: Under concurrent requests
 - **Heuristic iteration**: More rules = more O(n) checking
-- **Serialization**: Protobuf encode/decode overhead
-- **System noise**: Other processes, Docker overhead
-
-### Why Slow Path Will Be Slower
-
-- **More heuristics**: Larger query results to process
-- **Vector search**: More embeddings to compare (O(n) or O(log n) with indexing)
-- **DB contention**: Multiple concurrent queries
-- **Embedding generation**: ML model inference time (currently ~30ms alone)
+- **Embedding generation**: ML model inference time (~47ms currently)
 
 ## Throughput Implications
 
-| Scenario | Fast Path | Slow Path | Notes |
-|----------|-----------|-----------|-------|
-| Benchmark floor | ~1000/sec | ~19/sec | Not achievable in production |
-| Realistic estimate | 100-200/sec | ~10/sec | Planning assumption |
-| Under load | 50-100/sec | 5-10/sec | Degraded but functional |
+| Scenario | Rust | Python Cached | Python Full | Notes |
+|----------|------|---------------|-------------|-------|
+| Benchmark floor | ~1000/sec | ~560/sec | ~20/sec | Sequential, optimal |
+| Realistic estimate | 100-300/sec | 70-200/sec | 7-12/sec | Planning assumption |
+| Under load | 50-150/sec | 40-100/sec | 5-10/sec | Degraded but functional |
 
-**Key insight**: The fast path provides 10-20x throughput improvement over the slow path. Without it, GLADyS cannot keep up with moderate sensor activity.
+**Key insight**: The fast path advantage is primarily about **avoiding embedding generation**, not raw runtime performance. When both use cached heuristics, the speedup is only 1.7x. The 48x speedup for full path is almost entirely embedding overhead.
 
 ## What to Monitor
 
@@ -171,19 +204,26 @@ To reproduce the benchmark:
 
 ```bash
 cd src/integration
-docker-compose up -d
-# Wait for services to be healthy
-python benchmark_salience.py
+docker compose up -d
+# Wait for services to be healthy (~30s for embedding model load)
+cd ../orchestrator
+uv run python ../integration/benchmark_salience.py
 ```
 
 To run with more requests:
-```python
-# Edit benchmark_salience.py
-NUM_REQUESTS = 1000  # Default is 100
+```bash
+BENCHMARK_REQUESTS=1000 uv run python ../integration/benchmark_salience.py
 ```
+
+The benchmark runs two tests:
+1. **Apples-to-apples**: Both paths with cached heuristics + word-overlap
+2. **Full comparison**: Python full path (DB + embeddings) vs Rust
 
 ## Revision History
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-01-23 | Fixed benchmark with volume mounts - Python cached is 1.7x (not 20x) | Scott Mulcahy |
+| 2026-01-23 | Added path verification (novelty_detection_skipped field) | Scott Mulcahy |
+| 2026-01-23 | Added apples-to-apples comparison, overhead breakdown | Scott Mulcahy |
 | 2026-01-22 | Initial baseline established | Scott Mulcahy |

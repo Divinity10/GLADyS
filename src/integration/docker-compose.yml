@@ -1,4 +1,4 @@
-# GLADyS Integration Test - Orchestrator + Memory (Python & Rust)
+# GLADyS Integration Test - Full Stack PoC
 # Run: docker-compose up -d
 #
 # Services:
@@ -6,15 +6,27 @@
 #   - memory-python: Python Memory + SalienceGateway (port 50051)
 #   - memory-rust: Rust Fast Path SalienceGateway (port 50052)
 #   - orchestrator: Python Orchestrator (port 50050)
+#   - executive-stub: Python Executive with optional LLM (port 50053)
 #
-# Performance comparison:
-#   - Default: Orchestrator uses Python (50051)
-#   - To use Rust: SALIENCE_MEMORY_ADDRESS=memory-rust:50052
+# Development workflow:
+#   - Python code changes: Auto-reload (source mounted as volumes)
+#   - Rust code changes: Run 'make rust-rebuild' to rebuild container
+#   - Run 'make benchmark' to test performance
+#
+# Salience path configuration:
+#   - Default: Orchestrator uses Rust fast path (50052)
+#   - To use Python: SALIENCE_MEMORY_ADDRESS=memory-python:50051
+#
+# LLM configuration (optional):
+#   - Set OLLAMA_URL env var to enable LLM responses in Executive
+#   - Example: OLLAMA_URL=http://192.168.1.100:11434 docker-compose up -d
 #
 # Test flow:
 #   1. Client sends event to Orchestrator (50050)
 #   2. Orchestrator queries SalienceGateway (Python or Rust)
 #   3. Orchestrator routes based on salience score
+#   4. High salience → immediate to Executive (+ LLM if configured)
+#   5. Low salience → accumulate into moment, send on tick (100ms)
 
 services:
   postgres:
@@ -45,8 +57,13 @@ services:
       STORAGE_USER: gladys
       STORAGE_PASSWORD: gladys
       STORAGE_DATABASE: gladys
+      # Set to true for apples-to-apples benchmark (skip embedding generation)
+      SALIENCE_SKIP_NOVELTY_DETECTION: ${SALIENCE_SKIP_NOVELTY_DETECTION:-false}
     ports:
       - "50051:50051"
+    # DEV: Mount source so code changes don't require rebuild
+    volumes:
+      - ../memory/python/gladys_memory:/app/gladys_memory:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,8 +104,40 @@ services:
       # Switch between Python (50051) and Rust (50052) here:
       # SALIENCE_MEMORY_ADDRESS: memory-python:50051  # Python path
       SALIENCE_MEMORY_ADDRESS: memory-rust:50052      # Rust fast path
+      EXECUTIVE_ADDRESS: executive-stub:50053
     ports:
       - "50050:50050"
+    # DEV: Mount source so code changes don't require rebuild
+    volumes:
+      - ../orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
     depends_on:
       memory-rust:
         condition: service_healthy
+      executive-stub:
+        condition: service_healthy
+
+  # Executive stub (Python) for integration testing
+  # The real Executive will be C#/.NET
+  #
+  # LLM Configuration:
+  #   Set OLLAMA_URL to your Ollama server (e.g., http://host.docker.internal:11434)
+  #   Set OLLAMA_MODEL to the model name (default: gemma:2b)
+  executive-stub:
+    build:
+      context: ..
+      dockerfile: executive/Dockerfile
+    container_name: gladys-integration-executive-stub
+    environment:
+      # Uncomment and set to your Ollama server URL to enable LLM responses
+      # OLLAMA_URL: http://host.docker.internal:11434
+      # OLLAMA_MODEL: gemma:2b
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma:2b}
+    ports:
+      - "50053:50053"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50053')).result(timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
