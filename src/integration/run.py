@@ -13,7 +13,10 @@ Usage:
     python run.py status              # Show status of all services
     python run.py logs memory         # Follow memory service logs
     python run.py psql                # Open database shell
-    python run.py clean-test          # Delete test data from database
+    python run.py clean heuristics    # Clear heuristics table
+    python run.py clean events        # Clear events table
+    python run.py clean all           # Clear all tables
+    python run.py reset               # Full reset (clean + restart)
 """
 
 import argparse
@@ -169,21 +172,60 @@ def cmd_psql(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_clean_test(args: argparse.Namespace) -> int:
-    """Delete test data from database."""
+def cmd_clean(args: argparse.Namespace) -> int:
+    """Clean database tables."""
     container = CONTAINERS["db"]
+
+    tables = {
+        "heuristics": "TRUNCATE heuristics CASCADE;",
+        "events": "TRUNCATE episodic_events CASCADE;",
+        "all": "TRUNCATE heuristics, episodic_events CASCADE;",
+    }
+
+    sql = tables.get(args.table, tables["heuristics"])
+
     result = subprocess.run(
-        ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys",
-         "-c", "TRUNCATE heuristics CASCADE;"],
+        ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
         capture_output=True,
         text=True,
     )
     if result.returncode == 0:
-        print("Test data cleaned.")
+        print(f"Cleaned: {args.table}")
         print(result.stdout.strip())
     else:
         print(f"Error: {result.stderr}")
     return result.returncode
+
+
+def cmd_reset(args: argparse.Namespace) -> int:
+    """Full reset: clean all data and restart services."""
+    print("Resetting GLADyS (Docker)...")
+
+    # Stop app services
+    print("\n1. Stopping services...")
+    docker_compose("stop", *APP_SERVICES)
+
+    # Clean database
+    print("\n2. Cleaning database...")
+    container = CONTAINERS["db"]
+    result = subprocess.run(
+        ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys",
+         "-c", "TRUNCATE heuristics, episodic_events CASCADE;"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        print("  Database cleaned.")
+    else:
+        print(f"  Warning: {result.stderr}")
+
+    # Restart services
+    if not args.no_start:
+        print("\n3. Starting services...")
+        docker_compose("up", "-d", *APP_SERVICES)
+
+    print("\nReset complete.")
+    return 0
 
 
 def main() -> None:
@@ -199,7 +241,9 @@ Examples:
     python run.py status              # Show status of all services
     python run.py logs memory         # Follow memory logs
     python run.py psql                # Open database shell
-    python run.py clean-test          # Delete test data
+    python run.py clean heuristics    # Clear heuristics table
+    python run.py clean all           # Clear all data
+    python run.py reset               # Full reset (clean + restart)
 """,
     )
 
@@ -254,9 +298,25 @@ Examples:
     psql_parser = subparsers.add_parser("psql", help="Open database shell")
     psql_parser.set_defaults(func=cmd_psql)
 
-    # clean-test
-    clean_parser = subparsers.add_parser("clean-test", help="Delete test data from database")
-    clean_parser.set_defaults(func=cmd_clean_test)
+    # clean
+    clean_parser = subparsers.add_parser("clean", help="Clean database tables")
+    clean_parser.add_argument(
+        "table",
+        choices=["heuristics", "events", "all"],
+        nargs="?",
+        default="heuristics",
+        help="Table(s) to clean (default: heuristics)",
+    )
+    clean_parser.set_defaults(func=cmd_clean)
+
+    # reset
+    reset_parser = subparsers.add_parser("reset", help="Full reset: clean data and restart")
+    reset_parser.add_argument(
+        "--no-start",
+        action="store_true",
+        help="Don't restart services after reset",
+    )
+    reset_parser.set_defaults(func=cmd_reset)
 
     args = parser.parse_args()
     sys.exit(args.func(args))

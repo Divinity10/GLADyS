@@ -7,6 +7,11 @@ Usage:
     python scripts/services.py stop memory
     python scripts/services.py restart all
     python scripts/services.py status
+    python scripts/services.py psql                 # Open database shell
+    python scripts/services.py clean heuristics    # Clear heuristics table
+    python scripts/services.py clean events        # Clear events table
+    python scripts/services.py clean all           # Clear all tables
+    python scripts/services.py reset               # Full reset (clean + restart)
 """
 
 import argparse
@@ -267,6 +272,82 @@ def cmd_status(args):
     return 0
 
 
+def cmd_psql(args):
+    """Open database shell."""
+    subprocess.run(["psql", "-h", "localhost", "-U", "gladys", "-d", "gladys"])
+    return 0
+
+
+def cmd_clean(args):
+    """Clean database tables."""
+    import psycopg2
+
+    tables = {
+        "heuristics": "TRUNCATE heuristics CASCADE;",
+        "events": "TRUNCATE episodic_events CASCADE;",
+        "all": "TRUNCATE heuristics, episodic_events CASCADE;",
+    }
+
+    if args.table not in tables:
+        print(f"Unknown table: {args.table}")
+        return 1
+
+    try:
+        conn = psycopg2.connect(
+            host="localhost",
+            database="gladys",
+            user="gladys",
+        )
+        cur = conn.cursor()
+        cur.execute(tables[args.table])
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"Cleaned: {args.table}")
+        return 0
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+
+def cmd_reset(args):
+    """Full reset: clean all data and restart services."""
+    print("Resetting GLADyS...")
+
+    # Stop all services
+    print("\n1. Stopping services...")
+    for name in SERVICES:
+        stop_service(name)
+
+    # Clean database
+    print("\n2. Cleaning database...")
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host="localhost",
+            database="gladys",
+            user="gladys",
+        )
+        cur = conn.cursor()
+        cur.execute("TRUNCATE heuristics, episodic_events CASCADE;")
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("  Database cleaned.")
+    except Exception as e:
+        print(f"  Warning: Could not clean database - {e}")
+
+    # Restart services
+    if not args.no_start:
+        print("\n3. Starting services...")
+        time.sleep(1)
+        for name in SERVICES:
+            start_service(name)
+
+    print("\nReset complete.")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Manage GLADyS services",
@@ -278,6 +359,10 @@ Examples:
     python scripts/services.py stop memory      # Stop memory service
     python scripts/services.py restart all      # Restart all services
     python scripts/services.py status           # Show status of all services
+    python scripts/services.py psql             # Open database shell
+    python scripts/services.py clean heuristics # Clear heuristics table
+    python scripts/services.py clean all        # Clear all data
+    python scripts/services.py reset            # Full reset (clean + restart)
 """,
     )
 
@@ -318,6 +403,28 @@ Examples:
     # status
     status_parser = subparsers.add_parser("status", help="Show status of all services")
     status_parser.set_defaults(func=cmd_status)
+
+    # psql
+    psql_parser = subparsers.add_parser("psql", help="Open database shell")
+    psql_parser.set_defaults(func=cmd_psql)
+
+    # clean
+    clean_parser = subparsers.add_parser("clean", help="Clean database tables")
+    clean_parser.add_argument(
+        "table",
+        choices=["heuristics", "events", "all"],
+        help="Table(s) to clean",
+    )
+    clean_parser.set_defaults(func=cmd_clean)
+
+    # reset
+    reset_parser = subparsers.add_parser("reset", help="Full reset: clean data and restart")
+    reset_parser.add_argument(
+        "--no-start",
+        action="store_true",
+        help="Don't restart services after reset",
+    )
+    reset_parser.set_defaults(func=cmd_reset)
 
     args = parser.parse_args()
     sys.exit(args.func(args))
