@@ -1,0 +1,112 @@
+{
+  "test_name": "Prediction Quality Validation",
+  "description": "Tests whether Ollama produces reasonable outcome predictions and calibrated confidence levels",
+  "model": "qwen3-vl:8b",
+  "prompt_template": "Given this situation and proposed action, predict the outcome.\n\nContext: {context}\nProposed action: {proposed_action}\n\nPredict:\n1. success_probability: How likely is this action to achieve its goal? (0.0 to 1.0)\n2. confidence: How confident are you in this prediction? (0.0 to 1.0)\n   - High confidence (0.7+): Clear situation, obvious outcome\n   - Medium confidence (0.4-0.7): Some uncertainty but reasonable guess\n   - Low confidence (<0.4): Very uncertain, could go either way\n\nOutput ONLY valid JSON with no other text:\n{{\"success_probability\": 0.X, \"confidence\": 0.X, \"reasoning\": \"brief explanation\"}}",
+  "scenarios": [
+    {
+      "id": "PRED-01",
+      "domain": "Gaming",
+      "inputs": {
+        "context": "Player health: 90%. Enemy: Level 2 skeleton. Player level: 10. Player has full armor and iron sword.",
+        "proposed_action": "Attack the skeleton"
+      },
+      "expected": {
+        "success_probability": {"min": 0.70, "max": 0.99},
+        "confidence": {"min": 0.55, "max": 0.95}
+      },
+      "rationale": "Strong player vs weak enemy = high success expected"
+    },
+    {
+      "id": "PRED-02",
+      "domain": "Productivity",
+      "inputs": {
+        "context": "Meeting 'Team Sync' starts in 30 minutes. User is at desk, actively typing. Calendar shows user as Available.",
+        "proposed_action": "Send a reminder about the upcoming meeting"
+      },
+      "expected": {
+        "success_probability": {"min": 0.65, "max": 0.95},
+        "confidence": {"min": 0.50, "max": 0.90}
+      },
+      "rationale": "User available and active = reminder likely useful"
+    },
+    {
+      "id": "PRED-03",
+      "domain": "Gaming",
+      "inputs": {
+        "context": "Player health: 10%. Enemy: Level 50 Ender Dragon. Player level: 10. Player has leather armor and wooden sword.",
+        "proposed_action": "Attack the Ender Dragon"
+      },
+      "expected": {
+        "success_probability": {"min": 0.00, "max": 0.25},
+        "confidence": {"min": 0.60, "max": 0.95}
+      },
+      "rationale": "Weak player vs boss = very low success, but confident in that prediction"
+    },
+    {
+      "id": "PRED-04",
+      "domain": "Smart Home",
+      "inputs": {
+        "context": "User said 'Stop notifying me about the temperature' 2 minutes ago. Current temperature: 72F.",
+        "proposed_action": "Notify user that temperature is 72F"
+      },
+      "expected": {
+        "success_probability": {"min": 0.00, "max": 0.30},
+        "confidence": {"min": 0.65, "max": 0.95}
+      },
+      "rationale": "User explicitly rejected this type of notification = will fail"
+    },
+    {
+      "id": "PRED-05",
+      "domain": "Gaming",
+      "inputs": {
+        "context": "Player health: 50%. Enemy: Unknown creature (never seen before). Player level: 10.",
+        "proposed_action": "Attack the unknown creature"
+      },
+      "expected": {
+        "success_probability": {"min": 0.25, "max": 0.75},
+        "confidence": {"min": 0.15, "max": 0.50}
+      },
+      "rationale": "Unknown enemy = uncertain outcome AND low confidence"
+    },
+    {
+      "id": "PRED-06",
+      "domain": "Productivity",
+      "inputs": {
+        "context": "User status: Away for 15 minutes. Meeting in 20 minutes. No information about user location.",
+        "proposed_action": "Send meeting reminder to user's phone"
+      },
+      "expected": {
+        "success_probability": {"min": 0.30, "max": 0.75},
+        "confidence": {"min": 0.25, "max": 0.60}
+      },
+      "rationale": "User might be back or might miss it = medium uncertainty"
+    },
+    {
+      "id": "PRED-07",
+      "domain": "Productivity",
+      "inputs": {
+        "context": "Historical data: Previous 5 meetings in downtown Minneapolis all required exactly 30 minutes commute. New meeting scheduled in downtown Minneapolis at a venue user has never visited.",
+        "proposed_action": "Suggest user leave 30 minutes before the meeting"
+      },
+      "expected": {
+        "success_probability": {"min": 0.60, "max": 0.90},
+        "confidence": {"min": 0.45, "max": 0.80}
+      },
+      "rationale": "Strong pattern exists but new venue adds some uncertainty"
+    },
+    {
+      "id": "PRED-08",
+      "domain": "Social",
+      "inputs": {
+        "context": "Friend 'Steve' just came online in Minecraft. User and Steve have played together 20 times in the past month. User is currently in Minecraft main menu.",
+        "proposed_action": "Notify user that Steve is online"
+      },
+      "expected": {
+        "success_probability": {"min": 0.70, "max": 0.95},
+        "confidence": {"min": 0.60, "max": 0.90}
+      },
+      "rationale": "Strong friendship pattern + user in game = notification likely welcome"
+    }
+  ]
+}

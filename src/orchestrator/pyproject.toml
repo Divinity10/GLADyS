@@ -11,17 +11,15 @@ dependencies = [
     # gRPC
     "grpcio>=1.60",
     "grpcio-tools>=1.60",
-
     # Async support
     "grpcio-reflection>=1.60",
-
     # Utilities
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
-
     # Skill Registry
     "pyyaml>=6.0",
     "psycopg2-binary>=2.9",
+    "aiohttp>=3.13.3",
 ]
 
 [project.optional-dependencies]

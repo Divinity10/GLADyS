@@ -1,0 +1,114 @@
+[
+  {
+    "scenario_id": "MC-01",
+    "domain": "Gaming",
+    "raw_response": "{\"condition\": \"Player health is critically low due to hostile actions with hostile entities present nearby.\", \"action\": {\"type\": \"critical_safety_alert\", \"message\": \"You are critically low on health. Find shelter immediately.\"}}",
+    "parsed": {
+      "condition": "Player health is critically low due to hostile actions with hostile entities present nearby.",
+      "action": {
+        "type": "critical_safety_alert",
+        "message": "You are critically low on health. Find shelter immediately."
+      }
+    },
+    "elapsed_seconds": 103.24520301818848,
+    "success": true
+  },
+  {
+    "scenario_id": "HOME-01",
+    "domain": "Smart Home",
+    "raw_response": "{\n  \"condition\": \"When a user manually adjusts an automated setting and provides positive feedback on the adjustment.\",\n  \"action\": {\n    \"type\": \"update_automation_target\",\n    \"message\": \"Noted. I'll adjust the automation to the manually adjusted value for this entity in future automated actions.\"\n  }\n}",
+    "parsed": {
+      "condition": "When a user manually adjusts an automated setting and provides positive feedback on the adjustment.",
+      "action": {
+        "type": "update_automation_target",
+        "message": "Noted. I'll adjust the automation to the manually adjusted value for this entity in future automated actions."
+      }
+    },
+    "elapsed_seconds": 79.7341992855072,
+    "success": true
+  },
+  {
+    "scenario_id": "WORK-01",
+    "domain": "Productivity",
+    "raw_response": "{\"condition\": \"An imminent scheduled activity is detected and the user is inactive for a duration indicating potential absence.\", \"action\": {\"type\": \"ask_for_notification\", \"message\": \"You have an imminent scheduled activity and seem to be away. Should I notify you on your phone?\"}}",
+    "parsed": {
+      "condition": "An imminent scheduled activity is detected and the user is inactive for a duration indicating potential absence.",
+      "action": {
+        "type": "ask_for_notification",
+        "message": "You have an imminent scheduled activity and seem to be away. Should I notify you on your phone?"
+      }
+    },
+    "elapsed_seconds": 55.35812044143677,
+    "success": true
+  },
+  {
+    "scenario_id": "SOC-01",
+    "domain": "Social",
+    "raw_response": "{\"condition\": \"A known friend has been offline for a noticeable period and is now online and engaged in an activity\", \"action\": {\"type\": \"invitation\", \"message\": \"[user] is online in [activity]! They haven't been online for a while. Want to join them?\"}}",
+    "parsed": {
+      "condition": "A known friend has been offline for a noticeable period and is now online and engaged in an activity",
+      "action": {
+        "type": "invitation",
+        "message": "[user] is online in [activity]! They haven't been online for a while. Want to join them?"
+      }
+    },
+    "elapsed_seconds": 56.919917821884155,
+    "success": true
+  },
+  {
+    "scenario_id": "SYS-01",
+    "domain": "System",
+    "raw_response": "{\"condition\": \"System memory usage is very high and a memory-intensive application that uses tabs is consuming a significant portion of the available memory\", \"action\": {\"type\": \"suggestion\", \"message\": \"Close unnecessary tabs in the memory-intensive application to free up system memory\"}}",
+    "parsed": {
+      "condition": "System memory usage is very high and a memory-intensive application that uses tabs is consuming a significant portion of the available memory",
+      "action": {
+        "type": "suggestion",
+        "message": "Close unnecessary tabs in the memory-intensive application to free up system memory"
+      }
+    },
+    "elapsed_seconds": 60.93392896652222,
+    "success": true
+  },
+  {
+    "scenario_id": "GAME-02",
+    "domain": "Gaming",
+    "raw_response": "{\"condition\": \"Player achieves a new high score in a game\", \"action\": {\"type\": \"congratulate\", \"message\": \"Great job on the new high score!\"}}",
+    "parsed": {
+      "condition": "Player achieves a new high score in a game",
+      "action": {
+        "type": "congratulate",
+        "message": "Great job on the new high score!"
+      }
+    },
+    "elapsed_seconds": 69.39284062385559,
+    "success": true
+  },
+  {
+    "scenario_id": "DEV-01",
+    "domain": "Development",
+    "raw_response": "{\"condition\": \"When a segmentation fault is reported at a specific line in a source file involving manual memory management operations\", \"action\": {\"type\": \"debug\", \"message\": \"Inspect pointer arithmetic and array indexing for buffer overflows or null pointer dereferences around the error location.\"}}",
+    "parsed": {
+      "condition": "When a segmentation fault is reported at a specific line in a source file involving manual memory management operations",
+      "action": {
+        "type": "debug",
+        "message": "Inspect pointer arithmetic and array indexing for buffer overflows or null pointer dereferences around the error location."
+      }
+    },
+    "elapsed_seconds": 53.009196758270264,
+    "success": true
+  },
+  {
+    "scenario_id": "HOME-02",
+    "domain": "Smart Home",
+    "raw_response": "{\"condition\": \"When an event is detected during a time outside the typical operational hours of a location that is normally unoccupied and secured, and the system is configured to ignore such occurrences.\", \"action\": {\"type\": \"no_response\", \"message\": \"Do not generate any alert or response.\"}}",
+    "parsed": {
+      "condition": "When an event is detected during a time outside the typical operational hours of a location that is normally unoccupied and secured, and the system is configured to ignore such occurrences.",
+      "action": {
+        "type": "no_response",
+        "message": "Do not generate any alert or response."
+      }
+    },
+    "elapsed_seconds": 64.24067211151123,
+    "success": true
+  }
+]

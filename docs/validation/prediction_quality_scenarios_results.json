@@ -1,0 +1,370 @@
+{
+  "test_name": "Prediction Quality Validation",
+  "model": "qwen3-vl:8b",
+  "total_scenarios": 8,
+  "passed": 7,
+  "failed": 1,
+  "pass_rate": 0.875,
+  "results": [
+    {
+      "scenario_id": "PRED-01",
+      "domain": "Gaming",
+      "rationale": "Strong player vs weak enemy = high success expected",
+      "inputs": {
+        "context": "Player health: 90%. Enemy: Level 2 skeleton. Player level: 10. Player has full armor and iron sword.",
+        "proposed_action": "Attack the skeleton"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.7,
+          "max": 0.99
+        },
+        "confidence": {
+          "min": 0.55,
+          "max": 0.95
+        }
+      },
+      "elapsed_seconds": 22.317475080490112,
+      "raw_response": "{\"success_probability\": 0.95, \"confidence\": 0.9, \"reasoning\": \"Player level 10 with full armor and iron sword is highly dominant over a level 2 skeleton. The level gap (8 points) ensures overwhelming damage output, and full armor negates the skeleton's minimal attack threat. Iron swords are typically effective against skeletons in such systems, making the attack almost certain to kill the enemy with one or two hits. Health at 90% is irrelevant here as the skeleton poses negligible risk.\"}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.95,
+        "confidence": 0.9,
+        "reasoning": "Player level 10 with full armor and iron sword is highly dominant over a level 2 skeleton. The level gap (8 points) ensures overwhelming damage output, and full armor negates the skeleton's minimal attack threat. Iron swords are typically effective against skeletons in such systems, making the attack almost certain to kill the enemy with one or two hits. Health at 90% is irrelevant here as the skeleton poses negligible risk."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.95,
+            "passed": true,
+            "reason": "0.95 in [0.70, 0.99]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.55, 0.95]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-02",
+      "domain": "Productivity",
+      "rationale": "User available and active = reminder likely useful",
+      "inputs": {
+        "context": "Meeting 'Team Sync' starts in 30 minutes. User is at desk, actively typing. Calendar shows user as Available.",
+        "proposed_action": "Send a reminder about the upcoming meeting"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.65,
+          "max": 0.95
+        },
+        "confidence": {
+          "min": 0.5,
+          "max": 0.9
+        }
+      },
+      "elapsed_seconds": 70.16583037376404,
+      "raw_response": "{\n  \"success_probability\": 0.9,\n  \"confidence\": 0.9,\n  \"reasoning\": \"The user is actively working at their desk, making it highly likely they will see and respond to the reminder. While the calendar shows 'Available' (indicating the user is typically free), this does not negate the need for a timely reminder for a scheduled meeting. Standard practices confirm that sending a reminder 30 minutes before a meeting significantly increases attendance likelihood, especially when the user is engaged in work. No major uncertainties exist\u2014system reliability is assumed normal, and the context confirms the meeting is valid. Thus, the action is both necessary and highly effective.\"\n}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.9,
+        "confidence": 0.9,
+        "reasoning": "The user is actively working at their desk, making it highly likely they will see and respond to the reminder. While the calendar shows 'Available' (indicating the user is typically free), this does not negate the need for a timely reminder for a scheduled meeting. Standard practices confirm that sending a reminder 30 minutes before a meeting significantly increases attendance likelihood, especially when the user is engaged in work. No major uncertainties exist\u2014system reliability is assumed normal, and the context confirms the meeting is valid. Thus, the action is both necessary and highly effective."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.65, 0.95]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.50, 0.90]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-03",
+      "domain": "Gaming",
+      "rationale": "Weak player vs boss = very low success, but confident in that prediction",
+      "inputs": {
+        "context": "Player health: 10%. Enemy: Level 50 Ender Dragon. Player level: 10. Player has leather armor and wooden sword.",
+        "proposed_action": "Attack the Ender Dragon"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.0,
+          "max": 0.25
+        },
+        "confidence": {
+          "min": 0.6,
+          "max": 0.95
+        }
+      },
+      "elapsed_seconds": 41.066437005996704,
+      "raw_response": "{\"success_probability\": 0.0, \"confidence\": 0.9, \"reasoning\": \"Player has only 10% health (1 heart, 2 health points), and the Ender Dragon's first attack does 10-15 damage, instantly killing the player. Leather armor and a wooden sword provide minimal protection against such damage, and the player's level (10) is far too low to contend with a level 50 boss. Without critical preparation (e.g., diamond armor, elytra, or healing items), survival is impossible. The action guarantees death.\"}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.0,
+        "confidence": 0.9,
+        "reasoning": "Player has only 10% health (1 heart, 2 health points), and the Ender Dragon's first attack does 10-15 damage, instantly killing the player. Leather armor and a wooden sword provide minimal protection against such damage, and the player's level (10) is far too low to contend with a level 50 boss. Without critical preparation (e.g., diamond armor, elytra, or healing items), survival is impossible. The action guarantees death."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.0,
+            "passed": true,
+            "reason": "0.00 in [0.00, 0.25]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.60, 0.95]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-04",
+      "domain": "Smart Home",
+      "rationale": "User explicitly rejected this type of notification = will fail",
+      "inputs": {
+        "context": "User said 'Stop notifying me about the temperature' 2 minutes ago. Current temperature: 72F.",
+        "proposed_action": "Notify user that temperature is 72F"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.0,
+          "max": 0.3
+        },
+        "confidence": {
+          "min": 0.65,
+          "max": 0.95
+        }
+      },
+      "elapsed_seconds": 7.807607412338257,
+      "raw_response": "{\"success_probability\": 0.0, \"confidence\": 0.9, \"reasoning\": \"User explicitly requested to stop temperature notifications 2 minutes ago. Sending a temperature notification directly violates this instruction. The action will be ignored or blocked by the system, making success probability 0.0. Situation is clear with no ambiguity.\"}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.0,
+        "confidence": 0.9,
+        "reasoning": "User explicitly requested to stop temperature notifications 2 minutes ago. Sending a temperature notification directly violates this instruction. The action will be ignored or blocked by the system, making success probability 0.0. Situation is clear with no ambiguity."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.0,
+            "passed": true,
+            "reason": "0.00 in [0.00, 0.30]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.65, 0.95]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-05",
+      "domain": "Gaming",
+      "rationale": "Unknown enemy = uncertain outcome AND low confidence",
+      "inputs": {
+        "context": "Player health: 50%. Enemy: Unknown creature (never seen before). Player level: 10.",
+        "proposed_action": "Attack the unknown creature"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.25,
+          "max": 0.75
+        },
+        "confidence": {
+          "min": 0.15,
+          "max": 0.5
+        }
+      },
+      "elapsed_seconds": 97.13287878036499,
+      "raw_response": "{\n  \"success_probability\": 0.3,\n  \"confidence\": 0.3,\n  \"reasoning\": \"The player has 50% health, which suggests the enemy is strong or dangerous, increasing the risk of the attack failing. Given the enemy is 'never seen before,' there is significant uncertainty about its weaknesses, strengths, or potential immunities. Without specific information on the enemy, the attack's effectiveness is low\u2014estimating a 30% chance of success is conservative, as it accounts for the player's low health (indicating a challenging encounter) and the lack of prior knowledge about the enemy. Confidence is low (0.3) because the situation is highly uncertain; the player's status alone cannot fully predict the outcome, and the enemy's unknown nature introduces substantial variability.\"\n}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.3,
+        "confidence": 0.3,
+        "reasoning": "The player has 50% health, which suggests the enemy is strong or dangerous, increasing the risk of the attack failing. Given the enemy is 'never seen before,' there is significant uncertainty about its weaknesses, strengths, or potential immunities. Without specific information on the enemy, the attack's effectiveness is low\u2014estimating a 30% chance of success is conservative, as it accounts for the player's low health (indicating a challenging encounter) and the lack of prior knowledge about the enemy. Confidence is low (0.3) because the situation is highly uncertain; the player's status alone cannot fully predict the outcome, and the enemy's unknown nature introduces substantial variability."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.3,
+            "passed": true,
+            "reason": "0.30 in [0.25, 0.75]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.3,
+            "passed": true,
+            "reason": "0.30 in [0.15, 0.50]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-06",
+      "domain": "Productivity",
+      "rationale": "User might be back or might miss it = medium uncertainty",
+      "inputs": {
+        "context": "User status: Away for 15 minutes. Meeting in 20 minutes. No information about user location.",
+        "proposed_action": "Send meeting reminder to user's phone"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.3,
+          "max": 0.75
+        },
+        "confidence": {
+          "min": 0.25,
+          "max": 0.6
+        }
+      },
+      "elapsed_seconds": 60.49024415016174,
+      "raw_response": "{\"success_probability\": 0.9, \"confidence\": 0.9, \"reasoning\": \"The user is away for 15 minutes but the meeting is in 20 minutes, meaning they will be back 5 minutes before the meeting. Sending the reminder now ensures it arrives on time for them to see upon returning (as mobile notifications persist even when away). No location data contradicts this, and standard phone notification systems reliably deliver such reminders. The outcome is clear: the reminder will achieve its goal.\"}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.9,
+        "confidence": 0.9,
+        "reasoning": "The user is away for 15 minutes but the meeting is in 20 minutes, meaning they will be back 5 minutes before the meeting. Sending the reminder now ensures it arrives on time for them to see upon returning (as mobile notifications persist even when away). No location data contradicts this, and standard phone notification systems reliably deliver such reminders. The outcome is clear: the reminder will achieve its goal."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.9,
+            "passed": false,
+            "reason": "0.90 > 0.75 (too high)"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": false,
+            "reason": "0.90 > 0.60 (too high)"
+          }
+        ],
+        "all_passed": false
+      },
+      "passed": false
+    },
+    {
+      "scenario_id": "PRED-07",
+      "domain": "Productivity",
+      "rationale": "Strong pattern exists but new venue adds some uncertainty",
+      "inputs": {
+        "context": "Historical data: Previous 5 meetings in downtown Minneapolis all required exactly 30 minutes commute. New meeting scheduled in downtown Minneapolis at a venue user has never visited.",
+        "proposed_action": "Suggest user leave 30 minutes before the meeting"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.6,
+          "max": 0.9
+        },
+        "confidence": {
+          "min": 0.45,
+          "max": 0.8
+        }
+      },
+      "elapsed_seconds": 20.767733573913574,
+      "raw_response": "{\"success_probability\": 0.9, \"confidence\": 0.8, \"reasoning\": \"Historical data shows consistent 30-minute commutes for downtown Minneapolis meetings, suggesting reliable transit time. While the new venue is unvisited, it remains within the same general area, making 30 minutes highly probable. The proposed action aligns with prior patterns, reducing risk of tardiness. Confidence is high due to clear data but slightly moderated by the novelty of the venue.\"}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.9,
+        "confidence": 0.8,
+        "reasoning": "Historical data shows consistent 30-minute commutes for downtown Minneapolis meetings, suggesting reliable transit time. While the new venue is unvisited, it remains within the same general area, making 30 minutes highly probable. The proposed action aligns with prior patterns, reducing risk of tardiness. Confidence is high due to clear data but slightly moderated by the novelty of the venue."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.60, 0.90]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.8,
+            "passed": true,
+            "reason": "0.80 in [0.45, 0.80]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    },
+    {
+      "scenario_id": "PRED-08",
+      "domain": "Social",
+      "rationale": "Strong friendship pattern + user in game = notification likely welcome",
+      "inputs": {
+        "context": "Friend 'Steve' just came online in Minecraft. User and Steve have played together 20 times in the past month. User is currently in Minecraft main menu.",
+        "proposed_action": "Notify user that Steve is online"
+      },
+      "expected": {
+        "success_probability": {
+          "min": 0.7,
+          "max": 0.95
+        },
+        "confidence": {
+          "min": 0.6,
+          "max": 0.9
+        }
+      },
+      "elapsed_seconds": 76.0689446926117,
+      "raw_response": "{\n  \"success_probability\": 0.95,\n  \"confidence\": 0.9,\n  \"reasoning\": \"In Minecraft Bedrock Edition (the standard for cross-platform multiplayer experiences), a notification appears in the main menu when a friend comes online. Given the context\u2014user in the main menu, Steve as a friend who just joined\u2014it is highly likely that the notification will be displayed. This is a standard feature supported by the game's multiplayer system, and the frequency of play (20 sessions in the past month) confirms the user is engaged in cross-platform play, which Bedrock Edition handles reliably. Edge cases (e.g., notification settings disabled) are unlikely without explicit context, so the probability of successful notification is very high.\"\n}",
+      "parse_success": true,
+      "parsed": {
+        "success_probability": 0.95,
+        "confidence": 0.9,
+        "reasoning": "In Minecraft Bedrock Edition (the standard for cross-platform multiplayer experiences), a notification appears in the main menu when a friend comes online. Given the context\u2014user in the main menu, Steve as a friend who just joined\u2014it is highly likely that the notification will be displayed. This is a standard feature supported by the game's multiplayer system, and the frequency of play (20 sessions in the past month) confirms the user is engaged in cross-platform play, which Bedrock Edition handles reliably. Edge cases (e.g., notification settings disabled) are unlikely without explicit context, so the probability of successful notification is very high."
+      },
+      "evaluation": {
+        "fields_checked": [
+          {
+            "field": "success_probability",
+            "value": 0.95,
+            "passed": true,
+            "reason": "0.95 in [0.70, 0.95]"
+          },
+          {
+            "field": "confidence",
+            "value": 0.9,
+            "passed": true,
+            "reason": "0.90 in [0.60, 0.90]"
+          }
+        ],
+        "all_passed": true
+      },
+      "passed": true
+    }
+  ]
+}

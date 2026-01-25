@@ -174,7 +174,7 @@ def cmd_clean_test(args: argparse.Namespace) -> int:
     container = CONTAINERS["db"]
     result = subprocess.run(
         ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys",
-         "-c", "DELETE FROM heuristics WHERE name LIKE 'Test:%';"],
+         "-c", "TRUNCATE heuristics CASCADE;"],
         capture_output=True,
         text=True,
     )
