@@ -129,13 +129,13 @@ def start_service(name: str, wait: bool = True) -> bool:
     # Start the process
     try:
         if is_windows():
-            # Windows: use CREATE_NEW_PROCESS_GROUP to detach
+            # Windows: use CREATE_NO_WINDOW to prevent console popup
             proc = subprocess.Popen(
                 svc["cmd"],
                 cwd=svc["cwd"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
             )
         else:
             # Unix: use nohup-style detach
