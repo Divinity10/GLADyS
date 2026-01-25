@@ -2,7 +2,7 @@
 
 This file tracks active architectural discussions that haven't yet crystallized into ADRs. It's shared between collaborators.
 
-**Last updated**: 2026-01-24 (§26 Gemini review action items tracked)
+**Last updated**: 2026-01-24 (§27 prediction baseline strategy)
 
 ---
 
@@ -33,10 +33,11 @@ This file tracks active architectural discussions that haven't yet crystallized 
 | §20 | TD Learning for Heuristics | 🟡 Open | Confidence updates designed in §22; feedback endpoint needed |
 | §21 | Heuristic Storage Model | ✅ Resolved | Transaction log pattern for modifications |
 | §22 | Heuristic Data Structure | ✅ Resolved | CBR + fuzzy matching + heuristic formation |
-| §23 | Heuristic Learning Infrastructure | 🟡 Open | Credit assignment + tuning mode (deferred) |
+| §23 | Heuristic Learning Infrastructure | 🟡 Partial | Credit assignment UX designed; tuning mode deferred |
 | §24 | Semantic Memory Architecture | ✅ Resolved | PostgreSQL, LLM plans, context retrieval |
 | §25 | Skill Architecture Design | 🟡 Design captured | Post-PoC: managed clients, skill autonomy |
 | §26 | Gemini Review Action Items | 🟡 Tracked | gRPC errors, stub docs, tsquery |
+| §27 | Prediction Baseline Strategy | 🟢 Designed | Hybrid interpolation + extrapolation for TD learning |
 
 **Legend**: ✅ Resolved | 🟡 Partially resolved / Open | 🔴 Critical gap | ⚠️ May be stale
 
@@ -1544,34 +1545,151 @@ Post-PoC expansion:
 
 ---
 
-## 23. Heuristic Learning Infrastructure (Deferred to Post-PoC)
+## 23. Heuristic Learning Infrastructure (Partially Designed)
 
-**Status**: Open - deferred until prerequisites met
+**Status**: Partial - credit assignment UX designed; implementation deferred
 **Priority**: Medium (needed for real learning, not PoC)
 **Created**: 2026-01-23
+**Updated**: 2026-01-24 - Credit assignment UX design agreed
 
 ### Context
 
 These items are required for production-quality heuristic learning but are deferred until the basic feedback loop is working end-to-end. The `feedback_events` table exists but nothing writes to it yet.
 
-### 23.1 Credit Assignment (Feedback Time Window)
+### 23.1 Credit Assignment UX Design ✅
 
-**Problem**: When a user says "that was helpful", which heuristic gets credit? The most recent? All heuristics fired in the last N seconds?
+**Problem**: When a user says "that was helpful", which heuristic gets credit? And when should GLADyS ask for clarification?
 
-**Current state**: No feedback endpoint exists. The feedback → heuristic correlation isn't implemented.
+**Design Decision: Silent Learning by Default**
 
-**Design sketch**:
+The key insight: **implicit feedback > explicit feedback**. User actions (undo, override, follow-through) are more reliable signals than verbal feedback like "that was helpful."
+
+#### Core Principles
+
+| Principle | Rationale |
+|-----------|-----------|
+| **Log, don't ask** | Interrupting workflow is worse than imperfect attribution |
+| **Implicit > Explicit** | User actions are more reliable than verbal feedback |
+| **Wait for patterns** | Single ambiguous feedback isn't worth clarifying |
+| **Ask specific questions** | "Which?" not "Was that helpful?" |
+
+#### When to Ask vs Stay Silent
+
+**Stay Silent (Default)**:
+- Ambiguous feedback (could apply to multiple recent actions)
+- Low-stakes situations (no harm from wrong attribution)
+- Single occurrence (no pattern yet)
+
+**Ask Only When ALL THREE**:
+1. **High stakes**: Wrong attribution would cause significant harm or annoyance
+2. **Pattern emerging**: Same ambiguity has occurred 2-3 times
+3. **Specific question**: Can ask "Did you mean X or Y?" not "Was that helpful?"
+
+#### Attribution Confidence Model
+
+When feedback arrives, compute attribution confidence based on:
+
 ```python
-# Config settings (now in config.py pattern)
-FEEDBACK_TIME_WINDOW_SECONDS = 60  # How far back to look for heuristics
-DEV_MODE = False  # Enable verbose logging of credit assignment
+def compute_attribution_confidence(feedback_event, candidate_heuristics):
+    """
+    Score each candidate heuristic for attribution.
+    Higher score = more confident this heuristic should get credit.
+    """
+    scores = {}
+    for h in candidate_heuristics:
+        score = 0.0
 
-# On feedback:
-1. Find all heuristic fires in last FEEDBACK_TIME_WINDOW_SECONDS
-2. Weight by recency: newer = more credit
-3. Update confidence for each weighted by credit share
-4. If DEV_MODE: log full attribution breakdown
+        # Temporal proximity (newer = more likely target)
+        time_gap = feedback_event.timestamp - h.fire_timestamp
+        score += temporal_weight(time_gap)  # Decays with time
+
+        # Semantic similarity (feedback text matches heuristic domain)
+        if feedback_event.text:
+            score += semantic_similarity(feedback_event.text, h.condition_text)
+
+        # Historical patterns (user typically means X when saying Y)
+        score += historical_correlation(feedback_event.source, h.id)
+
+        # Penalize if many alternatives (more ambiguous)
+        score -= ambiguity_penalty(len(candidate_heuristics))
+
+        scores[h.id] = score
+
+    return scores
+
+# Response tiers based on confidence gap
+top_score = max(scores.values())
+second_score = sorted(scores.values())[-2] if len(scores) > 1 else 0
+gap = top_score - second_score
+
+if gap > 0.5:  # Clear winner
+    apply_full_credit(top_heuristic)
+elif gap > 0.2:  # Likely winner
+    apply_partial_credit(top_heuristic, weight=0.7)
+    log_uncertainty(candidate_heuristics)
+else:  # Ambiguous
+    log_for_pattern_analysis(feedback_event, candidate_heuristics)
+    # Don't update any heuristic confidence yet
 ```
+
+#### Early Relationship Period
+
+**First 2 weeks**: Slightly lower threshold for asking questions.
+
+**Rationale**: During initial learning period, GLADyS is establishing patterns and the user expects some calibration. Asking a few clarifying questions early is less disruptive than asking later when the user expects GLADyS to "know" them.
+
+**Implementation**: `ASK_THRESHOLD` config value starts at 0.7, increases to 0.85 after 2 weeks.
+
+#### Feedback Types and Trust Levels
+
+| Feedback Type | Trust Level | Notes |
+|---------------|-------------|-------|
+| Explicit thumbs up/down | Medium | User may not remember exactly what they're rating |
+| Undo/override action | High | Clear rejection of GLADyS decision |
+| Follow-through | High | User did what GLADyS suggested |
+| Verbal "thanks" | Low | Politeness, not endorsement |
+| Verbal correction | High | "No, I meant..." is clear signal |
+| Silence after action | Medium | No news is often good news |
+
+#### Example Scenarios
+
+**Scenario 1: Clear Attribution**
+```
+GLADyS: "Steve is online in Minecraft"
+User: "Thanks, that's helpful"
+→ Only one recent action → Full credit to "friend status check" heuristic
+```
+
+**Scenario 2: Ambiguous, Stay Silent**
+```
+GLADyS: "Temperature is 78°F" (2 min ago)
+GLADyS: "You have a meeting in 30 min" (30 sec ago)
+User: "Good to know"
+→ Two candidates, feedback is generic
+→ Log both candidates, don't update either confidence
+→ Wait for pattern
+```
+
+**Scenario 3: Pattern Emerges, Ask**
+```
+Same ambiguity has occurred 3 times now
+GLADyS: "When you say 'good to know', do you usually mean the
+         weather info or the calendar reminder was helpful?"
+→ User answer disambiguates all 3 past occurrences
+→ Update heuristics based on answer
+→ Remember this pattern for future
+```
+
+**Scenario 4: High Stakes, Ask Immediately**
+```
+GLADyS: "Unlocking front door" (heuristic fired)
+User: "No!"
+→ Security-critical action + clear rejection
+→ Immediately ask: "Should I keep the door locked when [condition]?"
+→ Don't wait for pattern - stakes too high
+```
+
+### 23.2 Credit Assignment Implementation (Deferred)
 
 **Prerequisites**:
 - `ProvideFeedback` RPC endpoint (implemented ✅)
@@ -1582,6 +1700,8 @@ DEV_MODE = False  # Enable verbose logging of credit assignment
 **Config settings to add**:
 - `FEEDBACK_TIME_WINDOW_SECONDS`: How far back to attribute credit (default: 60)
 - `FEEDBACK_RECENCY_DECAY`: Exponential decay factor for older events (default: 0.5)
+- `ASK_THRESHOLD`: Confidence gap required to ask (starts 0.7, increases to 0.85)
+- `EARLY_PERIOD_DAYS`: How long the "early relationship" period lasts (default: 14)
 - `DEV_MODE`: Enable verbose logging of all attribution decisions
 
 ### 23.2 Tuning Mode (Near-Miss Logging)
@@ -1989,6 +2109,142 @@ WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warni
 ### Notes
 
 The review correctly identified that the import path hacks (`sys.path.insert`) in test files are fragile. This should be addressed when setting up proper Python packaging (post-PoC).
+
+---
+
+## 27. Prediction Baseline Strategy for TD Learning
+
+**Status**: Designed (PoC: Instrument only; Post-PoC: Implement learning)
+**Priority**: Medium
+**Created**: 2026-01-24
+
+### Context
+
+TD (Temporal Difference) learning requires computing prediction error:
+```
+error = actual_outcome - predicted_outcome
+```
+
+The question: **What is the prediction baseline?**
+
+Two approaches were considered:
+1. **Gemini's suggestion**: Use the heuristic's historical confidence (interpolation)
+2. **User insight**: Real learning requires extrapolation - predicting outcomes for novel situations based on similar past experiences
+
+### Decision: Hybrid Baseline (Interpolation + Extrapolation)
+
+Use a hierarchical fallback strategy that combines both approaches:
+
+```python
+def get_prediction_baseline(event_embedding, triggered_heuristic_id=None):
+    """
+    Hierarchy: direct → similar heuristics → similar episodes → prior
+    Returns a baseline probability for TD learning.
+    """
+    # 1. Direct: This specific heuristic has enough history
+    if triggered_heuristic_id:
+        h = get_heuristic(triggered_heuristic_id)
+        if h.fire_count >= 3:  # Enough data to trust
+            return h.confidence
+
+    # 2. Similar heuristics: CBR on condition embeddings (extrapolation)
+    # "I've never faced this exact situation, but similar heuristics work X% of the time"
+    similar_h = query_similar_heuristics(event_embedding, threshold=0.7)
+    if similar_h:
+        return weighted_avg(
+            [h.confidence for h in similar_h],
+            weights=[h.fire_count for h in similar_h]  # More data = more weight
+        )
+
+    # 3. Similar episodes: Past situations with known outcomes (deeper extrapolation)
+    # "I beat Level 5 skeletons, this Level 5 zombie should be similar"
+    similar_episodes = query_similar_episodes(
+        event_embedding,
+        has_outcome=True,
+        threshold=0.7
+    )
+    if similar_episodes:
+        return success_rate(similar_episodes)
+
+    # 4. Prior: No relevant experience - use uninformative prior
+    return 0.5
+```
+
+### Why This Ordering
+
+| Level | Source | Example | Trust Level |
+|-------|--------|---------|-------------|
+| 1 | Direct heuristic | "This exact pattern worked 80% of the time" | Highest |
+| 2 | Similar heuristics | "Similar warnings work ~70% of the time" | High |
+| 3 | Similar episodes | "I've won against similar monsters" | Medium |
+| 4 | Prior | "I have no relevant experience" | Lowest |
+
+### Extrapolation Examples
+
+**Gaming (novel enemy)**:
+- Past: Won against Level 5 skeleton, Level 6 zombie
+- Current: Level 5 zombie (never seen)
+- Extrapolation: Similar combat situations → ~70% success
+
+**Productivity (novel location)**:
+- Past: Minneapolis meetings took 30 min commute (5 times)
+- Current: New Minneapolis venue (never been)
+- Extrapolation: Minneapolis meetings → need 30 min
+
+### PoC Scope: Instrument Only
+
+Following Gemini's "Instrument Now, Analyze Later" recommendation:
+
+**PoC Implementation**:
+1. Add `prediction` and `prediction_confidence` fields to reasoning output
+2. Log outcomes (undo detection, explicit feedback, game state)
+3. **Do NOT implement TD learning** - just collect data for analysis
+
+**Post-PoC Implementation**:
+1. Implement the hybrid baseline function above
+2. Compute TD error: `actual - baseline`
+3. Update heuristic confidence accordingly
+4. Analyze collected data to validate calibration
+
+### Schema Changes (PoC)
+
+Add to episodic events for outcome tracking:
+```sql
+ALTER TABLE episodic_events ADD COLUMN outcome_type VARCHAR(50);
+-- Values: 'success', 'failure', 'undo', 'override', NULL (unknown)
+
+ALTER TABLE episodic_events ADD COLUMN outcome_source VARCHAR(100);
+-- Values: 'user_feedback', 'game_state', 'undo_detection', etc.
+```
+
+Add to heuristic fire log (new table or extend existing):
+```sql
+CREATE TABLE heuristic_fires (
+    id UUID PRIMARY KEY,
+    heuristic_id UUID REFERENCES heuristics(id),
+    event_id UUID REFERENCES episodic_events(id),
+    fired_at TIMESTAMPTZ NOT NULL,
+    llm_prediction FLOAT,           -- What LLM predicted (0-1)
+    llm_confidence FLOAT,           -- LLM's confidence in prediction
+    baseline_prediction FLOAT,      -- System 1 baseline (from hierarchy)
+    actual_outcome FLOAT,           -- Observed outcome (NULL until known)
+    outcome_source VARCHAR(100)
+);
+```
+
+### Relationship to Other Sections
+
+- **§20 TD Learning**: This section defines HOW to compute the baseline
+- **§22 Heuristic Data Structure**: CBR matching provides similar heuristics
+- **§23 Credit Assignment**: Determines WHICH heuristic gets the outcome signal
+- **§24 Semantic Memory**: Episode similarity search enables extrapolation
+
+### Open Questions (Post-PoC)
+
+1. **Threshold tuning**: What similarity threshold (0.7?) for extrapolation?
+2. **Recency weighting**: Should recent similar experiences count more?
+3. **Cross-domain transfer**: Can gaming heuristics inform productivity predictions?
+4. **Calibration analysis**: Is the LLM's confidence actually predictive?
 
 ---
 
