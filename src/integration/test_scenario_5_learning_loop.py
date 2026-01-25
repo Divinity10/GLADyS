@@ -192,7 +192,7 @@ class LearningLoopTest:
         print("  Cleaning up test data via run.py...")
         try:
             # Truncate DB
-            cmd = [sys.executable, str(PROJECT_ROOT / "src" / "integration" / "run.py"), "clean-test"]
+            cmd = [sys.executable, str(PROJECT_ROOT / "src" / "integration" / "run.py"), "clean", "heuristics"]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
                 print(f"    [OK] DB Cleanup successful: {result.stdout.strip()}")
@@ -208,8 +208,7 @@ class LearningLoopTest:
             else:
                  print(f"    [Warn] Rust restart failed: {result_restart.stderr}")
 
-            # Reconnect channel (it might have closed/broken)
-            # Actually grpc channels handle reconnection, but we might want to wait a bit.
+            # gRPC channels handle reconnection automatically, brief wait for service health
             await asyncio.sleep(2)
             
         except Exception as e:
@@ -297,7 +296,7 @@ class LearningLoopTest:
             memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=True,
-                learning_rate=0.3 # Boost by 0.3 -> 0.6
+                learning_rate=0.3  # Boost by 0.3 -> 0.6
             )
         )
         
@@ -376,7 +375,7 @@ class LearningLoopTest:
             memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=False,
-                learning_rate=0.2 # Drop 0.6 -> 0.4
+                learning_rate=0.2  # Drop 0.6 -> 0.4
             )
         )
         
