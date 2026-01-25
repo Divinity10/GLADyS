@@ -418,20 +418,30 @@ class MemoryStorage:
         heuristic_id: UUID,
         positive: bool,
         learning_rate: Optional[float] = None,
-    ) -> tuple[float, float, float]:
+        predicted_success: Optional[float] = None,
+    ) -> tuple[float, float, float, Optional[float]]:
         """
         Update heuristic confidence based on feedback (TD learning).
 
-        Uses formula: new_confidence = clamp(old_confidence + learning_rate * delta, 0, 1)
-        where delta = +1.0 for positive feedback, -1.0 for negative feedback.
+        Two modes:
+        1. TD Learning (when predicted_success is provided):
+           td_error = actual_outcome - predicted_success
+           change = learning_rate * td_error
+           This enables "learn more from surprises" - unexpected outcomes have bigger impact.
+
+        2. Simple mode (fallback when no prediction):
+           delta = +1.0 for positive, -1.0 for negative
+           change = learning_rate * delta
 
         Args:
             heuristic_id: UUID of the heuristic to update
-            positive: True for positive feedback, False for negative
-            learning_rate: Optional override (default uses heuristic's stored rate, or 0.1)
+            positive: True for positive feedback (actual=1.0), False for negative (actual=0.0)
+            learning_rate: Optional override (default 0.1)
+            predicted_success: Optional LLM prediction at event time (0.0-1.0)
 
         Returns:
-            Tuple of (old_confidence, new_confidence, delta)
+            Tuple of (old_confidence, new_confidence, delta, td_error)
+            td_error is None when simple mode was used
 
         Raises:
             RuntimeError: If not connected to database
@@ -455,12 +465,23 @@ class MemoryStorage:
 
         old_confidence = float(row["confidence"])
         # Default learning rate is 0.1 (10% adjustment per feedback)
-        # In future, this could be stored per-heuristic in the database
         lr = learning_rate if learning_rate is not None else 0.1
 
-        # TD learning: delta is +1 for positive, -1 for negative
-        delta = 1.0 if positive else -1.0
-        change = lr * delta
+        # Actual outcome: 1.0 for positive feedback, 0.0 for negative
+        actual_outcome = 1.0 if positive else 0.0
+        td_error: Optional[float] = None
+
+        if predicted_success is not None:
+            # TD Learning mode: learn from prediction error
+            # If we predicted 0.9 and got 1.0 → error = 0.1 → small positive update
+            # If we predicted 0.1 and got 1.0 → error = 0.9 → big positive update (surprise!)
+            # If we predicted 0.9 and got 0.0 → error = -0.9 → big negative update (surprise!)
+            td_error = actual_outcome - predicted_success
+            change = lr * td_error
+        else:
+            # Simple mode: fixed +1/-1 delta
+            delta = 1.0 if positive else -1.0
+            change = lr * delta
 
         # Clamp to [0, 1]
         new_confidence = max(0.0, min(1.0, old_confidence + change))
@@ -479,7 +500,7 @@ class MemoryStorage:
             positive,
         )
 
-        return (old_confidence, new_confidence, change)
+        return (old_confidence, new_confidence, change, td_error)
 
     # =========================================================================
     # Entity Operations (Semantic Memory)

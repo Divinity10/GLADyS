@@ -328,36 +328,58 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
     async def UpdateHeuristicConfidence(self, request, context):
         """Update heuristic confidence based on feedback (TD learning).
 
-        Implements the TD learning formula:
-        new_confidence = clamp(old_confidence + learning_rate * delta, 0, 1)
+        Two modes:
+        1. TD Learning (when predicted_success is provided):
+           td_error = actual_outcome - predicted_success
+           Enables "learn more from surprises"
 
-        where delta = +1.0 for positive feedback, -1.0 for negative.
+        2. Simple mode (fallback):
+           delta = +1.0 for positive, -1.0 for negative
         """
         try:
             heuristic_id = request.heuristic_id
             if not heuristic_id:
                 await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No heuristic_id provided")
 
-            # Use provided learning_rate or None to use heuristic's stored rate
+            # Use provided learning_rate or None to use default
             learning_rate = request.learning_rate if request.learning_rate > 0 else None
 
-            old_conf, new_conf, delta = await self.storage.update_heuristic_confidence(
+            # Check for TD learning mode (predicted_success provided)
+            # In proto3, scalar fields always have a value (default 0.0).
+            # We treat any non-zero value as intentionally set.
+            # Note: This means we can't distinguish "not set" from "set to 0.0",
+            # but a prediction of exactly 0.0 is rare (use 0.001 if needed).
+            predicted_success = None
+            if request.predicted_success != 0.0:
+                predicted_success = request.predicted_success
+
+            old_conf, new_conf, delta, td_error = await self.storage.update_heuristic_confidence(
                 heuristic_id=UUID(heuristic_id),
                 positive=request.positive,
                 learning_rate=learning_rate,
+                predicted_success=predicted_success,
             )
 
-            logger.info(
-                f"TD_LEARNING: heuristic={heuristic_id}, "
-                f"positive={request.positive}, "
-                f"old={old_conf:.3f}, new={new_conf:.3f}, delta={delta:.3f}"
-            )
+            # Log appropriately based on mode
+            if td_error is not None:
+                logger.info(
+                    f"TD_LEARNING: heuristic={heuristic_id}, "
+                    f"positive={request.positive}, predicted={predicted_success:.3f}, "
+                    f"td_error={td_error:.3f}, old={old_conf:.3f}, new={new_conf:.3f}"
+                )
+            else:
+                logger.info(
+                    f"TD_LEARNING (simple): heuristic={heuristic_id}, "
+                    f"positive={request.positive}, "
+                    f"old={old_conf:.3f}, new={new_conf:.3f}, delta={delta:.3f}"
+                )
 
             return memory_pb2.UpdateHeuristicConfidenceResponse(
                 success=True,
                 old_confidence=old_conf,
                 new_confidence=new_conf,
                 delta=delta,
+                td_error=td_error if td_error is not None else 0.0,
             )
         except ValueError as e:
             # Heuristic not found

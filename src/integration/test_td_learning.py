@@ -2,9 +2,12 @@
 """Test TD learning: confidence updates based on feedback.
 
 This test proves that:
-1. Positive feedback increases heuristic confidence
-2. Negative feedback decreases heuristic confidence
+1. Positive feedback increases heuristic confidence (simple mode)
+2. Negative feedback decreases heuristic confidence (simple mode)
 3. Confidence is clamped to [0, 1]
+4. TD learning with prediction error works (learn more from surprises)
+5. Correct predictions result in small updates
+6. Wrong predictions result in large updates
 
 Usage:
     # Terminal 1 - Start Python Memory service:
@@ -196,11 +199,145 @@ async def run_test():
         return False
     print(f"  [OK] Confidence clamped at upper bound (1.0)")
 
+    # =========================================================================
+    # TD Learning with Prediction Error (new tests)
+    # =========================================================================
+
+    # Create a fresh heuristic for TD tests
+    print("\n--- Step 6: Create heuristic for TD learning tests ---")
+    td_heuristic_id = str(uuid.uuid4())
+    initial_confidence = 0.5
+
+    td_heuristic = memory_pb2.Heuristic(
+        id=td_heuristic_id,
+        name="TD Prediction Test Heuristic",
+        condition_text="test td prediction error",
+        effects_json='{"action": "td_test"}',
+        confidence=initial_confidence,
+        origin="test",
+    )
+
+    request = memory_pb2.StoreHeuristicRequest(
+        heuristic=td_heuristic,
+        generate_embedding=True,
+    )
+    response = await storage_stub.StoreHeuristic(request)
+    if not response.success:
+        print(f"ERROR: Failed to store TD heuristic: {response.error}")
+        return False
+    print(f"  Created heuristic: {td_heuristic_id}")
+    print(f"  Initial confidence: {initial_confidence}")
+
+    # Step 7: Test TD learning - correct prediction (small update)
+    print("\n--- Step 7: TD Learning - Correct prediction (small update) ---")
+    # We predicted 0.9 success, and it succeeded (actual=1.0)
+    # td_error = 1.0 - 0.9 = 0.1 → small positive update
+    td_correct_response = await storage_stub.UpdateHeuristicConfidence(
+        memory_pb2.UpdateHeuristicConfidenceRequest(
+            heuristic_id=td_heuristic_id,
+            positive=True,  # actual = 1.0 (success)
+            learning_rate=0.5,  # Use larger rate to make effect visible
+            predicted_success=0.9,  # We predicted 90% success
+        )
+    )
+
+    if not td_correct_response.success:
+        print(f"ERROR: TD correct prediction failed: {td_correct_response.error}")
+        return False
+
+    print(f"  Prediction: 0.9, Actual: 1.0 (success)")
+    print(f"  TD error: {td_correct_response.td_error:.3f}")
+    print(f"  Old confidence: {td_correct_response.old_confidence:.3f}")
+    print(f"  New confidence: {td_correct_response.new_confidence:.3f}")
+    print(f"  Delta: {td_correct_response.delta:+.3f}")
+
+    # td_error should be 0.1, delta should be 0.5 * 0.1 = 0.05
+    expected_td_error = 1.0 - 0.9  # 0.1
+    expected_delta = 0.5 * expected_td_error  # 0.05
+    if abs(td_correct_response.td_error - expected_td_error) > 0.001:
+        print(f"ERROR: Expected td_error {expected_td_error:.3f}, got {td_correct_response.td_error:.3f}")
+        return False
+    if abs(td_correct_response.delta - expected_delta) > 0.001:
+        print(f"ERROR: Expected delta {expected_delta:.3f}, got {td_correct_response.delta:.3f}")
+        return False
+    print("  [OK] Correct prediction resulted in small positive update")
+
+    # Step 8: Test TD learning - wrong prediction (large update)
+    print("\n--- Step 8: TD Learning - Surprising success (large update) ---")
+    # We predicted 0.1 success (pessimistic), but it succeeded (actual=1.0)
+    # td_error = 1.0 - 0.1 = 0.9 → large positive update (surprise!)
+    td_surprise_response = await storage_stub.UpdateHeuristicConfidence(
+        memory_pb2.UpdateHeuristicConfidenceRequest(
+            heuristic_id=td_heuristic_id,
+            positive=True,  # actual = 1.0 (success)
+            learning_rate=0.5,
+            predicted_success=0.1,  # We predicted only 10% success
+        )
+    )
+
+    if not td_surprise_response.success:
+        print(f"ERROR: TD surprise success failed: {td_surprise_response.error}")
+        return False
+
+    print(f"  Prediction: 0.1, Actual: 1.0 (success)")
+    print(f"  TD error: {td_surprise_response.td_error:.3f}")
+    print(f"  Old confidence: {td_surprise_response.old_confidence:.3f}")
+    print(f"  New confidence: {td_surprise_response.new_confidence:.3f}")
+    print(f"  Delta: {td_surprise_response.delta:+.3f}")
+
+    # td_error should be 0.9, delta should be 0.5 * 0.9 = 0.45
+    expected_td_error = 1.0 - 0.1  # 0.9
+    expected_delta = 0.5 * expected_td_error  # 0.45
+    if abs(td_surprise_response.td_error - expected_td_error) > 0.001:
+        print(f"ERROR: Expected td_error {expected_td_error:.3f}, got {td_surprise_response.td_error:.3f}")
+        return False
+    if abs(td_surprise_response.delta - expected_delta) > 0.001:
+        print(f"ERROR: Expected delta {expected_delta:.3f}, got {td_surprise_response.delta:.3f}")
+        return False
+    print("  [OK] Surprising success resulted in large positive update")
+
+    # Step 9: Test TD learning - surprising failure (large negative update)
+    print("\n--- Step 9: TD Learning - Surprising failure (large negative update) ---")
+    # We predicted 0.9 success (optimistic), but it failed (actual=0.0)
+    # td_error = 0.0 - 0.9 = -0.9 → large negative update (surprise!)
+    td_failure_response = await storage_stub.UpdateHeuristicConfidence(
+        memory_pb2.UpdateHeuristicConfidenceRequest(
+            heuristic_id=td_heuristic_id,
+            positive=False,  # actual = 0.0 (failure)
+            learning_rate=0.5,
+            predicted_success=0.9,  # We predicted 90% success
+        )
+    )
+
+    if not td_failure_response.success:
+        print(f"ERROR: TD surprise failure failed: {td_failure_response.error}")
+        return False
+
+    print(f"  Prediction: 0.9, Actual: 0.0 (failure)")
+    print(f"  TD error: {td_failure_response.td_error:.3f}")
+    print(f"  Old confidence: {td_failure_response.old_confidence:.3f}")
+    print(f"  New confidence: {td_failure_response.new_confidence:.3f}")
+    print(f"  Delta: {td_failure_response.delta:+.3f}")
+
+    # td_error should be -0.9, delta should be 0.5 * -0.9 = -0.45
+    expected_td_error = 0.0 - 0.9  # -0.9
+    expected_delta = 0.5 * expected_td_error  # -0.45
+    if abs(td_failure_response.td_error - expected_td_error) > 0.001:
+        print(f"ERROR: Expected td_error {expected_td_error:.3f}, got {td_failure_response.td_error:.3f}")
+        return False
+    if abs(td_failure_response.delta - expected_delta) > 0.001:
+        print(f"ERROR: Expected delta {expected_delta:.3f}, got {td_failure_response.delta:.3f}")
+        return False
+    print("  [OK] Surprising failure resulted in large negative update")
+
     # Cleanup
     await channel.close()
 
     print("\n" + "=" * 60)
     print("SUCCESS: TD Learning working correctly!")
+    print("  - Simple mode (no prediction): Works")
+    print("  - TD mode (with prediction): Works")
+    print("  - Learn more from surprises: Works")
     print("=" * 60)
     return True
 
