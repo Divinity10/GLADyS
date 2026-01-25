@@ -1,12 +1,14 @@
 # GLADyS Integration Test - Full Stack PoC
 # Run: docker-compose up -d
 #
-# Services:
+# PORTS: Docker uses offset ports to avoid conflict with local development:
 #   - postgres: PostgreSQL with pgvector (port 5433)
-#   - memory-python: Python Memory Storage (port 50051)
-#   - memory-rust: Rust SalienceGateway (port 50052)
-#   - orchestrator: Python Orchestrator (port 50050)
-#   - executive-stub: Python Executive with optional LLM (port 50053)
+#   - memory-python: Python Memory Storage (port 50061, not 50051)
+#   - memory-rust: Rust SalienceGateway (port 50062, not 50052)
+#   - orchestrator: Python Orchestrator (port 50060, not 50050)
+#   - executive-stub: Python Executive with optional LLM (port 50063, not 50053)
+#
+# This allows local services (50050-50053) and Docker (50060-50063) to run simultaneously.
 #
 # Architecture:
 #   - Python handles storage: PostgreSQL CRUD, embedding generation, text search
@@ -58,7 +60,7 @@ services:
       STORAGE_PASSWORD: gladys
       STORAGE_DATABASE: gladys
     ports:
-      - "50051:50051"
+      - "50061:50051"  # Host 50061 -> Container 50051 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
       - ../memory/python/gladys_memory:/app/gladys_memory:ro
@@ -82,7 +84,7 @@ services:
       # Rust fast path can call Python for storage operations
       STORAGE_ADDRESS: http://memory-python:50051
     ports:
-      - "50052:50052"
+      - "50062:50052"  # Host 50062 -> Container 50052 (avoids conflict with local)
     depends_on:
       memory-python:
         condition: service_healthy
@@ -104,7 +106,7 @@ services:
       SALIENCE_MEMORY_ADDRESS: memory-rust:50052      # Rust fast path
       EXECUTIVE_ADDRESS: executive-stub:50053
     ports:
-      - "50050:50050"
+      - "50060:50050"  # Host 50060 -> Container 50050 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
       - ../orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
@@ -138,7 +140,7 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma:2b}
     ports:
-      - "50053:50053"
+      - "50063:50053"  # Host 50063 -> Container 50053 (avoids conflict with local)
     depends_on:
       memory-python:
         condition: service_healthy

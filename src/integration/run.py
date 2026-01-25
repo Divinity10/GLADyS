@@ -47,12 +47,14 @@ CONTAINERS = {
     "db": "gladys-integration-db",
 }
 
-# Ports for status display
+# Ports for status display (offset from local to avoid conflicts)
+# Local uses: 50050-50053
+# Docker uses: 50060-50063
 PORTS = {
-    "memory-python": 50051,
-    "memory-rust": 50052,
-    "orchestrator": 50050,
-    "executive-stub": 50053,
+    "memory-python": 50061,
+    "memory-rust": 50062,
+    "orchestrator": 50060,
+    "executive-stub": 50063,
     "db": 5433,
 }
 
