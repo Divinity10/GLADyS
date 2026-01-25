@@ -66,9 +66,13 @@ Key principles:
 ## Quick Start
 
 ```bash
-# Run the Memory subsystem
-cd src/memory
-python run.py start
+# With Docker (recommended - no Rust required)
+python scripts/docker.py start all
+python scripts/docker.py status
+
+# With local Rust + PostgreSQL
+python scripts/local.py start all
+python scripts/local.py status
 ```
 
 See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for full setup.

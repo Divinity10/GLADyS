@@ -4,28 +4,29 @@ GLADyS provides two service management scripts with identical interfaces:
 
 | Environment | Script | When to Use |
 |-------------|--------|-------------|
-| **Local** | `scripts/services.py` | Development on your machine |
-| **Docker** | `src/integration/run.py` | Integration testing, CI/CD, team development |
+| **Local** | `scripts/local.py` | Development with Rust + PostgreSQL installed |
+| **Docker** | `scripts/docker.py` | No Rust installed, integration testing, CI/CD |
 
-Both scripts use `uv run python <script>` or just `python <script>` if dependencies are installed.
+Both scripts run from the project root: `python scripts/local.py <command>` or `python scripts/docker.py <command>`
 
 ---
 
 ## Quick Reference
 
 ```bash
-# Local development
-python scripts/services.py start all        # Start all services
-python scripts/services.py status           # Check what's running
-python scripts/services.py clean heuristics # Clear learned rules
-python scripts/services.py reset            # Full reset
+# Local development (requires Rust + PostgreSQL)
+python scripts/local.py start all        # Start all services
+python scripts/local.py status           # Check what's running
+python scripts/local.py test <file>      # Run tests
+python scripts/local.py clean heuristics # Clear learned rules
+python scripts/local.py reset            # Full reset
 
-# Docker (integration testing)
-cd src/integration
-python run.py start all
-python run.py status
-python run.py clean heuristics
-python run.py reset
+# Docker (no Rust required)
+python scripts/docker.py start all
+python scripts/docker.py status
+python scripts/docker.py test <file>
+python scripts/docker.py clean heuristics
+python scripts/docker.py reset
 ```
 
 ---
@@ -37,9 +38,9 @@ python run.py reset
 Start one or more services.
 
 ```bash
-python scripts/services.py start memory      # Start memory service only
-python scripts/services.py start all         # Start all services
-python scripts/services.py start all --no-wait  # Start without waiting for health check
+python scripts/local.py start memory      # Start memory service only
+python scripts/local.py start all         # Start all services
+python scripts/local.py start all --no-wait  # Start without waiting for health check
 ```
 
 **Services available:**
@@ -55,8 +56,8 @@ python scripts/services.py start all --no-wait  # Start without waiting for heal
 Stop one or more services.
 
 ```bash
-python scripts/services.py stop memory       # Stop memory service
-python scripts/services.py stop all          # Stop all services
+python scripts/local.py stop memory       # Stop memory service
+python scripts/local.py stop all          # Stop all services
 ```
 
 ### restart
@@ -64,8 +65,8 @@ python scripts/services.py stop all          # Stop all services
 Stop then start services.
 
 ```bash
-python scripts/services.py restart memory    # Restart memory service
-python scripts/services.py restart all       # Restart all services
+python scripts/local.py restart memory    # Restart memory service
+python scripts/local.py restart all       # Restart all services
 ```
 
 ### status
@@ -73,41 +74,56 @@ python scripts/services.py restart all       # Restart all services
 Show the status of all services.
 
 ```bash
-python scripts/services.py status
+python scripts/local.py status
+python scripts/docker.py status
 ```
 
 **Example output (local):**
 ```
-Service Status
-============================================================
+Service Status (LOCAL)
+======================================================================
 Service         Status     Port     PID        Description
-------------------------------------------------------------
+----------------------------------------------------------------------
 memory          [OK]   running    50051    12345      Memory Storage + Salience Gateway
-orchestrator    [OK]   running    50052    12346      Event routing and accumulation
+orchestrator    [OK]   running    50050    12346      Event routing and accumulation
 executive       [OK]   running    50053    12347      Executive stub (LLM planning)
-============================================================
+======================================================================
 ```
 
 **Example output (Docker):**
 ```
-Service Status (Docker)
+Service Status (DOCKER)
 ======================================================================
 Service            Status               Port     Description
 ----------------------------------------------------------------------
-memory-python      [OK] running (healthy) 50051    Memory Storage (Python)
-memory-rust        [OK] running (healthy) 50052    Salience Gateway (Rust)
-orchestrator       [OK] running (healthy) 50050    Event routing
-executive-stub     [OK] running (healthy) 50053    Executive stub
+memory-python      [OK] running (healthy) 50061    Memory Storage (Python)
+memory-rust        [OK] running (healthy) 50062    Salience Gateway (Rust)
+orchestrator       [OK] running (healthy) 50060    Event routing
+executive-stub     [OK] running (healthy) 50063    Executive stub
 db                 [OK] running (healthy) 5433     PostgreSQL + pgvector
 ======================================================================
 ```
+
+### test
+
+Run integration tests against the specified environment.
+
+```bash
+python scripts/local.py test test_td_learning.py   # Run specific test against LOCAL
+python scripts/docker.py test test_td_learning.py  # Run specific test against DOCKER
+python scripts/local.py test                       # Run all tests against LOCAL
+python scripts/docker.py test                      # Run all tests against DOCKER
+```
+
+**Important:** Always use the wrapper scripts. Tests require environment variables that the wrappers set automatically. Running tests directly will fail.
 
 ### psql
 
 Open an interactive PostgreSQL shell connected to the GLADyS database.
 
 ```bash
-python scripts/services.py psql
+python scripts/local.py psql   # Local database (port 5432)
+python scripts/docker.py psql  # Docker database (port 5433)
 ```
 
 Useful for:
@@ -127,9 +143,9 @@ gladys=# \q
 Clear data from database tables. Useful for resetting state during testing or development.
 
 ```bash
-python scripts/services.py clean heuristics  # Clear learned rules only
-python scripts/services.py clean events      # Clear event history only
-python scripts/services.py clean all         # Clear everything
+python scripts/local.py clean heuristics  # Clear learned rules only
+python scripts/local.py clean events      # Clear event history only
+python scripts/local.py clean all         # Clear everything
 ```
 
 **What gets cleaned:**
@@ -147,8 +163,8 @@ python scripts/services.py clean all         # Clear everything
 Full system reset: stops all services, clears all data, restarts services.
 
 ```bash
-python scripts/services.py reset             # Full reset
-python scripts/services.py reset --no-start  # Reset but don't restart
+python scripts/local.py reset             # Full reset
+python scripts/local.py reset --no-start  # Reset but don't restart
 ```
 
 **What happens:**
@@ -166,9 +182,8 @@ python scripts/services.py reset --no-start  # Reset but don't restart
 Follow service logs in real-time.
 
 ```bash
-cd src/integration
-python run.py logs memory      # Follow memory service logs
-python run.py logs all         # Follow all service logs
+python scripts/docker.py logs memory      # Follow memory service logs
+python scripts/docker.py logs all         # Follow all service logs
 ```
 
 Press `Ctrl+C` to stop following.
@@ -177,15 +192,17 @@ Press `Ctrl+C` to stop following.
 
 ## Port Assignments
 
+Local and Docker use **different ports** so both can run simultaneously:
+
 | Service | Local Port | Docker Port | Protocol |
 |---------|------------|-------------|----------|
-| Memory (Python) | 50051 | 50051 | gRPC |
-| Memory (Rust) | - | 50052 | gRPC |
-| Orchestrator | 50052 | 50050 | gRPC |
-| Executive | 50053 | 50053 | gRPC |
+| Orchestrator | 50050 | 50060 | gRPC |
+| Memory (Python) | 50051 | 50061 | gRPC |
+| Memory (Rust) | 50052 | 50062 | gRPC |
+| Executive | 50053 | 50063 | gRPC |
 | PostgreSQL | 5432 | 5433 | PostgreSQL |
 
-**Note:** Docker uses port 5433 for PostgreSQL to avoid conflicts with local PostgreSQL on 5432.
+**Why different ports?** This allows parallel development - you can run both local and Docker services at the same time without conflicts.
 
 ---
 
@@ -195,12 +212,12 @@ Press `Ctrl+C` to stop following.
 
 1. Check if port is already in use:
    ```bash
-   python scripts/services.py status
+   python scripts/local.py status
    ```
 
 2. Kill any zombie processes:
    ```bash
-   python scripts/services.py stop all
+   python scripts/local.py stop all
    ```
 
 3. Check for error messages in the service startup.
@@ -231,13 +248,15 @@ Press `Ctrl+C` to stop following.
 
 2. Restart the specific service:
    ```bash
-   python scripts/services.py restart memory
+   python scripts/local.py restart memory
    ```
 
 ### Need to see what's in the database
 
 ```bash
-python scripts/services.py psql
+python scripts/local.py psql
+# or
+python scripts/docker.py psql
 ```
 
 Then run queries:
@@ -277,12 +296,14 @@ When helping users troubleshoot:
 
 1. **Get status first:**
    ```bash
-   python scripts/services.py status
+   python scripts/local.py status
+   # or
+   python scripts/docker.py status
    ```
 
 2. **Check database connectivity:**
    ```bash
-   python scripts/services.py psql
+   python scripts/local.py psql
    # Then: SELECT 1;
    ```
 
@@ -294,7 +315,7 @@ When helping users troubleshoot:
 
 4. **If all else fails, reset:**
    ```bash
-   python scripts/services.py reset
+   python scripts/local.py reset
    ```
 
 ---
@@ -303,12 +324,12 @@ When helping users troubleshoot:
 
 ### Adding a new service
 
-1. Add entry to `SERVICES` dict in `scripts/services.py`:
+1. Add entry to `SERVICES` dict in `scripts/local.py`:
    ```python
    SERVICES = {
        # ... existing services ...
        "new_service": {
-           "port": 50054,
+           "port": LOCAL_PORTS.new_service,
            "cwd": ROOT / "src" / "new_service",
            "cmd": ["uv", "run", "python", "server.py"],
            "description": "New service description",
@@ -316,9 +337,11 @@ When helping users troubleshoot:
    }
    ```
 
-2. Add corresponding entry in `src/integration/run.py` for Docker.
+2. Add port to `scripts/_gladys.py` PortConfig.
 
-3. Update `docker-compose.yml` if needed.
+3. Add corresponding entry in `scripts/docker.py` for Docker.
+
+4. Update `src/integration/docker-compose.yml` if needed.
 
 ### Running services manually (debugging)
 

@@ -2,12 +2,25 @@
 
 How to run GLADyS services for development and testing.
 
+## Choose Your Development Path
+
+| Your Setup | Recommended Mode | Script |
+|------------|------------------|--------|
+| Have Rust + PostgreSQL | **Local** | `python scripts/local.py` |
+| Docker only | **Docker** | `python scripts/docker.py` |
+
+**Don't have Rust installed?** Use Docker mode. It includes all dependencies.
+
+---
+
 ## Two Ways to Run
 
-| Mode | When to Use | Script |
-|------|-------------|--------|
-| **Local** | Active development, debugging, fast iteration | `python scripts/services.py` |
-| **Docker** | Integration testing, team handoff, CI/CD | `python src/integration/run.py` |
+| Mode | When to Use | Ports |
+|------|-------------|-------|
+| **Local** | Active development with Rust, debugging, fast iteration | 50050-50053, DB 5432 |
+| **Docker** | No Rust installed, integration testing, team handoff | 50060-50063, DB 5433 |
+
+Both modes can run **simultaneously** on different ports. This allows parallel development.
 
 ---
 
@@ -21,27 +34,33 @@ Run services as local Python/Rust processes. Best for:
 ### Prerequisites
 
 - Python 3.11+ with `uv` package manager
-- Rust toolchain (for memory-rust)
+- Rust toolchain (for memory-rust salience gateway)
 - Local PostgreSQL 17+ with pgvector extension
+- Database: `gladys` with user `gladys`
 
 ### Commands
 
 ```bash
 # From project root
-python scripts/services.py start all       # Start all services
-python scripts/services.py start memory    # Start just memory
-python scripts/services.py stop all        # Stop all services
-python scripts/services.py restart memory  # Restart memory
-python scripts/services.py status          # Show status
+python scripts/local.py start all       # Start all services
+python scripts/local.py start memory    # Start just memory
+python scripts/local.py stop all        # Stop all services
+python scripts/local.py restart memory  # Restart memory
+python scripts/local.py status          # Show status
+python scripts/local.py test <test.py>  # Run test against local
+python scripts/local.py psql            # Database shell
+python scripts/local.py clean all       # Clear test data
 ```
 
-### Available Services
+### Service Ports (Local)
 
 | Service | Port | Description |
 |---------|------|-------------|
-| memory | 50051 | Memory Storage + Salience Gateway |
-| orchestrator | 50052 | Event routing and accumulation |
+| orchestrator | 50050 | Event routing and accumulation |
+| memory | 50051 | Memory Storage (Python) |
+| memory-rust | 50052 | Salience Gateway (Rust fast path) |
 | executive | 50053 | Executive stub (LLM planning) |
+| PostgreSQL | 5432 | Database |
 
 ### Manual Startup (Alternative)
 
@@ -66,44 +85,48 @@ cd src/executive && uv run python stub_server.py
 ## Docker Development
 
 Run services in Docker containers. Best for:
+- Developers without Rust installed
 - Integration testing across all services
 - Consistent environment for team members
 - Testing before commits
 
 ### Prerequisites
 
-- Docker Desktop
+- Docker Desktop (includes everything else)
 
 ### Commands
 
 ```bash
-# From src/integration directory
-python run.py start all       # Start all services
-python run.py start memory    # Start memory services (Python + Rust)
-python run.py stop all        # Stop all services
-python run.py restart memory  # Restart memory services
-python run.py status          # Show container status
-python run.py logs memory     # Follow memory logs
-python run.py psql            # Open database shell
-python run.py clean-test      # Delete test data
+# From project root
+python scripts/docker.py start all       # Start all services
+python scripts/docker.py start memory    # Start memory services (Python + Rust)
+python scripts/docker.py stop all        # Stop all services
+python scripts/docker.py restart memory  # Restart memory services
+python scripts/docker.py status          # Show container status
+python scripts/docker.py logs memory     # Follow memory logs
+python scripts/docker.py test <test.py>  # Run test against Docker
+python scripts/docker.py psql            # Open database shell
+python scripts/docker.py clean all       # Delete test data
 ```
 
-### Available Services
+### Service Ports (Docker)
+
+Docker uses **offset ports** to avoid conflicts with local development:
 
 | Service | Port | Docker Container |
 |---------|------|------------------|
-| memory | 50051, 50052 | gladys-integration-memory-python, gladys-integration-memory-rust |
-| orchestrator | 50050 | gladys-integration-orchestrator |
-| executive | 50053 | gladys-integration-executive-stub |
-| db | 5433 | gladys-integration-db |
+| orchestrator | 50060 | gladys-integration-orchestrator |
+| memory-python | 50061 | gladys-integration-memory-python |
+| memory-rust | 50062 | gladys-integration-memory-rust |
+| executive | 50063 | gladys-integration-executive-stub |
+| PostgreSQL | 5433 | gladys-integration-db |
 
 ### First-Time Setup
 
 ```bash
-cd src/integration
-python run.py start all
+python scripts/docker.py start all
 # Wait ~60 seconds for containers to be healthy
-python run.py status          # All should show [OK]
+python scripts/docker.py status          # All should show [OK]
 ```
 
 ### After Code Changes
@@ -113,17 +136,28 @@ Python services auto-reload (source mounted as volumes). For Rust:
 ```bash
 cd src/integration
 docker-compose build memory-rust
-python run.py restart memory
+python scripts/docker.py restart memory
 ```
 
-### Running Tests
+---
+
+## Running Tests
+
+**Always use the wrapper scripts.** Tests require environment variables that the wrappers set automatically.
 
 ```bash
-# Killer feature test
-cd src/memory/python
-PYTHON_ADDRESS=localhost:50051 RUST_ADDRESS=localhost:50052 \
-  uv run python ../../integration/test_killer_feature.py
+# Run specific test against Local
+python scripts/local.py test test_td_learning.py
+
+# Run specific test against Docker
+python scripts/docker.py test test_td_learning.py
+
+# Run all tests
+python scripts/local.py test
+python scripts/docker.py test
 ```
+
+Tests will **fail** if run directly without the wrapper (prevents wrong-environment testing).
 
 ---
 
@@ -144,20 +178,20 @@ kill -9 <pid>                    # Mac/Linux
 ### Container Won't Start
 
 ```bash
+python scripts/docker.py logs memory    # Check logs
 cd src/integration
-python run.py logs memory       # Check logs
 docker-compose build --no-cache memory-python  # Rebuild image
 ```
 
 ### Database Issues
 
 ```bash
-cd src/integration
-python run.py psql              # Open database shell
+python scripts/docker.py psql           # Open database shell
 
-# Reset database completely
-docker-compose down -v          # WARNING: Deletes all data
-python run.py start all
+# Reset database completely (WARNING: Deletes all data)
+cd src/integration
+docker-compose down -v
+python scripts/docker.py start all
 ```
 
 ### Proto Sync Issues
@@ -203,8 +237,10 @@ OLLAMA_URL=http://host.docker.internal:11434 docker-compose up -d
 
 | Task | Local | Docker |
 |------|-------|--------|
-| Start all | `python scripts/services.py start all` | `python run.py start all` |
-| Restart memory | `python scripts/services.py restart memory` | `python run.py restart memory` |
-| Check status | `python scripts/services.py status` | `python run.py status` |
-| View logs | (run in foreground) | `python run.py logs memory` |
-| Database shell | `psql -U gladys -d gladys` | `python run.py psql` |
+| Start all | `python scripts/local.py start all` | `python scripts/docker.py start all` |
+| Restart memory | `python scripts/local.py restart memory` | `python scripts/docker.py restart memory` |
+| Check status | `python scripts/local.py status` | `python scripts/docker.py status` |
+| Run tests | `python scripts/local.py test <file>` | `python scripts/docker.py test <file>` |
+| View logs | (run in foreground) | `python scripts/docker.py logs memory` |
+| Database shell | `python scripts/local.py psql` | `python scripts/docker.py psql` |
+| Clean data | `python scripts/local.py clean all` | `python scripts/docker.py clean all` |

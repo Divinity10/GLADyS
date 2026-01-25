@@ -8,6 +8,10 @@ Architecture:
     - Mock Ollama: Local aiohttp server to provide predictable LLM responses.
     - Executive Stub: Running in-process (or subprocess) connected to Mock Ollama.
     - Memory/Salience: Connected to external running services (Python/Rust).
+
+Usage (via wrapper scripts - recommended):
+    python scripts/local.py test test_scenario_5_learning_loop.py   # LOCAL
+    python scripts/docker.py test test_scenario_5_learning_loop.py  # DOCKER
 """
 
 import asyncio
@@ -45,9 +49,17 @@ from stub_server import serve as run_stub_server
 # Configuration
 MOCK_OLLAMA_PORT = 11439
 TEST_STUB_PORT = 50059
-MEMORY_ADDRESS = os.environ.get("PYTHON_ADDRESS", "localhost:50051")
-RUST_ADDRESS = os.environ.get("RUST_ADDRESS", "localhost:50052")
 LOG_LEVEL = logging.INFO
+
+# Require explicit environment - no defaults to prevent wrong-environment testing
+MEMORY_ADDRESS = os.environ.get("PYTHON_ADDRESS")
+RUST_ADDRESS = os.environ.get("RUST_ADDRESS")
+if not MEMORY_ADDRESS or not RUST_ADDRESS:
+    print("ERROR: PYTHON_ADDRESS and RUST_ADDRESS environment variables required.")
+    print("Use wrapper scripts to run tests:")
+    print("  python scripts/local.py test test_scenario_5_learning_loop.py   # LOCAL")
+    print("  python scripts/docker.py test test_scenario_5_learning_loop.py  # DOCKER")
+    sys.exit(1)
 
 # Setup logging
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")

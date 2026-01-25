@@ -27,6 +27,15 @@ You're a contributor. Here's how to get productive.
 - **Git**: You have this if you're reading this
 - **Docker Desktop**: [Install here](https://www.docker.com/products/docker-desktop/) - runs dependencies without local installs
 
+## Choose Your Path
+
+| Your Setup | Use This |
+|------------|----------|
+| **Docker only** (recommended for most) | `python scripts/docker.py` |
+| **Rust + PostgreSQL installed** | `python scripts/local.py` |
+
+**Don't have Rust?** That's fine - Docker mode includes everything.
+
 ## Architecture Overview
 
 ```
@@ -101,12 +110,10 @@ make up   # Starts everything including Orchestrator
 **Local setup (for isolated development):**
 ```bash
 # Start Memory first (dependency)
-cd src/memory && python run.py start
+python scripts/local.py start memory
 
-# Then start Orchestrator
-cd src/orchestrator
-uv sync
-uv run python run.py start --salience-address localhost:50051
+# Or start everything
+python scripts/local.py start all
 ```
 
 **You need:** Python 3.11+, uv
@@ -120,7 +127,8 @@ cd src/orchestrator && uv run pytest
 - [src/orchestrator/gladys_orchestrator/router.py](../src/orchestrator/gladys_orchestrator/router.py) - Event routing logic
 - [src/orchestrator/gladys_orchestrator/server.py](../src/orchestrator/gladys_orchestrator/server.py) - gRPC server
 - [src/orchestrator/proto/orchestrator.proto](../src/orchestrator/proto/orchestrator.proto) - API contract
-- [src/orchestrator/run.py](../src/orchestrator/run.py) - CLI entry point
+- [scripts/local.py](../scripts/local.py) - Local service management
+- [scripts/docker.py](../scripts/docker.py) - Docker service management
 
 **Key ADRs:**
 - [ADR-0001](adr/ADR-0001-Architecture-and-Component-Design.md) - Overall architecture
@@ -242,17 +250,17 @@ This uses `scripts/proto_sync.py` which:
 
 ### Service Ports
 
-When running the full stack, services are available at:
+Local and Docker use **different ports** to allow parallel development:
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Orchestrator | `localhost:50050` | Main entry point - send events here |
-| Memory (Python) | `localhost:50051` | Storage + SalienceGateway (slow path) |
-| Memory (Rust) | `localhost:50052` | SalienceGateway only (fast path) |
-| Executive | `localhost:50053` | Decision-making + LLM |
-| PostgreSQL | `localhost:5433` | Database (mapped from container's 5432) |
+| Service | Local | Docker | Description |
+|---------|-------|--------|-------------|
+| Orchestrator | 50050 | 50060 | Main entry point - send events here |
+| Memory (Python) | 50051 | 50061 | Storage + SalienceGateway (slow path) |
+| Memory (Rust) | 50052 | 50062 | SalienceGateway only (fast path) |
+| Executive | 50053 | 50063 | Decision-making + LLM |
+| PostgreSQL | 5432 | 5433 | Database |
 
-**Default flow**: Orchestrator → Rust fast path (50052) → Executive
+**Default flow**: Orchestrator → Rust fast path → Executive
 
 ### Configuration
 
@@ -288,18 +296,22 @@ export GRPC_PORT=50051
 
 For development, you can run individual services locally:
 
-**Orchestrator:**
+**All services (recommended):**
+```bash
+# Docker (no Rust required)
+python scripts/docker.py start all
+python scripts/docker.py status
+
+# Local (requires Rust + PostgreSQL)
+python scripts/local.py start all
+python scripts/local.py status
+```
+
+**Individual service (for debugging):**
 ```bash
 cd src/orchestrator
 uv run python run.py start --salience-address localhost:50051
 ```
-
-Options:
-- `--host HOST` - bind address (default: 0.0.0.0)
-- `--port PORT` - listen port (default: 50050)
-- `--salience-address ADDR` - Memory service (default: localhost:50051)
-- `--moment-window MS` - accumulation window (default: 100ms)
-- `--salience-threshold FLOAT` - immediate routing threshold (default: 0.7)
 
 **Memory (Python):**
 ```bash

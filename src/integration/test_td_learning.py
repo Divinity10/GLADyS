@@ -9,16 +9,13 @@ This test proves that:
 5. Correct predictions result in small updates
 6. Wrong predictions result in large updates
 
-Usage:
-    # Terminal 1 - Start Python Memory service:
-    cd src/memory/python && uv run python -m gladys_memory.grpc_server
+Usage (via wrapper scripts - recommended):
+    python scripts/local.py test test_td_learning.py   # Test against LOCAL
+    python scripts/docker.py test test_td_learning.py  # Test against DOCKER
 
-    # Terminal 2 - Run this test:
-    cd src/integration && uv run python test_td_learning.py
-
-    Or with Docker:
-    python src/integration/run.py start
-    cd src/integration && uv run python test_td_learning.py
+Manual usage (must set env vars):
+    PYTHON_ADDRESS=localhost:50051 uv run python test_td_learning.py  # LOCAL
+    PYTHON_ADDRESS=localhost:50061 uv run python test_td_learning.py  # DOCKER
 """
 
 import asyncio
@@ -33,8 +30,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
 
 import grpc
 
-# Configurable address
-PYTHON_ADDRESS = os.environ.get("PYTHON_ADDRESS", "localhost:50051")
+# Require explicit environment - no defaults to prevent wrong-environment testing
+PYTHON_ADDRESS = os.environ.get("PYTHON_ADDRESS")
+if not PYTHON_ADDRESS:
+    print("ERROR: PYTHON_ADDRESS environment variable not set.")
+    print("Use wrapper scripts to run tests:")
+    print("  python scripts/local.py test test_td_learning.py   # LOCAL")
+    print("  python scripts/docker.py test test_td_learning.py  # DOCKER")
+    sys.exit(1)
 
 
 async def run_test():

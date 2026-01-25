@@ -139,23 +139,23 @@ created_at            TIMESTAMP
 Use the Docker service management script for all service operations:
 
 ```bash
-cd src/integration
+# From project root
 
 # Start/stop services
-python run.py start all           # Start all services
-python run.py stop all            # Stop all services
-python run.py status              # Check service status
+python scripts/docker.py start all           # Start all services
+python scripts/docker.py stop all            # Stop all services
+python scripts/docker.py status              # Check service status
 
 # Database utilities
-python run.py psql                # Open database shell
-python run.py clean heuristics    # Clear heuristics table
-python run.py clean events        # Clear events table
-python run.py clean all           # Clear all data
-python run.py reset               # Full reset (stop, clean, restart)
+python scripts/docker.py psql                # Open database shell
+python scripts/docker.py clean heuristics    # Clear heuristics table
+python scripts/docker.py clean events        # Clear events table
+python scripts/docker.py clean all           # Clear all data
+python scripts/docker.py reset               # Full reset (stop, clean, restart)
 
 # Logs
-python run.py logs memory         # Follow memory service logs
-python run.py logs all            # Follow all logs
+python scripts/docker.py logs memory         # Follow memory service logs
+python scripts/docker.py logs all            # Follow all logs
 ```
 
 Full documentation: `docs/design/SERVICE_MANAGEMENT.md`
@@ -166,14 +166,13 @@ Full documentation: `docs/design/SERVICE_MANAGEMENT.md`
 
 1. Start Docker services:
    ```bash
-   cd src/integration
-   python run.py start all
-   python run.py status           # Verify all services are healthy
+   python scripts/docker.py start all
+   python scripts/docker.py status           # Verify all services are healthy
    ```
 
 2. Run integration tests to populate data:
    ```bash
-   uv run --directory src/integration pytest test_scenario_5_learning_loop.py -v
+   python scripts/docker.py test test_scenario_5_learning_loop.py
    ```
 
 3. Run the dashboard:
@@ -189,8 +188,7 @@ Full documentation: `docs/design/SERVICE_MANAGEMENT.md`
 
 5. To reset and test again:
    ```bash
-   cd src/integration
-   python run.py clean all        # Clear data
+   python scripts/docker.py clean all        # Clear data
    # Re-run tests
    ```
 

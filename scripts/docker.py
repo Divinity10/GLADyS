@@ -1,34 +1,41 @@
 #!/usr/bin/env python3
-"""Manage GLADyS services in Docker (start/stop/restart/status).
+"""Manage GLADyS DOCKER services (start/stop/restart/status/test).
 
-This is the Docker equivalent of scripts/services.py.
-Use this when running services in Docker containers.
-Use scripts/services.py when running services locally.
+This script manages services running in Docker containers.
+For local services, use: python scripts/local.py
 
 Usage:
-    python run.py start memory        # Start memory services (Python + Rust)
-    python run.py start all           # Start all services
-    python run.py stop memory         # Stop memory services
-    python run.py restart all         # Restart all services
-    python run.py status              # Show status of all services
-    python run.py logs memory         # Follow memory service logs
-    python run.py psql                # Open database shell
-    python run.py clean heuristics    # Clear heuristics table
-    python run.py clean events        # Clear events table
-    python run.py clean all           # Clear all tables
-    python run.py reset               # Full reset (clean + restart)
+    python scripts/docker.py start memory
+    python scripts/docker.py start all
+    python scripts/docker.py stop memory
+    python scripts/docker.py restart all
+    python scripts/docker.py status
+    python scripts/docker.py test test_td_learning.py
+    python scripts/docker.py logs memory
+    python scripts/docker.py psql
+    python scripts/docker.py clean heuristics
+    python scripts/docker.py clean all
+    python scripts/docker.py reset
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-# Integration directory (where docker-compose.yml lives)
-INTEGRATION_DIR = Path(__file__).parent
+from _gladys import (
+    ROOT,
+    DOCKER_PORTS,
+    SERVICE_DESCRIPTIONS,
+    is_port_open,
+    get_test_env,
+)
 
-# Service groups (matching scripts/services.py naming)
-# Maps user-friendly names to docker-compose service names
+# Integration directory (where docker-compose.yml lives)
+INTEGRATION_DIR = ROOT / "src" / "integration"
+
+# Service groups (maps user-friendly names to docker-compose service names)
 SERVICE_GROUPS = {
     "memory": ["memory-python", "memory-rust"],
     "orchestrator": ["orchestrator"],
@@ -47,23 +54,13 @@ CONTAINERS = {
     "db": "gladys-integration-db",
 }
 
-# Ports for status display (offset from local to avoid conflicts)
-# Local uses: 50050-50053
-# Docker uses: 50060-50063
+# Ports for status display
 PORTS = {
-    "memory-python": 50061,
-    "memory-rust": 50062,
-    "orchestrator": 50060,
-    "executive-stub": 50063,
-    "db": 5433,
-}
-
-DESCRIPTIONS = {
-    "memory-python": "Memory Storage (Python)",
-    "memory-rust": "Salience Gateway (Rust)",
-    "orchestrator": "Event routing",
-    "executive-stub": "Executive stub",
-    "db": "PostgreSQL + pgvector",
+    "memory-python": DOCKER_PORTS.memory_python,
+    "memory-rust": DOCKER_PORTS.memory_rust,
+    "orchestrator": DOCKER_PORTS.orchestrator,
+    "executive-stub": DOCKER_PORTS.executive,
+    "db": DOCKER_PORTS.db,
 }
 
 
@@ -114,12 +111,11 @@ def cmd_start(args: argparse.Namespace) -> int:
     print("Ensuring database is running...")
     docker_compose("up", "-d", "postgres")
 
-    print(f"Starting {args.service}...")
+    print(f"Starting DOCKER {args.service}...")
     docker_compose("up", "-d", *services)
 
     if not args.no_wait:
         print("\nWaiting for services to be healthy...")
-        # Wait for health checks
         result = docker_compose("ps", capture=True)
         print(result.stdout)
 
@@ -129,7 +125,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 def cmd_stop(args: argparse.Namespace) -> int:
     """Stop services."""
     services = resolve_services(args.service)
-    print(f"Stopping {args.service}...")
+    print(f"Stopping DOCKER {args.service}...")
     docker_compose("stop", *services)
     return 0
 
@@ -137,14 +133,14 @@ def cmd_stop(args: argparse.Namespace) -> int:
 def cmd_restart(args: argparse.Namespace) -> int:
     """Restart services."""
     services = resolve_services(args.service)
-    print(f"Restarting {args.service}...")
+    print(f"Restarting DOCKER {args.service}...")
     docker_compose("restart", *services)
     return 0
 
 
 def cmd_status(args: argparse.Namespace) -> int:
     """Show service status."""
-    print("Service Status (Docker)")
+    print("Service Status (DOCKER)")
     print("=" * 70)
     print(f"{'Service':<18} {'Status':<20} {'Port':<8} Description")
     print("-" * 70)
@@ -153,11 +149,32 @@ def cmd_status(args: argparse.Namespace) -> int:
         st = get_container_status(container)
         status_icon = "[OK]" if st["healthy"] else ("[--]" if st["running"] else "[  ]")
         port = PORTS.get(service, "-")
-        desc = DESCRIPTIONS.get(service, "")
+        desc = SERVICE_DESCRIPTIONS.get(service, SERVICE_DESCRIPTIONS.get(service.replace("-stub", ""), ""))
         print(f"{service:<18} {status_icon} {st['status']:<15} {port:<8} {desc}")
 
     print("=" * 70)
     return 0
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    """Run tests against DOCKER environment."""
+    test_env = get_test_env(DOCKER_PORTS)
+    env = {**os.environ, **test_env}
+
+    test_dir = ROOT / "src" / "integration"
+
+    # Build command
+    if args.test:
+        cmd = ["uv", "run", "python", args.test]
+    else:
+        cmd = ["uv", "run", "pytest", "-v"]
+
+    print(f"Running tests against DOCKER (ports {DOCKER_PORTS.memory_python}/{DOCKER_PORTS.memory_rust})...")
+    print(f"Command: {' '.join(cmd)}")
+    print()
+
+    result = subprocess.run(cmd, cwd=test_dir, env=env)
+    return result.returncode
 
 
 def cmd_logs(args: argparse.Namespace) -> int:
@@ -201,7 +218,7 @@ def cmd_clean(args: argparse.Namespace) -> int:
 
 def cmd_reset(args: argparse.Namespace) -> int:
     """Full reset: clean all data and restart services."""
-    print("Resetting GLADyS (Docker)...")
+    print("Resetting GLADyS (DOCKER)...")
 
     # Stop app services
     print("\n1. Stopping services...")
@@ -232,20 +249,22 @@ def cmd_reset(args: argparse.Namespace) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Manage GLADyS services in Docker",
+        description="Manage GLADyS DOCKER services",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python run.py start memory        # Start memory services
-    python run.py start all           # Start all services
-    python run.py stop memory         # Stop memory services
-    python run.py restart all         # Restart all services
-    python run.py status              # Show status of all services
-    python run.py logs memory         # Follow memory logs
-    python run.py psql                # Open database shell
-    python run.py clean heuristics    # Clear heuristics table
-    python run.py clean all           # Clear all data
-    python run.py reset               # Full reset (clean + restart)
+    python scripts/docker.py start memory          # Start memory services
+    python scripts/docker.py start all             # Start all services
+    python scripts/docker.py stop memory           # Stop memory services
+    python scripts/docker.py restart all           # Restart all services
+    python scripts/docker.py status                # Show status of all services
+    python scripts/docker.py test test_td_learning.py  # Run specific test
+    python scripts/docker.py test                  # Run all tests
+    python scripts/docker.py logs memory           # Follow memory logs
+    python scripts/docker.py psql                  # Open database shell
+    python scripts/docker.py clean heuristics      # Clear heuristics table
+    python scripts/docker.py clean all             # Clear all data
+    python scripts/docker.py reset                 # Full reset (clean + restart)
 """,
     )
 
@@ -286,6 +305,15 @@ Examples:
     # status
     status_parser = subparsers.add_parser("status", help="Show status of all services")
     status_parser.set_defaults(func=cmd_status)
+
+    # test
+    test_parser = subparsers.add_parser("test", help="Run tests against DOCKER environment")
+    test_parser.add_argument(
+        "test",
+        nargs="?",
+        help="Specific test file to run (default: all tests)",
+    )
+    test_parser.set_defaults(func=cmd_test)
 
     # logs
     logs_parser = subparsers.add_parser("logs", help="Follow service logs")

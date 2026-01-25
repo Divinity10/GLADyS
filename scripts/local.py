@@ -1,56 +1,61 @@
 #!/usr/bin/env python3
-"""Manage GLADyS services (start/stop/restart/status).
+"""Manage GLADyS LOCAL services (start/stop/restart/status/test).
+
+This script manages services running directly on your machine (not Docker).
+For Docker services, use: python scripts/docker.py
 
 Usage:
-    python scripts/services.py start memory
-    python scripts/services.py start all
-    python scripts/services.py stop memory
-    python scripts/services.py restart all
-    python scripts/services.py status
-    python scripts/services.py psql                 # Open database shell
-    python scripts/services.py clean heuristics    # Clear heuristics table
-    python scripts/services.py clean events        # Clear events table
-    python scripts/services.py clean all           # Clear all tables
-    python scripts/services.py reset               # Full reset (clean + restart)
+    python scripts/local.py start memory
+    python scripts/local.py start all
+    python scripts/local.py stop memory
+    python scripts/local.py restart all
+    python scripts/local.py status
+    python scripts/local.py test test_td_learning.py
+    python scripts/local.py psql
+    python scripts/local.py clean heuristics
+    python scripts/local.py clean all
+    python scripts/local.py reset
 """
 
 import argparse
 import os
 import signal
-import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-# Project root
-ROOT = Path(__file__).parent.parent
+from _gladys import (
+    ROOT,
+    LOCAL_PORTS,
+    SERVICE_DESCRIPTIONS,
+    is_windows,
+    is_port_open,
+    get_test_env,
+)
 
-# Service definitions
+# Service definitions for local environment
+# Note: Local dev uses Python memory only (no separate Rust service)
 SERVICES = {
     "memory": {
-        "port": 50051,
+        "port": LOCAL_PORTS.memory_python,
         "cwd": ROOT / "src" / "memory" / "python",
         "cmd": ["uv", "run", "python", "-m", "gladys_memory.grpc_server"],
-        "description": "Memory Storage + Salience Gateway",
+        "description": SERVICE_DESCRIPTIONS["memory"],
     },
     "orchestrator": {
-        "port": 50052,
+        "port": LOCAL_PORTS.orchestrator,
         "cwd": ROOT / "src" / "orchestrator",
         "cmd": ["uv", "run", "python", "run.py", "start"],
-        "description": "Event routing and accumulation",
+        "description": SERVICE_DESCRIPTIONS["orchestrator"],
     },
     "executive": {
-        "port": 50053,
+        "port": LOCAL_PORTS.executive,
         "cwd": ROOT / "src" / "executive",
         "cmd": ["uv", "run", "python", "stub_server.py"],
-        "description": "Executive stub (LLM planning)",
+        "description": SERVICE_DESCRIPTIONS["executive"],
     },
 }
-
-
-def is_windows():
-    return sys.platform == "win32"
 
 
 def find_pid_by_port(port: int) -> int | None:
@@ -78,15 +83,6 @@ def find_pid_by_port(port: int) -> int | None:
     except Exception:
         pass
     return None
-
-
-def is_port_open(port: int) -> bool:
-    """Check if a port is accepting connections."""
-    try:
-        with socket.create_connection(("localhost", port), timeout=1):
-            return True
-    except (socket.timeout, ConnectionRefusedError, OSError):
-        return False
 
 
 def kill_process(pid: int) -> bool:
@@ -120,7 +116,7 @@ def start_service(name: str, wait: bool = True) -> bool:
     port = svc["port"]
 
     # Check if already running
-    if is_port_open(port):
+    if is_port_open("localhost", port):
         print(f"  {name}: Already running on port {port}")
         return True
 
@@ -150,7 +146,7 @@ def start_service(name: str, wait: bool = True) -> bool:
         # Wait for service to be ready
         if wait:
             for _ in range(30):  # 30 second timeout
-                if is_port_open(port):
+                if is_port_open("localhost", port):
                     print(f"  {name}: Started (port {port}, PID {proc.pid})")
                     return True
                 time.sleep(1)
@@ -183,7 +179,7 @@ def stop_service(name: str) -> bool:
     if kill_process(pid):
         # Wait for port to be free
         for _ in range(10):
-            if not is_port_open(port):
+            if not is_port_open("localhost", port):
                 print(f"  {name}: Stopped")
                 return True
             time.sleep(0.5)
@@ -207,7 +203,7 @@ def status_service(name: str) -> dict:
     svc = SERVICES[name]
     port = svc["port"]
     pid = find_pid_by_port(port)
-    running = is_port_open(port)
+    running = is_port_open("localhost", port)
 
     return {
         "name": name,
@@ -223,7 +219,7 @@ def cmd_start(args):
     """Handle start command."""
     services = list(SERVICES.keys()) if args.service == "all" else [args.service]
 
-    print("Starting services...")
+    print("Starting LOCAL services...")
     success = True
     for name in services:
         if not start_service(name, wait=not args.no_wait):
@@ -235,7 +231,7 @@ def cmd_stop(args):
     """Handle stop command."""
     services = list(SERVICES.keys()) if args.service == "all" else [args.service]
 
-    print("Stopping services...")
+    print("Stopping LOCAL services...")
     success = True
     for name in services:
         if not stop_service(name):
@@ -247,7 +243,7 @@ def cmd_restart(args):
     """Handle restart command."""
     services = list(SERVICES.keys()) if args.service == "all" else [args.service]
 
-    print("Restarting services...")
+    print("Restarting LOCAL services...")
     success = True
     for name in services:
         if not restart_service(name):
@@ -257,10 +253,10 @@ def cmd_restart(args):
 
 def cmd_status(args):
     """Handle status command."""
-    print("Service Status")
-    print("=" * 60)
+    print("Service Status (LOCAL)")
+    print("=" * 70)
     print(f"{'Service':<15} {'Status':<10} {'Port':<8} {'PID':<10} Description")
-    print("-" * 60)
+    print("-" * 70)
 
     for name in SERVICES:
         st = status_service(name)
@@ -268,13 +264,34 @@ def cmd_status(args):
         pid_str = str(st["pid"]) if st["pid"] else "-"
         print(f"{name:<15} {status_icon:<6} {st['status']:<10} {st['port']:<8} {pid_str:<10} {st['description']}")
 
-    print("=" * 60)
+    print("=" * 70)
     return 0
+
+
+def cmd_test(args):
+    """Run tests against LOCAL environment."""
+    test_env = get_test_env(LOCAL_PORTS)
+    env = {**os.environ, **test_env}
+
+    test_dir = ROOT / "src" / "integration"
+
+    # Build command
+    if args.test:
+        cmd = ["uv", "run", "python", args.test]
+    else:
+        cmd = ["uv", "run", "pytest", "-v"]
+
+    print(f"Running tests against LOCAL (ports {LOCAL_PORTS.memory_python}/{LOCAL_PORTS.memory_rust})...")
+    print(f"Command: {' '.join(cmd)}")
+    print()
+
+    result = subprocess.run(cmd, cwd=test_dir, env=env)
+    return result.returncode
 
 
 def cmd_psql(args):
     """Open database shell."""
-    subprocess.run(["psql", "-h", "localhost", "-U", "gladys", "-d", "gladys"])
+    subprocess.run(["psql", "-h", "localhost", "-p", str(LOCAL_PORTS.db), "-U", "gladys", "-d", "gladys"])
     return 0
 
 
@@ -295,6 +312,7 @@ def cmd_clean(args):
     try:
         conn = psycopg2.connect(
             host="localhost",
+            port=LOCAL_PORTS.db,
             database="gladys",
             user="gladys",
         )
@@ -312,7 +330,7 @@ def cmd_clean(args):
 
 def cmd_reset(args):
     """Full reset: clean all data and restart services."""
-    print("Resetting GLADyS...")
+    print("Resetting GLADyS (LOCAL)...")
 
     # Stop all services
     print("\n1. Stopping services...")
@@ -325,6 +343,7 @@ def cmd_reset(args):
     try:
         conn = psycopg2.connect(
             host="localhost",
+            port=LOCAL_PORTS.db,
             database="gladys",
             user="gladys",
         )
@@ -350,19 +369,21 @@ def cmd_reset(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Manage GLADyS services",
+        description="Manage GLADyS LOCAL services",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python scripts/services.py start memory     # Start memory service
-    python scripts/services.py start all        # Start all services
-    python scripts/services.py stop memory      # Stop memory service
-    python scripts/services.py restart all      # Restart all services
-    python scripts/services.py status           # Show status of all services
-    python scripts/services.py psql             # Open database shell
-    python scripts/services.py clean heuristics # Clear heuristics table
-    python scripts/services.py clean all        # Clear all data
-    python scripts/services.py reset            # Full reset (clean + restart)
+    python scripts/local.py start memory          # Start memory service
+    python scripts/local.py start all             # Start all services
+    python scripts/local.py stop memory           # Stop memory service
+    python scripts/local.py restart all           # Restart all services
+    python scripts/local.py status                # Show status of all services
+    python scripts/local.py test test_td_learning.py  # Run specific test
+    python scripts/local.py test                  # Run all tests
+    python scripts/local.py psql                  # Open database shell
+    python scripts/local.py clean heuristics      # Clear heuristics table
+    python scripts/local.py clean all             # Clear all data
+    python scripts/local.py reset                 # Full reset (clean + restart)
 """,
     )
 
@@ -403,6 +424,15 @@ Examples:
     # status
     status_parser = subparsers.add_parser("status", help="Show status of all services")
     status_parser.set_defaults(func=cmd_status)
+
+    # test
+    test_parser = subparsers.add_parser("test", help="Run tests against LOCAL environment")
+    test_parser.add_argument(
+        "test",
+        nargs="?",
+        help="Specific test file to run (default: all tests)",
+    )
+    test_parser.set_defaults(func=cmd_test)
 
     # psql
     psql_parser = subparsers.add_parser("psql", help="Open database shell")

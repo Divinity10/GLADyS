@@ -11,17 +11,12 @@ Architecture:
     - Rust (port 50052): LRU cache, queries Python on cache miss
     - No bulk loading - heuristics loaded on demand via text search
 
-Usage:
-    # Terminal 1 - Start Python Memory service (storage):
-    cd src/memory/python && uv run python -m gladys_memory.grpc_server
+Usage (via wrapper scripts - recommended):
+    python scripts/local.py test test_killer_feature.py   # LOCAL
+    python scripts/docker.py test test_killer_feature.py  # DOCKER
 
-    # Terminal 2 - Start Rust fast path (salience):
-    cd src/memory/rust && cargo run
-
-    # Terminal 3 - Run this test:
-    cd src/integration && uv run python test_killer_feature.py
-
-Note: Rust queries Python on cache miss - no refresh interval needed.
+Manual usage (must set env vars):
+    PYTHON_ADDRESS=localhost:50051 RUST_ADDRESS=localhost:50052 uv run python test_killer_feature.py
 """
 
 import asyncio
@@ -37,9 +32,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "memory" / "python"))
 
 import grpc
 
-# Configurable addresses
-PYTHON_ADDRESS = os.environ.get("PYTHON_ADDRESS", "localhost:50051")
-RUST_ADDRESS = os.environ.get("RUST_ADDRESS", "localhost:50052")
+# Require explicit environment - no defaults to prevent wrong-environment testing
+PYTHON_ADDRESS = os.environ.get("PYTHON_ADDRESS")
+RUST_ADDRESS = os.environ.get("RUST_ADDRESS")
+if not PYTHON_ADDRESS or not RUST_ADDRESS:
+    print("ERROR: PYTHON_ADDRESS and RUST_ADDRESS environment variables required.")
+    print("Use wrapper scripts to run tests:")
+    print("  python scripts/local.py test test_killer_feature.py   # LOCAL")
+    print("  python scripts/docker.py test test_killer_feature.py  # DOCKER")
+    sys.exit(1)
 
 
 async def run_test():

@@ -1,0 +1,32 @@
+[project]
+name = "gladys-integration-tests"
+version = "0.1.0"
+description = "GLADyS Integration Tests"
+requires-python = ">=3.11"
+dependencies = [
+    # gRPC
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+
+    # HTTP for mock servers
+    "aiohttp>=3.9",
+
+    # Testing
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+
+    # Database (for clean commands)
+    "psycopg2-binary>=2.9",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# This is a test-only package with no modules to install
+py-modules = []
+packages = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
