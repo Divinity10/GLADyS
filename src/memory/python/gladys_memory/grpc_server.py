@@ -57,6 +57,10 @@ def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
         salience=salience,
         structured_json=json.dumps(event.structured) if event.structured else "{}",
         entity_ids=[str(eid) for eid in (event.entity_ids or [])],
+        # Prediction instrumentation (§27)
+        predicted_success=event.predicted_success or 0.0,
+        prediction_confidence=event.prediction_confidence or 0.0,
+        response_id=event.response_id or "",
     )
 
 
@@ -92,6 +96,10 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
         salience=salience,
         structured=structured,
         entity_ids=[UUID(eid) for eid in proto.entity_ids] if proto.entity_ids else [],
+        # Prediction instrumentation (§27)
+        predicted_success=proto.predicted_success if proto.predicted_success else None,
+        prediction_confidence=proto.prediction_confidence if proto.prediction_confidence else None,
+        response_id=proto.response_id if proto.response_id else None,
     )
 
 
@@ -276,11 +284,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
             min_confidence = request.min_confidence if request.min_confidence > 0 else 0.0
             limit = request.limit if request.limit > 0 else 10
+            source_filter = request.source_filter if request.source_filter else None
 
             results = await self.storage.query_matching_heuristics(
                 event_text=event_text,
                 min_confidence=min_confidence,
                 limit=limit,
+                source_filter=source_filter,
             )
 
             matches = []

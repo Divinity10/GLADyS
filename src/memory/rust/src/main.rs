@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         max_events: config.cache.max_events,
         max_heuristics: config.cache.max_heuristics,
         novelty_threshold: config.cache.novelty_threshold,
+        heuristic_ttl_ms: config.cache.heuristic_ttl_ms,
     });
     info!(
         max_events = cache.stats().max_events,

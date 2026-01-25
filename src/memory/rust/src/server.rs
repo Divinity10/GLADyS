@@ -54,6 +54,7 @@ impl SalienceService {
     async fn query_storage_for_heuristics(
         &self,
         event_text: &str,
+        source_filter: Option<&str>,
     ) -> Option<Vec<CachedHeuristic>> {
         let storage_config = self.storage_config.as_ref()?;
 
@@ -69,6 +70,7 @@ impl SalienceService {
                     event_text,
                     self.config.min_heuristic_confidence,
                     10, // limit
+                    source_filter,
                 ).await {
                     Ok(matches) => {
                         let heuristics: Vec<CachedHeuristic> = matches
@@ -86,6 +88,7 @@ impl SalienceService {
                                     action,
                                     confidence: h.confidence,
                                     last_accessed_ms: 0,
+                                    cached_at_ms: 0, // Will be set by add_heuristic
                                 })
                             })
                             .collect();
@@ -276,7 +279,8 @@ impl SalienceGateway for SalienceService {
         // Step 2: On cache miss, query Python storage
         if !from_cache && !req.raw_text.is_empty() {
             debug!("Cache miss, querying storage for heuristics");
-            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text).await {
+            let source_filter = if req.source.is_empty() { None } else { Some(req.source.as_str()) };
+            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text, source_filter).await {
                 // Add to local cache and check for match
                 let mut cache = self.cache.write().await;
                 for h in heuristics_from_storage {
@@ -378,6 +382,7 @@ mod tests {
             }),
             confidence: 0.95,
             last_accessed_ms: 0,
+            cached_at_ms: 0,
         };
 
         // Should match - contains "danger"
@@ -428,6 +433,7 @@ mod tests {
             }),
             confidence: 0.95,
             last_accessed_ms: 0,
+            cached_at_ms: 0,
         };
 
         let mut salience = SalienceVector {

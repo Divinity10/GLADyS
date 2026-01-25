@@ -227,6 +227,7 @@ impl StorageClient {
         event_text: &str,
         min_confidence: f32,
         limit: i32,
+        source_filter: Option<&str>,
     ) -> Result<Vec<HeuristicMatch>, ClientError> {
         debug!("Querying matching heuristics via text search");
 
@@ -234,6 +235,7 @@ impl StorageClient {
             event_text: event_text.to_string(),
             min_confidence,
             limit,
+            source_filter: source_filter.unwrap_or("").to_string(),
         };
 
         let response = self.client.query_matching_heuristics(request).await?.into_inner();
@@ -297,6 +299,10 @@ impl EventBuilder {
                 salience: None,
                 structured_json: "{}".to_string(),
                 entity_ids: Vec::new(),
+                // Prediction instrumentation (§27) - defaults to 0.0/empty
+                predicted_success: 0.0,
+                prediction_confidence: 0.0,
+                response_id: String::new(),
             },
         }
     }

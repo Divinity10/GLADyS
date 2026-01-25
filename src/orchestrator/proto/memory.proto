@@ -68,6 +68,12 @@ message EpisodicEvent {
     SalienceVector salience = 6;
     string structured_json = 7;         // Domain-specific data as JSON string
     repeated string entity_ids = 8;     // Referenced entity UUIDs
+
+    // Prediction instrumentation (Instrument Now, Analyze Later - §27)
+    // Populated when LLM reasoning was triggered for this event
+    float predicted_success = 9;        // LLM's prediction of action success (0.0-1.0)
+    float prediction_confidence = 10;   // LLM's confidence in that prediction (0.0-1.0)
+    string response_id = 11;            // Links to executive response/reasoning trace
 }
 
 message SalienceVector {
@@ -183,6 +189,7 @@ message QueryMatchingHeuristicsRequest {
     string event_text = 1;                  // Event text to match against heuristic conditions
     float min_confidence = 2;               // Minimum confidence filter (default 0.0)
     int32 limit = 3;                        // Max results to return (default 10)
+    string source_filter = 4;               // Filter by source/domain (e.g., "minecraft", "smart_home")
 }
 
 message QueryHeuristicsResponse {

@@ -25,6 +25,10 @@ class EpisodicEvent:
     salience: Optional[dict] = None
     structured: Optional[dict] = None
     entity_ids: Optional[list[UUID]] = None
+    # Prediction instrumentation (§27 - Instrument Now, Analyze Later)
+    predicted_success: Optional[float] = None  # LLM's prediction of action success (0.0-1.0)
+    prediction_confidence: Optional[float] = None  # LLM's confidence in that prediction
+    response_id: Optional[str] = None  # Links to executive response/reasoning trace
 
 
 # Keep StorageConfig as alias for backwards compatibility
@@ -80,8 +84,9 @@ class MemoryStorage:
             """
             INSERT INTO episodic_events (
                 id, timestamp, source, raw_text, embedding,
-                salience, structured, entity_ids
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                salience, structured, entity_ids,
+                predicted_success, prediction_confidence, response_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             """,
             event.id,
             event.timestamp,
@@ -91,6 +96,9 @@ class MemoryStorage:
             event.salience or {},
             event.structured or {},
             event.entity_ids or [],
+            event.predicted_success,
+            event.prediction_confidence,
+            event.response_id,
         )
 
     async def query_by_time(
@@ -108,7 +116,8 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids
+                       salience, structured, entity_ids,
+                       predicted_success, prediction_confidence, response_id
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
                   AND source = $3
@@ -125,7 +134,8 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids
+                       salience, structured, entity_ids,
+                       predicted_success, prediction_confidence, response_id
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
                   AND archived = false
@@ -158,6 +168,7 @@ class MemoryStorage:
                 f"""
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
+                       predicted_success, prediction_confidence, response_id,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
                 WHERE archived = false
@@ -176,6 +187,7 @@ class MemoryStorage:
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
+                       predicted_success, prediction_confidence, response_id,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
                 WHERE archived = false
@@ -202,6 +214,10 @@ class MemoryStorage:
             salience=row["salience"],
             structured=row["structured"],
             entity_ids=row["entity_ids"],
+            # Prediction instrumentation (§27) - may be null for older events
+            predicted_success=row.get("predicted_success"),
+            prediction_confidence=row.get("prediction_confidence"),
+            response_id=row.get("response_id"),
         )
 
     # =========================================================================
@@ -272,6 +288,7 @@ class MemoryStorage:
         event_text: str,
         min_confidence: float = 0.0,
         limit: int = 10,
+        source_filter: str | None = None,
     ) -> list[dict[str, Any]]:
         """Query heuristics matching event text using PostgreSQL full-text search.
 
@@ -282,6 +299,8 @@ class MemoryStorage:
             event_text: The event text to match against heuristic conditions
             min_confidence: Minimum confidence threshold
             limit: Maximum number of results
+            source_filter: If provided, only return heuristics whose condition
+                           text starts with this source/domain prefix
 
         Returns:
             List of matching heuristics with similarity ranking
@@ -302,23 +321,48 @@ class MemoryStorage:
         # Build OR-based tsquery: word1 | word2 | word3
         or_query = ' | '.join(filtered_words)
 
-        rows = await self._pool.fetch(
-            """
-            SELECT id, name, condition, action, confidence,
-                   source_pattern_ids, last_fired, fire_count, success_count,
-                   frozen, created_at, updated_at,
-                   ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
-            FROM heuristics
-            WHERE condition_tsv @@ to_tsquery('english', $1)
-              AND confidence >= $2
-              AND frozen = false
-            ORDER BY rank DESC, confidence DESC
-            LIMIT $3
-            """,
-            or_query,
-            min_confidence,
-            limit,
-        )
+        # Build query with optional source filter
+        if source_filter:
+            # Filter heuristics whose condition text starts with the source prefix
+            # Pattern: "source:" or "source " at the start
+            source_pattern = f"{source_filter}:%"
+            rows = await self._pool.fetch(
+                """
+                SELECT id, name, condition, action, confidence,
+                       source_pattern_ids, last_fired, fire_count, success_count,
+                       frozen, created_at, updated_at,
+                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
+                FROM heuristics
+                WHERE condition_tsv @@ to_tsquery('english', $1)
+                  AND confidence >= $2
+                  AND frozen = false
+                  AND (condition->>'text') ILIKE $4
+                ORDER BY rank DESC, confidence DESC
+                LIMIT $3
+                """,
+                or_query,
+                min_confidence,
+                limit,
+                source_pattern,
+            )
+        else:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, name, condition, action, confidence,
+                       source_pattern_ids, last_fired, fire_count, success_count,
+                       frozen, created_at, updated_at,
+                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
+                FROM heuristics
+                WHERE condition_tsv @@ to_tsquery('english', $1)
+                  AND confidence >= $2
+                  AND frozen = false
+                ORDER BY rank DESC, confidence DESC
+                LIMIT $3
+                """,
+                or_query,
+                min_confidence,
+                limit,
+            )
 
         result = [dict(row) for row in rows]
 

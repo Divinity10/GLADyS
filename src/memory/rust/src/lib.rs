@@ -55,6 +55,8 @@ pub struct CachedHeuristic {
     pub confidence: f32,
     /// Last accessed time for LRU eviction
     pub last_accessed_ms: i64,
+    /// Time when this heuristic was cached (for TTL-based invalidation)
+    pub cached_at_ms: i64,
 }
 
 // Re-export CacheConfig from config module
@@ -135,9 +137,16 @@ impl MemoryCache {
     /// Add a heuristic to the cache with LRU eviction.
     /// Evicts least-recently-accessed heuristics if cache is full.
     pub fn add_heuristic(&mut self, mut heuristic: CachedHeuristic) {
+        let now = current_time_ms();
+
         // Set last_accessed to now if not set
         if heuristic.last_accessed_ms == 0 {
-            heuristic.last_accessed_ms = current_time_ms();
+            heuristic.last_accessed_ms = now;
+        }
+
+        // Set cached_at for TTL tracking
+        if heuristic.cached_at_ms == 0 {
+            heuristic.cached_at_ms = now;
         }
 
         // Evict if at capacity
@@ -170,11 +179,18 @@ impl MemoryCache {
         self.heuristics.get(id)
     }
 
-    /// Get all heuristics above a confidence threshold.
+    /// Get all heuristics above a confidence threshold that haven't expired.
+    /// Heuristics are considered expired if they've been cached longer than heuristic_ttl_ms.
     pub fn get_heuristics_by_confidence(&self, min_confidence: f32) -> Vec<&CachedHeuristic> {
+        let now = current_time_ms();
+        let ttl = self.config.heuristic_ttl_ms;
+
         self.heuristics
             .values()
-            .filter(|h| h.confidence >= min_confidence)
+            .filter(|h| {
+                h.confidence >= min_confidence
+                    && (ttl <= 0 || (now - h.cached_at_ms) < ttl)
+            })
             .collect()
     }
 
