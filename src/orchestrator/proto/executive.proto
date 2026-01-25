@@ -28,6 +28,10 @@ message ProcessEventResponse {
     string error_message = 2;
     string response_id = 3;             // ID of this response (for feedback correlation)
     string response_text = 4;           // The LLM's response text (if any)
+
+    // Prediction instrumentation (Instrument Now, Analyze Later - §27)
+    float predicted_success = 5;        // LLM's prediction of action success (0.0-1.0)
+    float prediction_confidence = 6;    // LLM's confidence in that prediction (0.0-1.0)
 }
 
 // Request to process an accumulated moment

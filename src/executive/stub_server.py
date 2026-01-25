@@ -311,6 +311,14 @@ Be general enough to match similar situations, specific enough to be useful.
 Output ONLY valid JSON with no other text: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
 
 
+PREDICTION_PROMPT = """Given this situation and response:
+Situation: {context}
+Response: {response}
+
+Predict the probability this action will succeed (0.0-1.0) and your confidence in that prediction (0.0-1.0).
+Output ONLY valid JSON with no other text: {{"success": 0.X, "confidence": 0.Y}}"""
+
+
 @dataclass
 class ReasoningTrace:
     """Stores context for pattern extraction when feedback is received."""
@@ -320,6 +328,8 @@ class ReasoningTrace:
     response: str  # LLM response
     timestamp: float
     matched_heuristic_id: str | None = None  # For TD learning confidence updates
+    predicted_success: float = 0.0
+    prediction_confidence: float = 0.0
 
     def age_seconds(self) -> float:
         return time.time() - self.timestamp
@@ -433,6 +443,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         context: str,
         response: str,
         matched_heuristic_id: str | None = None,
+        predicted_success: float = 0.0,
+        prediction_confidence: float = 0.0,
     ) -> str:
         """Store a reasoning trace and return the response_id."""
         response_id = str(uuid.uuid4())
@@ -443,6 +455,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             response=response,
             timestamp=time.time(),
             matched_heuristic_id=matched_heuristic_id,
+            predicted_success=predicted_success,
+            prediction_confidence=prediction_confidence,
         )
         # Cleanup old traces periodically
         if len(self.reasoning_traces) > 100:
@@ -470,6 +484,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 
         response_id = ""
         response_text = ""
+        predicted_success = 0.0
+        prediction_confidence = 0.0
 
         # If we have an LLM, get a response for high-salience events
         if self.ollama and request.immediate:
@@ -479,6 +495,31 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             if llm_response:
                 response_text = llm_response.strip()
                 logger.info(f"GLADyS: {response_text}")
+
+                # Predict success (Instrument Now, Analyze Later)
+                prediction_json = await self.ollama.generate(
+                    PREDICTION_PROMPT.format(context=event_context, response=response_text)
+                )
+                if prediction_json:
+                    try:
+                        # Clean up the response - LLM might include markdown code blocks
+                        clean_json = prediction_json.strip()
+                        if clean_json.startswith("```"):
+                            lines = clean_json.split("\n")
+                            clean_json = "\n".join(
+                                line for line in lines
+                                if not line.startswith("```")
+                            ).strip()
+
+                        pred_data = json.loads(clean_json)
+                        predicted_success = float(pred_data.get("success", 0.5))
+                        prediction_confidence = float(pred_data.get("confidence", 0.5))
+                        logger.debug(f"Prediction: success={predicted_success:.2f}, conf={prediction_confidence:.2f}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse prediction JSON: {e}")
+                        predicted_success = 0.5
+                        prediction_confidence = 0.5
+
                 # Extract matched heuristic ID for TD learning (if present)
                 matched_heuristic = getattr(event, "matched_heuristic_id", "") or ""
                 # Store reasoning trace for potential heuristic formation
@@ -487,6 +528,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
                     context=event_context,
                     response=response_text,
                     matched_heuristic_id=matched_heuristic if matched_heuristic else None,
+                    predicted_success=predicted_success,
+                    prediction_confidence=prediction_confidence,
                 )
                 logger.debug(
                     f"Stored reasoning trace: response_id={response_id}, "
@@ -497,6 +540,8 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             accepted=True,
             response_id=response_id,
             response_text=response_text,
+            predicted_success=predicted_success,
+            prediction_confidence=prediction_confidence,
         )
 
     async def ProcessMoment(

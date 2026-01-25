@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from . import common_pb2 as common__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x65xecutive.proto\x12\tgladys.v1\x1a\x0c\x63ommon.proto\"w\n\x13ProcessEventRequest\x12\x1f\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x10.gladys.v1.Event\x12\x11\n\timmediate\x18\x02 \x01(\x08\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"k\n\x14ProcessEventResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12\x15\n\rresponse_text\x18\x04 \x01(\t\"g\n\x14ProcessMomentRequest\x12!\n\x06moment\x18\x01 \x01(\x0b\x32\x11.gladys.v1.Moment\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"Z\n\x15ProcessMomentResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x18\n\x10\x65vents_processed\x18\x03 \x01(\x05\"\x7f\n\x16ProvideFeedbackRequest\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x10\n\x08positive\x18\x02 \x01(\x08\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"`\n\x17ProvideFeedbackResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x1c\n\x14\x63reated_heuristic_id\x18\x03 \x01(\t2\x91\x02\n\x10\x45xecutiveService\x12O\n\x0cProcessEvent\x12\x1e.gladys.v1.ProcessEventRequest\x1a\x1f.gladys.v1.ProcessEventResponse\x12R\n\rProcessMoment\x12\x1f.gladys.v1.ProcessMomentRequest\x1a .gladys.v1.ProcessMomentResponse\x12X\n\x0fProvideFeedback\x12!.gladys.v1.ProvideFeedbackRequest\x1a\".gladys.v1.ProvideFeedbackResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x65xecutive.proto\x12\tgladys.v1\x1a\x0c\x63ommon.proto\"w\n\x13ProcessEventRequest\x12\x1f\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x10.gladys.v1.Event\x12\x11\n\timmediate\x18\x02 \x01(\x08\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"\xa5\x01\n\x14ProcessEventResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12\x15\n\rresponse_text\x18\x04 \x01(\t\x12\x19\n\x11predicted_success\x18\x05 \x01(\x02\x12\x1d\n\x15prediction_confidence\x18\x06 \x01(\x02\"g\n\x14ProcessMomentRequest\x12!\n\x06moment\x18\x01 \x01(\x0b\x32\x11.gladys.v1.Moment\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"Z\n\x15ProcessMomentResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x18\n\x10\x65vents_processed\x18\x03 \x01(\x05\"\x7f\n\x16ProvideFeedbackRequest\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x10\n\x08positive\x18\x02 \x01(\x08\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"`\n\x17ProvideFeedbackResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x1c\n\x14\x63reated_heuristic_id\x18\x03 \x01(\t2\x91\x02\n\x10\x45xecutiveService\x12O\n\x0cProcessEvent\x12\x1e.gladys.v1.ProcessEventRequest\x1a\x1f.gladys.v1.ProcessEventResponse\x12R\n\rProcessMoment\x12\x1f.gladys.v1.ProcessMomentRequest\x1a .gladys.v1.ProcessMomentResponse\x12X\n\x0fProvideFeedback\x12!.gladys.v1.ProvideFeedbackRequest\x1a\".gladys.v1.ProvideFeedbackResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,16 +34,16 @@ if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_PROCESSEVENTREQUEST']._serialized_start=44
   _globals['_PROCESSEVENTREQUEST']._serialized_end=163
-  _globals['_PROCESSEVENTRESPONSE']._serialized_start=165
-  _globals['_PROCESSEVENTRESPONSE']._serialized_end=272
-  _globals['_PROCESSMOMENTREQUEST']._serialized_start=274
-  _globals['_PROCESSMOMENTREQUEST']._serialized_end=377
-  _globals['_PROCESSMOMENTRESPONSE']._serialized_start=379
-  _globals['_PROCESSMOMENTRESPONSE']._serialized_end=469
-  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_start=471
-  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_end=598
-  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_start=600
-  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_end=696
-  _globals['_EXECUTIVESERVICE']._serialized_start=699
-  _globals['_EXECUTIVESERVICE']._serialized_end=972
+  _globals['_PROCESSEVENTRESPONSE']._serialized_start=166
+  _globals['_PROCESSEVENTRESPONSE']._serialized_end=331
+  _globals['_PROCESSMOMENTREQUEST']._serialized_start=333
+  _globals['_PROCESSMOMENTREQUEST']._serialized_end=436
+  _globals['_PROCESSMOMENTRESPONSE']._serialized_start=438
+  _globals['_PROCESSMOMENTRESPONSE']._serialized_end=528
+  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_start=530
+  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_end=657
+  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_start=659
+  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_end=755
+  _globals['_EXECUTIVESERVICE']._serialized_start=758
+  _globals['_EXECUTIVESERVICE']._serialized_end=1031
 # @@protoc_insertion_point(module_scope)
