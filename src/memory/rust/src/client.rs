@@ -303,6 +303,7 @@ impl EventBuilder {
                 predicted_success: 0.0,
                 prediction_confidence: 0.0,
                 response_id: String::new(),
+                response_text: String::new(),
             },
         }
     }

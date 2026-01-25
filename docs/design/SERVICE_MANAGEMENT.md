@@ -40,7 +40,8 @@ Start one or more services.
 ```bash
 python scripts/local.py start memory      # Start memory service only
 python scripts/local.py start all         # Start all services
-python scripts/local.py start all --no-wait  # Start without waiting for health check
+python scripts/local.py start all --no-wait    # Start without waiting for health check
+python scripts/docker.py start all --no-migrate # Skip automatic migrations
 ```
 
 **Services available:**
@@ -50,6 +51,8 @@ python scripts/local.py start all --no-wait  # Start without waiting for health 
 - `all` - All of the above
 
 **Startup order:** Services start in dependency order. The `start all` command handles this automatically.
+
+**Automatic migrations (Docker):** The Docker script automatically runs database migrations before starting services. This ensures the schema is always up to date. Use `--no-migrate` to skip this step if needed.
 
 ### stop
 
@@ -137,6 +140,27 @@ gladys=# SELECT name, confidence FROM heuristics ORDER BY confidence DESC LIMIT 
 gladys=# SELECT source, COUNT(*) FROM episodic_events GROUP BY source;
 gladys=# \q
 ```
+
+### migrate (Docker only)
+
+Run database migrations to update the schema.
+
+```bash
+python scripts/docker.py migrate    # Apply all pending migrations
+```
+
+**How it works:**
+- Migrations live in `src/memory/migrations/` as numbered SQL files (001_, 002_, etc.)
+- Migrations are idempotent - safe to run multiple times
+- "Already exists" errors are treated as success (migration was already applied)
+- Each migration has a 60-second timeout to prevent hanging
+
+**When to use:**
+- After pulling new code that includes schema changes
+- When setting up a fresh database
+- Usually not needed - `start` runs migrations automatically
+
+**Note:** The `start` command runs migrations automatically before starting services. You only need to run `migrate` manually for debugging or when starting services with `--no-migrate`.
 
 ### clean
 
@@ -235,6 +259,27 @@ Local and Docker use **different ports** so both can run simultaneously:
 
 2. Check `pg_hba.conf` allows connections (local development).
 
+### Migration hangs or times out
+
+1. Check for stuck database connections:
+   ```bash
+   python scripts/docker.py psql
+   ```
+   ```sql
+   SELECT pid, state, query FROM pg_stat_activity WHERE datname = 'gladys';
+   ```
+
+2. If you see connections in "idle in transaction" state, terminate them:
+   ```sql
+   SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+   WHERE datname = 'gladys' AND state = 'idle in transaction';
+   ```
+
+3. Retry the migration:
+   ```bash
+   python scripts/docker.py migrate
+   ```
+
 ### Services show running but not responding
 
 1. Check if the port is actually accepting connections:
@@ -270,6 +315,12 @@ ORDER BY timestamp DESC LIMIT 10;
 
 -- Count events by source
 SELECT source, COUNT(*) FROM episodic_events GROUP BY source;
+
+-- See events with responses (for fine-tuning validation)
+SELECT id, raw_text, response_text, predicted_success
+FROM episodic_events
+WHERE response_text IS NOT NULL
+ORDER BY timestamp DESC LIMIT 5;
 ```
 
 ---

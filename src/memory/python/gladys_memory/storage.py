@@ -29,6 +29,7 @@ class EpisodicEvent:
     predicted_success: Optional[float] = None  # LLM's prediction of action success (0.0-1.0)
     prediction_confidence: Optional[float] = None  # LLM's confidence in that prediction
     response_id: Optional[str] = None  # Links to executive response/reasoning trace
+    response_text: Optional[str] = None  # Actual LLM response (for fine-tuning datasets)
 
 
 # Keep StorageConfig as alias for backwards compatibility
@@ -85,8 +86,8 @@ class MemoryStorage:
             INSERT INTO episodic_events (
                 id, timestamp, source, raw_text, embedding,
                 salience, structured, entity_ids,
-                predicted_success, prediction_confidence, response_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                predicted_success, prediction_confidence, response_id, response_text
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
             event.id,
             event.timestamp,
@@ -99,6 +100,7 @@ class MemoryStorage:
             event.predicted_success,
             event.prediction_confidence,
             event.response_id,
+            event.response_text,
         )
 
     async def query_by_time(
@@ -117,7 +119,7 @@ class MemoryStorage:
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
-                       predicted_success, prediction_confidence, response_id
+                       predicted_success, prediction_confidence, response_id, response_text
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
                   AND source = $3
@@ -135,7 +137,7 @@ class MemoryStorage:
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
-                       predicted_success, prediction_confidence, response_id
+                       predicted_success, prediction_confidence, response_id, response_text
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
                   AND archived = false
@@ -168,7 +170,7 @@ class MemoryStorage:
                 f"""
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
-                       predicted_success, prediction_confidence, response_id,
+                       predicted_success, prediction_confidence, response_id, response_text,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
                 WHERE archived = false
@@ -187,7 +189,7 @@ class MemoryStorage:
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
                        salience, structured, entity_ids,
-                       predicted_success, prediction_confidence, response_id,
+                       predicted_success, prediction_confidence, response_id, response_text,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
                 WHERE archived = false
@@ -218,6 +220,7 @@ class MemoryStorage:
             predicted_success=row.get("predicted_success"),
             prediction_confidence=row.get("prediction_confidence"),
             response_id=row.get("response_id"),
+            response_text=row.get("response_text"),
         )
 
     # =========================================================================

@@ -111,7 +111,23 @@ def cmd_start(args: argparse.Namespace) -> int:
     print("Ensuring database is running...")
     docker_compose("up", "-d", "postgres")
 
-    print(f"Starting DOCKER {args.service}...")
+    # Wait for db to be healthy before running migrations
+    import time
+    for _ in range(30):
+        status = get_container_status(CONTAINERS["db"])
+        if status.get("healthy"):
+            break
+        time.sleep(1)
+
+    # Run migrations (idempotent, safe to run every time)
+    if not args.no_migrate:
+        print("\nRunning migrations...")
+        migrate_args = argparse.Namespace()
+        result = cmd_migrate(migrate_args)
+        if result != 0:
+            print("Warning: Some migrations failed. Continuing anyway...")
+
+    print(f"\nStarting DOCKER {args.service}...")
     docker_compose("up", "-d", *services)
 
     if not args.no_wait:
@@ -187,7 +203,62 @@ def cmd_logs(args: argparse.Namespace) -> int:
 def cmd_psql(args: argparse.Namespace) -> int:
     """Open database shell."""
     container = CONTAINERS["db"]
-    subprocess.run(["docker", "exec", "-it", container, "psql", "-U", "gladys", "-d", "gladys"])
+    subprocess.run(["docker", "exec", "-it", "-e", "PGPASSWORD=gladys", container,
+                    "psql", "-U", "gladys", "-d", "gladys"])
+    return 0
+
+
+def cmd_migrate(args: argparse.Namespace) -> int:
+    """Run database migrations.
+
+    Migrations are safe to run multiple times - "already exists" errors are treated as OK.
+    """
+    container = CONTAINERS["db"]
+    migrations_dir = ROOT / "src" / "memory" / "migrations"
+
+    if not migrations_dir.exists():
+        print(f"Migrations directory not found: {migrations_dir}")
+        return 1
+
+    # Get all .sql files sorted by name (001_, 002_, etc.)
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+
+    if not migration_files:
+        print("No migration files found.")
+        return 0
+
+    print(f"Running {len(migration_files)} migrations...")
+    errors = 0
+
+    for migration in migration_files:
+        # Read the migration file
+        sql = migration.read_text()
+
+        # Pass PGPASSWORD to avoid psql hanging waiting for password
+        result = subprocess.run(
+            ["docker", "exec", "-e", "PGPASSWORD=gladys", container,
+             "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
+            capture_output=True,
+            text=True,
+            timeout=60,  # 60 second timeout per migration
+        )
+
+        stderr = result.stderr.strip() if result.stderr else ""
+
+        if result.returncode == 0:
+            print(f"  [OK] {migration.name}")
+        elif "already exists" in stderr:
+            # Treat "already exists" as success - migration was already applied
+            print(f"  [OK] {migration.name} (already applied)")
+        else:
+            print(f"  [FAIL] {migration.name}: {stderr}")
+            errors += 1
+
+    if errors:
+        print(f"\n{errors} migration(s) failed.")
+        return 1
+
+    print("\nAll migrations applied successfully.")
     return 0
 
 
@@ -204,9 +275,11 @@ def cmd_clean(args: argparse.Namespace) -> int:
     sql = tables.get(args.table, tables["heuristics"])
 
     result = subprocess.run(
-        ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
+        ["docker", "exec", "-e", "PGPASSWORD=gladys", container,
+         "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if result.returncode == 0:
         print(f"Cleaned: {args.table}")
@@ -228,10 +301,12 @@ def cmd_reset(args: argparse.Namespace) -> int:
     print("\n2. Cleaning database...")
     container = CONTAINERS["db"]
     result = subprocess.run(
-        ["docker", "exec", container, "psql", "-U", "gladys", "-d", "gladys",
+        ["docker", "exec", "-e", "PGPASSWORD=gladys", container,
+         "psql", "-U", "gladys", "-d", "gladys",
          "-c", "TRUNCATE heuristics, episodic_events CASCADE;"],
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if result.returncode == 0:
         print("  Database cleaned.")
@@ -253,11 +328,12 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python scripts/docker.py start memory          # Start memory services
-    python scripts/docker.py start all             # Start all services
+    python scripts/docker.py start memory          # Start memory services (runs migrations)
+    python scripts/docker.py start all             # Start all services (runs migrations)
     python scripts/docker.py stop memory           # Stop memory services
     python scripts/docker.py restart all           # Restart all services
     python scripts/docker.py status                # Show status of all services
+    python scripts/docker.py migrate               # Run database migrations
     python scripts/docker.py test test_td_learning.py  # Run specific test
     python scripts/docker.py test                  # Run all tests
     python scripts/docker.py logs memory           # Follow memory logs
@@ -281,6 +357,11 @@ Examples:
         "--no-wait",
         action="store_true",
         help="Don't wait for service to be healthy",
+    )
+    start_parser.add_argument(
+        "--no-migrate",
+        action="store_true",
+        help="Skip running database migrations",
     )
     start_parser.set_defaults(func=cmd_start)
 
@@ -327,6 +408,10 @@ Examples:
     # psql
     psql_parser = subparsers.add_parser("psql", help="Open database shell")
     psql_parser.set_defaults(func=cmd_psql)
+
+    # migrate
+    migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
+    migrate_parser.set_defaults(func=cmd_migrate)
 
     # clean
     clean_parser = subparsers.add_parser("clean", help="Clean database tables")

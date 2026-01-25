@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "vector";
 -- Stores raw events as they occur. High volume, append-mostly.
 -- =============================================================================
 
-CREATE TABLE episodic_events (
+CREATE TABLE IF NOT EXISTS episodic_events (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
     source          TEXT NOT NULL,              -- Sensor ID that generated event
@@ -38,22 +38,22 @@ CREATE TABLE episodic_events (
 );
 
 -- Indexes for episodic_events
-CREATE INDEX idx_episodic_timestamp ON episodic_events (timestamp DESC);
-CREATE INDEX idx_episodic_source ON episodic_events (source, timestamp DESC);
-CREATE INDEX idx_episodic_embedding ON episodic_events
+CREATE INDEX IF NOT EXISTS idx_episodic_timestamp ON episodic_events (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_episodic_source ON episodic_events (source, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_episodic_embedding ON episodic_events
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
-CREATE INDEX idx_episodic_active ON episodic_events (timestamp DESC)
+CREATE INDEX IF NOT EXISTS idx_episodic_active ON episodic_events (timestamp DESC)
     WHERE archived = false;
-CREATE INDEX idx_episodic_salience ON episodic_events USING GIN (salience);
-CREATE INDEX idx_episodic_entities ON episodic_events USING GIN (entity_ids);
+CREATE INDEX IF NOT EXISTS idx_episodic_salience ON episodic_events USING GIN (salience);
+CREATE INDEX IF NOT EXISTS idx_episodic_entities ON episodic_events USING GIN (entity_ids);
 
 -- =============================================================================
 -- ENTITIES
 -- Known people, places, things, and concepts.
 -- =============================================================================
 
-CREATE TABLE entities (
+CREATE TABLE IF NOT EXISTS entities (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Identification
@@ -82,15 +82,15 @@ CREATE TABLE entities (
 );
 
 -- Indexes for entities
-CREATE INDEX idx_entities_name ON entities (canonical_name)
+CREATE INDEX IF NOT EXISTS idx_entities_name ON entities (canonical_name)
     WHERE merged_into IS NULL;
-CREATE INDEX idx_entities_type ON entities (entity_type)
+CREATE INDEX IF NOT EXISTS idx_entities_type ON entities (entity_type)
     WHERE merged_into IS NULL;
-CREATE INDEX idx_entities_aliases ON entities USING GIN (aliases)
+CREATE INDEX IF NOT EXISTS idx_entities_aliases ON entities USING GIN (aliases)
     WHERE merged_into IS NULL;
-CREATE INDEX idx_entities_embedding ON entities
+CREATE INDEX IF NOT EXISTS idx_entities_embedding ON entities
     USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX idx_entities_last_seen ON entities (last_seen DESC)
+CREATE INDEX IF NOT EXISTS idx_entities_last_seen ON entities (last_seen DESC)
     WHERE merged_into IS NULL;
 
 -- =============================================================================
@@ -98,7 +98,7 @@ CREATE INDEX idx_entities_last_seen ON entities (last_seen DESC)
 -- User traits and preferences with confidence and adaptation tracking.
 -- =============================================================================
 
-CREATE TABLE user_profile (
+CREATE TABLE IF NOT EXISTS user_profile (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Trait identification
@@ -133,9 +133,9 @@ CREATE TABLE user_profile (
 );
 
 -- Indexes for user_profile
-CREATE INDEX idx_profile_category ON user_profile (trait_category);
-CREATE INDEX idx_profile_confidence ON user_profile (confidence DESC);
-CREATE INDEX idx_profile_embedding ON user_profile
+CREATE INDEX IF NOT EXISTS idx_profile_category ON user_profile (trait_category);
+CREATE INDEX IF NOT EXISTS idx_profile_confidence ON user_profile (confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_embedding ON user_profile
     USING hnsw (embedding vector_cosine_ops);
 
 -- =============================================================================
@@ -143,7 +143,7 @@ CREATE INDEX idx_profile_embedding ON user_profile
 -- System 1 fast rules derived from patterns.
 -- =============================================================================
 
-CREATE TABLE heuristics (
+CREATE TABLE IF NOT EXISTS heuristics (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Rule definition
@@ -167,8 +167,8 @@ CREATE TABLE heuristics (
 );
 
 -- Indexes for heuristics
-CREATE INDEX idx_heuristics_condition ON heuristics USING GIN (condition);
-CREATE INDEX idx_heuristics_confidence ON heuristics (confidence DESC)
+CREATE INDEX IF NOT EXISTS idx_heuristics_condition ON heuristics USING GIN (condition);
+CREATE INDEX IF NOT EXISTS idx_heuristics_confidence ON heuristics (confidence DESC)
     WHERE frozen = FALSE;
 
 -- =============================================================================
@@ -176,7 +176,7 @@ CREATE INDEX idx_heuristics_confidence ON heuristics (confidence DESC)
 -- Records explicit and implicit user feedback for learning.
 -- =============================================================================
 
-CREATE TABLE feedback_events (
+CREATE TABLE IF NOT EXISTS feedback_events (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     timestamp       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
@@ -203,8 +203,8 @@ CREATE TABLE feedback_events (
 );
 
 -- Indexes for feedback_events
-CREATE INDEX idx_feedback_timestamp ON feedback_events (timestamp DESC);
-CREATE INDEX idx_feedback_target ON feedback_events (target_type, target_id);
-CREATE INDEX idx_feedback_unprocessed ON feedback_events (timestamp)
+CREATE INDEX IF NOT EXISTS idx_feedback_timestamp ON feedback_events (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_target ON feedback_events (target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_unprocessed ON feedback_events (timestamp)
     WHERE processed = FALSE;
-CREATE INDEX idx_feedback_type ON feedback_events (feedback_type);
+CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback_events (feedback_type);

@@ -14,6 +14,7 @@ from .router import EventRouter
 from .accumulator import MomentAccumulator
 from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
+from .clients.memory_client import MemoryStorageClient
 
 # Generated proto imports
 from .generated import common_pb2
@@ -40,11 +41,13 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         config: OrchestratorConfig,
         salience_client: SalienceMemoryClient | None = None,
         executive_client: ExecutiveClient | None = None,
+        memory_client: MemoryStorageClient | None = None,
     ):
         self.config = config
         self.registry = ComponentRegistry()
         self._salience_client = salience_client
         self._executive_client = executive_client
+        self._memory_client = memory_client
         self.router = EventRouter(config, salience_client, executive_client)
         self.accumulator = MomentAccumulator(config)
         self._running = False
@@ -70,6 +73,15 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             if moment and moment.events:
                 await self.router.send_moment_to_executive(moment)
 
+                # Batch-store LOW salience events after sending moment
+                if self._memory_client:
+                    try:
+                        stored = await self._memory_client.store_events(moment.events)
+                        if stored > 0:
+                            logger.debug(f"Batch-stored {stored} events from moment")
+                    except Exception as store_err:
+                        logger.warning(f"Failed to batch-store moment events: {store_err}")
+
     # -------------------------------------------------------------------------
     # Event Routing RPCs
     # -------------------------------------------------------------------------
@@ -91,10 +103,32 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             try:
                 # Route the event (queries salience, decides path)
                 result = await self.router.route_event(event, self.accumulator)
+
+                # Store HIGH salience events immediately after Executive responds
+                if result.get("routed_to_llm") and self._memory_client:
+                    try:
+                        await self._memory_client.store_event(
+                            event=event,
+                            response_id=result.get("response_id", ""),
+                            response_text=result.get("response_text", ""),
+                            predicted_success=result.get("predicted_success", 0.0),
+                            prediction_confidence=result.get("prediction_confidence", 0.0),
+                        )
+                    except Exception as store_err:
+                        logger.warning(f"Failed to store event {event.id}: {store_err}")
+
                 yield orchestrator_pb2.EventAck(
                     event_id=result["event_id"],
                     accepted=result["accepted"],
                     error_message=result.get("error_message", ""),
+                    # Executive response data (if routed to LLM)
+                    response_id=result.get("response_id", ""),
+                    response_text=result.get("response_text", ""),
+                    predicted_success=result.get("predicted_success", 0.0),
+                    prediction_confidence=result.get("prediction_confidence", 0.0),
+                    # Routing info
+                    routed_to_llm=result.get("routed_to_llm", False),
+                    matched_heuristic_id=result.get("matched_heuristic_id", ""),
                 )
             except Exception as e:
                 logger.error(f"Error routing event {event.id}: {e}")
@@ -265,9 +299,18 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
         logger.warning(f"Could not connect to Executive: {e}. Moments will be logged only.")
         executive_client = None
 
+    # Create and connect memory storage client
+    memory_client = MemoryStorageClient(config.memory_storage_address)
+    try:
+        await memory_client.connect()
+        logger.info(f"Connected to Memory at {config.memory_storage_address}")
+    except Exception as e:
+        logger.warning(f"Could not connect to Memory: {e}. Events will not be stored.")
+        memory_client = None
+
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
 
-    servicer = OrchestratorServicer(config, salience_client, executive_client)
+    servicer = OrchestratorServicer(config, salience_client, executive_client, memory_client)
     await servicer.start()
 
     # Add servicer to server
@@ -294,6 +337,8 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
             await salience_client.close()
         if executive_client:
             await executive_client.close()
+        if memory_client:
+            await memory_client.close()
         await server.stop(grace=5)
 
 

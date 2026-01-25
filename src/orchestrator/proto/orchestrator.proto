@@ -59,6 +59,16 @@ message EventAck {
     string event_id = 1;
     bool accepted = 2;
     string error_message = 3;       // If not accepted
+
+    // Response from Executive (if routed to LLM)
+    string response_id = 4;         // Executive's response ID
+    string response_text = 5;       // The actual response
+    float predicted_success = 6;    // LLM's prediction (0.0-1.0)
+    float prediction_confidence = 7; // LLM's confidence (0.0-1.0)
+
+    // Routing information
+    bool routed_to_llm = 8;         // True if went to Executive/LLM
+    string matched_heuristic_id = 9; // If fast-path via heuristic
 }
 
 message SubscribeRequest {

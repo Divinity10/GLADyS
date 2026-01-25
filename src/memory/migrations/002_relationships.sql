@@ -8,7 +8,7 @@
 -- Not a graph DB - we're providing context, not running graph algorithms.
 -- =============================================================================
 
-CREATE TABLE relationships (
+CREATE TABLE IF NOT EXISTS relationships (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Subject -> Predicate -> Object
@@ -36,14 +36,14 @@ CREATE TABLE relationships (
 
 -- Indexes for relationship traversal
 -- Both directions needed for bidirectional context retrieval
-CREATE INDEX idx_rel_subject ON relationships (subject_id);
-CREATE INDEX idx_rel_object ON relationships (object_id);
-CREATE INDEX idx_rel_predicate ON relationships (predicate);
-CREATE INDEX idx_rel_confidence ON relationships (confidence DESC)
+CREATE INDEX IF NOT EXISTS idx_rel_subject ON relationships (subject_id);
+CREATE INDEX IF NOT EXISTS idx_rel_object ON relationships (object_id);
+CREATE INDEX IF NOT EXISTS idx_rel_predicate ON relationships (predicate);
+CREATE INDEX IF NOT EXISTS idx_rel_confidence ON relationships (confidence DESC)
     WHERE confidence >= 0.5;
 
 -- Composite index for "get all relationships for an entity"
-CREATE INDEX idx_rel_entity_all ON relationships (subject_id, object_id);
+CREATE INDEX IF NOT EXISTS idx_rel_entity_all ON relationships (subject_id, object_id);
 
 -- =============================================================================
 -- EXAMPLE DATA (for testing "Is Steve online?" scenario)

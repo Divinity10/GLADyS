@@ -32,4 +32,5 @@ class OrchestratorConfig(BaseSettings):
 
     # Downstream service addresses (will be resolved via service discovery in prod)
     salience_memory_address: str = "localhost:50051"  # Memory's SalienceGateway
+    memory_storage_address: str = "localhost:50051"   # Memory's MemoryStorage (same server)
     executive_address: str = "localhost:50053"

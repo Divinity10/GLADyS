@@ -43,15 +43,21 @@ class ExecutiveClient:
             self._channel = None
             self._stub = None
 
-    async def send_event_immediate(self, event: Any) -> bool:
+    async def send_event_immediate(self, event: Any) -> dict:
         """
         Send a high-salience event immediately (bypass moment accumulation).
 
-        Returns True if accepted by Executive.
+        Returns dict with response data from Executive:
+        - accepted: bool
+        - error_message: str
+        - response_id: str
+        - response_text: str
+        - predicted_success: float
+        - prediction_confidence: float
         """
         if not self._stub:
             logger.warning("Executive not connected, event not delivered")
-            return False
+            return {"accepted": False, "error_message": "Executive not connected"}
 
         try:
             request = executive_pb2.ProcessEventRequest(
@@ -59,11 +65,18 @@ class ExecutiveClient:
                 immediate=True,
             )
             response = await self._stub.ProcessEvent(request)
-            return response.accepted
+            return {
+                "accepted": response.accepted,
+                "error_message": response.error_message,
+                "response_id": response.response_id,
+                "response_text": response.response_text,
+                "predicted_success": response.predicted_success,
+                "prediction_confidence": response.prediction_confidence,
+            }
 
         except grpc.RpcError as e:
             logger.error(f"Failed to send event to Executive: {e}")
-            return False
+            return {"accepted": False, "error_message": str(e)}
 
     async def send_moment(self, moment: Any) -> bool:
         """

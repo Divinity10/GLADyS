@@ -51,13 +51,14 @@ class EventRouter:
         """
         Route a single event.
 
-        Returns an EventAck dict.
+        Returns an EventAck dict with routing info and Executive response (if applicable).
         """
         event_id = getattr(event, "id", "unknown")
 
         try:
             # Step 1: Get salience score
             salience = await self._get_salience(event)
+            matched_heuristic_id = salience.get("_matched_heuristic", "")
 
             # Step 2: Attach salience to event (so Executive receives it)
             self._attach_salience(event, salience)
@@ -65,10 +66,33 @@ class EventRouter:
             # Step 3: Determine routing based on salience
             max_salience = self._get_max_salience(salience)
 
+            # Base result
+            result = {
+                "event_id": event_id,
+                "accepted": True,
+                "error_message": "",
+                "routed_to_llm": False,
+                "matched_heuristic_id": matched_heuristic_id,
+                "response_id": "",
+                "response_text": "",
+                "predicted_success": 0.0,
+                "prediction_confidence": 0.0,
+            }
+
             if max_salience >= self.config.high_salience_threshold:
                 # HIGH salience → immediate to Executive
                 logger.debug(f"Event {event_id}: HIGH salience ({max_salience:.2f}) → immediate")
-                await self._send_immediate(event)
+                exec_response = await self._send_immediate(event)
+
+                # Merge Executive response into result
+                result["routed_to_llm"] = True
+                if exec_response:
+                    result["accepted"] = exec_response.get("accepted", True)
+                    result["error_message"] = exec_response.get("error_message", "")
+                    result["response_id"] = exec_response.get("response_id", "")
+                    result["response_text"] = exec_response.get("response_text", "")
+                    result["predicted_success"] = exec_response.get("predicted_success", 0.0)
+                    result["prediction_confidence"] = exec_response.get("prediction_confidence", 0.0)
             else:
                 # LOW salience → accumulate
                 logger.debug(f"Event {event_id}: LOW salience ({max_salience:.2f}) → accumulate")
@@ -77,7 +101,7 @@ class EventRouter:
             # Also broadcast to subscribers (for monitoring, etc.)
             await self._broadcast_to_subscribers(event)
 
-            return {"event_id": event_id, "accepted": True, "error_message": ""}
+            return result
 
         except Exception as e:
             logger.error(f"Error routing event {event_id}: {e}")
@@ -180,21 +204,24 @@ class EventRouter:
         ]
         return max(dimensions)
 
-    async def _send_immediate(self, event: Any) -> None:
-        """Send event immediately to Executive (bypass moment accumulation)."""
+    async def _send_immediate(self, event: Any) -> dict | None:
+        """
+        Send event immediately to Executive (bypass moment accumulation).
+
+        Returns the Executive response dict, or None if no Executive connected.
+        """
         event_id = getattr(event, 'id', 'unknown')
 
         if self._executive_client:
-            success = await self._executive_client.send_event_immediate(event)
-            if success:
+            response = await self._executive_client.send_event_immediate(event)
+            if response.get("accepted"):
                 logger.info(f"IMMEDIATE: Event {event_id} delivered to Executive")
             else:
-                logger.warning(f"IMMEDIATE: Event {event_id} delivery failed")
+                logger.warning(f"IMMEDIATE: Event {event_id} delivery failed: {response.get('error_message')}")
+            return response
         else:
             logger.info(f"IMMEDIATE: Event {event_id} (no Executive connected)")
-
-        # Also broadcast to subscribers
-        await self._broadcast_to_subscribers(event, immediate=True)
+            return None
 
     async def send_moment_to_executive(self, moment: Moment) -> None:
         """Send accumulated moment to Executive on tick."""

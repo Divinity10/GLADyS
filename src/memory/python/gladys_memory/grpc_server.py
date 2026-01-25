@@ -61,6 +61,7 @@ def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
         predicted_success=event.predicted_success or 0.0,
         prediction_confidence=event.prediction_confidence or 0.0,
         response_id=event.response_id or "",
+        response_text=event.response_text or "",
     )
 
 
@@ -100,6 +101,7 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
         predicted_success=proto.predicted_success if proto.predicted_success else None,
         prediction_confidence=proto.prediction_confidence if proto.prediction_confidence else None,
         response_id=proto.response_id if proto.response_id else None,
+        response_text=proto.response_text if proto.response_text else None,
     )
 
 
