@@ -12,7 +12,7 @@ import grpc
 import numpy as np
 import pytest
 
-from gladys_memory import memory_pb2, memory_pb2_grpc
+from gladys_memory import memory_pb2, memory_pb2_grpc, types_pb2
 from gladys_memory.config import StorageSettings
 from gladys_memory.embeddings import EmbeddingGenerator
 from gladys_memory.grpc_server import MemoryStorageServicer, _embedding_to_bytes, _bytes_to_embedding
@@ -104,7 +104,7 @@ class TestMemoryStorageServicer:
         cleanup_events.append(event_id)
 
         embedding = np.random.randn(384).astype(np.float32)
-        salience = memory_pb2.SalienceVector(
+        salience = types_pb2.SalienceVector(
             threat=0.1,
             novelty=0.8,
             goal_relevance=0.5,
