@@ -25,15 +25,24 @@ try:
 except ImportError:
     st.error("Proto stubs not found. Run 'python scripts/proto_sync.py' first.")
 
-# Service Connection Config (DOCKER PORTS)
-MEMORY_ADDR = os.environ.get("MEMORY_ADDR", "localhost:50061")
-EXECUTIVE_ADDR = os.environ.get("EXECUTIVE_ADDR", "localhost:50063")
-ORCHESTRATOR_ADDR = os.environ.get("ORCHESTRATOR_ADDR", "localhost:50060")
+# Service Connection Config
+ENV_CONFIGS = {
+    "Docker": {
+        "MEMORY_ADDR": "localhost:50061",
+        "EXECUTIVE_ADDR": "localhost:50063",
+        "ORCHESTRATOR_ADDR": "localhost:50060",
+        "DB_PORT": "5433"
+    },
+    "Local": {
+        "MEMORY_ADDR": "localhost:50051",
+        "EXECUTIVE_ADDR": "localhost:50053",
+        "ORCHESTRATOR_ADDR": "localhost:50050",
+        "DB_PORT": "5432"
+    }
+}
 
-# Database Connection Config
-# Connecting from host to Docker container mapped port
+# Database Connection Config (Static)
 DB_HOST = os.environ.get("DB_HOST", "localhost")
-DB_PORT = os.environ.get("DB_PORT", "5433")
 DB_NAME = os.environ.get("DB_NAME", "gladys")
 DB_USER = os.environ.get("DB_USER", "gladys")
 DB_PASS = os.environ.get("DB_PASS", "gladys")
@@ -53,19 +62,27 @@ if "response_queue" not in st.session_state:
     st.session_state.response_queue = queue.Queue()
 if "subscribed" not in st.session_state:
     st.session_state.subscribed = False
+if "env_mode" not in st.session_state:
+    st.session_state.env_mode = "Docker" # Default
 
 # --- gRPC Clients ---
 
+def get_current_config():
+    return ENV_CONFIGS[st.session_state.env_mode]
+
 def get_executive_stub():
-    channel = grpc.insecure_channel(EXECUTIVE_ADDR)
+    conf = get_current_config()
+    channel = grpc.insecure_channel(conf["EXECUTIVE_ADDR"])
     return executive_pb2_grpc.ExecutiveServiceStub(channel)
 
 def get_memory_stub():
-    channel = grpc.insecure_channel(MEMORY_ADDR)
+    conf = get_current_config()
+    channel = grpc.insecure_channel(conf["MEMORY_ADDR"])
     return memory_pb2_grpc.MemoryStorageStub(channel)
 
 def get_orchestrator_stub():
-    channel = grpc.insecure_channel(ORCHESTRATOR_ADDR)
+    conf = get_current_config()
+    channel = grpc.insecure_channel(conf["ORCHESTRATOR_ADDR"])
     return orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
 
 def send_event_to_orchestrator(event):
@@ -81,10 +98,13 @@ def send_event_to_orchestrator(event):
         st.error(f"Orchestrator Error: {e}")
     return None
 
-def response_subscriber_thread(q):
+def response_subscriber_thread(q, orchestrator_addr):
     """Background thread to subscribe to responses."""
     try:
-        orch_stub = get_orchestrator_stub()
+        # Create a dedicated channel for the thread
+        channel = grpc.insecure_channel(orchestrator_addr)
+        orch_stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+        
         # Using a unique ID for the dashboard
         subscriber_id = f"dashboard-{uuid.uuid4().hex[:8]}"
         req = orchestrator_pb2.SubscribeResponsesRequest(
@@ -97,8 +117,17 @@ def response_subscriber_thread(q):
     except Exception as e:
         print(f"Subscription error: {e}")
 
+# Start subscription thread only once
+# Note: If environment switches, we might need to restart this thread.
+# For simplicity, we stick to the initial environment for the background thread
+# or require a full app restart.
 if not st.session_state.subscribed:
-    thread = threading.Thread(target=response_subscriber_thread, args=(st.session_state.response_queue,), daemon=True)
+    conf = get_current_config()
+    thread = threading.Thread(
+        target=response_subscriber_thread, 
+        args=(st.session_state.response_queue, conf["ORCHESTRATOR_ADDR"]), 
+        daemon=True
+    )
     thread.start()
     st.session_state.subscribed = True
 
@@ -120,30 +149,43 @@ def process_queue():
 # --- Database Functions ---
 
 @st.cache_resource
-def get_db_connection():
+def get_db_connection(host, port, dbname, user, password):
     try:
         conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS
+            host=host,
+            port=port,
+            database=dbname,
+            user=user,
+            password=password
         )
         return conn
     except Exception as e:
-        st.error(f"Failed to connect to database at {DB_HOST}:{DB_PORT}")
+        st.error(f"Failed to connect to database at {host}:{port}")
         st.error(e)
         return None
 
 def fetch_data(query, params=None):
-    conn = get_db_connection()
+    conf = get_current_config()
+    conn = get_db_connection(
+        DB_HOST, 
+        conf["DB_PORT"], 
+        DB_NAME, 
+        DB_USER, 
+        DB_PASS
+    )
     if not conn:
         return pd.DataFrame()
     
     # Check if connection is alive, reconnect if needed
     if conn.closed:
         st.cache_resource.clear()
-        conn = get_db_connection()
+        conn = get_db_connection(
+            DB_HOST, 
+            conf["DB_PORT"], 
+            DB_NAME, 
+            DB_USER, 
+            DB_PASS
+        )
 
     try:
         # Use pandas for easier data handling
@@ -158,6 +200,25 @@ def fetch_data(query, params=None):
 def render_sidebar():
     st.sidebar.title("GLADyS Control")
     
+    # Environment Switcher
+    st.sidebar.subheader("Environment")
+    env_mode = st.sidebar.radio(
+        "Mode", 
+        ["Docker", "Local"], 
+        index=0 if st.session_state.env_mode == "Docker" else 1,
+        horizontal=True
+    )
+    
+    # If mode changed, update state and clear cache
+    if env_mode != st.session_state.env_mode:
+        st.session_state.env_mode = env_mode
+        st.cache_resource.clear()
+        st.rerun()
+
+    current_conf = get_current_config()
+    st.sidebar.caption(f"Orchestrator: {current_conf['ORCHESTRATOR_ADDR']}")
+    st.sidebar.caption(f"DB Port: {current_conf['DB_PORT']}")
+
     if st.sidebar.button("🔄 Refresh Dashboard"):
         st.cache_data.clear()
         st.rerun()
@@ -197,8 +258,15 @@ def render_sidebar():
     
     # Simple connection probes
     try:
-        get_db_connection()
-        st.sidebar.success(f"DB: Connected ({DB_PORT})")
+        conn = get_db_connection(
+            DB_HOST, 
+            current_conf["DB_PORT"], 
+            DB_NAME, 
+            DB_USER, 
+            DB_PASS
+        )
+        if conn:
+            st.sidebar.success(f"DB: Connected ({current_conf['DB_PORT']})")
     except:
         st.sidebar.error("DB: Disconnected")
         
