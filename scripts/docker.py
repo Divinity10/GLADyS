@@ -201,11 +201,45 @@ def cmd_logs(args: argparse.Namespace) -> int:
 
 
 def cmd_psql(args: argparse.Namespace) -> int:
-    """Open database shell."""
+    """Open database shell or execute command."""
     container = CONTAINERS["db"]
-    subprocess.run(["docker", "exec", "-it", "-e", "PGPASSWORD=gladys", container,
-                    "psql", "-U", "gladys", "-d", "gladys"])
-    return 0
+    
+    cmd = ["docker", "exec", "-e", "PGPASSWORD=gladys"]
+    
+    if args.command:
+        # Non-interactive command
+        cmd.extend([container, "psql", "-U", "gladys", "-d", "gladys", "-c", args.command])
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"Error: {result.stderr.strip()}")
+            return result.returncode
+        print(result.stdout.strip())
+        return 0
+    else:
+        # Interactive shell
+        cmd.extend(["-it", container, "psql", "-U", "gladys", "-d", "gladys"])
+        subprocess.run(cmd)
+        return 0
+
+
+def cmd_query(args: argparse.Namespace) -> int:
+    """Execute a SQL query and print output."""
+    # Reuse psql command logic but strictly non-interactive
+    psql_args = argparse.Namespace(command=args.sql)
+    return cmd_psql(psql_args)
+
+
+def kill_stuck_connections(container: str) -> None:
+    """Kill active connections to the database to release locks."""
+    print("Clearing active database connections...")
+    # Terminate all backends except our own
+    sql = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'gladys' AND pid <> pg_backend_pid();"
+    subprocess.run(
+        ["docker", "exec", "-e", "PGPASSWORD=gladys", container,
+         "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
+        capture_output=True,
+        text=True
+    )
 
 
 def cmd_migrate(args: argparse.Namespace) -> int:
@@ -214,14 +248,27 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     Migrations are safe to run multiple times - "already exists" errors are treated as OK.
     """
     container = CONTAINERS["db"]
+    
+    # Pre-flight: Kill stuck connections that might block DDL
+    kill_stuck_connections(container)
+    
     migrations_dir = ROOT / "src" / "memory" / "migrations"
 
     if not migrations_dir.exists():
         print(f"Migrations directory not found: {migrations_dir}")
         return 1
 
-    # Get all .sql files sorted by name (001_, 002_, etc.)
-    migration_files = sorted(migrations_dir.glob("*.sql"))
+    # Get all .sql files sorted by name
+    all_migrations = sorted(migrations_dir.glob("*.sql"))
+    
+    if args.file:
+        # Run specific file
+        migration_files = [m for m in all_migrations if args.file in m.name]
+        if not migration_files:
+            print(f"No migration matching '{args.file}' found.")
+            return 1
+    else:
+        migration_files = all_migrations
 
     if not migration_files:
         print("No migration files found.")
@@ -231,34 +278,52 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     errors = 0
 
     for migration in migration_files:
+        print(f"Applying {migration.name}...")
+        
         # Read the migration file
-        sql = migration.read_text()
+        sql = migration.read_text(encoding="utf-8")
 
-        # Pass PGPASSWORD to avoid psql hanging waiting for password
-        result = subprocess.run(
+        # Use Popen to stream output in real-time
+        # This avoids timeouts and gives immediate feedback
+        process = subprocess.Popen(
             ["docker", "exec", "-e", "PGPASSWORD=gladys", container,
              "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, # Merge stderr into stdout
             text=True,
-            timeout=300,  # 5 minute timeout (HNSW index creation can be slow)
+            encoding="utf-8"
         )
 
-        stderr = result.stderr.strip() if result.stderr else ""
+        # Stream output
+        output_lines = []
+        if process.stdout:
+            for line in process.stdout:
+                line = line.strip()
+                if line:
+                    output_lines.append(line)
+                    # Optional: Print verbose output only if needed
+                    # print(f"    {line}")
 
-        if result.returncode == 0:
-            print(f"  [OK] {migration.name}")
-        elif "already exists" in stderr:
-            # Treat "already exists" as success - migration was already applied
-            print(f"  [OK] {migration.name} (already applied)")
+        return_code = process.wait()
+
+        if return_code == 0:
+            print(f"  [OK] Success")
         else:
-            print(f"  [FAIL] {migration.name}: {stderr}")
-            errors += 1
+            # Check if it was just "already exists"
+            full_output = "\n".join(output_lines)
+            if "already exists" in full_output or "skipping" in full_output:
+                print(f"  [OK] Already applied")
+            else:
+                print(f"  [FAIL] Error details:")
+                for line in output_lines:
+                    print(f"    {line}")
+                errors += 1
 
     if errors:
         print(f"\n{errors} migration(s) failed.")
         return 1
 
-    print("\nAll migrations applied successfully.")
+    print("\nAll migrations completed.")
     return 0
 
 
@@ -407,10 +472,26 @@ Examples:
 
     # psql
     psql_parser = subparsers.add_parser("psql", help="Open database shell")
+    psql_parser.add_argument(
+        "-c", "--command",
+        help="Run single SQL command and exit",
+    )
     psql_parser.set_defaults(func=cmd_psql)
+
+    # query
+    query_parser = subparsers.add_parser("query", help="Run SQL query")
+    query_parser.add_argument(
+        "sql",
+        help="SQL query to execute",
+    )
+    query_parser.set_defaults(func=cmd_query)
 
     # migrate
     migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
+    migrate_parser.add_argument(
+        "-f", "--file",
+        help="Run only specific migration file (substring match)",
+    )
     migrate_parser.set_defaults(func=cmd_migrate)
 
     # clean
