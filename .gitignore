@@ -53,6 +53,7 @@ nul
 
 # Logs
 *.log
+*_logs.txt
 logs/
 
 # OS files

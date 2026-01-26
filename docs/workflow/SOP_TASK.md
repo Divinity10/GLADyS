@@ -16,7 +16,7 @@ Before implementing logic or modifying code:
 
 ## 2. Progress
 
-- **Incremental updates**: Update `memory.md` (Claude) or `gemini_memory.md` (Gemini) after every significant decision or technical discovery.
+- **Incremental updates**: Update `claude_memory.md` (Claude) or `gemini_memory.md` (Gemini) after every significant decision or technical discovery.
 - **Fail Fast**: If a runtime check fails (e.g., missing column), stop and report it immediately rather than building on a broken assumption.
 
 ## 3. Egress (Turnover / Completion)
@@ -31,4 +31,4 @@ Before declaring a task "DONE":
 - **Cleanup**: 
     - Stop any background processes you started.
     - Delete any temporary test data or tables created during verification.
-    - Ensure `memory.md` or `gemini_memory.md` contains the final state and next steps.
+    - Ensure `claude_memory.md` or `gemini_memory.md` contains the final state and next steps.

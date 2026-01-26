@@ -9,7 +9,7 @@ A minimal Streamlit dashboard to visualize the GLADyS learning loop (System 2 â†
 - **System Stats**: Cache hit rates and processing metrics.
 
 ## Prerequisites
-- Docker services must be running (`src/integration/run.py start all`).
+- Docker services must be running (`python scripts/docker.py start`).
 - Python 3.11+.
 
 ## Setup
@@ -23,10 +23,9 @@ A minimal Streamlit dashboard to visualize the GLADyS learning loop (System 2 â†
 
 ## Running the Dashboard
 
-Ensure the Docker services are up first:
+Ensure the Docker services are up first (from project root):
 ```bash
-cd src/integration
-python run.py start all
+python scripts/docker.py start
 ```
 
 Run the dashboard from the `src/ui` directory:
