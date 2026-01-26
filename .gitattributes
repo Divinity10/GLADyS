@@ -1,2 +1,45 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Cross-platform line ending normalization
+# All text files should use LF in the repo, native line endings on checkout
+* text=auto eol=lf
+
+# Explicitly mark text files
+*.py text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.sql text eol=lf
+*.proto text eol=lf
+*.sh text eol=lf
+*.bash text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+
+# Config files
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.editorconfig text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+
+# Windows batch files keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files (no conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.whl binary

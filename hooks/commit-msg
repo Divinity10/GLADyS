@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Strip AI attribution from commit messages (per CLAUDE.md).
+
+This hook removes Co-Authored-By lines mentioning Claude or Anthropic,
+since commits represent the project owners' decisions.
+
+Setup:
+    git config core.hooksPath hooks
+"""
+import sys
+import re
+
+msg_file = sys.argv[1]
+
+# Always use UTF-8 for cross-platform compatibility
+with open(msg_file, 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Remove Co-Authored-By lines mentioning Claude or Anthropic
+content = re.sub(
+    r'^Co-Authored-By:.*(?:Claude|Anthropic).*\n?',
+    '',
+    content,
+    flags=re.MULTILINE | re.IGNORECASE
+)
+
+# Remove trailing whitespace
+content = content.rstrip() + '\n'
+
+with open(msg_file, 'w', encoding='utf-8') as f:
+    f.write(content)

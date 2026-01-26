@@ -33,6 +33,23 @@ Don't see your skillset? Open an issue—we might have something.
 3. **Set up locally**: See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
 4. **Make small PRs**: Fix a bug, improve docs, add tests—build trust first
 
+## First-Time Setup
+
+After cloning the repo, run these commands to ensure cross-platform compatibility:
+
+```bash
+# Use the shared git hooks (strips AI co-author lines per CLAUDE.md)
+git config core.hooksPath hooks
+
+# Normalize line endings (prevents CRLF/LF issues)
+git add --renormalize .
+```
+
+**Why?**
+- The `hooks/` directory contains git hooks that work on Windows, Mac, and Linux
+- Line ending normalization ensures consistent files across platforms
+- The `.editorconfig` file configures most editors automatically
+
 ## Project Tracking
 
 GitHub's UI hides these in different places, so here are direct links:
