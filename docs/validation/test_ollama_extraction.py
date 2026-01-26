@@ -200,7 +200,7 @@ def main():
             print(f"  {r['scenario_id']}: FAILED")
 
     # Save results
-    with open("docs/validation/ollama_extraction_results.json", "w") as f:
+    with open("docs/validation/ollama_extraction_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
     print("\nResults saved to docs/validation/ollama_extraction_results.json")
 

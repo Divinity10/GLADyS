@@ -204,7 +204,7 @@ def run_test_suite(test_file: Path, output_file: Optional[Path] = None):
     """Run all scenarios from a test file."""
     print(f"Loading test scenarios from: {test_file}")
 
-    with open(test_file, "r") as f:
+    with open(test_file, "r", encoding="utf-8") as f:
         test_suite = json.load(f)
 
     test_name = test_suite.get("test_name", "Unnamed Test")
@@ -262,7 +262,7 @@ def run_test_suite(test_file: Path, output_file: Optional[Path] = None):
         # Default output path: same name as input with _results suffix
         output_file = test_file.parent / f"{test_file.stem}_results.json"
 
-    with open(output_file, "w") as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
     print(f"\nResults saved to: {output_file}")
 

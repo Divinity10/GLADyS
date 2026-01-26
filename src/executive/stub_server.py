@@ -368,7 +368,7 @@ class HeuristicStore:
         """Load heuristics from file."""
         if self.path.exists():
             try:
-                with open(self.path, "r") as f:
+                with open(self.path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     for h_data in data.get("heuristics", []):
                         h = Heuristic(**h_data)
@@ -383,7 +383,7 @@ class HeuristicStore:
             data = {
                 "heuristics": [asdict(h) for h in self.heuristics.values()]
             }
-            with open(self.path, "w") as f:
+            with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.error(f"Failed to save heuristics to {self.path}: {e}")

@@ -134,7 +134,7 @@ def fix_relative_imports(output_dir: Path, proto_name: str) -> None:
 def verify_python_syntax(file_path: Path) -> bool:
     """Verify a Python file has valid syntax."""
     try:
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             compile(f.read(), file_path, "exec")
         return True
     except SyntaxError as e:
