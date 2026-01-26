@@ -31,6 +31,6 @@ class OrchestratorConfig(BaseSettings):
     max_workers: int = 10
 
     # Downstream service addresses (will be resolved via service discovery in prod)
-    salience_memory_address: str = "localhost:50051"  # Memory's SalienceGateway
-    memory_storage_address: str = "localhost:50051"   # Memory's MemoryStorage (same server)
+    salience_memory_address: str = "localhost:50052"  # Rust SalienceGateway
+    memory_storage_address: str = "localhost:50051"   # Python MemoryStorage
     executive_address: str = "localhost:50053"

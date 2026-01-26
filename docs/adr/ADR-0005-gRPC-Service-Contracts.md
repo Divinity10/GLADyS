@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Status** | Proposed |
-| **Date** | 2025-01-27 |
+| **Date** | 2026-01-25 |
 | **Owner** | Mike Mulcahy (Divinity10), Scott (scottcm) |
 | **Contributors** | |
 | **Module** | Contracts |
@@ -259,7 +259,13 @@ service OrchestratorService {
     
     // Components subscribe to receive events
     rpc SubscribeEvents(SubscribeRequest) returns (stream Event);
-    
+
+    // Subscribe to receive responses (for accumulated events and evaluation UI)
+    rpc SubscribeResponses(SubscribeResponsesRequest) returns (stream EventResponse);
+
+    // Manually flush the moment accumulator (for testing/evaluation)
+    rpc FlushMoment(FlushMomentRequest) returns (FlushMomentResponse);
+
     // --------------------------------------------------------------------
     // Component Lifecycle
     // --------------------------------------------------------------------
@@ -299,12 +305,63 @@ message EventAck {
     string event_id = 1;
     bool accepted = 2;
     string error_message = 3;       // If not accepted
+
+    // Executive response data (if routed to LLM via IMMEDIATE path)
+    string response_id = 4;
+    string response_text = 5;
+    float predicted_success = 6;
+    float prediction_confidence = 7;
+
+    // Routing info
+    bool routed_to_llm = 8;         // True if HIGH salience → IMMEDIATE path
+    string matched_heuristic_id = 9;
 }
 
 message SubscribeRequest {
     string subscriber_id = 1;
     repeated string source_filters = 2;   // Empty = all sources
     repeated string event_types = 3;      // Empty = all types
+}
+
+message SubscribeResponsesRequest {
+    string subscriber_id = 1;
+    repeated string source_filters = 2;   // Empty = all sources
+    bool include_immediate = 3;           // Also receive IMMEDIATE path responses (default: false)
+}
+
+// Response for an event (streamed to subscribers via SubscribeResponses)
+message EventResponse {
+    string event_id = 1;
+    string response_id = 2;
+    string response_text = 3;
+
+    // Prediction data
+    float predicted_success = 4;
+    float prediction_confidence = 5;
+
+    // Routing information
+    RoutingPath routing_path = 6;
+    string matched_heuristic_id = 7;
+
+    // Timing (for latency measurement)
+    int64 event_timestamp_ms = 8;
+    int64 response_timestamp_ms = 9;
+}
+
+enum RoutingPath {
+    ROUTING_PATH_UNSPECIFIED = 0;
+    ROUTING_PATH_IMMEDIATE = 1;      // HIGH salience, sent immediately to Executive
+    ROUTING_PATH_ACCUMULATED = 2;    // LOW salience, batched in moment, sent on tick
+}
+
+message FlushMomentRequest {
+    string reason = 1;  // Optional: why the flush was triggered (for logging)
+}
+
+message FlushMomentResponse {
+    int32 events_flushed = 1;
+    bool moment_sent = 2;             // True if moment was sent to Executive
+    string error_message = 3;         // If moment send failed
 }
 
 // ----------------------------------------------------------------------------

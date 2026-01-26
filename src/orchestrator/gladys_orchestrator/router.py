@@ -10,6 +10,7 @@ Executive receives events with salience already attached.
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,6 +31,16 @@ class Subscriber:
     event_types: list[str] | None = None
 
 
+@dataclass
+class ResponseSubscriber:
+    """A subscriber waiting for responses (for evaluation UI)."""
+
+    subscriber_id: str
+    queue: asyncio.Queue
+    source_filters: list[str] | None = None
+    include_immediate: bool = False  # Also receive IMMEDIATE path responses
+
+
 class EventRouter:
     """
     Routes events based on salience evaluation.
@@ -44,6 +55,7 @@ class EventRouter:
     def __init__(self, config: OrchestratorConfig, salience_client=None, executive_client=None):
         self.config = config
         self._subscribers: dict[str, Subscriber] = {}
+        self._response_subscribers: dict[str, ResponseSubscriber] = {}
         self._salience_client = salience_client
         self._executive_client = executive_client
 
@@ -93,6 +105,20 @@ class EventRouter:
                     result["response_text"] = exec_response.get("response_text", "")
                     result["predicted_success"] = exec_response.get("predicted_success", 0.0)
                     result["prediction_confidence"] = exec_response.get("prediction_confidence", 0.0)
+
+                    # Broadcast IMMEDIATE response to response subscribers
+                    await self.broadcast_response({
+                        "event_id": event_id,
+                        "response_id": exec_response.get("response_id", ""),
+                        "response_text": exec_response.get("response_text", ""),
+                        "predicted_success": exec_response.get("predicted_success", 0.0),
+                        "prediction_confidence": exec_response.get("prediction_confidence", 0.0),
+                        "routing_path": "IMMEDIATE",
+                        "matched_heuristic_id": matched_heuristic_id,
+                        "event_source": getattr(event, "source", ""),
+                        "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
+                        "response_timestamp_ms": int(time.time() * 1000),
+                    })
             else:
                 # LOW salience → accumulate
                 logger.debug(f"Event {event_id}: LOW salience ({max_salience:.2f}) → accumulate")
@@ -107,18 +133,47 @@ class EventRouter:
             logger.error(f"Error routing event {event_id}: {e}")
             return {"event_id": event_id, "accepted": False, "error_message": str(e)}
 
+    def _has_explicit_salience(self, event: Any) -> bool:
+        """Check if event has explicitly-set salience values (for testing/override)."""
+        if not hasattr(event, "salience") or not event.salience:
+            return False
+        s = event.salience
+        # Check if any salience dimension is non-zero
+        return any([
+            s.threat, s.opportunity, s.humor, s.novelty, s.goal_relevance,
+            s.social, s.emotional, s.actionability, s.habituation
+        ])
+
     async def _get_salience(self, event: Any) -> dict:
         """
         Query Salience+Memory for salience evaluation.
 
         This is where we call the "amygdala" (Salience+Memory shared process).
         Falls back to default salience if service unavailable (graceful degradation).
+
+        If the event has explicit salience values set, use those instead
+        (allows UI/tests to override salience for evaluation).
         """
+        # First check: if event has explicit salience, use it (override for testing)
+        if self._has_explicit_salience(event):
+            logger.debug(f"Event {getattr(event, 'id', 'unknown')}: Using explicit salience from event")
+            return {
+                "threat": event.salience.threat,
+                "opportunity": event.salience.opportunity,
+                "humor": event.salience.humor,
+                "novelty": event.salience.novelty,
+                "goal_relevance": event.salience.goal_relevance,
+                "social": event.salience.social,
+                "emotional": event.salience.emotional,
+                "actionability": event.salience.actionability,
+                "habituation": event.salience.habituation,
+            }
+
         # If salience client is available, use it
         if self._salience_client:
             return await self._salience_client.evaluate_salience(event)
 
-        # Fallback: use event's existing salience if present
+        # Fallback: use event's existing salience if present (shouldn't reach here normally)
         if hasattr(event, "salience") and event.salience:
             return {
                 "threat": event.salience.threat,
@@ -132,17 +187,24 @@ class EventRouter:
                 "habituation": event.salience.habituation,
             }
 
-        # Default: low salience (will be accumulated into moment)
-        logger.debug("No salience service available, using default low salience")
+        # Default: HIGH salience when no service available
+        # If we can't evaluate salience, err on side of responsiveness (immediate routing)
+        # rather than accumulation (delayed/no response for interactive use cases)
+        logger.debug("No salience service available, defaulting to HIGH salience for immediate routing")
         return self._default_salience()
 
     def _default_salience(self) -> dict:
-        """Default salience values when service unavailable."""
+        """Default salience values when service unavailable.
+
+        Defaults to HIGH salience (above threshold) to ensure immediate routing.
+        If we can't evaluate salience, it's better to be responsive than to
+        accumulate events that may need immediate attention.
+        """
         return {
             "threat": 0.0,
             "opportunity": 0.0,
             "humor": 0.0,
-            "novelty": 0.1,  # Slight novelty for new events
+            "novelty": 0.8,  # High enough to trigger immediate routing (threshold is 0.7)
             "goal_relevance": 0.0,
             "social": 0.0,
             "emotional": 0.0,
@@ -229,6 +291,7 @@ class EventRouter:
             return
 
         event_count = len(moment.events)
+        response_timestamp_ms = int(time.time() * 1000)
 
         if self._executive_client:
             success = await self._executive_client.send_moment(moment)
@@ -239,7 +302,26 @@ class EventRouter:
         else:
             logger.info(f"MOMENT: {event_count} events (no Executive connected)")
 
-        # Also notify subscribers
+        # Broadcast ACCUMULATED responses to response subscribers
+        # Note: ProcessMomentResponse doesn't return per-event responses,
+        # so we broadcast individual event acknowledgments without response_text.
+        # Phase 2: Extend ProcessMomentResponse to return per-event responses.
+        for event in moment.events:
+            event_id = getattr(event, "id", "unknown")
+            await self.broadcast_response({
+                "event_id": event_id,
+                "response_id": "",  # No per-event response from moment processing
+                "response_text": f"[Processed in moment batch with {event_count} events]",
+                "predicted_success": 0.0,
+                "prediction_confidence": 0.0,
+                "routing_path": "ACCUMULATED",
+                "matched_heuristic_id": getattr(event, "matched_heuristic_id", ""),
+                "event_source": getattr(event, "source", ""),
+                "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
+                "response_timestamp_ms": response_timestamp_ms,
+            })
+
+        # Also notify event subscribers
         for event in moment.events:
             await self._broadcast_to_subscribers(event)
 
@@ -279,3 +361,61 @@ class EventRouter:
     def remove_subscriber(self, subscriber_id: str) -> None:
         """Remove a subscriber."""
         self._subscribers.pop(subscriber_id, None)
+
+    # -------------------------------------------------------------------------
+    # Response Subscriber Management (for evaluation UI)
+    # -------------------------------------------------------------------------
+
+    def add_response_subscriber(
+        self,
+        subscriber_id: str,
+        source_filters: list[str] | None = None,
+        include_immediate: bool = False,
+    ) -> asyncio.Queue:
+        """Add a response subscriber and return their queue."""
+        queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self._response_subscribers[subscriber_id] = ResponseSubscriber(
+            subscriber_id=subscriber_id,
+            queue=queue,
+            source_filters=source_filters,
+            include_immediate=include_immediate,
+        )
+        logger.info(f"Response subscriber added: {subscriber_id}")
+        return queue
+
+    def remove_response_subscriber(self, subscriber_id: str) -> None:
+        """Remove a response subscriber."""
+        self._response_subscribers.pop(subscriber_id, None)
+        logger.info(f"Response subscriber removed: {subscriber_id}")
+
+    async def broadcast_response(self, response: dict) -> None:
+        """
+        Broadcast a response to all matching response subscribers.
+
+        Response dict should contain:
+        - event_id: str
+        - response_id: str
+        - response_text: str
+        - predicted_success: float
+        - prediction_confidence: float
+        - routing_path: str ("IMMEDIATE" or "ACCUMULATED")
+        - matched_heuristic_id: str
+        - event_source: str (for filtering)
+        """
+        event_source = response.get("event_source", "")
+        routing_path = response.get("routing_path", "")
+
+        for subscriber in list(self._response_subscribers.values()):
+            # Skip IMMEDIATE responses if subscriber doesn't want them
+            if routing_path == "IMMEDIATE" and not subscriber.include_immediate:
+                continue
+
+            # Check source filter
+            if subscriber.source_filters:
+                if event_source not in subscriber.source_filters:
+                    continue
+
+            try:
+                subscriber.queue.put_nowait(response)
+            except asyncio.QueueFull:
+                logger.warning(f"Response subscriber {subscriber.subscriber_id} queue full, dropping response")

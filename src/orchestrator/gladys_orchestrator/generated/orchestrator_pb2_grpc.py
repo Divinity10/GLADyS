@@ -52,6 +52,16 @@ class OrchestratorServiceStub(object):
                 request_serializer=orchestrator__pb2.SubscribeRequest.SerializeToString,
                 response_deserializer=common__pb2.Event.FromString,
                 _registered_method=True)
+        self.SubscribeResponses = channel.unary_stream(
+                '/gladys.v1.OrchestratorService/SubscribeResponses',
+                request_serializer=orchestrator__pb2.SubscribeResponsesRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.EventResponse.FromString,
+                _registered_method=True)
+        self.FlushMoment = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/FlushMoment',
+                request_serializer=orchestrator__pb2.FlushMomentRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.FlushMomentResponse.FromString,
+                _registered_method=True)
         self.RegisterComponent = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/RegisterComponent',
                 request_serializer=orchestrator__pb2.RegisterRequest.SerializeToString,
@@ -104,6 +114,20 @@ class OrchestratorServiceServicer(object):
 
     def SubscribeEvents(self, request, context):
         """Components subscribe to receive events
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SubscribeResponses(self, request, context):
+        """Subscribe to receive responses (for accumulated events and proactive messages)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FlushMoment(self, request, context):
+        """Manually flush the moment accumulator (for testing)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -175,6 +199,16 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     servicer.SubscribeEvents,
                     request_deserializer=orchestrator__pb2.SubscribeRequest.FromString,
                     response_serializer=common__pb2.Event.SerializeToString,
+            ),
+            'SubscribeResponses': grpc.unary_stream_rpc_method_handler(
+                    servicer.SubscribeResponses,
+                    request_deserializer=orchestrator__pb2.SubscribeResponsesRequest.FromString,
+                    response_serializer=orchestrator__pb2.EventResponse.SerializeToString,
+            ),
+            'FlushMoment': grpc.unary_unary_rpc_method_handler(
+                    servicer.FlushMoment,
+                    request_deserializer=orchestrator__pb2.FlushMomentRequest.FromString,
+                    response_serializer=orchestrator__pb2.FlushMomentResponse.SerializeToString,
             ),
             'RegisterComponent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterComponent,
@@ -268,6 +302,60 @@ class OrchestratorService(object):
             '/gladys.v1.OrchestratorService/SubscribeEvents',
             orchestrator__pb2.SubscribeRequest.SerializeToString,
             common__pb2.Event.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SubscribeResponses(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/SubscribeResponses',
+            orchestrator__pb2.SubscribeResponsesRequest.SerializeToString,
+            orchestrator__pb2.EventResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FlushMoment(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/FlushMoment',
+            orchestrator__pb2.FlushMomentRequest.SerializeToString,
+            orchestrator__pb2.FlushMomentResponse.FromString,
             options,
             channel_credentials,
             insecure,

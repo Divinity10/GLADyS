@@ -165,6 +165,106 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             self.router.remove_subscriber(subscriber_id)
             logger.info(f"Subscriber disconnected: {subscriber_id}")
 
+    async def SubscribeResponses(
+        self,
+        request: orchestrator_pb2.SubscribeResponsesRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> AsyncIterator[orchestrator_pb2.EventResponse]:
+        """
+        Streaming RPC: Subscribe to receive responses (for evaluation UI).
+
+        Receives responses for:
+        - ACCUMULATED events (after moment is sent to Executive on tick)
+        - Optionally IMMEDIATE events (if include_immediate=True)
+
+        This allows the evaluation UI to see responses for events that went
+        through the accumulator path, not just IMMEDIATE path events.
+        """
+        subscriber_id = request.subscriber_id
+        source_filters = list(request.source_filters) if request.source_filters else None
+        include_immediate = request.include_immediate
+
+        logger.info(f"New response subscriber: {subscriber_id} (include_immediate={include_immediate})")
+
+        # Register response subscriber
+        queue = self.router.add_response_subscriber(
+            subscriber_id, source_filters, include_immediate
+        )
+
+        try:
+            while True:
+                response_dict = await queue.get()
+                # Convert dict to proto EventResponse
+                yield orchestrator_pb2.EventResponse(
+                    event_id=response_dict.get("event_id", ""),
+                    response_id=response_dict.get("response_id", ""),
+                    response_text=response_dict.get("response_text", ""),
+                    predicted_success=response_dict.get("predicted_success", 0.0),
+                    prediction_confidence=response_dict.get("prediction_confidence", 0.0),
+                    routing_path=self._routing_path_to_enum(response_dict.get("routing_path", "")),
+                    matched_heuristic_id=response_dict.get("matched_heuristic_id", ""),
+                    event_timestamp_ms=response_dict.get("event_timestamp_ms", 0),
+                    response_timestamp_ms=response_dict.get("response_timestamp_ms", 0),
+                )
+        finally:
+            self.router.remove_response_subscriber(subscriber_id)
+            logger.info(f"Response subscriber disconnected: {subscriber_id}")
+
+    def _routing_path_to_enum(self, path: str) -> int:
+        """Convert routing path string to proto enum value."""
+        if path == "IMMEDIATE":
+            return orchestrator_pb2.ROUTING_PATH_IMMEDIATE
+        elif path == "ACCUMULATED":
+            return orchestrator_pb2.ROUTING_PATH_ACCUMULATED
+        return orchestrator_pb2.ROUTING_PATH_UNSPECIFIED
+
+    async def FlushMoment(
+        self,
+        request: orchestrator_pb2.FlushMomentRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> orchestrator_pb2.FlushMomentResponse:
+        """
+        Manually flush the moment accumulator (for testing).
+
+        Immediately sends any accumulated events to Executive, rather than
+        waiting for the next tick. Useful for evaluation and testing.
+        """
+        reason = request.reason or "manual flush"
+        logger.info(f"Manual moment flush requested: {reason}")
+
+        try:
+            moment = self.accumulator.flush()
+            events_flushed = len(moment.events) if moment else 0
+
+            if events_flushed > 0:
+                await self.router.send_moment_to_executive(moment)
+
+                # Batch-store events after sending moment
+                if self._memory_client:
+                    try:
+                        stored = await self._memory_client.store_events(moment.events)
+                        logger.debug(f"Batch-stored {stored} events from manual flush")
+                    except Exception as store_err:
+                        logger.warning(f"Failed to batch-store flush events: {store_err}")
+
+                return orchestrator_pb2.FlushMomentResponse(
+                    events_flushed=events_flushed,
+                    moment_sent=True,
+                )
+            else:
+                return orchestrator_pb2.FlushMomentResponse(
+                    events_flushed=0,
+                    moment_sent=False,
+                )
+
+        except Exception as e:
+            logger.error(f"Error during manual flush: {e}")
+            return orchestrator_pb2.FlushMomentResponse(
+                events_flushed=0,
+                moment_sent=False,
+                error_message=str(e),
+            )
+
     # -------------------------------------------------------------------------
     # Component Lifecycle RPCs
     # -------------------------------------------------------------------------

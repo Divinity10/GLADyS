@@ -104,6 +104,7 @@ services:
       # Switch between Python (50051) and Rust (50052) here:
       # SALIENCE_MEMORY_ADDRESS: memory-python:50051  # Python path
       SALIENCE_MEMORY_ADDRESS: memory-rust:50052      # Rust fast path
+      MEMORY_STORAGE_ADDRESS: memory-python:50051     # For event storage
       EXECUTIVE_ADDRESS: executive-stub:50053
     ports:
       - "50060:50050"  # Host 50060 -> Container 50050 (avoids conflict with local)
