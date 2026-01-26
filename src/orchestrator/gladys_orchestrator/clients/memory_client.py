@@ -79,6 +79,8 @@ class MemoryStorageClient:
             )
 
             # Copy salience if present
+            # Note: Both Event.salience and EpisodicEvent.salience now use
+            # types_pb2.SalienceVector (shared type), so CopyFrom works correctly
             if hasattr(event, "salience") and event.salience:
                 episodic_event.salience.CopyFrom(event.salience)
 

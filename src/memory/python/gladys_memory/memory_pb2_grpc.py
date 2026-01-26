@@ -71,6 +71,11 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.QueryMatchingHeuristicsRequest.SerializeToString,
                 response_deserializer=memory__pb2.QueryHeuristicsResponse.FromString,
                 _registered_method=True)
+        self.GetHeuristic = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetHeuristic',
+                request_serializer=memory__pb2.GetHeuristicRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetHeuristicResponse.FromString,
+                _registered_method=True)
         self.UpdateHeuristicConfidence = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/UpdateHeuristicConfidence',
                 request_serializer=memory__pb2.UpdateHeuristicConfidenceRequest.SerializeToString,
@@ -168,6 +173,13 @@ class MemoryStorageServicer(object):
     def QueryMatchingHeuristics(self, request, context):
         """Query heuristics by text search (PostgreSQL tsvector)
         Used by Rust fast path on cache miss - faster than embedding similarity
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHeuristic(self, request, context):
+        """Get a single heuristic by ID
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -277,6 +289,11 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.QueryMatchingHeuristics,
                     request_deserializer=memory__pb2.QueryMatchingHeuristicsRequest.FromString,
                     response_serializer=memory__pb2.QueryHeuristicsResponse.SerializeToString,
+            ),
+            'GetHeuristic': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHeuristic,
+                    request_deserializer=memory__pb2.GetHeuristicRequest.FromString,
+                    response_serializer=memory__pb2.GetHeuristicResponse.SerializeToString,
             ),
             'UpdateHeuristicConfidence': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateHeuristicConfidence,
@@ -515,6 +532,33 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/QueryMatchingHeuristics',
             memory__pb2.QueryMatchingHeuristicsRequest.SerializeToString,
             memory__pb2.QueryHeuristicsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHeuristic(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetHeuristic',
+            memory__pb2.GetHeuristicRequest.SerializeToString,
+            memory__pb2.GetHeuristicResponse.FromString,
             options,
             channel_credentials,
             insecure,

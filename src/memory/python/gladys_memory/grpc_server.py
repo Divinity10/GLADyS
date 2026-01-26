@@ -18,6 +18,7 @@ from .storage import MemoryStorage, EpisodicEvent, StorageSettings
 from .embeddings import EmbeddingGenerator
 from . import memory_pb2
 from . import memory_pb2_grpc
+from . import types_pb2
 
 
 def _bytes_to_embedding(data: bytes) -> np.ndarray:
@@ -36,7 +37,7 @@ def _embedding_to_bytes(embedding: np.ndarray) -> bytes:
 
 def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
     """Convert EpisodicEvent to protobuf message."""
-    salience = memory_pb2.SalienceVector()
+    salience = types_pb2.SalienceVector()
     if event.salience:
         salience.threat = event.salience.get("threat", 0.0)
         salience.opportunity = event.salience.get("opportunity", 0.0)
@@ -336,6 +337,31 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         except Exception as e:
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
+    async def GetHeuristic(self, request, context):
+        """Get a single heuristic by ID."""
+        try:
+            if not request.id:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No id provided")
+
+            heuristic = await self.storage.get_heuristic(UUID(request.id))
+
+            if not heuristic:
+                return memory_pb2.GetHeuristicResponse(error="Heuristic not found")
+
+            proto_h = memory_pb2.Heuristic(
+                id=str(heuristic["id"]),
+                name=heuristic["name"],
+                condition_text=heuristic["condition_text"],
+                effects_json=heuristic.get("effects_json") or "{}",
+                confidence=float(heuristic["confidence"]),
+                origin=heuristic.get("origin") or "",
+                success_count=heuristic.get("success_count") or 0,
+            )
+            return memory_pb2.GetHeuristicResponse(heuristic=proto_h)
+        except Exception as e:
+            logger.error(f"GetHeuristic error: {e}")
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
     async def UpdateHeuristicConfidence(self, request, context):
         """Update heuristic confidence based on feedback (TD learning).
 
@@ -364,11 +390,15 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             if request.predicted_success != 0.0:
                 predicted_success = request.predicted_success
 
+            # Get feedback_source, default to 'explicit' if not provided
+            feedback_source = request.feedback_source if request.feedback_source else "explicit"
+
             old_conf, new_conf, delta, td_error = await self.storage.update_heuristic_confidence(
                 heuristic_id=UUID(heuristic_id),
                 positive=request.positive,
                 learning_rate=learning_rate,
                 predicted_success=predicted_success,
+                feedback_source=feedback_source,
             )
 
             # Log appropriately based on mode

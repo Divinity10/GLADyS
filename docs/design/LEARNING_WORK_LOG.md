@@ -13,7 +13,7 @@
 | 0 - Fix Explicit Feedback | Claude | Local | ✅ Complete | 2026-01-26 |
 | 1 - Generalization Test | Gemini | Docker | ✅ Complete | 2026-01-26 |
 | 2 - Implicit Feedback | Claude | Local | 🟢 Unblocked | 2026-01-26 |
-| 3 - Feedback Persistence | Gemini | Docker | 🟡 In Progress | 2026-01-26 |
+| 3 - Feedback Persistence | Claude | Docker | ✅ Complete | 2026-01-26 |
 
 ---
 
@@ -31,6 +31,122 @@
 ---
 
 ## Log Entries
+
+### 2026-01-26 - Integration Gaps Fixed: GetHeuristic RPC and feedback_source
+
+**Author**: Claude
+
+**What was done**:
+
+1. **Added `GetHeuristic` RPC** - Needed by OutcomeWatcher to fetch heuristic details
+   - Added `GetHeuristicRequest` and `GetHeuristicResponse` to `memory.proto`
+   - Implemented handler in `grpc_server.py`
+   - Added `get_heuristic` method in `storage.py`
+
+2. **Added `feedback_source` to `UpdateHeuristicConfidenceRequest`**
+   - Proto field 5: `string feedback_source` - 'explicit' (user) or 'implicit' (outcome watcher)
+   - Updated `storage.py` to accept and pass through the parameter
+   - Updated `grpc_server.py` handler to read from request
+
+3. **Synced protos and regenerated stubs**
+
+**Files changed**:
+- `src/memory/proto/memory.proto` - Added GetHeuristic RPC, feedback_source field
+- `src/orchestrator/proto/memory.proto` - Synced
+- `src/memory/python/gladys_memory/grpc_server.py` - GetHeuristic handler, feedback_source passthrough
+- `src/memory/python/gladys_memory/storage.py` - get_heuristic method, feedback_source parameter
+- All generated `*_pb2.py` and `*_pb2_grpc.py` files regenerated
+
+**Test result**: Flight Recorder test still passes with all integration gaps fixed.
+
+---
+
+### 2026-01-26 - Phase 3 Complete: Flight Recorder Test Passing
+
+**Author**: Claude
+
+**What was done** (multiple bugs fixed):
+
+1. **Fixed test event IDs** - Test was creating `evt-{uuid.hex[:8]}` which isn't a valid UUID. Memory service expects UUIDs.
+   - Changed to `event_id = str(uuid.uuid4())`
+
+2. **Fixed storage.py `get_pending_fires`** - SQL query was missing `outcome` and `feedback_source` columns but gRPC handler tried to access them.
+   - Added columns to SELECT statement
+
+3. **Fixed test subprocess path** - Test runs from `src/integration/` but called `scripts/docker.py` which doesn't exist relative to that directory.
+   - Changed to absolute path: `str(PROJECT_ROOT / "scripts" / "docker.py")`
+
+**Files changed**:
+- `src/integration/test_flight_recorder.py` - UUID fix, subprocess path fix
+- `src/memory/python/gladys_memory/storage.py` - SQL column fix
+
+**Test result**:
+```
+SUCCESS: Flight Recorder works!
+- Heuristic stored ✓
+- Fire recorded on match ✓
+- Outcome updated on feedback ✓
+- Verified: outcome='success', feedback_source='explicit' ✓
+```
+
+**Phase 3 is now complete.** Remaining work: Phase 2 (implicit feedback) integration.
+
+---
+
+### 2026-01-26 - Proto Duplication Fixed, Handing Back to Gemini
+
+**Author**: Claude
+
+**What was done** (root cause fix for SalienceVector class mismatch):
+
+1. **Created `types.proto`** - Single source of truth for cross-service types
+   - `src/memory/proto/types.proto` contains `SalienceVector` definition
+   - Documented the principle: "If type is CREATED by service A and CONSUMED by service B, it belongs here"
+
+2. **Updated all proto files to import from types.proto**:
+   - `memory.proto`: `import "types.proto"; ... gladys.types.SalienceVector salience = 6;`
+   - `common.proto`: Same pattern
+
+3. **Updated Python code**:
+   - `grpc_server.py`, `router.py`, `memory_client.py`, `test_grpc.py` - import `types_pb2`
+   - `memory_client.py` now uses `CopyFrom` correctly (no more class mismatch)
+
+4. **Updated Rust build**:
+   - `build.rs` compiles both `types.proto` and `memory.proto`
+   - `lib.rs` restructured proto module with nested `gladys::types` and `gladys::memory` modules
+
+5. **Updated proto_sync.py**:
+   - Added `types.proto` to both memory and orchestrator configs
+   - Added to consistency check
+
+6. **Added model_config to orchestrator config.py** (pydantic-settings v2 fix)
+
+**Files changed**:
+- `src/memory/proto/types.proto` - NEW
+- `src/memory/proto/memory.proto` - imports types.proto
+- `src/orchestrator/proto/common.proto` - imports types.proto
+- `src/orchestrator/proto/types.proto` - synced copy
+- `src/memory/python/gladys_memory/grpc_server.py` - uses types_pb2.SalienceVector
+- `src/orchestrator/gladys_orchestrator/router.py` - uses types_pb2.SalienceVector
+- `src/orchestrator/gladys_orchestrator/clients/memory_client.py` - CopyFrom now works
+- `src/memory/rust/build.rs` - compiles both protos
+- `src/memory/rust/src/lib.rs` - restructured proto module
+- `scripts/proto_sync.py` - syncs types.proto
+- `src/orchestrator/gladys_orchestrator/config.py` - added model_config
+
+**Status**: Proto fixes complete, ready for Docker rebuild and testing.
+
+**[For Gemini]**: The SalienceVector class mismatch error should be fixed. Docker needs rebuild. The test may still fail at "No fire record found" - I traced the code and the flow looks correct:
+1. Rust `evaluate_salience` returns `matched_heuristic_id` ✓
+2. Salience client extracts as `_matched_heuristic` ✓
+3. Router calls `record_heuristic_fire` when heuristic matches ✓
+
+If fire recording still fails, check:
+- Is `_salience_client` connected in orchestrator?
+- Is `_memory_client` connected when fire recording is attempted?
+- Debug logs added to router.py lines 113, 123
+
+---
 
 ### 2026-01-26 - Phase 3: Claude Taking Over (Handoff from Gemini)
 
@@ -319,3 +435,31 @@ When either party changes:
 | Python dependencies | Docker: rebuild image |
 | Rust code | Docker: `make rust-rebuild` (if applicable) |
 | Test files | No sync needed (isolated environments) |
+
+- **2026-01-26 [Gemini]**: Troubleshooting Flight Recorder test failure.
+  - *Issue*: Orchestrator cannot connect to Memory service to record fires.
+  - *Error*: 'Connection refused' to 127.0.0.1:50051 (should be memory-python:50051).
+  - *Action*: Investigating config.py and environment variable propagation.
+
+- **2026-01-26 [Gemini]**: **Task Paused**. User handed off Flight Recorder troubleshooting to Claude. Standing by.
+
+- **2026-01-26 [Claude]**: **Proto fix complete**. Created `types.proto` as single source of truth for SalienceVector. All imports updated, Rust build fixed. Handing back to Gemini for Docker rebuild and Flight Recorder retest.
+
+- **2026-01-26 [Claude]**: **Cleanup**: Deleted redundant `src/memory/run.py`. Use `python scripts/docker.py` for all Docker management.
+
+- **2026-01-26 [Claude]**: **Refactor**: Moved orchestrator `run.py` to `gladys_orchestrator/__main__.py` for consistency with Memory service pattern. Updated Dockerfile to use `python -m gladys_orchestrator start`.
+
+- **2026-01-26 [Claude]**: **TODO**: Audit codebase for other badly named files (run.py, confusing names) and opportunities to use `__main__.py` pattern consistently.
+
+- **2026-01-26 [Claude]**: **ROOT CAUSE FOUND - Fire Recording Issue**:
+  - `memory_client` is `None` because connection fails at startup
+  - **BUG**: docker-compose `depends_on` was missing `memory-python`!
+  - Orchestrator started before memory-python was healthy, connection failed
+  - **FIX**: Added `memory-python: condition: service_healthy` to orchestrator's depends_on
+
+  **To test**: Restart Docker stack:
+  ```
+  docker compose -f src/integration/docker-compose.yml down
+  docker compose -f src/integration/docker-compose.yml up -d
+  python scripts/docker.py test test_flight_recorder.py
+  ```

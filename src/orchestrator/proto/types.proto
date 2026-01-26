@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package gladys.types;
+
+// ============================================================================
+// SHARED TYPES - Cross-service boundary types
+// ============================================================================
+//
+// PRINCIPLE: If a type is CREATED by service A and CONSUMED by service B,
+// it belongs here. This prevents class mismatch errors when copying between
+// proto messages from different packages.
+//
+// Examples:
+//   - SalienceVector: created by Router, consumed by Memory → HERE
+//   - Heuristic: created by Memory, consumed only by Memory → memory.proto
+//   - Event: created by Orchestrator, consumed by Executive → common.proto (maybe here later)
+//
+// This file is synced to src/orchestrator/proto/ by proto_sync.py.
+
+// Salience dimensions for event evaluation.
+// Used in both Event (orchestrator routing) and EpisodicEvent (memory storage).
+message SalienceVector {
+    float threat = 1;               // 0-1
+    float opportunity = 2;          // 0-1
+    float humor = 3;                // 0-1
+    float novelty = 4;              // 0-1
+    float goal_relevance = 5;       // 0-1
+    float social = 6;               // 0-1
+    float emotional = 7;            // -1 to 1
+    float actionability = 8;        // 0-1
+    float habituation = 9;          // 0-1
+}

@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from .accumulator import Moment
 from .config import OrchestratorConfig
-from .generated import common_pb2
+from .generated import types_pb2
 from .outcome_watcher import OutcomeWatcher
 
 logger = logging.getLogger(__name__)
@@ -110,14 +110,17 @@ class EventRouter:
 
             # Step 4: Record heuristic fire (Flight Recorder)
             if matched_heuristic_id and self._memory_client:
+                logger.info(f"Recording heuristic fire: heuristic={matched_heuristic_id}, event={event_id}")
                 # fire-and-forget, don't block the response
                 asyncio.create_task(
                     self._memory_client.record_heuristic_fire(
                         heuristic_id=matched_heuristic_id,
                         event_id=event_id,
-                        episodic_event_id=getattr(event, "id", "") # Link if possible
+                        episodic_event_id=""  # Episodic event not yet stored at fire time
                     )
                 )
+            elif matched_heuristic_id:
+                logger.warning(f"Cannot record fire: memory_client is None (heuristic={matched_heuristic_id})")
 
             if max_salience >= self.config.high_salience_threshold:
                 # HIGH salience → immediate to Executive
@@ -264,7 +267,7 @@ class EventRouter:
         # Check if the event's salience field supports proto CopyFrom
         if hasattr(event.salience, "CopyFrom"):
             # Create SalienceVector proto and populate it
-            salience_vector = common_pb2.SalienceVector(
+            salience_vector = types_pb2.SalienceVector(
                 threat=salience.get("threat", 0.0),
                 opportunity=salience.get("opportunity", 0.0),
                 humor=salience.get("humor", 0.0),

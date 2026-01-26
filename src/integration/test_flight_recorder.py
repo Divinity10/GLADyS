@@ -24,15 +24,20 @@ import grpc
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
+# Force local memory package to be first in path
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "memory" / "python"))
 
 try:
-    from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
-    from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
-    from gladys_orchestrator.generated import common_pb2
+    # Try importing directly from source location
+    from gladys_memory import memory_pb2, memory_pb2_grpc
 except ImportError:
-    print("ERROR: Proto stubs not found. Run 'python scripts/proto_sync.py'")
-    sys.exit(1)
+    try:
+        from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
+        from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
+        from gladys_orchestrator.generated import common_pb2
+    except ImportError:
+        print("ERROR: Proto stubs not found. Run 'python scripts/proto_sync.py'")
+        sys.exit(1)
 
 # Configuration
 ORCHESTRATOR_ADDR = os.environ.get("ORCHESTRATOR_ADDRESS", "localhost:50060")
@@ -77,7 +82,7 @@ async def run_test():
         
         # 3. Trigger Fire via Orchestrator
         print("\n[Step 2] Triggering heuristic fire via Orchestrator...")
-        event_id = f"evt-{uuid.uuid4().hex[:8]}"
+        event_id = str(uuid.uuid4())  # Must be valid UUID for memory service
         
         async def event_gen():
             yield common_pb2.Event(
@@ -156,7 +161,8 @@ async def run_test():
         # SQL Check for the win
         from subprocess import run
         sql = f"SELECT outcome, feedback_source FROM heuristic_fires WHERE event_id = '{event_id}'"
-        db_check = run(["python", "scripts/docker.py", "query", sql], capture_output=True, text=True)
+        docker_script = str(PROJECT_ROOT / "scripts" / "docker.py")
+        db_check = run(["python", docker_script, "query", sql], capture_output=True, text=True)
         print(f"  DB Check:\n{db_check.stdout}")
         
         if "success" in db_check.stdout and "explicit" in db_check.stdout:

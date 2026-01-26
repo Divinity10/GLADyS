@@ -114,6 +114,8 @@ services:
     depends_on:
       memory-rust:
         condition: service_healthy
+      memory-python:
+        condition: service_healthy
       executive-stub:
         condition: service_healthy
 

@@ -3,6 +3,7 @@ package gladys.v1;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "types.proto";
 
 // ============================================================================
 // REQUEST METADATA (included in all RPCs)
@@ -30,7 +31,7 @@ message Event {
     google.protobuf.Struct structured = 5;     // Domain-specific fields
 
     // Salience (populated by Salience Gateway)
-    SalienceVector salience = 6;
+    gladys.types.SalienceVector salience = 6;
 
     // Entity references (populated by Entity Extractor)
     repeated string entity_ids = 7;
@@ -46,17 +47,8 @@ message Event {
     RequestMetadata metadata = 15;
 }
 
-message SalienceVector {
-    float threat = 1;               // 0-1
-    float opportunity = 2;          // 0-1
-    float humor = 3;                // 0-1
-    float novelty = 4;              // 0-1
-    float goal_relevance = 5;       // 0-1
-    float social = 6;               // 0-1
-    float emotional = 7;            // -1 to 1
-    float actionability = 8;        // 0-1
-    float habituation = 9;          // 0-1
-}
+// SalienceVector moved to types.proto (gladys.types.SalienceVector)
+// Single source of truth for cross-service types
 
 // A batch of events accumulated by Orchestrator and sent to Executive on tick.
 // Events are timestamp-ordered with salience already evaluated and attached.

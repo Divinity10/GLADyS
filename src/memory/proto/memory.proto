@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package gladys.memory;
 
+import "types.proto";
+
 // Memory Storage Service - Python backend
 // Handles persistent storage, embeddings, and complex queries
 service MemoryStorage {
@@ -26,6 +28,9 @@ service MemoryStorage {
     // Query heuristics by text search (PostgreSQL tsvector)
     // Used by Rust fast path on cache miss - faster than embedding similarity
     rpc QueryMatchingHeuristics(QueryMatchingHeuristicsRequest) returns (QueryHeuristicsResponse);
+
+    // Get a single heuristic by ID
+    rpc GetHeuristic(GetHeuristicRequest) returns (GetHeuristicResponse);
 
     // Update heuristic confidence based on feedback (TD learning)
     rpc UpdateHeuristicConfidence(UpdateHeuristicConfidenceRequest) returns (UpdateHeuristicConfidenceResponse);
@@ -76,7 +81,7 @@ message EpisodicEvent {
     string source = 3;                  // Sensor ID
     string raw_text = 4;                // Natural language description
     bytes embedding = 5;                // 384-dim float32 vector (serialized)
-    SalienceVector salience = 6;
+    gladys.types.SalienceVector salience = 6;
     string structured_json = 7;         // Domain-specific data as JSON string
     repeated string entity_ids = 8;     // Referenced entity UUIDs
 
@@ -88,17 +93,8 @@ message EpisodicEvent {
     string response_text = 12;          // The actual LLM response text (for fine-tuning datasets)
 }
 
-message SalienceVector {
-    float threat = 1;
-    float opportunity = 2;
-    float humor = 3;
-    float novelty = 4;
-    float goal_relevance = 5;
-    float social = 6;
-    float emotional = 7;                // -1.0 to 1.0
-    float actionability = 8;
-    float habituation = 9;
-}
+// SalienceVector moved to types.proto (gladys.types.SalienceVector)
+// Single source of truth for cross-service types
 
 message StoreEventRequest {
     EpisodicEvent event = 1;
@@ -215,6 +211,17 @@ message HeuristicMatch {
     float score = 3;                        // similarity × confidence
 }
 
+// --- Get Single Heuristic ---
+
+message GetHeuristicRequest {
+    string id = 1;                          // UUID of the heuristic to fetch
+}
+
+message GetHeuristicResponse {
+    Heuristic heuristic = 1;                // The heuristic, or null if not found
+    string error = 2;                       // Error message if any
+}
+
 // --- TD Learning: Confidence Updates ---
 
 message UpdateHeuristicConfidenceRequest {
@@ -226,6 +233,8 @@ message UpdateHeuristicConfidenceRequest {
     // td_error = actual_outcome - predicted_success
     // This enables "learn more from surprises" - unexpected outcomes have bigger impact
     float predicted_success = 4;            // Optional: LLM's prediction at event time (0.0-1.0)
+
+    string feedback_source = 5;             // 'explicit' (user) or 'implicit' (outcome watcher). Default: 'explicit'
 }
 
 message UpdateHeuristicConfidenceResponse {
@@ -249,7 +258,7 @@ message EvaluateSalienceRequest {
 }
 
 message EvaluateSalienceResponse {
-    SalienceVector salience = 1;        // Evaluated salience dimensions
+    gladys.types.SalienceVector salience = 1;        // Evaluated salience dimensions
     bool from_cache = 2;                // True if result was cached/heuristic
     string matched_heuristic_id = 3;    // ID of matched heuristic (if any)
     string error = 4;

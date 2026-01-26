@@ -14,8 +14,27 @@ use uuid::Uuid;
 pub mod client;
 pub mod config;
 pub mod server;
+/// Proto-generated types, organized by package.
+///
+/// The module hierarchy matches the proto package hierarchy:
+/// - gladys.types -> proto::gladys::types
+/// - gladys.memory -> proto::gladys::memory
 pub mod proto {
-    tonic::include_proto!("gladys.memory");
+    /// Container module matching the `gladys.*` proto packages
+    pub mod gladys {
+        /// Shared types from types.proto (package gladys.types)
+        pub mod types {
+            tonic::include_proto!("gladys.types");
+        }
+        /// Memory service from memory.proto (package gladys.memory)
+        pub mod memory {
+            tonic::include_proto!("gladys.memory");
+        }
+    }
+
+    // Re-export commonly used types at proto level for convenience
+    pub use gladys::types::SalienceVector;
+    pub use gladys::memory::*;
 }
 
 // Re-export types from modules

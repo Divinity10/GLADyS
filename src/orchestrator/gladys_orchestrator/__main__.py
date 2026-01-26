@@ -3,8 +3,8 @@
 GLADyS Orchestrator - Entry point.
 
 Usage:
-    python run.py start [--host HOST] [--port PORT] [--moment-window MS]
-    python run.py generate-proto
+    python -m gladys_orchestrator start [--host HOST] [--port PORT] [--moment-window MS]
+    python -m gladys_orchestrator generate-proto
 
 Commands:
     start           Start the Orchestrator gRPC server
@@ -14,15 +14,13 @@ Commands:
 import argparse
 import asyncio
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-# Add package to path for development
-sys.path.insert(0, str(Path(__file__).parent))
-
-from gladys_orchestrator.config import OrchestratorConfig
-from gladys_orchestrator.server import serve
+from .config import OrchestratorConfig
+from .server import serve
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -36,8 +34,10 @@ def setup_logging(verbose: bool = False) -> None:
 
 def generate_proto() -> int:
     """Generate Python code from proto files."""
-    proto_dir = Path(__file__).parent / "proto"
-    out_dir = Path(__file__).parent / "gladys_orchestrator" / "generated"
+    # Find proto dir relative to package
+    package_dir = Path(__file__).parent.parent
+    proto_dir = package_dir / "proto"
+    out_dir = Path(__file__).parent / "generated"
 
     # Create output directory
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -96,6 +96,15 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     print(f"Starting GLADyS Orchestrator on {config.host}:{config.port}")
     print(f"  Salience Service: {config.salience_memory_address}")
+    print(f"  Memory Service:   {config.memory_storage_address}")
+    print(f"  Executive Service: {config.executive_address}")
+
+    # DEBUG: Check environment variable visibility
+    print(f"  [DEBUG] Environment variables:")
+    print(f"    SALIENCE_MEMORY_ADDRESS = {os.environ.get('SALIENCE_MEMORY_ADDRESS', 'NOT_SET')}")
+    print(f"    MEMORY_STORAGE_ADDRESS  = {os.environ.get('MEMORY_STORAGE_ADDRESS', 'NOT_SET')}")
+    print(f"    EXECUTIVE_ADDRESS       = {os.environ.get('EXECUTIVE_ADDRESS', 'NOT_SET')}")
+
     print(f"  Moment window: {config.moment_window_ms}ms")
     print(f"  High salience threshold: {config.high_salience_threshold}")
 

@@ -24,7 +24,6 @@ RUN python -m grpc_tools.protoc \
 
 # Copy application code
 COPY gladys_orchestrator/ gladys_orchestrator/
-COPY run.py .
 
 # Create non-root user
 RUN useradd -m gladys && chown -R gladys:gladys /app
@@ -38,5 +37,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:50050')).result(timeout=5)" || exit 1
 
 # Run the server
-ENTRYPOINT ["python", "run.py"]
+ENTRYPOINT ["python", "-m", "gladys_orchestrator"]
 CMD ["start"]

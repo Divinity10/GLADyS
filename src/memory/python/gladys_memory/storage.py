@@ -274,6 +274,25 @@ class MemoryStorage:
             condition_embedding,
         )
 
+    async def get_heuristic(self, heuristic_id: UUID) -> dict | None:
+        """Get a single heuristic by ID."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        row = await self._pool.fetchrow(
+            """
+            SELECT id, name, condition_text, effects_json, confidence, origin, success_count, updated_at
+            FROM heuristics
+            WHERE id = $1
+            """,
+            heuristic_id,
+        )
+
+        if not row:
+            return None
+
+        return dict(row)
+
     async def query_heuristics(
         self,
         min_confidence: float = 0.0,
@@ -510,6 +529,7 @@ class MemoryStorage:
         positive: bool,
         learning_rate: Optional[float] = None,
         predicted_success: Optional[float] = None,
+        feedback_source: str = "explicit",
     ) -> tuple[float, float, float, Optional[float]]:
         """
         Update heuristic confidence based on feedback (TD learning).
@@ -529,6 +549,7 @@ class MemoryStorage:
             positive: True for positive feedback (actual=1.0), False for negative (actual=0.0)
             learning_rate: Optional override (default 0.1)
             predicted_success: Optional LLM prediction at event time (0.0-1.0)
+            feedback_source: 'explicit' (user feedback) or 'implicit' (outcome watcher)
 
         Returns:
             Tuple of (old_confidence, new_confidence, delta, td_error)
@@ -595,7 +616,7 @@ class MemoryStorage:
         await self._update_most_recent_fire(
             heuristic_id=heuristic_id,
             outcome='success' if positive else 'fail',
-            feedback_source='explicit'
+            feedback_source=feedback_source
         )
 
         return (old_confidence, new_confidence, change, td_error)
@@ -664,7 +685,8 @@ class MemoryStorage:
         if heuristic_id:
             rows = await self._pool.fetch(
                 """
-                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id
+                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id,
+                       outcome, feedback_source
                 FROM heuristic_fires
                 WHERE outcome = 'unknown'
                   AND heuristic_id = $1
@@ -677,7 +699,8 @@ class MemoryStorage:
         else:
             rows = await self._pool.fetch(
                 """
-                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id
+                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id,
+                       outcome, feedback_source
                 FROM heuristic_fires
                 WHERE outcome = 'unknown'
                   AND fired_at > NOW() - INTERVAL '1 second' * $2

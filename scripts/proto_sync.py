@@ -66,13 +66,13 @@ PROTO_CONFIGS = [
         "name": "memory",
         "proto_dir": ROOT / "src" / "memory" / "proto",
         "output_dir": ROOT / "src" / "memory" / "python" / "gladys_memory",
-        "protos": ["memory.proto"],
+        "protos": ["types.proto", "memory.proto"],  # types.proto must come first (dependency)
     },
     {
         "name": "orchestrator",
         "proto_dir": ROOT / "src" / "orchestrator" / "proto",
         "output_dir": ROOT / "src" / "orchestrator" / "gladys_orchestrator" / "generated",
-        "protos": ["common.proto", "memory.proto", "orchestrator.proto", "executive.proto"],
+        "protos": ["types.proto", "common.proto", "memory.proto", "orchestrator.proto", "executive.proto"],
     },
 ]
 
@@ -181,17 +181,25 @@ def check_proto_consistency() -> tuple[bool, list[str]]:
     """
     issues = []
 
-    # Check that orchestrator's memory.proto matches memory's memory.proto
-    memory_proto = ROOT / "src" / "memory" / "proto" / "memory.proto"
-    orch_memory_proto = ROOT / "src" / "orchestrator" / "proto" / "memory.proto"
+    # Check that shared protos match between memory/ and orchestrator/
+    shared_protos = ["memory.proto", "types.proto"]
 
-    if memory_proto.exists() and orch_memory_proto.exists():
-        mem_content = memory_proto.read_text()
-        orch_content = orch_memory_proto.read_text()
-        if mem_content != orch_content:
+    for proto_name in shared_protos:
+        memory_proto = ROOT / "src" / "memory" / "proto" / proto_name
+        orch_proto = ROOT / "src" / "orchestrator" / "proto" / proto_name
+
+        if memory_proto.exists() and orch_proto.exists():
+            mem_content = memory_proto.read_text()
+            orch_content = orch_proto.read_text()
+            if mem_content != orch_content:
+                issues.append(
+                    f"{proto_name} differs between memory/ and orchestrator/. "
+                    f"Copy the canonical version from src/memory/proto/ to src/orchestrator/proto/"
+                )
+        elif memory_proto.exists() and not orch_proto.exists():
             issues.append(
-                "memory.proto differs between memory/ and orchestrator/. "
-                "Copy the canonical version from src/memory/proto/ to src/orchestrator/proto/"
+                f"{proto_name} missing from orchestrator/proto/. "
+                f"Copy from src/memory/proto/"
             )
 
     return len(issues) == 0, issues

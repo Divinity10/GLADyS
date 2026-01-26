@@ -1,7 +1,7 @@
 """Orchestrator configuration."""
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class OrchestratorConfig(BaseSettings):
@@ -10,6 +10,13 @@ class OrchestratorConfig(BaseSettings):
     Reads from environment variables (case-insensitive).
     E.g., SALIENCE_MEMORY_ADDRESS=memory:50051
     """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     # Server settings
     host: str = "0.0.0.0"
