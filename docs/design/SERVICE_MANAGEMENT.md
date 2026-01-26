@@ -1,13 +1,39 @@
 # Service Management
 
-GLADyS provides two service management scripts with identical interfaces:
+How to run GLADyS services for development and testing.
 
-| Environment | Script | When to Use |
-|-------------|--------|-------------|
-| **Local** | `scripts/local.py` | Development with Rust + PostgreSQL installed |
-| **Docker** | `scripts/docker.py` | No Rust installed, integration testing, CI/CD |
+## Choose Your Development Path
 
-Both scripts run from the project root: `python scripts/local.py <command>` or `python scripts/docker.py <command>`
+| Your Setup | Recommended Mode | Script |
+|------------|------------------|--------|
+| Have Rust + PostgreSQL | **Local** | `python scripts/local.py` |
+| Docker only | **Docker** | `python scripts/docker.py` |
+
+**Don't have Rust installed?** Use Docker mode. It includes all dependencies.
+
+---
+
+## Two Ways to Run
+
+| Mode | When to Use | Ports |
+|------|-------------|-------|
+| **Local** | Active development with Rust, debugging, fast iteration | 50050-50053, DB 5432 |
+| **Docker** | No Rust installed, integration testing, team handoff | 50060-50063, DB 5433 |
+
+Both modes can run **simultaneously** on different ports. This allows parallel development.
+
+---
+
+## Prerequisites
+
+### Local Development
+- Python 3.11+ with `uv` package manager
+- Rust toolchain (for memory-rust salience gateway)
+- Local PostgreSQL 17+ with pgvector extension
+- Database: `gladys` with user `gladys`
+
+### Docker Development
+- Docker Desktop (includes everything else)
 
 ---
 
@@ -27,6 +53,40 @@ python scripts/docker.py status
 python scripts/docker.py test <file>
 python scripts/docker.py clean heuristics
 python scripts/docker.py reset
+```
+
+---
+
+## First-Time Setup
+
+### Docker (recommended for most)
+```bash
+python scripts/docker.py start all
+# Wait ~60 seconds for containers to be healthy
+python scripts/docker.py status          # All should show [OK]
+```
+
+### Local
+```bash
+# Ensure PostgreSQL is running with gladys database
+python scripts/local.py start all
+python scripts/local.py status
+```
+
+---
+
+## After Code Changes
+
+**Python services** auto-reload (source mounted as volumes in Docker):
+```bash
+# Just edit the code - changes are live immediately
+```
+
+**Rust changes** require rebuild:
+```bash
+cd src/integration
+docker-compose build memory-rust
+python scripts/docker.py restart memory
 ```
 
 ---

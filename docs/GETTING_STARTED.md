@@ -193,8 +193,6 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
   - [Running the Evaluation Lab Bench](#running-the-evaluation-lab-bench)
   - [Development workflow](#development-workflow)
 
-# ... (middle of file) ...
-
 ### Running the full stack
 
 Use the Makefile (recommended):
@@ -265,80 +263,19 @@ This uses `scripts/proto_sync.py` which:
 - Fixes relative imports in generated files
 - Validates Rust compilation against proto changes
 
-### Service Ports
+### Service Management
 
-Local and Docker use **different ports** to allow parallel development:
+For service ports, configuration, running services, and troubleshooting, see **[SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md)**.
 
-| Service | Local | Docker | Description |
-|---------|-------|--------|-------------|
-| Orchestrator | 50050 | 50060 | Main entry point - send events here |
-| Memory (Python) | 50051 | 50061 | Storage + SalienceGateway (slow path) |
-| Memory (Rust) | 50052 | 50062 | SalienceGateway only (fast path) |
-| Executive | 50053 | 50063 | Decision-making + LLM |
-| PostgreSQL | 5432 | 5433 | Database |
-
-**Default flow**: Orchestrator → Rust fast path → Executive
-
-### Configuration
-
-**Environment variables** (set before `make up` or in shell):
-
+Quick start:
 ```bash
-# Switch Orchestrator to use Python path instead of Rust
-export SALIENCE_MEMORY_ADDRESS=memory-python:50051
-
-# Enable LLM in Executive (point to your Ollama server)
-export OLLAMA_URL=http://192.168.1.100:11434
-export OLLAMA_MODEL=gemma:2b
-```
-
-**Memory (Python) settings** - see `src/memory/python/gladys_memory/config.py`:
-
-```bash
-# Database
-export STORAGE_HOST=localhost
-export STORAGE_PORT=5433
-
-# Salience tuning
-export SALIENCE_NOVELTY_SIMILARITY_THRESHOLD=0.85
-
-# Server
-export GRPC_PORT=50051
-```
-
-**Rust fast path** uses identical env vars - see `src/memory/rust/src/config.rs`.
-
-### Running services locally (outside Docker)
-
-For development, you can run individual services locally:
-
-**All services (recommended):**
-```bash
-# Docker (no Rust required)
+# Docker (recommended - no Rust required)
 python scripts/docker.py start all
 python scripts/docker.py status
 
 # Local (requires Rust + PostgreSQL)
 python scripts/local.py start all
 python scripts/local.py status
-```
-
-**Individual service (for debugging):**
-```bash
-cd src/orchestrator
-uv run python run.py start --salience-address localhost:50051
-```
-
-**Memory (Python):**
-```bash
-cd src/memory/python
-uv run python -m gladys_memory.grpc_server
-```
-
-**Memory (Rust):**
-```bash
-cd src/memory/rust
-STORAGE_ADDRESS=http://localhost:50051 cargo run
 ```
 
 ### Connecting to running services
@@ -403,7 +340,7 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 | What | Where |
 |------|-------|
 | Architecture decisions | [docs/adr/](adr/) |
-| Open design questions | [docs/design/OPEN_QUESTIONS.md](design/OPEN_QUESTIONS.md) |
+| Open design questions | [docs/design/questions/](design/questions/README.md) |
 | **Service management** | [docs/design/SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
 | Performance baseline | [docs/design/PERFORMANCE_BASELINE.md](design/PERFORMANCE_BASELINE.md) |
 | Memory subsystem | [src/memory/](../src/memory/) |
@@ -417,5 +354,5 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 ## Getting Help
 
 - Check existing ADRs for design rationale
-- Look at OPEN_QUESTIONS.md for active discussions
+- Look at [design questions](design/questions/) for active discussions
 - Open an issue if stuck

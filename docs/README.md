@@ -21,12 +21,47 @@
 | What You Need | Where to Look |
 |---------------|---------------|
 | High-level system understanding | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) |
-| **Running services (local/Docker)** | [DEVELOPMENT.md](design/DEVELOPMENT.md) |
+| **Running services (local/Docker)** | [SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |
-| Open design questions | [OPEN_QUESTIONS.md](design/OPEN_QUESTIONS.md) |
+| Open design questions | [design/questions/](design/questions/README.md) |
 | Architecture review status | [ARCHITECTURE_REVIEW.md](design/ARCHITECTURE_REVIEW.md) |
 | Use cases and requirements | [USE_CASES.md](design/USE_CASES.md) |
 | Personality templates | [PERSONALITY_TEMPLATES.md](design/PERSONALITY_TEMPLATES.md) |
+
+---
+
+## Common Developer Tasks
+
+### Running & Managing Services
+| I want to... | See |
+|--------------|-----|
+| Start/stop services | [SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
+| Check what's running | `python scripts/docker.py status` |
+| View service logs | [SERVICE_MANAGEMENT.md #logs](design/SERVICE_MANAGEMENT.md#logs-docker-only) |
+| Reset everything | `python scripts/docker.py reset` |
+
+### Debugging & Investigation
+| I want to... | See |
+|--------------|-----|
+| See events and heuristics visually | [Lab Bench UI](../src/ui/README.md) |
+| Query the database directly | `python scripts/docker.py psql` |
+| Understand why confidence changed | [learning.md §20](design/questions/learning.md) |
+| Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |
+
+### Building Features
+| I want to... | See |
+|--------------|-----|
+| Build a sensor | [ADR-0003](adr/ADR-0003-Plugin-Manifest-Specification.md), [GETTING_STARTED](GETTING_STARTED.md#i-want-to-build-a-sensor) |
+| Build a skill/actuator | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) |
+| Add a database migration | [src/memory/migrations/](../src/memory/migrations/) |
+| Change a proto contract | [CONTRIBUTING.md](../CONTRIBUTING.md#regenerating-proto-stubs) |
+
+### Understanding the System
+| I want to... | See |
+|--------------|-----|
+| Get the 30-second overview | [Key Concepts](#key-concepts-30-second-version) below |
+| Understand System 1 vs System 2 | [ADR-0010](adr/ADR-0010-Learning-and-Inference.md) |
+| See all architectural decisions | [ADR Index](adr/README.md) |
 
 ---
 
