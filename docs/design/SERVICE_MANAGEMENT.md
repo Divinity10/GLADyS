@@ -125,8 +125,18 @@ python scripts/docker.py test                      # Run all tests against DOCKE
 Open an interactive PostgreSQL shell connected to the GLADyS database.
 
 ```bash
-python scripts/local.py psql   # Local database (port 5432)
-python scripts/docker.py psql  # Docker database (port 5433)
+python scripts/local.py psql         # Local database (port 5432)
+python scripts/docker.py psql        # Docker database (port 5433)
+python scripts/docker.py psql -c "SELECT COUNT(*) FROM heuristics"  # Run single command
+```
+
+### query (Docker only)
+
+Run a SQL query and print the result. Non-interactive alternative to `psql -c`.
+
+```bash
+python scripts/docker.py query "SELECT COUNT(*) FROM heuristics"
+python scripts/docker.py query "SELECT name, confidence FROM heuristics ORDER BY confidence DESC LIMIT 5"
 ```
 
 Useful for:
