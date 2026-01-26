@@ -105,7 +105,9 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 result = await self.router.route_event(event, self.accumulator)
 
                 # Store HIGH salience events immediately after Executive responds
-                if result.get("routed_to_llm") and self._memory_client:
+                # Also store Fast Path (heuristic match) events so they appear in history
+                should_store = result.get("routed_to_llm") or result.get("matched_heuristic_id")
+                if should_store and self._memory_client:
                     try:
                         await self._memory_client.store_event(
                             event=event,

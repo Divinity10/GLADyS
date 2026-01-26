@@ -240,7 +240,7 @@ def cmd_migrate(args: argparse.Namespace) -> int:
              "psql", "-U", "gladys", "-d", "gladys", "-c", sql],
             capture_output=True,
             text=True,
-            timeout=60,  # 60 second timeout per migration
+            timeout=300,  # 5 minute timeout (HNSW index creation can be slow)
         )
 
         stderr = result.stderr.strip() if result.stderr else ""

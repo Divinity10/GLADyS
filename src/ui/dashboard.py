@@ -583,19 +583,22 @@ def render_response_history():
 
 def render_recent_events(time_filter_clause, params):
     st.subheader("Recent System Activity (DB)")
+    st.caption("Select a row to inspect cognitive details.")
     
     query = f"""
         SELECT 
+            id,
             timestamp, 
             source, 
             raw_text, 
+            salience,
             predicted_success, 
             prediction_confidence, 
             response_id
         FROM episodic_events 
         WHERE archived = false {time_filter_clause}
         ORDER BY timestamp DESC 
-        LIMIT 10
+        LIMIT 15
     """
     df = fetch_data(query, params)
     
@@ -603,20 +606,68 @@ def render_recent_events(time_filter_clause, params):
         st.info("No events found in database.")
         return
 
-    # Formatting
-    st.dataframe(
+    # Use selection mode to allow deep dive
+    event_selection = st.dataframe(
         df,
         column_config={
+            "id": None, # Hide
+            "salience": None, # Hide
             "timestamp": st.column_config.DatetimeColumn("Time", format="HH:mm:ss"),
             "source": "Source",
-            "raw_text": st.column_config.TextColumn("Event", width="medium"),
+            "raw_text": st.column_config.TextColumn("Event", width="large"),
             "predicted_success": st.column_config.ProgressColumn("Pred. Success", min_value=0, max_value=1, format="%.2f"),
             "prediction_confidence": st.column_config.NumberColumn("Pred. Conf", format="%.2f"),
             "response_id": "LLM ID"
         },
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row"
     )
+
+    # Render Detail View if a row is selected
+    if event_selection and event_selection.get("selection", {}).get("rows"):
+        selected_idx = event_selection["selection"]["rows"][0]
+        row = df.iloc[selected_idx]
+        
+        st.markdown("---")
+        st.subheader(f"🔬 Event Analysis: `{row['id'][:8]}`")
+        
+        c1, c2 = st.columns([2, 1])
+        
+        with c1:
+            st.write("**Full Event Text**")
+            st.info(row['raw_text'])
+            
+            # Salience Breakdown
+            st.write("**Cognitive Load (Salience)**")
+            sal = row['salience']
+            if isinstance(sal, str):
+                try: sal = json.loads(sal)
+                except: sal = {}
+            
+            if sal:
+                sc1, sc2, sc3 = st.columns(3)
+                sc1.metric("Threat", f"{sal.get('threat', 0.0):.2f}")
+                sc2.metric("Opportunity", f"{sal.get('opportunity', 0.0):.2f}")
+                sc3.metric("Novelty", f"{sal.get('novelty', 0.0):.2f}")
+            else:
+                st.caption("No salience data recorded for this event.")
+
+        with c2:
+            st.write("**Outcome Prediction**")
+            if row['predicted_success'] is not None:
+                st.progress(row['predicted_success'], text=f"Success: {row['predicted_success']:.2f}")
+                st.caption(f"Confidence: {row['prediction_confidence']:.2f}")
+            else:
+                st.caption("No prediction available (System 1/Fast Path).")
+            
+            st.write("**Attribution**")
+            if row['response_id']:
+                st.code(f"Resp: {row['response_id']}", language="text")
+            else:
+                st.caption("Direct heuristic match.")
+
 
 def render_heuristics():
     st.subheader("Learned Knowledge Base (Heuristics)")
