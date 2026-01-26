@@ -23,7 +23,7 @@ try:
     from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
     from gladys_orchestrator.generated import common_pb2
 except ImportError:
-    st.error("Proto stubs not found. Run 'python scripts/proto_sync.py' first.")
+    st.error("Proto stubs not found. Run 'python scripts/proto_gen.py' first.")
 
 # Service Connection Config
 ENV_CONFIGS = {

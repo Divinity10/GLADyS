@@ -463,3 +463,14 @@ When either party changes:
   docker compose -f src/integration/docker-compose.yml up -d
   python scripts/docker.py test test_flight_recorder.py
   ```
+
+- **2026-01-26 [Gemini]**: **Resolved Docker Issues & Implemented Service Scripts**.
+  - *Fixes*:
+    - Implemented new \scripts/docker.py\ using robust \DockerBackend\ logic.
+    - Used \up -d --force-recreate\ to solve stale code/stub issues.
+    - Verified \	est_flight_recorder.py\ passes.
+  - *New Artifacts*:
+    - \scripts/_service_base.py\: Core abstraction.
+    - \scripts/_docker_backend.py\: Docker implementation.
+    - \scripts/docker.py\: Updated entry point.
+  - *Status*: Phase 3 (Feedback Persistence) is Verified. Service Scripts Phase 1 & 2 Complete.

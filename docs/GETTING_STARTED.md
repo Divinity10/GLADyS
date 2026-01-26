@@ -92,7 +92,7 @@ cd src/memory/rust && cargo test
 **Key files:**
 - [src/memory/python/gladys_memory/grpc_server.py](../src/memory/python/gladys_memory/grpc_server.py) - Python gRPC server
 - [src/memory/rust/src/server.rs](../src/memory/rust/src/server.rs) - Rust fast path
-- [src/memory/proto/memory.proto](../src/memory/proto/memory.proto) - API contract
+- [proto/memory.proto](../proto/memory.proto) - API contract
 - [src/memory/python/gladys_memory/config.py](../src/memory/python/gladys_memory/config.py) - Configuration
 
 ---
@@ -126,7 +126,7 @@ cd src/orchestrator && uv run pytest
 **Key files:**
 - [src/orchestrator/gladys_orchestrator/router.py](../src/orchestrator/gladys_orchestrator/router.py) - Event routing logic
 - [src/orchestrator/gladys_orchestrator/server.py](../src/orchestrator/gladys_orchestrator/server.py) - gRPC server
-- [src/orchestrator/proto/orchestrator.proto](../src/orchestrator/proto/orchestrator.proto) - API contract
+- [proto/orchestrator.proto](../proto/orchestrator.proto) - API contract
 - [scripts/local.py](../scripts/local.py) - Local service management
 - [scripts/docker.py](../scripts/docker.py) - Docker service management
 
@@ -154,8 +154,8 @@ make up   # Starts all services including executive-stub
 - File-based heuristic storage (PoC only)
 
 **Key files:**
-- [src/executive/stub_server.py](../src/executive/stub_server.py) - Python stub implementation
-- [src/orchestrator/proto/executive.proto](../src/orchestrator/proto/executive.proto) - API contract
+- [src/executive/gladys_executive/server.py](../src/executive/gladys_executive/server.py) - Python stub implementation
+- [proto/executive.proto](../proto/executive.proto) - API contract
 
 **Key ADRs:**
 - [ADR-0014](adr/ADR-0014-Executive-Decision-Loop-and-Proactive-Behavior.md) - Executive design
@@ -252,16 +252,16 @@ docker compose -f src/integration/docker-compose.yml logs memory-python  # Speci
 
 ### Regenerating proto stubs
 
-After modifying `.proto` files:
+After modifying `.proto` files in `proto/`:
 
 ```bash
-make proto   # Regenerates all Python stubs, fixes imports, validates Rust compiles
+python scripts/proto_gen.py   # Regenerates all Python stubs
 ```
 
-This uses `scripts/proto_sync.py` which:
-- Regenerates Python stubs for memory and orchestrator
+This script:
+- Regenerates Python stubs from `proto/` to service-specific `generated/` directories
 - Fixes relative imports in generated files
-- Validates Rust compilation against proto changes
+- Validates syntax of generated Python files
 
 ### Service Management
 
@@ -347,9 +347,9 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 | Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
 | Executive stub | [src/executive/](../src/executive/) |
 | Integration tests | [src/integration/](../src/integration/) |
-| gRPC contracts | `src/*/proto/*.proto` |
+| gRPC contracts | [proto/](../proto/) |
 | Makefile targets | `make help` |
-| Proto sync script | [scripts/proto_sync.py](../scripts/proto_sync.py) |
+| Proto generation script | [scripts/proto_gen.py](../scripts/proto_gen.py) |
 
 ## Getting Help
 

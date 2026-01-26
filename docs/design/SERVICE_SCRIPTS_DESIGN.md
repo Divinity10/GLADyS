@@ -27,6 +27,7 @@ The `scripts/docker.py` and `scripts/local.py` files are admin tools that manage
 | `stop <service>` | Stop one or more services | ✅ | ✅ |
 | `restart <service>` | Restart one or more services | ✅ | ✅ |
 | `status` | Show all service status | ✅ | ✅ |
+| `health [service]` | Detailed health with diagnostics | ✅ | ✅ |
 | `logs <service>` | View/follow service logs | ✅ | ✅ |
 | `test [file]` | Run integration tests | ✅ | ✅ |
 | `psql [-c cmd]` | Database shell or command | ✅ | ✅ |
@@ -35,6 +36,10 @@ The `scripts/docker.py` and `scripts/local.py` files are admin tools that manage
 | `clean <target>` | Clear database tables | ✅ | ✅ |
 | `reset` | Full reset (stop, clean, start) | ✅ | ✅ |
 | `sync-check` | Verify environment is in sync | ✅ | ✅ |
+| `cache stats` | Show cache statistics | ✅ | ✅ |
+| `cache list` | List cached heuristics | ✅ | ✅ |
+| `cache flush` | Clear entire cache | ✅ | ✅ |
+| `cache evict <id>` | Remove single heuristic from cache | ✅ | ✅ |
 
 ### Service Names
 
@@ -245,7 +250,203 @@ if __name__ == "__main__":
 
 ---
 
-## 4. Sync-Check Command
+## 4. Health Endpoints
+
+Each service exposes health information via gRPC. The admin scripts query these endpoints to provide detailed status.
+
+### Health Command
+
+```
+$ python scripts/docker.py health [service]
+
+Service Health Report
+=====================
+
+memory-python (localhost:50061):
+  Status: HEALTHY
+  Database: connected (5432)
+  Tables: heuristics(142), events(1203), heuristic_fires(89)
+  Uptime: 2h 34m
+
+memory-rust (localhost:50062):
+  Status: HEALTHY
+  Cache: 48/1000 entries, 4.8% full
+  Hit rate: 87.3% (last 1000 queries)
+  Python backend: connected (50061)
+  Uptime: 2h 34m
+
+orchestrator (localhost:50060):
+  Status: HEALTHY
+  Dependencies:
+    - memory-rust: connected
+    - memory-python: connected
+    - executive: connected
+  Events processed: 1203 (0 errors)
+  Uptime: 2h 34m
+
+executive-stub (localhost:50063):
+  Status: HEALTHY
+  Memory backend: connected (50061)
+  LLM: not configured
+  Uptime: 2h 34m
+```
+
+### gRPC Health Proto
+
+Each service implements a Health RPC (standard gRPC health checking pattern):
+
+```protobuf
+// In each service's proto file
+service Health {
+    rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+    rpc GetDetails(HealthDetailsRequest) returns (HealthDetailsResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+    enum Status {
+        UNKNOWN = 0;
+        HEALTHY = 1;
+        UNHEALTHY = 2;
+        DEGRADED = 3;
+    }
+    Status status = 1;
+}
+
+message HealthDetailsRequest {}
+
+message HealthDetailsResponse {
+    HealthCheckResponse.Status status = 1;
+    int64 uptime_seconds = 2;
+    map<string, string> details = 3;  // Service-specific key-value pairs
+}
+```
+
+### Service-Specific Details
+
+| Service | Details Reported |
+|---------|------------------|
+| memory-python | `db_status`, `table_counts`, `connection_pool` |
+| memory-rust | `cache_size`, `cache_capacity`, `hit_rate`, `backend_status` |
+| orchestrator | `events_processed`, `error_count`, `dependency_status` |
+| executive-stub | `memory_status`, `llm_configured`, `llm_status` |
+
+---
+
+## 5. Cache Management
+
+The Rust salience gateway maintains an LRU cache. Admin tools provide cache inspection and control.
+
+### Cache Commands
+
+```bash
+# View cache statistics
+$ python scripts/docker.py cache stats
+Cache Statistics (memory-rust):
+  Entries: 48/1000 (4.8% full)
+  Hit rate: 87.3% (last 1000 queries)
+  Oldest entry: 2h 15m ago
+  Memory: ~2.4 MB
+
+# List cached heuristics
+$ python scripts/docker.py cache list
+Cached Heuristics:
+  abc123... "Morning greeting pattern" (hits: 42, age: 15m)
+  def456... "Task reminder trigger" (hits: 28, age: 45m)
+  ...
+  [48 entries total]
+
+# Flush entire cache
+$ python scripts/docker.py cache flush
+Flushed 48 entries from cache.
+
+# Evict specific heuristic
+$ python scripts/docker.py cache evict abc123
+Evicted heuristic abc123 from cache.
+```
+
+### Cache Management Proto
+
+```protobuf
+// In salience.proto (SalienceGateway service)
+service SalienceGateway {
+    // Existing RPCs...
+
+    // Cache management
+    rpc FlushCache(FlushCacheRequest) returns (FlushCacheResponse);
+    rpc EvictFromCache(EvictFromCacheRequest) returns (EvictFromCacheResponse);
+    rpc GetCacheStats(GetCacheStatsRequest) returns (GetCacheStatsResponse);
+    rpc ListCachedHeuristics(ListCachedHeuristicsRequest) returns (ListCachedHeuristicsResponse);
+}
+
+message FlushCacheRequest {}
+message FlushCacheResponse {
+    int32 entries_flushed = 1;
+}
+
+message EvictFromCacheRequest {
+    string heuristic_id = 1;
+}
+message EvictFromCacheResponse {
+    bool found = 1;
+}
+
+message GetCacheStatsRequest {}
+message GetCacheStatsResponse {
+    int32 current_size = 1;
+    int32 max_capacity = 2;
+    float hit_rate = 3;
+    int64 total_hits = 4;
+    int64 total_misses = 5;
+}
+
+message ListCachedHeuristicsRequest {
+    int32 limit = 1;  // 0 = all
+}
+message CachedHeuristicInfo {
+    string heuristic_id = 1;
+    string name = 2;
+    int32 hit_count = 3;
+    int64 cached_at_unix = 4;
+    int64 last_hit_unix = 5;
+}
+message ListCachedHeuristicsResponse {
+    repeated CachedHeuristicInfo heuristics = 1;
+}
+```
+
+### Use Cases
+
+| Command | When to Use |
+|---------|-------------|
+| `cache stats` | Monitoring, performance tuning |
+| `cache list` | Debugging, understanding what's cached |
+| `cache flush` | After schema changes, bulk heuristic updates |
+| `cache evict <id>` | After updating single heuristic, debugging |
+
+---
+
+## 6. Authorization (Placeholder)
+
+Current scope: local-only admin tools, no authorization needed.
+
+Future scope: if admin tools are exposed remotely (e.g., via REST gateway), add:
+
+```yaml
+# ~/.gladys/admin.yaml
+admin:
+  enabled: true
+  auth:
+    type: local  # Options: local, token, mtls
+    # token: <generated-token>  # For remote access
+```
+
+For now, this is **design only** — no implementation until remote access is needed.
+
+---
+
+## 7. Sync-Check Command
 
 New command to detect environment drift:
 
@@ -280,37 +481,50 @@ Implementation checks:
 
 ---
 
-## 5. Implementation Plan
+## 8. Implementation Plan
 
-### Phase 1: Core Framework (2-3 hours)
+### Phase 1: Core Framework
 - Create `_service_base.py` with abstractions
 - Implement `ServiceManager` with command dispatch
 - Unit tests for core logic
 
-### Phase 2: Docker Backend (1-2 hours)
+### Phase 2: Docker Backend
 - Create `_docker_backend.py`
 - Migrate existing docker.py logic
 - Verify all commands work
 
-### Phase 3: Local Backend (1-2 hours)
+### Phase 3: Local Backend
 - Create `_local_backend.py`
 - Migrate existing local.py logic
 - Add `logs` command (needs log file handling)
 - Add `query` command
 
-### Phase 4: Sync-Check (1 hour)
+### Phase 4: Sync-Check
 - Implement proto hash comparison
 - Implement migration count check
 - Implement stub freshness check
 
-### Phase 5: Cleanup (30 min)
+### Phase 5: Health Endpoints
+- Add Health service to each proto file
+- Implement Health RPC in memory-python
+- Implement Health RPC in memory-rust
+- Implement Health RPC in orchestrator
+- Implement Health RPC in executive-stub
+- Add `health` command to admin scripts
+
+### Phase 6: Cache Management
+- Add cache management RPCs to salience.proto
+- Implement FlushCache, EvictFromCache, GetCacheStats, ListCachedHeuristics in Rust
+- Add `cache` subcommand group to admin scripts
+
+### Phase 7: Cleanup
 - Remove duplicated code
 - Update documentation
 - Commit
 
 ---
 
-## 6. Open Questions
+## 9. Open Questions
 
 1. **Log handling for local services**: Local services run as background processes. Options:
    - Write to log files, `logs` command tails them
@@ -326,7 +540,7 @@ Implementation checks:
 
 ---
 
-## 7. Assignment Recommendation
+## 10. Assignment Recommendation
 
 | Phase | Recommended Owner | Rationale |
 |-------|-------------------|-----------|
@@ -334,13 +548,19 @@ Implementation checks:
 | Phase 2 (Docker) | Gemini | Already familiar with Docker env |
 | Phase 3 (Local) | Claude | Local environment expertise |
 | Phase 4 (Sync-Check) | Either | Standalone feature |
-| Phase 5 (Cleanup) | Whoever finishes first | |
+| Phase 5 (Health) | Split | Each agent implements for their env |
+| Phase 6 (Cache) | Gemini | Rust implementation in Docker |
+| Phase 7 (Cleanup) | Whoever finishes first | |
 
 **Alternative**: Single owner does all phases sequentially to maintain consistency.
 
+**Recommended priority order**: Phase 1 → Phase 4 → Phase 2 → Phase 3 → Phase 5 → Phase 6 → Phase 7
+
+Rationale: Framework first enables all other work. Sync-check early to catch drift. Health and cache are enhancements after core functionality works.
+
 ---
 
-## 8. Decision Needed
+## 11. Decision Needed
 
 Please review and decide:
 

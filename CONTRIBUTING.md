@@ -98,27 +98,23 @@ doc(ADR): add actuator specification
 
 ### Regenerating Proto Stubs
 
-When `.proto` files change, regenerate the Python stubs:
+All proto definitions live in a single shared directory: `proto/` at the project root. When `.proto` files change, regenerate stubs:
 
 ```bash
 # From project root
-python scripts/proto_sync.py
-
-# Or use make (if available)
-make proto
+python scripts/proto_gen.py
 ```
 
 This script:
 1. Finds a Python environment with `grpc_tools` installed
-2. Regenerates all Python stubs for memory and orchestrator modules
+2. Regenerates all Python stubs from `proto/` to service-specific `generated/` directories
 3. Fixes import issues (absolute → relative) in generated files
 4. Verifies generated files have valid Python syntax
 
 **Proto locations:**
-- `src/memory/proto/memory.proto` → `src/memory/python/gladys_memory/`
-- `src/orchestrator/proto/*.proto` → `src/orchestrator/gladys_orchestrator/generated/`
-
-**Important:** The `memory.proto` file must be identical in both `src/memory/proto/` and `src/orchestrator/proto/`. The contract test (`tests/test_proto_contract.py`) enforces this.
+- `proto/*.proto` → Source of truth for all proto definitions
+- `src/memory/python/gladys_memory/generated/` → Python stubs for memory service
+- `src/orchestrator/gladys_orchestrator/generated/` → Python stubs for orchestrator
 
 ### Configuration
 

@@ -134,12 +134,52 @@ python scripts/local.py restart all       # Restart all services
 
 ### status
 
-Show the status of all services.
+Show the status of all services (process-level check).
 
 ```bash
 python scripts/local.py status
 python scripts/docker.py status
 ```
+
+### health
+
+Check gRPC health endpoints on running services. This calls the actual Health RPCs on each service to verify they're responding properly, not just that the process is running.
+
+```bash
+python scripts/local.py health              # Check all services
+python scripts/local.py health memory-rust  # Check specific service
+python scripts/local.py health -d           # Detailed output with uptime and metrics
+python scripts/local.py health all --detailed
+```
+
+**Example output:**
+```
+memory-python        [OK] HEALTHY      uptime=3600s
+memory-rust          [OK] HEALTHY      uptime=3595s
+orchestrator         [OK] HEALTHY      uptime=3590s
+executive-stub       [OK] HEALTHY      uptime=3585s
+```
+
+**Detailed output (`-d`):**
+```
+memory-python        [OK] HEALTHY      uptime=3600s
+    db_connected: true
+    embedding_model: sentence-transformers/all-MiniLM-L6-v2
+memory-rust          [OK] HEALTHY      uptime=3595s
+    cache_size: 42
+    cache_capacity: 1000
+    cache_hit_rate: 0.85
+    total_hits: 127
+    total_misses: 23
+```
+
+**Status vs Health:**
+- `status` checks if the process is running (port listening, PID exists)
+- `health` calls gRPC RPCs to verify the service is actually responding
+
+**Exit codes:**
+- `0` if all services are HEALTHY
+- `1` if any service is UNHEALTHY, DEGRADED, or unreachable
 
 **Example output (local):**
 ```

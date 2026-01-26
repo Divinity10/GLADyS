@@ -34,7 +34,7 @@ Other subsystems talk to Memory via **gRPC**. Here's what you need:
 
 ### 1. Get the proto file
 
-The API contract is defined in [`proto/memory.proto`](proto/memory.proto). This file defines:
+The API contract is defined in [`proto/memory.proto`](../../proto/memory.proto) at the project root. This file defines:
 - `StoreEpisode` - Save a memory
 - `QueryEpisodes` - Search memories by similarity
 - `GenerateEmbedding` - Get vector embedding for text
@@ -42,7 +42,7 @@ The API contract is defined in [`proto/memory.proto`](proto/memory.proto). This 
 
 ### 2. Generate client code for your language
 
-**Rust** (like Orchestrator):
+**Rust** (like the SalienceGateway):
 ```toml
 # Cargo.toml
 [dependencies]
@@ -54,16 +54,16 @@ tonic-build = "0.12"
 ```
 
 ```rust
-// build.rs
+// build.rs - see src/memory/rust/build.rs for working example
 fn main() {
-    tonic_build::compile_protos("../memory/proto/memory.proto").unwrap();
+    tonic_build::compile_protos(&["proto/memory.proto"], &["proto/"]).unwrap();
 }
 ```
 
 **Python**:
 ```bash
-pip install grpcio grpcio-tools
-python -m grpc_tools.protoc -I../memory/proto --python_out=. --grpc_python_out=. memory.proto
+# From project root
+python scripts/proto_gen.py
 ```
 
 **C#** (like Executive):
@@ -71,7 +71,7 @@ python -m grpc_tools.protoc -I../memory/proto --python_out=. --grpc_python_out=.
 <!-- .csproj -->
 <PackageReference Include="Grpc.Net.Client" Version="2.x" />
 <PackageReference Include="Google.Protobuf" Version="3.x" />
-<Protobuf Include="../memory/proto/memory.proto" />
+<Protobuf Include="proto/memory.proto" />
 ```
 
 ### 3. Connect and call
@@ -107,20 +107,26 @@ response = client.StoreEpisode(StoreEpisodeRequest(source="test", raw_text="Hell
                    │ gRPC calls
                    ▼
 ┌──────────────────────────────────────┐
-│       Rust Fast Path (port 50052)    │  ← Call this one
+│    SalienceGateway (port 50052)      │  ← EvaluateSalience, cache mgmt
+│  • Rust service                      │
 │  • LRU cache (50 heuristics max)     │
-│  • Word-overlap matching (~1ms)      │
-│  • Queries Python on cache miss      │
+│  • Calls Python for semantic search  │
+│  • Cache tracks hits/misses/stats    │
 └──────────────────┬───────────────────┘
                    │ QueryMatchingHeuristics RPC
                    ▼
 ┌──────────────────────────────────────┐
-│     Python Storage (port 50051)      │
-│  • PostgreSQL text search (tsvector) │
-│  • Embedding generation (ML model)   │
-│  • PostgreSQL + pgvector             │
+│    MemoryStorage (port 50051)        │  ← Store/query data
+│  • Python service                    │
+│  • Embedding-based semantic search   │
+│  • PostgreSQL + pgvector storage     │
+│  • All heuristic/event persistence   │
 └──────────────────────────────────────┘
 ```
+
+**Key distinction**:
+- **SalienceGateway (Rust, 50052)**: Handles `EvaluateSalience` RPC. Calls Python on every salience eval for semantic matching. Cache is for stats/tracking.
+- **MemoryStorage (Python, 50051)**: Handles `Store*`, `Query*`, `Update*` RPCs. Does the actual embedding search.
 
 ---
 
@@ -146,14 +152,18 @@ cd rust && cargo test
 For faster iteration when debugging:
 
 ```bash
-# Terminal 1: Database
+# Option 1: Use the admin script (recommended)
+python scripts/local.py start all
+
+# Option 2: Start manually
+# Terminal 1: Database (using local PostgreSQL or Docker)
 docker compose up -d postgres
 
-# Terminal 2: Python storage
-cd python && uv run python -m gladys_memory.grpc_server
+# Terminal 2: Python MemoryStorage
+cd python && uv run python -m gladys_memory start
 
-# Terminal 3: Rust fast path
-cd rust && cargo run
+# Terminal 3: Rust SalienceGateway
+cd rust && cargo run --release
 ```
 
 ### Directory structure

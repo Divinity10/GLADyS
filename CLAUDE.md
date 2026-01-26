@@ -109,12 +109,13 @@ Non-negotiable unless an ADR is superseded:
 
 | File | Committed | Purpose |
 |------|-----------|---------|
+| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Yes | Service topology, ports, data flow (read first!) |
 | **[docs/design/OPEN_QUESTIONS.md](docs/design/OPEN_QUESTIONS.md)** | Yes | Shared design discussions |
 | **claude_memory.md** | No | Personal session state |
 
 ### Rules
 
-1. **At session start**: Read both files to restore context
+1. **At session start**: Read CODEBASE_MAP.md (for service/port info) and both memory files
 2. **Task SOP**: For significant tasks, read `docs/workflow/SOP_TASK.md` before starting and before declaring done
 3. **Update claude_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
