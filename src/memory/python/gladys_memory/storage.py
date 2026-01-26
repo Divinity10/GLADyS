@@ -235,21 +235,33 @@ class MemoryStorage:
         action: dict,
         confidence: float,
         source_pattern_ids: Optional[list[UUID]] = None,
+        condition_embedding: Optional[np.ndarray] = None,
     ) -> None:
-        """Store a new heuristic."""
+        """Store a new heuristic.
+
+        Args:
+            id: Unique identifier for the heuristic
+            name: Human-readable name
+            condition: Condition dict (should have 'text' key for matching)
+            action: Action dict (effects to apply when heuristic fires)
+            confidence: Confidence score (0.0 to 1.0)
+            source_pattern_ids: Optional list of pattern IDs this heuristic was derived from
+            condition_embedding: Optional embedding for semantic matching (384-dim)
+        """
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
         await self._pool.execute(
             """
-            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids, condition_embedding)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 condition = EXCLUDED.condition,
                 action = EXCLUDED.action,
                 confidence = EXCLUDED.confidence,
                 source_pattern_ids = EXCLUDED.source_pattern_ids,
+                condition_embedding = COALESCE(EXCLUDED.condition_embedding, heuristics.condition_embedding),
                 updated_at = NOW()
             """,
             id,
@@ -258,6 +270,7 @@ class MemoryStorage:
             action,
             confidence,
             source_pattern_ids or [],
+            condition_embedding,
         )
 
     async def query_heuristics(
@@ -292,11 +305,13 @@ class MemoryStorage:
         min_confidence: float = 0.0,
         limit: int = 10,
         source_filter: str | None = None,
+        query_embedding: Optional[np.ndarray] = None,
+        min_similarity: float = 0.7,
     ) -> list[dict[str, Any]]:
-        """Query heuristics matching event text using PostgreSQL full-text search.
+        """Query heuristics matching event text using semantic similarity.
 
-        Uses tsvector/tsquery with OR semantics for partial matching.
-        Also updates last_accessed for LRU tracking.
+        Uses embedding-based similarity for accurate semantic matching.
+        Falls back to text search only for heuristics without embeddings.
 
         Args:
             event_text: The event text to match against heuristic conditions
@@ -304,6 +319,8 @@ class MemoryStorage:
             limit: Maximum number of results
             source_filter: If provided, only return heuristics whose condition
                            text starts with this source/domain prefix
+            query_embedding: Pre-computed embedding for event_text (384-dim)
+            min_similarity: Minimum cosine similarity threshold (default 0.7)
 
         Returns:
             List of matching heuristics with similarity ranking
@@ -311,36 +328,118 @@ class MemoryStorage:
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
-        # Extract words from event text, filter short/common words, join with OR
-        # This allows partial matching (any word match) instead of AND (all words must match)
+        result = []
+
+        # Primary: Semantic similarity search (when embedding is available)
+        if query_embedding is not None:
+            if source_filter:
+                source_pattern = f"{source_filter}:%"
+                rows = await self._pool.fetch(
+                    """
+                    SELECT id, name, condition, action, confidence,
+                           source_pattern_ids, last_fired, fire_count, success_count,
+                           frozen, created_at, updated_at,
+                           1 - (condition_embedding <=> $1) AS similarity
+                    FROM heuristics
+                    WHERE condition_embedding IS NOT NULL
+                      AND 1 - (condition_embedding <=> $1) >= $2
+                      AND confidence >= $3
+                      AND frozen = false
+                      AND (condition->>'text') ILIKE $5
+                    ORDER BY condition_embedding <=> $1
+                    LIMIT $4
+                    """,
+                    query_embedding,
+                    min_similarity,
+                    min_confidence,
+                    limit,
+                    source_pattern,
+                )
+            else:
+                rows = await self._pool.fetch(
+                    """
+                    SELECT id, name, condition, action, confidence,
+                           source_pattern_ids, last_fired, fire_count, success_count,
+                           frozen, created_at, updated_at,
+                           1 - (condition_embedding <=> $1) AS similarity
+                    FROM heuristics
+                    WHERE condition_embedding IS NOT NULL
+                      AND 1 - (condition_embedding <=> $1) >= $2
+                      AND confidence >= $3
+                      AND frozen = false
+                    ORDER BY condition_embedding <=> $1
+                    LIMIT $4
+                    """,
+                    query_embedding,
+                    min_similarity,
+                    min_confidence,
+                    limit,
+                )
+
+            result = [dict(row) for row in rows]
+
+        # Fallback: Text search for heuristics without embeddings (during migration)
+        # Only used if semantic search returned no results
+        if not result and event_text:
+            result = await self._query_matching_heuristics_text(
+                event_text=event_text,
+                min_confidence=min_confidence,
+                limit=limit,
+                source_filter=source_filter,
+            )
+
+        # Update last_accessed for LRU tracking
+        if result:
+            heuristic_ids = [row["id"] for row in result]
+            await self._pool.execute(
+                """
+                UPDATE heuristics
+                SET last_accessed = NOW()
+                WHERE id = ANY($1)
+                """,
+                heuristic_ids,
+            )
+
+        return result
+
+    async def _query_matching_heuristics_text(
+        self,
+        event_text: str,
+        min_confidence: float = 0.0,
+        limit: int = 10,
+        source_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fallback text-based heuristic matching.
+
+        Uses PostgreSQL full-text search with OR semantics.
+        Only used during migration when heuristics lack embeddings.
+
+        DEPRECATED: Will be removed once all heuristics have embeddings.
+        """
         import re
-        words = re.findall(r'\b\w{3,}\b', event_text.lower())  # Words 3+ chars
+        words = re.findall(r'\b\w{3,}\b', event_text.lower())
         stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'has', 'her', 'was', 'one', 'our', 'out', 'his', 'has', 'had', 'this', 'that', 'with', 'they', 'been', 'have', 'from', 'will', 'what', 'when', 'where', 'need', 'fast'}
         filtered_words = [w for w in words if w not in stop_words]
 
         if not filtered_words:
             return []
 
-        # Build OR-based tsquery: word1 | word2 | word3
         or_query = ' | '.join(filtered_words)
 
-        # Build query with optional source filter
         if source_filter:
-            # Filter heuristics whose condition text starts with the source prefix
-            # Pattern: "source:" or "source " at the start
             source_pattern = f"{source_filter}:%"
             rows = await self._pool.fetch(
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
                        frozen, created_at, updated_at,
-                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
+                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
                   AND confidence >= $2
                   AND frozen = false
                   AND (condition->>'text') ILIKE $4
-                ORDER BY rank DESC, confidence DESC
+                ORDER BY similarity DESC, confidence DESC
                 LIMIT $3
                 """,
                 or_query,
@@ -354,12 +453,12 @@ class MemoryStorage:
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
                        frozen, created_at, updated_at,
-                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS rank
+                       ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
                   AND confidence >= $2
                   AND frozen = false
-                ORDER BY rank DESC, confidence DESC
+                ORDER BY similarity DESC, confidence DESC
                 LIMIT $3
                 """,
                 or_query,
@@ -367,21 +466,7 @@ class MemoryStorage:
                 limit,
             )
 
-        result = [dict(row) for row in rows]
-
-        # Update last_accessed for LRU tracking (fire in background)
-        if result:
-            heuristic_ids = [row["id"] for row in result]
-            await self._pool.execute(
-                """
-                UPDATE heuristics
-                SET last_accessed = NOW()
-                WHERE id = ANY($1)
-                """,
-                heuristic_ids,
-            )
-
-        return result
+        return [dict(row) for row in rows]
 
     async def update_heuristic_fired(
         self,

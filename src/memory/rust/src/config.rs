@@ -111,10 +111,9 @@ pub struct SalienceConfig {
     pub baseline_novelty: f32,
     /// Novelty boost when no heuristic matches (default: 0.4)
     pub unmatched_novelty_boost: f32,
-    /// Minimum word overlap ratio for heuristic matching (default: 0.3)
-    pub word_overlap_ratio: f32,
-    /// Minimum word overlap count (default: 2)
-    pub min_word_overlap: usize,
+    // NOTE: word_overlap_ratio and min_word_overlap have been removed.
+    // Heuristic matching now uses semantic similarity via Python embeddings.
+    // This provides much more accurate matching than word overlap.
 }
 
 impl Default for SalienceConfig {
@@ -132,14 +131,6 @@ impl Default for SalienceConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0.4),
-            word_overlap_ratio: env::var("SALIENCE_WORD_OVERLAP_RATIO")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0.3),
-            min_word_overlap: env::var("SALIENCE_MIN_WORD_OVERLAP")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(2),
         }
     }
 }

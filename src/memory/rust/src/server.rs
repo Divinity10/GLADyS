@@ -4,9 +4,10 @@
 //! salience for incoming events using heuristics and novelty detection.
 //!
 //! Architecture:
-//! - Uses a small LRU cache of recently matched heuristics
-//! - On cache miss, queries Python storage via QueryMatchingHeuristics RPC
-//! - Adds matched heuristics to the local cache (with LRU eviction)
+//! - Always queries Python storage for semantic heuristic matching
+//! - Python uses embedding similarity for accurate semantic matching
+//! - Rust caches matched heuristics for metadata/stats (not for re-matching)
+//! - LRU cache stores recently used heuristics for quick stat updates
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -112,72 +113,12 @@ impl SalienceService {
         }
     }
 
-    /// Check if a heuristic matches the request.
-    ///
-    /// CBR-style word overlap matching for MVP.
-    /// True CBR would use embedding similarity.
-    ///
-    /// NOTE: This is a placeholder implementation using naive word matching.
-    /// Production should use embedding similarity via Python service.
-    fn heuristic_matches(
-        heuristic: &CachedHeuristic,
-        request: &EvaluateSalienceRequest,
-        config: &SalienceConfig,
-    ) -> bool {
-        let condition = &heuristic.condition;
-
-        // CBR format: match by text keywords (word overlap)
-        if let Some(condition_text) = condition.get("text").and_then(|v| v.as_str()) {
-            let condition_lower = condition_text.to_lowercase();
-            let request_lower = request.raw_text.to_lowercase();
-
-            // Split into words, strip punctuation, and find overlap
-            let condition_words: std::collections::HashSet<String> = condition_lower
-                .split_whitespace()
-                .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
-                .filter(|w| !w.is_empty())
-                .collect();
-            let request_words: std::collections::HashSet<String> = request_lower
-                .split_whitespace()
-                .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string())
-                .filter(|w| !w.is_empty())
-                .collect();
-
-            let overlap: std::collections::HashSet<_> =
-                condition_words.intersection(&request_words).collect();
-
-            // Match if overlap meets configured thresholds
-            let min_overlap = std::cmp::max(
-                config.min_word_overlap,
-                (condition_words.len() as f32 * config.word_overlap_ratio) as usize,
-            );
-            return overlap.len() >= min_overlap;
-        }
-
-        // Legacy format: match by source if specified
-        if let Some(source) = condition.get("source").and_then(|v| v.as_str()) {
-            if source != request.source {
-                return false;
-            }
-        }
-
-        // Legacy format: match by keywords in raw_text
-        if let Some(keywords) = condition.get("keywords").and_then(|v| v.as_array()) {
-            let text_lower = request.raw_text.to_lowercase();
-            let has_match = keywords.iter().any(|kw| {
-                if let Some(keyword) = kw.as_str() {
-                    text_lower.contains(&keyword.to_lowercase())
-                } else {
-                    false
-                }
-            });
-            if !has_match {
-                return false;
-            }
-        }
-
-        true
-    }
+    // NOTE: Word overlap matching has been removed.
+    // All heuristic matching is now done via Python's semantic similarity
+    // using embeddings. This is more accurate and avoids false positives
+    // from sentences that share structural words but have different meanings.
+    // Example: "email about killing neighbor" should NOT match "email about meeting"
+    // even though they share words like "email", "about", etc.
 
     /// Apply salience boosts from a matched heuristic.
     fn apply_heuristic_salience(salience: &mut SalienceVector, heuristic: &CachedHeuristic) {
@@ -246,59 +187,33 @@ impl SalienceGateway for SalienceService {
         };
 
         let mut matched_heuristic_id = String::new();
-        let mut from_cache = false;
+        let mut from_storage = false;
 
-        // Step 1: Check local LRU cache for matching heuristics
-        let mut matched_id_for_touch: Option<uuid::Uuid> = None;
-        {
-            let cache = self.cache.read().await;
-            let heuristics = cache.get_heuristics_by_confidence(self.config.min_heuristic_confidence);
-
-            for h in heuristics {
-                if Self::heuristic_matches(h, &req, &self.config) {
-                    info!(
-                        heuristic_id = %h.id,
-                        heuristic_name = %h.name,
-                        "Heuristic matched (from local cache)"
-                    );
-                    matched_heuristic_id = h.id.to_string();
-                    matched_id_for_touch = Some(h.id);
-                    from_cache = true;
-                    Self::apply_heuristic_salience(&mut salience, h);
-                    break;
-                }
-            }
-        }
-
-        // Update last_accessed for LRU if we found a match
-        if let Some(id) = matched_id_for_touch {
-            let mut cache = self.cache.write().await;
-            cache.touch_heuristic(&id);
-        }
-
-        // Step 2: On cache miss, query Python storage
-        if !from_cache && !req.raw_text.is_empty() {
-            debug!("Cache miss, querying storage for heuristics");
+        // Always query Python storage for semantic heuristic matching.
+        // Python uses embedding similarity which is more accurate than word overlap.
+        // The local cache is only used for storing heuristics for metadata/stats.
+        if !req.raw_text.is_empty() {
+            debug!("Querying Python storage for semantic heuristic matching");
             let source_filter = if req.source.is_empty() { None } else { Some(req.source.as_str()) };
             if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text, source_filter).await {
-                // Add to local cache and check for match
+                // Add to local cache for stats tracking
                 let mut cache = self.cache.write().await;
                 for h in heuristics_from_storage {
-                    // Add to cache (LRU eviction handled automatically)
                     let h_id = h.id;
                     let h_name = h.name.clone();
                     cache.add_heuristic(h);
 
-                    // Use the first match from storage
+                    // Use the first (best) match from storage
+                    // Python returns results ordered by semantic similarity
                     if matched_heuristic_id.is_empty() {
                         if let Some(cached_h) = cache.get_heuristic(&h_id) {
                             info!(
                                 heuristic_id = %h_id,
                                 heuristic_name = %h_name,
-                                "Heuristic matched (from storage query)"
+                                "Heuristic matched (semantic similarity)"
                             );
                             matched_heuristic_id = h_id.to_string();
-                            from_cache = true;
+                            from_storage = true;
                             Self::apply_heuristic_salience(&mut salience, cached_h);
                         }
                     }
@@ -306,9 +221,8 @@ impl SalienceGateway for SalienceService {
             }
         }
 
-        // Step 3: Novelty detection
-        // If still no match, this is a potentially novel situation
-        if !from_cache && !req.raw_text.is_empty() {
+        // Novelty detection: If no heuristic matched, this is potentially novel
+        if !from_storage && !req.raw_text.is_empty() {
             salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
         }
 
@@ -322,7 +236,7 @@ impl SalienceGateway for SalienceService {
 
         Ok(Response::new(EvaluateSalienceResponse {
             salience: Some(salience),
-            from_cache,
+            from_cache: from_storage, // Semantic match found from storage
             matched_heuristic_id,
             error: String::new(),
             // Rust fast path never does novelty detection (no embedding model)
@@ -365,59 +279,9 @@ pub async fn run_server(
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_heuristic_keyword_matching() {
-        let config = SalienceConfig::default();
-        let heuristic = CachedHeuristic {
-            id: uuid::Uuid::new_v4(),
-            name: "threat_detector".to_string(),
-            condition: serde_json::json!({
-                "source": "test",
-                "keywords": ["danger", "threat", "attack"]
-            }),
-            action: serde_json::json!({
-                "salience": {
-                    "threat": 0.9
-                }
-            }),
-            confidence: 0.95,
-            last_accessed_ms: 0,
-            cached_at_ms: 0,
-        };
-
-        // Should match - contains "danger"
-        let request = EvaluateSalienceRequest {
-            event_id: "test-1".to_string(),
-            source: "test".to_string(),
-            raw_text: "DANGER! Enemy approaching!".to_string(),
-            structured_json: String::new(),
-            entity_ids: vec![],
-            skip_novelty_detection: false,
-        };
-        assert!(SalienceService::heuristic_matches(&heuristic, &request, &config));
-
-        // Should not match - wrong source
-        let request2 = EvaluateSalienceRequest {
-            event_id: "test-2".to_string(),
-            source: "other".to_string(),
-            raw_text: "DANGER! Enemy approaching!".to_string(),
-            structured_json: String::new(),
-            entity_ids: vec![],
-            skip_novelty_detection: false,
-        };
-        assert!(!SalienceService::heuristic_matches(&heuristic, &request2, &config));
-
-        // Should not match - no keywords
-        let request3 = EvaluateSalienceRequest {
-            event_id: "test-3".to_string(),
-            source: "test".to_string(),
-            raw_text: "Everything is fine.".to_string(),
-            structured_json: String::new(),
-            entity_ids: vec![],
-            skip_novelty_detection: false,
-        };
-        assert!(!SalienceService::heuristic_matches(&heuristic, &request3, &config));
-    }
+    // NOTE: test_heuristic_keyword_matching was removed because
+    // heuristic matching is now done via Python's semantic similarity.
+    // Word overlap matching has been deprecated due to false positives.
 
     #[test]
     fn test_apply_heuristic_salience() {

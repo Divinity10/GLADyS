@@ -97,24 +97,6 @@ class SalienceSettings(BaseSettings):
         description="Minimum confidence to consider a heuristic",
     )
 
-    # Word overlap matching (CBR placeholder)
-    word_overlap_min: int = Field(
-        default=2,
-        ge=1,
-        description="Minimum word overlap for heuristic match",
-    )
-    word_overlap_ratio: float = Field(
-        default=0.3,
-        ge=0.0, le=1.0,
-        description="Minimum ratio of condition words to match",
-    )
-
-    # Skip novelty detection (for benchmarking word-overlap only)
-    skip_novelty_detection: bool = Field(
-        default=False,
-        description="Skip embedding-based novelty detection (for apples-to-apples benchmarking)",
-    )
-
     # Novelty score thresholds
     novelty_high_boost: float = Field(
         default=0.7,

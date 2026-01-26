@@ -301,7 +301,6 @@ export STORAGE_PORT=5433
 
 # Salience tuning
 export SALIENCE_NOVELTY_SIMILARITY_THRESHOLD=0.85
-export SALIENCE_WORD_OVERLAP_MIN=2
 
 # Server
 export GRPC_PORT=50051
@@ -374,47 +373,30 @@ grpcurl -plaintext -d '{"event": {"id": "1", "source": "test", "raw_text": "hell
 
 ## Technical Notes: Heuristic Matching
 
-**Why do we have two matching approaches?**
+GLADyS uses **semantic similarity** for heuristic matching via pgvector embeddings.
 
-GLADyS has two paths for salience evaluation:
+**How it works:**
+- Heuristic conditions are stored with embeddings (384-dim, all-MiniLM-L6-v2)
+- Event text is embedded and compared via cosine similarity
+- Threshold of 0.7 ensures semantic meaning matches (not just shared words)
 
-| Path | Language | Matching Method | Use Case |
-|------|----------|-----------------|----------|
-| **Slow path** | Python | Embedding similarity (pgvector) | Semantic matching, production quality |
-| **Fast path** | Rust | Word overlap | Low-latency MVP, no embedding model |
+**Example:**
+- "User wants ice cream" **matches** "User wants frozen dessert" (0.78 similarity)
+- "email about killing neighbor" does **NOT** match "email about meeting" (0.69 similarity)
 
-**Embedding similarity (pgvector)** compares the *meaning* of text:
-- "DANGER! Hostile approaching!" matches "threat detected" because they're semantically similar
-- Handles synonyms, paraphrasing, different word forms
-- Requires an embedding model (Python has access to this)
+**Architecture:**
+- **Rust fast path** delegates to Python for semantic matching
+- **Python storage** handles embedding generation and similarity search
+- **LRU cache** in Rust stores recently-used heuristics for stats
 
-**Word overlap (Rust MVP)** does literal keyword matching:
-- "DANGER! Hostile approaching!" matches if heuristic contains words like "danger", "hostile"
-- Case-insensitive, strips punctuation
-- Fast but brittle - misses semantic relationships
-
-**Why does Rust use word overlap?**
-
-The Rust fast path is optimized for sub-millisecond latency. Loading an embedding model into Rust would add startup time and memory overhead. The word-overlap approach is a placeholder that:
-
-1. Demonstrates the fast-path architecture
-2. Works for explicit keyword triggers
-3. Will be replaced when we add embedding support
-
-**Configuration for word matching:**
-
+**Key config:**
 ```bash
-# Minimum word overlap count (default: 2)
-export SALIENCE_MIN_WORD_OVERLAP=2
+# Similarity threshold (default: 0.7)
+export CACHE_NOVELTY_THRESHOLD=0.7
 
-# Minimum overlap ratio (default: 0.3 = 30% of condition words must match)
-export SALIENCE_WORD_OVERLAP_RATIO=0.3
+# Minimum heuristic confidence to consider (default: 0.5)
+export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 ```
-
-**Production roadmap:**
-- Short term: Word overlap for explicit triggers
-- Medium term: Rust calls Python for embeddings when needed
-- Long term: Rust-native embedding model (ONNX runtime)
 
 ## Where to Find Things
 
@@ -422,6 +404,7 @@ export SALIENCE_WORD_OVERLAP_RATIO=0.3
 |------|-------|
 | Architecture decisions | [docs/adr/](adr/) |
 | Open design questions | [docs/design/OPEN_QUESTIONS.md](design/OPEN_QUESTIONS.md) |
+| **Service management** | [docs/design/SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
 | Performance baseline | [docs/design/PERFORMANCE_BASELINE.md](design/PERFORMANCE_BASELINE.md) |
 | Memory subsystem | [src/memory/](../src/memory/) |
 | Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |

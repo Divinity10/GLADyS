@@ -186,6 +186,8 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
         New CBR schema uses condition_text and effects_json.
         Maps to DB columns: condition (JSONB), action (JSONB).
+
+        Always generates embedding for semantic matching when condition_text is provided.
         """
         try:
             h = request.heuristic
@@ -204,11 +206,12 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 except json.JSONDecodeError:
                     action = {"raw": h.effects_json}
 
-            # Generate embedding if requested (for future CBR similarity matching)
-            # Note: DB schema doesn't have condition_embedding column yet
-            if request.generate_embedding and h.condition_text:
-                _embedding = self.embeddings.generate(h.condition_text)
-                # Would store embedding here when column exists
+            # Always generate embedding for semantic matching
+            # This is critical for correct heuristic matching
+            condition_embedding = None
+            if h.condition_text:
+                condition_embedding = self.embeddings.generate(h.condition_text)
+                logger.debug(f"Generated embedding for heuristic {h.id}: {len(condition_embedding)} dims")
 
             await self.storage.store_heuristic(
                 id=UUID(h.id),
@@ -216,6 +219,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 condition=condition,
                 action=action,
                 confidence=h.confidence if h.confidence > 0 else 0.5,
+                condition_embedding=condition_embedding,
             )
             return memory_pb2.StoreHeuristicResponse(
                 success=True,
@@ -274,10 +278,10 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryMatchingHeuristics(self, request, context):
-        """Query heuristics using PostgreSQL text search.
+        """Query heuristics using semantic similarity.
 
-        Used by Rust fast path on cache miss. Faster than embedding similarity
-        because it uses tsvector/tsquery for word-overlap matching.
+        Uses embedding-based similarity for accurate semantic matching.
+        Falls back to text search only for heuristics without embeddings.
         """
         try:
             event_text = request.event_text
@@ -288,11 +292,16 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             limit = request.limit if request.limit > 0 else 10
             source_filter = request.source_filter if request.source_filter else None
 
+            # Generate embedding for semantic matching
+            query_embedding = self.embeddings.generate(event_text)
+
             results = await self.storage.query_matching_heuristics(
                 event_text=event_text,
                 min_confidence=min_confidence,
                 limit=limit,
                 source_filter=source_filter,
+                query_embedding=query_embedding,
+                min_similarity=0.7,  # Semantic similarity threshold
             )
 
             matches = []
@@ -312,13 +321,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     success_count=h["success_count"],
                 )
 
-                # Use text search rank as similarity proxy
-                rank = h.get("rank", 0.0)
-                score = rank * h["confidence"]
+                # Use semantic similarity (or text rank as fallback)
+                similarity = h.get("similarity", 0.0)
+                score = similarity * h["confidence"]
 
                 match = memory_pb2.HeuristicMatch(
                     heuristic=proto_h,
-                    similarity=rank,
+                    similarity=similarity,
                     score=score,
                 )
                 matches.append(match)

@@ -275,6 +275,7 @@ mod tests {
             max_events: 100,
             max_heuristics: 50,
             novelty_threshold: 0.9,
+            heuristic_ttl_ms: 5000,
         });
 
         let embedding = vec![1.0; 384];
@@ -301,6 +302,7 @@ mod tests {
             max_events: 3,
             max_heuristics: 50,
             novelty_threshold: 0.9,
+            heuristic_ttl_ms: 5000,
         });
 
         // Add 4 events to trigger eviction
@@ -357,6 +359,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.3,
             last_accessed_ms: 0,
+            cached_at_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -366,6 +369,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.9,
             last_accessed_ms: 0,
+            cached_at_ms: 0,
         });
 
         let high_conf = cache.get_heuristics_by_confidence(0.5);
@@ -383,6 +387,7 @@ mod tests {
             max_events: 100,
             max_heuristics: 3,
             novelty_threshold: 0.9,
+            heuristic_ttl_ms: 5000,
         });
 
         // Add 3 heuristics with different last_accessed times
@@ -397,6 +402,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 1000, // Oldest
+            cached_at_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -406,6 +412,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 2000,
+            cached_at_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -415,6 +422,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 3000, // Newest
+            cached_at_ms: 0,
         });
 
         assert_eq!(cache.stats().heuristic_count, 3);
@@ -428,6 +436,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 4000,
+            cached_at_ms: 0,
         });
 
         assert_eq!(cache.stats().heuristic_count, 3);
@@ -443,6 +452,7 @@ mod tests {
             max_events: 100,
             max_heuristics: 3,
             novelty_threshold: 0.9,
+            heuristic_ttl_ms: 5000,
         });
 
         let id1 = Uuid::new_v4();
@@ -457,6 +467,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 1000,
+            cached_at_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -466,6 +477,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 2000,
+            cached_at_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -475,6 +487,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 3000,
+            cached_at_ms: 0,
         });
 
         // Touch id1 - should update its last_accessed to now
@@ -490,6 +503,7 @@ mod tests {
             action: serde_json::json!({}),
             confidence: 0.5,
             last_accessed_ms: 0, // Will be set by add_heuristic
+            cached_at_ms: 0,
         });
 
         assert!(cache.get_heuristic(&id1).is_some()); // id1 was touched, should survive
