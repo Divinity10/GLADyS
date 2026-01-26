@@ -16,6 +16,8 @@ use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{info, debug, warn};
 
+use crate::logging::get_or_create_trace_id;
+
 use crate::config::{SalienceConfig, ServerConfig, StorageConfig};
 use crate::client::{ClientConfig, StorageClient};
 use crate::proto::salience_gateway_server::SalienceGateway;
@@ -69,8 +71,15 @@ impl SalienceService {
         &self,
         event_text: &str,
         source_filter: Option<&str>,
+        trace_id: Option<&str>,
     ) -> Option<Vec<CachedHeuristic>> {
-        let storage_config = self.storage_config.as_ref()?;
+        let storage_config = match self.storage_config.as_ref() {
+            Some(cfg) => cfg,
+            None => {
+                warn!("No storage_config - cannot query Python for heuristics");
+                return None;
+            }
+        };
 
         let client_config = ClientConfig {
             address: storage_config.address.clone(),
@@ -78,8 +87,17 @@ impl SalienceService {
             request_timeout: storage_config.request_timeout(),
         };
 
-        match StorageClient::connect(client_config).await {
-            Ok(mut client) => {
+        debug!(address = %storage_config.address, "Connecting to Python storage");
+
+        let connect_result = StorageClient::connect(client_config).await;
+        match connect_result {
+            Ok(client) => {
+                // Add trace ID for request correlation
+                let mut client = if let Some(tid) = trace_id {
+                    client.with_trace_id(tid.to_string())
+                } else {
+                    client
+                };
                 match client.query_matching_heuristics(
                     event_text,
                     self.config.min_heuristic_confidence,
@@ -87,9 +105,14 @@ impl SalienceService {
                     source_filter,
                 ).await {
                     Ok(matches) => {
+                        debug!(count = matches.len(), "Python returned matches");
                         let heuristics: Vec<CachedHeuristic> = matches
                             .into_iter()
                             .filter_map(|m| {
+                                if m.heuristic.is_none() {
+                                    warn!(similarity = m.similarity, "Match missing heuristic field");
+                                    return None;
+                                }
                                 let h = m.heuristic?;
                                 let id = uuid::Uuid::parse_str(&h.id).ok()?;
                                 let condition = serde_json::json!({ "text": h.condition_text });
@@ -108,6 +131,7 @@ impl SalienceService {
                                 })
                             })
                             .collect();
+                        debug!(count = heuristics.len(), "Heuristics after conversion");
                         if heuristics.is_empty() {
                             None
                         } else {
@@ -122,7 +146,7 @@ impl SalienceService {
                 }
             }
             Err(e) => {
-                warn!("Failed to connect to storage: {}", e);
+                warn!("Failed to connect to Python storage: {}", e);
                 None
             }
         }
@@ -181,8 +205,10 @@ impl SalienceGateway for SalienceService {
         &self,
         request: Request<EvaluateSalienceRequest>,
     ) -> Result<Response<EvaluateSalienceResponse>, Status> {
+        let trace_id = get_or_create_trace_id(&request);
         let req = request.into_inner();
         info!(
+            trace_id = %trace_id,
             event_id = %req.event_id,
             source = %req.source,
             "Evaluating salience"
@@ -209,8 +235,10 @@ impl SalienceGateway for SalienceService {
         // The local cache is only used for storing heuristics for metadata/stats.
         if !req.raw_text.is_empty() {
             debug!("Querying Python storage for semantic heuristic matching");
-            let source_filter = if req.source.is_empty() { None } else { Some(req.source.as_str()) };
-            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text, source_filter).await {
+            // NOTE: source_filter is for domain-prefixed conditions (e.g., "minecraft:").
+            // Don't automatically filter by event source - let semantic matching work.
+            // Heuristics can optionally use condition prefixes for domain separation.
+            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
                 // Add to local cache for stats tracking
                 let mut cache = self.cache.write().await;
                 for h in heuristics_from_storage {
@@ -231,6 +259,7 @@ impl SalienceGateway for SalienceService {
                     if matched_heuristic_id.is_empty() {
                         if let Some(cached_h) = cache.get_heuristic(&h_id) {
                             info!(
+                                trace_id = %trace_id,
                                 heuristic_id = %h_id,
                                 heuristic_name = %h_name,
                                 "Heuristic matched (semantic similarity)"
@@ -250,6 +279,7 @@ impl SalienceGateway for SalienceService {
         }
 
         info!(
+            trace_id = %trace_id,
             event_id = %req.event_id,
             threat = salience.threat,
             novelty = salience.novelty,

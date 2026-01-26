@@ -227,12 +227,18 @@ GLADys/
 │   └── executive.proto         # ExecutiveService
 │
 ├── src/
+│   ├── common/                 # SHARED PYTHON UTILITIES
+│   │   └── gladys_common/
+│   │       ├── __init__.py
+│   │       └── logging.py      # Structured logging (structlog)
+│   │
 │   ├── memory/
 │   │   ├── python/             # MemoryStorage service (port 50051)
 │   │   │   └── gladys_memory/
 │   │   │       └── generated/  # Generated stubs from proto/
 │   │   ├── rust/               # SalienceGateway service (port 50052)
 │   │   │   └── src/
+│   │   │       └── logging.rs  # Structured logging (tracing)
 │   │   └── migrations/         # PostgreSQL schema (shared)
 │   │
 │   ├── orchestrator/           # OrchestratorService (port 50050)
@@ -300,6 +306,38 @@ GLADys/
 
 ---
 
+## Logging and Observability
+
+### Trace ID Propagation
+All services propagate trace IDs via gRPC metadata for request correlation:
+
+```
+Header: x-gladys-trace-id
+Format: 12 hex characters (e.g., "abc123def456")
+```
+
+Flow: Orchestrator generates → Rust receives and forwards → Python receives and logs
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LOG_LEVEL` | `INFO` | Minimum log level (DEBUG, INFO, WARN, ERROR) |
+| `LOG_FORMAT` | `human` | Output format (`human` or `json`) |
+| `LOG_FILE` | (none) | Path to log file (optional) |
+| `LOG_FILE_LEVEL` | same as LOG_LEVEL | Level for file output |
+
+### Logging Implementation
+
+| Service | Module | Framework |
+|---------|--------|-----------|
+| Python services | `gladys_common.logging` | structlog |
+| Rust services | `src/memory/rust/src/logging.rs` | tracing |
+
+See `docs/design/LOGGING_STANDARD.md` for full specification.
+
+---
+
 ## Common Mistakes to Avoid
 
 1. **Port confusion**: MemoryStorage is 50051, SalienceGateway is 50052. They're different!
@@ -308,6 +346,7 @@ GLADys/
 4. **source_filter**: Filters by condition_text PREFIX, not by origin field
 5. **Stale stubs**: After editing `proto/*.proto`, run `python scripts/proto_gen.py` to regenerate
 6. **Docker ports**: Add 10 to local ports (50051 → 50061)
+7. **Missing trace IDs**: Always extract/propagate `x-gladys-trace-id` from gRPC metadata
 
 ---
 
@@ -348,3 +387,4 @@ python scripts/local.py query "SELECT * FROM heuristics LIMIT 5"
 - `src/executive/README.md` - LLM integration details
 - `docs/adr/` - Architecture decisions
 - `docs/design/OPEN_QUESTIONS.md` - Active design discussions
+- `docs/design/LOGGING_STANDARD.md` - Logging and observability specification

@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import logging
 import struct
 from concurrent import futures
 from datetime import datetime, timezone
@@ -11,7 +10,11 @@ from uuid import UUID
 import grpc
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from gladys_common import setup_logging, get_logger, bind_trace_id, get_or_create_trace_id
+
+# Initialize logging (will be called again in serve() but safe to call multiple times)
+setup_logging("memory-python")
+logger = get_logger(__name__)
 
 from .config import settings
 from .storage import MemoryStorage, EpisodicEvent, StorageSettings
@@ -118,13 +121,24 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         self.embeddings = embeddings
         self._started_at = datetime.now(timezone.utc)
 
+    def _setup_trace(self, context) -> str:
+        """Extract or generate trace ID and bind to logging context."""
+        metadata = dict(context.invocation_metadata())
+        trace_id = get_or_create_trace_id(metadata)
+        bind_trace_id(trace_id)
+        return trace_id
+
     async def StoreEvent(self, request, context):
         """Store a new episodic event."""
+        self._setup_trace(context)
+        logger.info("StoreEvent request", event_id=request.event.id if request.event else None)
         try:
             event = _proto_to_event(request.event)
             await self.storage.store_event(event)
+            logger.info("StoreEvent success", event_id=request.event.id)
             return memory_pb2.StoreEventResponse(success=True)
         except Exception as e:
+            logger.error("StoreEvent failed", error=str(e))
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryByTime(self, request, context):
@@ -191,6 +205,9 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
 
         Always generates embedding for semantic matching when condition_text is provided.
         """
+        self._setup_trace(context)
+        h = request.heuristic
+        logger.info("StoreHeuristic request", heuristic_id=h.id, name=h.name)
         try:
             h = request.heuristic
 
@@ -223,11 +240,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 confidence=h.confidence if h.confidence > 0 else 0.5,
                 condition_embedding=condition_embedding,
             )
+            logger.info("StoreHeuristic success", heuristic_id=h.id)
             return memory_pb2.StoreHeuristicResponse(
                 success=True,
                 heuristic_id=h.id,
             )
         except Exception as e:
+            logger.error("StoreHeuristic failed", heuristic_id=h.id, error=str(e))
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
     async def QueryHeuristics(self, request, context):
@@ -285,14 +304,21 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         Uses embedding-based similarity for accurate semantic matching.
         Falls back to text search only for heuristics without embeddings.
         """
+        self._setup_trace(context)
+        source_filter = request.source_filter if request.source_filter else None
+        logger.info(
+            "QueryMatchingHeuristics request",
+            event_text_len=len(request.event_text) if request.event_text else 0,
+            source_filter=source_filter,
+        )
         try:
             event_text = request.event_text
             if not event_text:
+                logger.warning("QueryMatchingHeuristics: no event_text provided")
                 await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No event_text provided")
 
             min_confidence = request.min_confidence if request.min_confidence > 0 else 0.0
             limit = request.limit if request.limit > 0 else 10
-            source_filter = request.source_filter if request.source_filter else None
 
             # Generate embedding for semantic matching
             query_embedding = self.embeddings.generate(event_text)
@@ -305,6 +331,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 query_embedding=query_embedding,
                 min_similarity=settings.salience.heuristic_min_similarity,
             )
+            logger.info("QueryMatchingHeuristics result", match_count=len(results))
 
             matches = []
             for h in results:

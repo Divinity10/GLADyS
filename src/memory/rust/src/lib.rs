@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 pub mod client;
 pub mod config;
+pub mod logging;
 pub mod server;
 /// Proto-generated types, organized by package.
 ///
@@ -40,6 +41,7 @@ pub mod proto {
 // Re-export types from modules
 pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
 pub use config::{Config, ServerConfig, StorageConfig, SalienceConfig};
+pub use logging::{setup_logging, LogGuard, generate_trace_id, get_or_create_trace_id, TRACE_ID_HEADER};
 pub use server::{SalienceService, run_server};
 
 // Note: CacheConfig, MemoryCache, CachedEvent, CachedHeuristic, CacheStats are already

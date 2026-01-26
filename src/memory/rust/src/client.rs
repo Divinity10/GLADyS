@@ -6,8 +6,11 @@
 use std::time::Duration;
 use thiserror::Error;
 use tonic::transport::{Channel, Endpoint};
+use tonic::Request;
 use tracing::{debug, instrument};
 use uuid::Uuid;
+
+use crate::logging::TRACE_ID_HEADER;
 
 use crate::proto::{
     memory_storage_client::MemoryStorageClient, EpisodicEvent, GenerateEmbeddingRequest,
@@ -56,6 +59,8 @@ impl Default for ClientConfig {
 pub struct StorageClient {
     client: MemoryStorageClient<Channel>,
     config: ClientConfig,
+    /// Trace ID to propagate on outgoing requests
+    trace_id: Option<String>,
 }
 
 impl StorageClient {
@@ -72,7 +77,24 @@ impl StorageClient {
         let client = MemoryStorageClient::new(channel);
 
         debug!("Connected to storage service");
-        Ok(Self { client, config })
+        Ok(Self { client, config, trace_id: None })
+    }
+
+    /// Set the trace ID for request correlation.
+    /// The trace ID will be included in the metadata of all subsequent requests.
+    pub fn with_trace_id(mut self, trace_id: String) -> Self {
+        self.trace_id = Some(trace_id);
+        self
+    }
+
+    /// Add trace ID header to a request if one is set.
+    fn add_trace_header<T>(&self, mut request: Request<T>) -> Request<T> {
+        if let Some(ref trace_id) = self.trace_id {
+            if let Ok(value) = trace_id.parse() {
+                request.metadata_mut().insert(TRACE_ID_HEADER, value);
+            }
+        }
+        request
     }
 
     /// Store an episodic event.
@@ -238,6 +260,7 @@ impl StorageClient {
             source_filter: source_filter.unwrap_or("").to_string(),
         };
 
+        let request = self.add_trace_header(Request::new(request));
         let response = self.client.query_matching_heuristics(request).await?.into_inner();
 
         if !response.error.is_empty() {

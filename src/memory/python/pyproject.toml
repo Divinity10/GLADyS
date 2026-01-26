@@ -23,7 +23,13 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "numpy>=1.26",
+
+    # GLADyS shared
+    "gladys-common",
 ]
+
+[tool.uv.sources]
+gladys-common = { path = "../../common", editable = true }
 
 [project.optional-dependencies]
 dev = [

@@ -16,18 +16,13 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use gladys_memory::{CacheConfig, Config, MemoryCache, run_server};
+use gladys_memory::{CacheConfig, Config, MemoryCache, run_server, setup_logging};
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Debug output before tracing (to diagnose silent exits)
-    eprintln!("=== GLADyS Memory Fast Path starting ===");
-    eprintln!("STORAGE_ADDRESS: {:?}", std::env::var("STORAGE_ADDRESS"));
-    eprintln!("RUST_LOG: {:?}", std::env::var("RUST_LOG"));
-
-    // Initialize tracing (logging)
-    tracing_subscriber::fmt::init();
+    // Initialize structured logging (must hold guard for app lifetime)
+    let _log_guard = setup_logging("memory-rust");
 
     info!("Starting GLADyS Memory Fast Path");
 

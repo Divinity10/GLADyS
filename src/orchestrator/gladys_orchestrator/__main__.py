@@ -13,23 +13,22 @@ Commands:
 
 import argparse
 import asyncio
-import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+from gladys_common import setup_logging as gladys_setup_logging
 
 from .config import OrchestratorConfig
 from .server import serve
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    """Configure logging using gladys_common."""
+    if verbose:
+        os.environ.setdefault("LOG_LEVEL", "DEBUG")
+    gladys_setup_logging("orchestrator")
 
 
 def generate_proto() -> int:
