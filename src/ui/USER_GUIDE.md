@@ -1,14 +1,16 @@
 # GLADyS Lab Bench: User Guide
 
-Welcome to the **GLADyS Lab Bench**. This dashboard is designed for rapid evaluation and setup of the GLADyS learning loop (System 2 → System 1 handoff).
+Welcome to the **GLADyS Lab Bench**. This dashboard is designed for rapid evaluation and debugging of the GLADyS learning loop (System 2 → System 1 handoff).
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-1. **Ensure Services are Running**:
+1. **Start Services**:
    ```bash
-   python scripts/docker.py start all
+   python scripts/docker.py start all   # Docker
+   # or
+   python scripts/local.py start all    # Local
    ```
 2. **Launch the Dashboard**:
    ```bash
@@ -19,60 +21,103 @@ Welcome to the **GLADyS Lab Bench**. This dashboard is designed for rapid evalua
 
 ---
 
-## 🔬 Tab 1: Laboratory
+## Sidebar Controls
 
-The Laboratory is divided into two columns: **Interaction Lab** (Stimulus) and **Memory Console** (State Control).
+### Environment Switcher
+Toggle between **Docker** and **Local** services. The dashboard auto-reconnects to the appropriate ports when you switch.
 
-### 1. Interaction Lab (Event Simulator)
-Use this to simulate real-world events and observe the system's reaction.
+| Environment | Orchestrator | Memory (Py) | Memory (Rust) | Executive | DB Port |
+|-------------|--------------|-------------|---------------|-----------|---------|
+| Docker      | 50060        | 50061       | 50062         | 50063     | 5433    |
+| Local       | 50050        | 50051       | 50052         | 50053     | 5432    |
 
-- **Presets**: Quick-load common scenarios like "Oven Timer" or "Creeper Attack."
-- **Source Mode**: 
-    - **Preset**: Select from known domains (`minecraft`, `smart_home`, etc.).
-    - **Custom**: Type a new source (e.g., `email`, `security_cam`).
-- **Salience Override**:
-    - **Let system evaluate**: Naturally triggers Salience Gateway scoring.
-    - **Force HIGH (Immediate)**: Skips scoring; routes directly to LLM for immediate response.
-    - **Force LOW (Accumulated)**: Skips scoring; puts event into the moment buffer (Accumulator).
-- **Feedback Loop**: Once GLADyS responds, use the **👍 Good** / **👎 Bad** buttons.
-    - **👍 Good**: Creates a new heuristic or boosts confidence of the matched one.
-    - **👎 Bad**: Decreases confidence of the matched heuristic.
+### Service Health
+Real-time gRPC health status for all services. Green = healthy, red = unreachable.
 
-### 2. Memory Console
-Use this to setup or debug the system's knowledge state.
-
-- **Similarity Probe**: Type text to see which heuristics match and their scores *without* triggering a real event. Perfect for debugging "over-generalization."
-- **Manual Inject**: Directly store a heuristic in the database.
-    - **Tip**: Use domain prefixes in the condition (e.g., `work: email from Mike`) to ensure semantic separation.
-
----
-
-## 📜 Tab 2: Event Log
-
-This tab shows the **Recent System Activity** as stored in the database. It is useful for verifying that events are being persisted correctly with their metadata (Response IDs and Predictions).
-
----
-
-## 📊 System Metrics & Knowledge Base
-
-- **System Performance**: Real-time stats showing Total Events, Active Heuristics, and the Estimated Cache Hit Rate.
-- **Live Response Stream**: Displays asynchronous responses (e.g., from the Accumulator) as they arrive via gRPC stream. Includes latency tracking.
-- **Learned Knowledge Base**: A full-width table at the bottom showing all learned rules, their confidence (color-coded), and usage stats.
-
----
-
-## 🚽 Management Tools (Sidebar)
-
-- **🔄 Refresh Dashboard**: Clears cache and reloads all data.
+### Testing Tools
+- **Refresh Dashboard**: Clears cache and reloads all data.
 - **Auto-refresh**: Polls for new data every 2 seconds.
-- **🚽 Flush Accumulator**: Manually triggers the Orchestrator to process all events currently waiting in the moment buffer.
-- **🗑️ Clear Local History**: Wipes the "Live Response Stream" list (browser session only).
+- **Clear Local History**: Wipes the response stream list (browser session only).
+- **Flush Accumulator**: Manually triggers the Orchestrator to process buffered low-salience events.
+
+### Service Controls
+Expand to manage services directly from the UI:
+- **Start/Restart**: No confirmation needed
+- **Stop individual**: Executes immediately
+- **Stop ALL**: Requires confirmation
+- **Run Migrations**: Apply database schema updates
+- **Clean Database**: Clear heuristics, events, or all data (requires confirmation)
 
 ---
 
-## 💡 Pro-Tip: The "Learning Loop" Test
-1. Send a novel event (e.g., `[work] Mike sent a funny GIF`).
-2. See the LLM response and click **👍 Good**.
-3. Observe the new rule appear in the **Knowledge Base** at the bottom.
-4. Send the *exact same event* again.
-5. Watch the **Latest Result** area: It should show **⚡ Fast Path (Heuristic Match)** and be nearly instant!
+## Tab 1: Laboratory
+
+The Laboratory is divided into two columns.
+
+### Left Column: Interaction Lab
+
+**Event Simulator**
+- **Presets**: Quick-load scenarios like "Oven Timer" or "Creeper Attack"
+- **Source Mode**: Select a domain (`minecraft`, `smart_home`) or type custom
+- **Salience Override**:
+  - *Let system evaluate*: Normal flow through Salience Gateway
+  - *Force HIGH*: Route directly to LLM (immediate response)
+  - *Force LOW*: Put in accumulator buffer
+- **Feedback Buttons**: After GLADyS responds, use **Good** / **Bad** to reinforce or penalize the matched heuristic
+
+**Response History**
+Shows the live stream of responses as they arrive, including latency tracking.
+
+### Right Column: Memory Console
+
+**Similarity Probe**
+Type text to see which heuristics would match and their similarity scores *without* sending a real event. Useful for debugging over-generalization.
+
+**Manual Inject**
+Directly store a heuristic in the database with custom condition/action/confidence.
+
+---
+
+## Tab 2: Event Log
+
+Shows recent system activity from the database. Verify that events are persisted correctly with their metadata (Response IDs, Predictions, Salience scores).
+
+---
+
+## Tab 3: Cache
+
+**Cache Inspector** for the Rust salience gateway LRU cache.
+
+- **Stats**: Hit/miss counts, hit rate, cache size
+- **Cache Contents**: View cached heuristics with their scores
+- **Management**: Flush entire cache or evict individual entries
+
+---
+
+## Tab 4: Flight Recorder
+
+Debug view for heuristic fire/outcome tracking.
+
+- **Heuristic Fires**: When heuristics triggered and what events caused them
+- **Pending Outcomes**: Expectations waiting for implicit feedback
+- **Recent Outcomes**: Resolved feedback events
+
+---
+
+## Learned Knowledge Base
+
+The full-width table at the bottom shows all learned heuristics:
+- **Confidence**: Color-coded (red < 0.3, orange < 0.7, green >= 0.7)
+- **Fire/Success counts**: Usage statistics
+- **Origin**: How the heuristic was created (llm, manual, etc.)
+- **Frozen**: Whether the heuristic is locked from updates
+
+---
+
+## The Learning Loop Test
+
+1. Send a novel event (e.g., `[work] Mike sent a funny GIF`)
+2. See the LLM response and click **Good**
+3. Observe the new rule appear in the **Knowledge Base**
+4. Send the *exact same event* again
+5. Watch the result show **Fast Path (Heuristic Match)** — nearly instant!
