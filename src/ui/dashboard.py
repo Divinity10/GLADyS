@@ -22,6 +22,7 @@ try:
     from gladys_orchestrator.generated import executive_pb2, executive_pb2_grpc
     from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
     from gladys_orchestrator.generated import common_pb2
+    from gladys_orchestrator.generated import types_pb2
 except ImportError:
     st.error("Proto stubs not found. Run 'python scripts/proto_gen.py' first.")
 
@@ -29,12 +30,14 @@ except ImportError:
 ENV_CONFIGS = {
     "Docker": {
         "MEMORY_ADDR": "localhost:50061",
+        "SALIENCE_ADDR": "localhost:50062",
         "EXECUTIVE_ADDR": "localhost:50063",
         "ORCHESTRATOR_ADDR": "localhost:50060",
         "DB_PORT": "5433"
     },
     "Local": {
         "MEMORY_ADDR": "localhost:50051",
+        "SALIENCE_ADDR": "localhost:50052",
         "EXECUTIVE_ADDR": "localhost:50053",
         "ORCHESTRATOR_ADDR": "localhost:50050",
         "DB_PORT": "5432"
@@ -84,6 +87,11 @@ def get_orchestrator_stub():
     conf = get_current_config()
     channel = grpc.insecure_channel(conf["ORCHESTRATOR_ADDR"])
     return orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+
+def get_salience_stub():
+    conf = get_current_config()
+    channel = grpc.insecure_channel(conf["SALIENCE_ADDR"])
+    return memory_pb2_grpc.SalienceGatewayStub(channel)
 
 def send_event_to_orchestrator(event):
     """Send single event via streaming RPC, get response."""
@@ -254,22 +262,43 @@ def render_sidebar():
             st.sidebar.error(f"Flush failed: {e}")
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Connection Status")
-    
-    # Simple connection probes
+    st.sidebar.subheader("Service Health")
+
+    # gRPC health checks for all services
+    services = [
+        ("memory-python", get_memory_stub, "MemoryStorage"),
+        ("memory-rust", get_salience_stub, "SalienceGateway"),
+        ("orchestrator", get_orchestrator_stub, "Orchestrator"),
+        ("executive", get_executive_stub, "Executive"),
+    ]
+
+    for name, stub_fn, svc_type in services:
+        try:
+            stub = stub_fn()
+            resp = stub.GetHealth(types_pb2.GetHealthRequest(), timeout=2)
+            if resp.status == types_pb2.HEALTH_STATUS_HEALTHY:
+                st.sidebar.success(f"{name}: HEALTHY")
+            elif resp.status == types_pb2.HEALTH_STATUS_DEGRADED:
+                st.sidebar.warning(f"{name}: DEGRADED")
+            else:
+                st.sidebar.error(f"{name}: UNHEALTHY")
+        except Exception:
+            st.sidebar.error(f"{name}: UNREACHABLE")
+
+    # Database connection
     try:
         conn = get_db_connection(
-            DB_HOST, 
-            current_conf["DB_PORT"], 
-            DB_NAME, 
-            DB_USER, 
+            DB_HOST,
+            current_conf["DB_PORT"],
+            DB_NAME,
+            DB_USER,
             DB_PASS
         )
         if conn:
-            st.sidebar.success(f"DB: Connected ({current_conf['DB_PORT']})")
+            st.sidebar.success(f"database: Connected")
     except:
-        st.sidebar.error("DB: Disconnected")
-        
+        st.sidebar.error("database: Disconnected")
+
     return time_range
 
 def render_stats_summary(time_filter_clause, params):
@@ -719,6 +748,118 @@ def render_heuristics():
         hide_index=True
     )
 
+# --- Cache Inspector ---
+
+def render_cache_tab():
+    st.header("Cache Inspector")
+    st.caption("View and manage the Rust salience gateway LRU cache.")
+
+    try:
+        stub = get_salience_stub()
+
+        # Get cache stats
+        stats_resp = stub.GetCacheStats(memory_pb2.GetCacheStatsRequest(), timeout=5)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Cache Size", f"{stats_resp.size} / {stats_resp.capacity}")
+        col2.metric("Hit Rate", f"{stats_resp.hit_rate:.1%}")
+        col3.metric("Total Hits", stats_resp.total_hits)
+        col4.metric("Total Misses", stats_resp.total_misses)
+
+        st.markdown("---")
+
+        # Flush button
+        if st.button("Flush Cache", type="secondary"):
+            try:
+                stub.FlushCache(memory_pb2.FlushCacheRequest(), timeout=5)
+                st.success("Cache flushed!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Flush failed: {e}")
+
+        st.markdown("---")
+
+        # List cached heuristics
+        st.subheader("Cached Heuristics")
+        list_resp = stub.ListCachedHeuristics(memory_pb2.ListCachedHeuristicsRequest(), timeout=5)
+
+        if list_resp.heuristics:
+            cache_data = []
+            for h in list_resp.heuristics:
+                cache_data.append({
+                    "ID": h.id[:8] if h.id else "-",
+                    "Name": h.name or "-",
+                    "Hits": h.hit_count,
+                    "Last Hit": f"{h.last_hit_ms // 1000}s ago" if h.last_hit_ms > 0 else "-",
+                    "Confidence": f"{h.confidence:.2f}" if h.confidence else "-",
+                })
+            st.dataframe(cache_data, use_container_width=True, hide_index=True)
+        else:
+            st.info("Cache is empty.")
+
+    except Exception as e:
+        st.error(f"Failed to connect to SalienceGateway: {e}")
+        st.caption("Make sure the Rust service (memory-rust) is running.")
+
+
+# --- Flight Recorder ---
+
+def render_flight_recorder():
+    st.header("Flight Recorder")
+    st.caption("Track heuristic fires and their outcomes for learning loop debugging.")
+
+    # Filter
+    outcome_filter = st.selectbox(
+        "Filter by outcome",
+        ["All", "Pending", "Success", "Failure"],
+        index=0
+    )
+
+    # Build query
+    where_clause = ""
+    if outcome_filter == "Pending":
+        where_clause = "WHERE hf.outcome IS NULL"
+    elif outcome_filter == "Success":
+        where_clause = "WHERE hf.outcome = 'success'"
+    elif outcome_filter == "Failure":
+        where_clause = "WHERE hf.outcome = 'failure'"
+
+    query = f"""
+        SELECT
+            hf.fired_at,
+            h.name as heuristic_name,
+            hf.event_text,
+            hf.outcome,
+            hf.feedback_source,
+            hf.heuristic_id
+        FROM heuristic_fires hf
+        LEFT JOIN heuristics h ON hf.heuristic_id = h.id
+        {where_clause}
+        ORDER BY hf.fired_at DESC
+        LIMIT 25
+    """
+
+    df = fetch_data(query)
+
+    if df.empty:
+        st.info("No heuristic fires recorded yet.")
+        return
+
+    st.dataframe(
+        df,
+        column_config={
+            "fired_at": st.column_config.DatetimeColumn("Time", format="HH:mm:ss"),
+            "heuristic_name": "Heuristic",
+            "event_text": st.column_config.TextColumn("Event", width="large"),
+            "outcome": "Outcome",
+            "feedback_source": "Feedback Source",
+            "heuristic_id": None,  # Hide
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+
+
 # --- Main App ---
 
 def main():
@@ -739,8 +880,13 @@ def main():
     render_stats_summary(time_filter, params)
     st.markdown("---")
 
-    tab_lab, tab_events = st.tabs(["🔬 Laboratory", "📜 Event Log"])
-    
+    tab_lab, tab_events, tab_cache, tab_recorder = st.tabs([
+        "🔬 Laboratory",
+        "📜 Event Log",
+        "💾 Cache",
+        "🎯 Flight Recorder"
+    ])
+
     with tab_lab:
         col_l, col_r = st.columns([2, 1])
         with col_l:
@@ -749,10 +895,16 @@ def main():
             render_response_history()
         with col_r:
             render_memory_console()
-            
+
     with tab_events:
         render_recent_events(time_filter, params)
-    
+
+    with tab_cache:
+        render_cache_tab()
+
+    with tab_recorder:
+        render_flight_recorder()
+
     st.markdown("---")
     render_heuristics()
 
