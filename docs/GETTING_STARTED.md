@@ -189,6 +189,12 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 
 ## Common Tasks
 
+  - [Running the full stack](#running-the-full-stack)
+  - [Running the Evaluation Lab Bench](#running-the-evaluation-lab-bench)
+  - [Development workflow](#development-workflow)
+
+# ... (middle of file) ...
+
 ### Running the full stack
 
 Use the Makefile (recommended):
@@ -208,6 +214,17 @@ docker compose up -d    # Starts all 5 services
 docker compose ps       # Check status
 docker compose logs -f  # Follow logs
 ```
+
+### Running the Evaluation Lab Bench
+
+The Lab Bench is a Streamlit dashboard for real-time testing of the learning loop.
+
+```bash
+cd src/ui
+uv run streamlit run dashboard.py
+```
+
+See the [Lab Bench User Guide](../src/ui/USER_GUIDE.md) for details on event simulation, memory probing, and salience overrides.
 
 ### Development workflow
 

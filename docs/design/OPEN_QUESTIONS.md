@@ -2248,6 +2248,136 @@ CREATE TABLE heuristic_fires (
 
 ---
 
+## §28: Semantic Heuristic Matching
+
+**Status**: In Progress (2026-01-25)
+**Priority**: Critical - Current word-overlap matching is fundamentally broken
+
+### Problem Statement
+
+The current heuristic matching system uses word overlap to find relevant heuristics for incoming events. This produces false positives when sentences share structural words but have completely different meanings.
+
+**Example failure case**:
+- Heuristic condition: "Mike Mulcahy sent an email about killing his neighbor"
+- Event text: "Mike Mulcahy sent an email about meeting at 1pm"
+- Word overlap: {Mike, Mulcahy, sent, email, about} = 5 words
+- With 30% threshold on 10 words = 3 required → **Incorrectly matches!**
+
+The semantic meaning is completely different (murder threat vs. calendar invite), but word overlap treats them as equivalent.
+
+### Root Cause Analysis
+
+Two components contribute to this:
+
+1. **Rust fast-path** ([server.rs:122-180](../src/memory/rust/src/server.rs#L122-L180)):
+   - Uses word overlap matching with configurable thresholds
+   - `word_overlap_ratio: 0.3` (30% of words must match)
+   - `min_word_overlap: 2` (at least 2 words)
+   - Ignores semantic meaning entirely
+
+2. **Python storage** ([storage.py](../src/memory/python/gladys_memory/storage.py)):
+   - Uses PostgreSQL full-text search with OR semantics
+   - Query `word1 | word2 | word3` matches ANY word
+   - Same fundamental problem
+
+### Solution: Embedding-Based Semantic Matching
+
+Replace word overlap with vector similarity using embeddings. Embeddings capture semantic meaning, so "killing neighbor" and "meeting at 1pm" will have very different vectors despite sharing structural words.
+
+### Implementation Plan
+
+#### Phase 1: Database Migration
+
+Create `005_heuristic_embeddings.sql`:
+```sql
+-- Add embedding column for semantic matching
+ALTER TABLE heuristics
+ADD COLUMN IF NOT EXISTS condition_embedding vector(1536);
+
+-- Create index for fast similarity search
+CREATE INDEX IF NOT EXISTS idx_heuristics_condition_embedding
+    ON heuristics USING ivfflat (condition_embedding vector_cosine_ops)
+    WITH (lists = 100);
+```
+
+#### Phase 2: Python Storage Updates
+
+Update `storage.py` to:
+1. Generate embedding when storing/updating heuristics
+2. Query by vector similarity instead of text search
+3. Use cosine similarity threshold (e.g., 0.8)
+
+```python
+async def store_heuristic(self, heuristic: dict) -> str:
+    # Extract condition text and generate embedding
+    condition_text = heuristic["condition"].get("text", "")
+    embedding = await self._generate_embedding(condition_text)
+
+    # Store with embedding
+    await self._execute("""
+        INSERT INTO heuristics (id, name, condition, action, confidence, condition_embedding)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    """, heuristic_id, name, condition, action, confidence, embedding)
+
+async def query_matching_heuristics(self, event_text: str, limit: int = 10) -> list:
+    # Generate embedding for query text
+    query_embedding = await self._generate_embedding(event_text)
+
+    # Query by vector similarity
+    return await self._execute("""
+        SELECT id, name, condition, action, confidence,
+               1 - (condition_embedding <=> $1) as similarity
+        FROM heuristics
+        WHERE condition_embedding IS NOT NULL
+          AND 1 - (condition_embedding <=> $1) > $2
+        ORDER BY condition_embedding <=> $1
+        LIMIT $3
+    """, query_embedding, similarity_threshold, limit)
+```
+
+#### Phase 3: Rust Gateway Simplification
+
+The Rust gateway currently duplicates matching logic. With semantic matching:
+1. **Option A**: Remove Rust matching, always delegate to Python
+2. **Option B**: Cache embeddings in Rust, use rust vector library
+3. **Option C**: Hybrid - Rust does quick pre-filter, Python does semantic ranking
+
+**Recommendation**: Option A for simplicity. The Python service already has access to embedding models. Rust can cache the results but shouldn't duplicate the matching logic.
+
+### Configuration Changes
+
+Update `config.rs`:
+```rust
+pub struct SalienceConfig {
+    // Remove word_overlap_ratio and min_word_overlap
+    // Add:
+    pub semantic_similarity_threshold: f32,  // default 0.75
+}
+```
+
+### Migration Path
+
+1. Add embedding column (nullable initially)
+2. Backfill existing heuristics with embeddings
+3. Update matching to use embeddings when available, fallback to text
+4. Once all heuristics have embeddings, remove text-based fallback
+
+### Performance Considerations
+
+- Embedding generation: ~50-100ms per text (cached in Python)
+- Vector similarity search with IVFFlat: O(sqrt(n)) vs O(n) for brute force
+- 100 heuristics: <10ms query time
+- 10,000 heuristics: still <50ms with proper indexing
+
+### Open Questions
+
+1. **Embedding model**: Use same model as episodic memory? (text-embedding-3-small)
+2. **Similarity threshold**: 0.75? 0.8? Needs empirical tuning
+3. **Hybrid approach**: Should we keep word overlap as a fast pre-filter?
+4. **Cache invalidation**: When to regenerate embeddings if model changes?
+
+---
+
 ## How to Use This File
 
 1. Add new questions when architectural gaps are identified

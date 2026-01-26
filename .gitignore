@@ -34,7 +34,13 @@ config/local.yaml
 
 # Personal working memory (per-user, not shared)
 memory.md
+gemini_memory.md
 **/memory-*.md
+
+# Reviews and transient reports
+docs/reviews/
+docs/validation/*_report.md
+
 
 # Implementation prompts and plans (working docs, not committed)
 docs/design/*_PROMPT.md

@@ -1,0 +1,20 @@
+[project]
+name = "gladys-ui"
+version = "0.1.0"
+description = "GLADyS Evaluation Dashboard"
+authors = [
+    { name = "Gemini" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.30",
+    "psycopg2-binary>=2.9",
+    "pandas>=2.0",
+    "plotly>=5.18",
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60"
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
