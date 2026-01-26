@@ -8,6 +8,7 @@ import sys
 import uuid
 import threading
 import queue
+import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
 import grpc
@@ -105,6 +106,36 @@ def send_event_to_orchestrator(event):
     except Exception as e:
         st.error(f"Orchestrator Error: {e}")
     return None
+
+# --- Service Control Functions ---
+
+def run_service_command(command: str, service: str = "all", extra_args: list = None):
+    """Run a service management command via the scripts.
+
+    Returns (success: bool, output: str)
+    """
+    env_mode = st.session_state.env_mode.lower()
+    script = PROJECT_ROOT / "scripts" / f"{env_mode}.py"
+
+    cmd = ["python", str(script), command, service]
+    if extra_args:
+        cmd.extend(extra_args)
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            encoding="utf-8",
+            cwd=str(PROJECT_ROOT)
+        )
+        output = result.stdout + result.stderr
+        return result.returncode == 0, output
+    except subprocess.TimeoutExpired:
+        return False, "Command timed out after 120 seconds"
+    except Exception as e:
+        return False, str(e)
 
 def response_subscriber_thread(q, orchestrator_addr):
     """Background thread to subscribe to responses."""
@@ -298,6 +329,132 @@ def render_sidebar():
             st.sidebar.success(f"database: Connected")
     except:
         st.sidebar.error("database: Disconnected")
+
+    # --- Service Controls ---
+    st.sidebar.markdown("---")
+    with st.sidebar.expander("Service Controls", expanded=False):
+        st.caption(f"Managing {st.session_state.env_mode} services")
+
+        # Initialize confirmation states
+        if "confirm_stop_all" not in st.session_state:
+            st.session_state.confirm_stop_all = False
+        if "confirm_clean_db" not in st.session_state:
+            st.session_state.confirm_clean_db = False
+        if "last_cmd_output" not in st.session_state:
+            st.session_state.last_cmd_output = ""
+
+        # Service selector
+        service_target = st.selectbox(
+            "Target",
+            ["all", "memory-python", "memory-rust", "orchestrator", "executive-stub"],
+            key="svc_target"
+        )
+
+        col1, col2 = st.columns(2)
+
+        # Restart - no confirmation needed
+        if col1.button("🔄 Restart", use_container_width=True):
+            with st.spinner(f"Restarting {service_target}..."):
+                success, output = run_service_command("restart", service_target)
+            if success:
+                st.success(f"Restarted {service_target}")
+            else:
+                st.error(f"Failed to restart")
+            st.session_state.last_cmd_output = output
+            st.rerun()
+
+        # Start - no confirmation needed
+        if col2.button("▶️ Start", use_container_width=True):
+            with st.spinner(f"Starting {service_target}..."):
+                success, output = run_service_command("start", service_target)
+            if success:
+                st.success(f"Started {service_target}")
+            else:
+                st.error(f"Failed to start")
+            st.session_state.last_cmd_output = output
+            st.rerun()
+
+        # Stop - soft warning for individual, confirm for all
+        if service_target == "all":
+            # Two-step confirmation for stop all
+            if not st.session_state.confirm_stop_all:
+                if st.button("⏹️ Stop All", use_container_width=True, type="secondary"):
+                    st.session_state.confirm_stop_all = True
+                    st.rerun()
+            else:
+                st.warning("Stop ALL services?")
+                c1, c2 = st.columns(2)
+                if c1.button("Yes, Stop", type="primary"):
+                    with st.spinner("Stopping all services..."):
+                        success, output = run_service_command("stop", "all")
+                    st.session_state.confirm_stop_all = False
+                    st.session_state.last_cmd_output = output
+                    if success:
+                        st.success("All services stopped")
+                    else:
+                        st.error("Failed to stop services")
+                    st.rerun()
+                if c2.button("Cancel"):
+                    st.session_state.confirm_stop_all = False
+                    st.rerun()
+        else:
+            # Single service stop - just a warning banner
+            if st.button(f"⏹️ Stop {service_target}", use_container_width=True, type="secondary"):
+                with st.spinner(f"Stopping {service_target}..."):
+                    success, output = run_service_command("stop", service_target)
+                st.session_state.last_cmd_output = output
+                if success:
+                    st.success(f"Stopped {service_target}")
+                else:
+                    st.error(f"Failed to stop")
+                st.rerun()
+
+        st.markdown("---")
+        st.caption("Database Operations")
+
+        # Migrate - no confirmation
+        if st.button("📦 Run Migrations", use_container_width=True):
+            with st.spinner("Running migrations..."):
+                success, output = run_service_command("migrate")
+            st.session_state.last_cmd_output = output
+            if success:
+                st.success("Migrations complete")
+            else:
+                st.error("Migration failed")
+            st.rerun()
+
+        # Clean DB - requires confirmation
+        clean_target = st.selectbox(
+            "Clean target",
+            ["heuristics", "events", "all"],
+            key="clean_target"
+        )
+
+        if not st.session_state.confirm_clean_db:
+            if st.button("🗑️ Clean Database", use_container_width=True, type="secondary"):
+                st.session_state.confirm_clean_db = True
+                st.rerun()
+        else:
+            st.error(f"DELETE all {clean_target} data?")
+            c1, c2 = st.columns(2)
+            if c1.button("Yes, Delete", type="primary"):
+                with st.spinner(f"Cleaning {clean_target}..."):
+                    success, output = run_service_command("clean", clean_target)
+                st.session_state.confirm_clean_db = False
+                st.session_state.last_cmd_output = output
+                if success:
+                    st.success(f"Cleaned {clean_target}")
+                else:
+                    st.error("Clean failed")
+                st.rerun()
+            if c2.button("Cancel", key="cancel_clean"):
+                st.session_state.confirm_clean_db = False
+                st.rerun()
+
+        # Show last command output (collapsed)
+        if st.session_state.last_cmd_output:
+            with st.expander("Last command output", expanded=False):
+                st.code(st.session_state.last_cmd_output, language="text")
 
     return time_range
 

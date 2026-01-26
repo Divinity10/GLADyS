@@ -1,16 +1,26 @@
 # GLADyS Evaluation Dashboard
 
-A minimal Streamlit dashboard to visualize the GLADyS learning loop (System 2 â†’ System 1 handoff).
+A Streamlit dashboard to visualize and control the GLADyS learning loop.
 
 ## Features
-- **Recent Events**: View incoming events and how they were processed (LLM vs Cache).
-- **Prediction Visualization**: See the LLM's `predicted_success` and `prediction_confidence` for each decision.
-- **Heuristics Monitor**: Track learned rules and their confidence scores.
-- **System Stats**: Cache hit rates and processing metrics.
+
+### Monitoring
+- **Service Health Panel**: Real-time gRPC health status of all services
+- **Recent Events**: View incoming events and how they were processed (LLM vs Cache)
+- **Prediction Visualization**: See the LLM's `predicted_success` and `prediction_confidence`
+- **Heuristics Monitor**: Track learned rules and their confidence scores
+- **Cache Inspector**: View Rust salience gateway cache stats and contents
+- **Flight Recorder**: Track heuristic fires and outcomes for debugging
+
+### Service Controls
+- **Start/Stop/Restart**: Manage individual services or all at once
+- **Run Migrations**: Apply database schema updates
+- **Clean Database**: Clear heuristics, events, or all data (with confirmation)
+- Supports both Docker and Local environments
 
 ## Prerequisites
-- Docker services must be running (`python scripts/docker.py start`).
-- Python 3.11+.
+- Python 3.11+
+- Services running (Docker or Local)
 
 ## Setup
 
@@ -18,27 +28,44 @@ A minimal Streamlit dashboard to visualize the GLADyS learning loop (System 2 â†
    ```bash
    cd src/ui
    uv pip install -r pyproject.toml
-   # OR directly via streamlit run if using uv run
    ```
 
 ## Running the Dashboard
 
-Ensure the Docker services are up first (from project root):
+Start services first (from project root):
 ```bash
+# Docker
 python scripts/docker.py start
+
+# Or Local
+python scripts/local.py start
 ```
 
-Run the dashboard from the `src/ui` directory:
+Run the dashboard:
 ```bash
 cd src/ui
 uv run streamlit run dashboard.py
 ```
 
-The dashboard will open in your browser at `http://localhost:8501`.
+The dashboard opens at `http://localhost:8501`.
 
-## Configuration
-The dashboard connects to the PostgreSQL database running in Docker.
-Default settings (configured in `dashboard.py` via env vars):
-- Host: `localhost`
-- Port: `5433` (Docker mapped port)
-- DB/User/Pass: `gladys`
+## Environment Switching
+
+Use the **Environment** radio button in the sidebar to switch between Docker and Local services. The dashboard auto-reconnects to the appropriate ports.
+
+| Environment | Orchestrator | Memory Python | Memory Rust | Executive | DB Port |
+|-------------|--------------|---------------|-------------|-----------|---------|
+| Docker      | 50060        | 50061         | 50062       | 50063     | 5433    |
+| Local       | 50050        | 50051         | 50052       | 50053     | 5432    |
+
+## Service Controls
+
+Expand the **Service Controls** section in the sidebar to:
+
+- **Restart/Start**: No confirmation needed
+- **Stop individual**: Executes immediately
+- **Stop all**: Requires confirmation
+- **Run Migrations**: Applies pending database migrations
+- **Clean Database**: Requires confirmation (destructive)
+
+The last command output is shown in a collapsible section for debugging.
