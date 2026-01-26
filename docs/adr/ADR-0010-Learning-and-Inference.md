@@ -12,6 +12,28 @@
 
 ---
 
+## Implementation Status
+
+> **Important**: This ADR describes the **target architecture** for GLADyS's learning and inference subsystem. Many components described here are vision/design and **not yet implemented**.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Heuristic Store** | ✅ Implemented | `heuristics` table with embedding-based matching (migrations 003, 008) |
+| **Episodic Store** | ✅ Implemented | `episodic_events` table per ADR-0009 |
+| **TD Confidence Updates** | ✅ Implemented | Basic delta learning on heuristic confidence |
+| **Semantic Matching** | ✅ Implemented | pgvector embeddings for fuzzy heuristic matching |
+| **Novelty Detector** | ❌ Not implemented | Designed but not built |
+| **Pattern Detector** | ❌ Not implemented | Background batch analysis - future work |
+| **Causal Modeler** | ❌ Not implemented | Correlation/causation analysis - future work |
+| **Preference Tracker** | ❌ Not implemented | EWMA for likes/dislikes - future work |
+| **Deferred Validation Queue** | ❌ Not implemented | Experience replay queue - future work |
+| **Outcome Evaluator** | ❌ Not implemented | Pack-provided outcome signals - future work |
+| **Sleep Mode Batch Learning** | ❌ Not implemented | Batch processing during idle - future work |
+
+The current PoC focuses on: event → heuristic matching → Executive response → feedback → confidence update. Advanced learning features (pattern extraction, causal modeling, sleep-mode consolidation) are deferred.
+
+---
+
 ## 1. Context and Problem Statement
 
 ADR-0007 covers learning *user preferences* via EWMA and Bayesian confidence. ADR-0009 covers *storing* episodic and semantic memory. Neither specifies:

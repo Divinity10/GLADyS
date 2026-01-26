@@ -173,7 +173,9 @@ Following "Instrument Now, Analyze Later" recommendation:
 2. Log outcomes (undo detection, explicit feedback, game state)
 3. **Do NOT implement TD learning** - just collect data for analysis
 
-#### Proposed Schema (not yet implemented)
+#### Proposed Schema (Deferred)
+
+**Note**: The `heuristic_fires` table and related schema changes are design proposals. They are **not yet implemented** and are deferred until the basic feedback loop (PoC) is working. For now, predictions are tracked directly on `episodic_events`.
 
 ```sql
 -- These changes are design proposals for future implementation
@@ -195,10 +197,12 @@ CREATE TABLE heuristic_fires (
 
 ---
 
-### Q: Semantic Heuristic Matching (§28)
+## Resolved
 
-**Status**: In Progress (2026-01-25)
-**Priority**: Critical - Current word-overlap matching is fundamentally broken
+### R: Semantic Heuristic Matching (§28)
+
+**Status**: Resolved (2026-01-25)
+**Priority**: Critical - Fixed
 
 #### Problem Statement
 
@@ -219,8 +223,6 @@ Replace word overlap with vector similarity using embeddings. "killing neighbor"
 **Status**: Migration 008 deployed, embeddings backfilled, semantic matching verified working.
 
 ---
-
-## Resolved
 
 ### R: Learning System Design (§5)
 

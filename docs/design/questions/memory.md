@@ -16,15 +16,22 @@ Database schema, memory hierarchy, entity/relationship storage, and semantic mem
 
 Deep review of ADR-0004 against ADR-0007, ADR-0009, ADR-0010, ADR-0012 reveals significant gaps. ADR-0004 was written before the learning and compaction ADRs and needs reconciliation.
 
-#### Resolved Schema Gaps
+#### Implemented Schema
 
-| Gap | Resolution |
-|-----|------------|
-| Bayesian Pattern Storage | Added `learned_patterns` table (ADR-0004 §5.5) |
-| Heuristic Store | Added `heuristics` table (ADR-0004 §5.6) |
-| Feedback Events | Added `feedback_events` table (ADR-0004 §5.7) |
-| Episodes Table | Added `episodes` table (§5.8) and `episode_events` junction (§5.9) |
-| Staleness Tracking | Added to `semantic_facts` (§5.2) |
+| Gap | Status |
+|-----|--------|
+| Heuristic Store | **Implemented** - `heuristics` table exists (migrations 003, 008) |
+
+#### Designed but Deferred
+
+These schema changes are proposed in ADR-0004 but **not yet implemented**:
+
+| Gap | Design Reference | Status |
+|-----|------------------|--------|
+| Bayesian Pattern Storage | `learned_patterns` table (ADR-0004 §5.5) | Deferred |
+| Feedback Events | `feedback_events` table (ADR-0004 §5.7) | Deferred |
+| Episodes Table | `episodes` + `episode_events` junction (§5.8-5.9) | Deferred |
+| Staleness Tracking | `semantic_facts` column additions (§5.2) | Deferred |
 
 #### Remaining Gaps
 
