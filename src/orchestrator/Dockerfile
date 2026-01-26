@@ -1,4 +1,5 @@
 # GLADyS Orchestrator Dockerfile
+# Build context is PROJECT ROOT so proto files are accessible.
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -9,12 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files first (better caching)
-COPY pyproject.toml .
+COPY src/orchestrator/pyproject.toml .
 
 # Install dependencies
 RUN pip install --no-cache-dir -e .
 
-# Copy proto files and generate
+# Copy proto files from project root and generate
 COPY proto/ proto/
 RUN python -m grpc_tools.protoc \
     --proto_path=proto \
@@ -23,7 +24,7 @@ RUN python -m grpc_tools.protoc \
     proto/*.proto || true
 
 # Copy application code
-COPY gladys_orchestrator/ gladys_orchestrator/
+COPY src/orchestrator/gladys_orchestrator/ gladys_orchestrator/
 
 # Create non-root user
 RUN useradd -m gladys && chown -R gladys:gladys /app

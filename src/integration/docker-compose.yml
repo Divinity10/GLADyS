@@ -76,8 +76,8 @@ services:
 
   memory-rust:
     build:
-      context: ../memory
-      dockerfile: rust/Dockerfile
+      context: ../..
+      dockerfile: src/memory/rust/Dockerfile
     container_name: gladys-integration-memory-rust
     environment:
       RUST_LOG: info
@@ -97,8 +97,8 @@ services:
 
   orchestrator:
     build:
-      context: ../orchestrator
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: src/orchestrator/Dockerfile
     container_name: gladys-integration-orchestrator
     environment:
       # Switch between Python (50051) and Rust (50052) here:
@@ -131,8 +131,8 @@ services:
   #   Default: memory-python:50051 (uses Python path for storage operations)
   executive-stub:
     build:
-      context: ..
-      dockerfile: executive/Dockerfile
+      context: ../..
+      dockerfile: src/executive/Dockerfile
     container_name: gladys-integration-executive-stub
     environment:
       # Memory service address for storing learned heuristics

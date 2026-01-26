@@ -1,8 +1,8 @@
 # GLADyS Memory Fast Path - Rust Service
 # Multi-stage build for smaller final image
 #
-# Build context should be src/memory (not src/memory/rust)
-# so proto files are accessible
+# Build context is PROJECT ROOT so proto files are accessible.
+# Set via docker-compose.yml
 
 # Build stage
 FROM rust:1.83-bookworm AS builder
@@ -12,12 +12,12 @@ RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/ap
 
 WORKDIR /app
 
-# Copy proto file first (needed for build)
+# Copy proto files from project root (needed for build)
 COPY proto ./proto
 
-# Copy Rust project
-COPY rust/Cargo.toml rust/Cargo.lock* ./
-COPY rust/build.rs ./
+# Copy Rust project from src/memory/rust/
+COPY src/memory/rust/Cargo.toml src/memory/rust/Cargo.lock* ./
+COPY src/memory/rust/build.rs ./
 
 # Create dummy source to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
@@ -27,7 +27,7 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
 RUN cargo build --release && rm -rf src target/release/deps/gladys* target/release/memory-fast-path
 
 # Copy actual source code
-COPY rust/src ./src
+COPY src/memory/rust/src ./src
 
 # Build the real binary (touch source to ensure Cargo sees it as changed)
 RUN touch src/main.rs src/lib.rs && cargo build --release

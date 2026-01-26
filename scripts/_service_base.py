@@ -112,6 +112,15 @@ class ServiceBackend(abc.ABC):
         """
         pass
 
+    def build_service(self, names: List[str], no_cache: bool = False) -> bool:
+        """Build Docker images for services. Returns True on success.
+
+        Default implementation returns True (no-op for local backend).
+        Override in DockerBackend.
+        """
+        print("Build not supported for this backend.")
+        return True
+
 
 class ServiceManager:
     """Main entry point for service management CLI."""
@@ -160,10 +169,12 @@ class ServiceManager:
         subparsers = parser.add_subparsers(dest="command", required=True)
 
         # Service Commands
-        self._add_service_command(subparsers, "start", "Start service(s)", 
+        self._add_service_command(subparsers, "start", "Start service(s)",
                                   [("--no-wait", "store_true", "Don't wait for healthy")])
         self._add_service_command(subparsers, "stop", "Stop service(s)")
         self._add_service_command(subparsers, "restart", "Restart service(s)")
+        self._add_service_command(subparsers, "build", "Build Docker images (Docker only)",
+                                  [("--no-cache", "store_true", "Rebuild without cache")])
         
         # Status
         status = subparsers.add_parser("status", help="Show service status")
@@ -255,6 +266,11 @@ class ServiceManager:
     def cmd_restart(self, args):
         services = self.resolve_services(args.service)
         return 0 if self.backend.restart_service(services) else 1
+
+    def cmd_build(self, args):
+        services = self.resolve_services(args.service)
+        no_cache = getattr(args, "no_cache", False)
+        return 0 if self.backend.build_service(services, no_cache=no_cache) else 1
 
     def cmd_status(self, args):
         print(f"{ 'Service':<20} {'Status':<20} {'Port':<8} Description")

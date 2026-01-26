@@ -80,6 +80,27 @@ class DockerBackend(ServiceBackend):
         result = self._compose_cmd(["up", "-d", "--force-recreate"] + compose_names)
         return result.returncode == 0
 
+    def build_service(self, names: List[str], no_cache: bool = False) -> bool:
+        """Build Docker images for specified services."""
+        # Filter out 'db' - it uses a pre-built image
+        buildable = [n for n in names if n != "db"]
+        if not buildable:
+            print("No buildable services specified (db uses pre-built image).")
+            return True
+
+        compose_names = [n if n != "db" else "postgres" for n in buildable]
+        print(f"Building DOCKER images: {', '.join(buildable)}...")
+
+        cmd = ["build"]
+        if no_cache:
+            cmd.append("--no-cache")
+        cmd.extend(compose_names)
+
+        result = self._compose_cmd(cmd)
+        if result.returncode == 0:
+            print("Build complete. Use 'restart' to apply new images.")
+        return result.returncode == 0
+
     def get_service_status(self, name: str) -> Dict[str, Any]:
         container = self.containers.get(name)
         if not container:

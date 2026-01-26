@@ -159,6 +159,45 @@ Non-negotiable unless an ADR is superseded:
 - Different behavior between local and Docker → schema drift
 - **Never assume migrations are applied** — verify with `\d tablename` in psql if unsure
 
+## Docker Development
+
+### Proto Files and Docker Builds
+
+**CRITICAL**: Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT build contexts.
+
+| Service | Dockerfile | Build Context | Proto Access |
+|---------|------------|---------------|--------------|
+| memory-python | `src/memory/python/Dockerfile` | `src/memory/python/` | Uses pre-committed stubs |
+| memory-rust | `src/memory/rust/Dockerfile` | `src/memory/` | Needs `proto/` in context |
+| orchestrator | `src/orchestrator/Dockerfile` | `src/orchestrator/` | Needs `proto/` in context |
+| executive | `src/executive/Dockerfile` | `src/` | Uses `orchestrator/proto/` path |
+
+**Common Problems:**
+- Health RPCs return `UNIMPLEMENTED` → Docker image has old proto stubs
+- Services show "running (healthy)" but gRPC health fails → Image needs rebuild
+- `docker compose build` shows no output → Cached layers used, may be stale
+
+**Solution for proto changes:**
+```bash
+# Force rebuild specific image (no cache)
+docker compose -f src/integration/docker-compose.yml build --no-cache memory-rust
+
+# Restart to use new image
+python scripts/docker.py restart memory-rust
+```
+
+### Python Services with Volume Mounts
+
+memory-python and orchestrator have source mounted as volumes in `docker-compose.yml`:
+```yaml
+volumes:
+  - ../memory/python/gladys_memory:/app/gladys_memory:ro
+```
+
+This means Python code changes are picked up WITHOUT rebuild. But:
+- Proto stub changes still require rebuild (stubs are in generated/ dirs)
+- The `--force-recreate` flag recreates containers but doesn't rebuild images
+
 ## Tool Usage
 
 If you encounter errors reading files via the editor, run `cat <filename>` in the terminal instead.
