@@ -173,9 +173,9 @@ Following "Instrument Now, Analyze Later" recommendation:
 2. Log outcomes (undo detection, explicit feedback, game state)
 3. **Do NOT implement TD learning** - just collect data for analysis
 
-#### Proposed Schema (Deferred)
+#### Proposed Schema (Partially Implemented)
 
-**Note**: The `heuristic_fires` table and related schema changes are design proposals. They are **not yet implemented** and are deferred until the basic feedback loop (PoC) is working. For now, predictions are tracked directly on `episodic_events`.
+**Note**: The `heuristic_fires` table is now implemented (migration 009). See integration gaps below for remaining work.
 
 ```sql
 -- These changes are design proposals for future implementation
@@ -194,6 +194,84 @@ CREATE TABLE heuristic_fires (
     outcome_source VARCHAR(100)
 );
 ```
+
+---
+
+### Q: Learning Loop Integration Gaps (§29)
+
+**Status**: Open - Blockers identified, needs implementation
+**Priority**: High (blocks full E2E validation)
+**Created**: 2026-01-26
+
+#### Context
+
+Phase 2 (OutcomeWatcher) and Phase 3 (Flight Recorder) are implemented, but there are integration gaps that prevent the full implicit feedback loop from working end-to-end. These were identified during code review when Gemini's tactical fixes were found to use workarounds that don't integrate properly.
+
+#### Gap 1: GetHeuristic RPC Missing from Proto (BLOCKER)
+
+**Problem**: The `memory_client.py` has a `get_heuristic()` method that calls `GetHeuristic` RPC, but this RPC doesn't exist in the proto.
+
+```python
+# memory_client.py:234 - This will fail at runtime
+request = memory_pb2.GetHeuristicRequest(id=heuristic_id)
+response = await self._stub.GetHeuristic(request)
+```
+
+**Impact**: OutcomeWatcher needs this to dynamically fetch `condition_text` for pattern matching. Currently worked around by passing `condition_text` directly, but this means the OutcomeWatcher can't look up heuristics it wasn't pre-configured with.
+
+**Fix Required**:
+1. Add `GetHeuristic` RPC to `memory.proto`
+2. Add `GetHeuristicRequest` and `GetHeuristicResponse` messages
+3. Implement handler in `grpc_server.py`
+
+#### Gap 2: feedback_source Not Propagated Through gRPC
+
+**Problem**: `UpdateHeuristicConfidenceRequest` has no `feedback_source` field:
+
+```protobuf
+message UpdateHeuristicConfidenceRequest {
+    string heuristic_id = 1;
+    bool positive = 2;
+    float learning_rate = 3;
+    float predicted_success = 4;
+    // No feedback_source field!
+}
+```
+
+**Impact**: Even though `memory_client.py` accepts `feedback_source` as a parameter, it can't send it over gRPC. The storage layer then hardcodes `'explicit'`:
+
+```python
+# storage.py:598
+feedback_source='explicit'  # Always 'explicit', ignoring actual source
+```
+
+This means implicit feedback is mislabeled as explicit in the Flight Recorder.
+
+**Fix Required**:
+1. Add `feedback_source` field to `UpdateHeuristicConfidenceRequest` in proto
+2. Pass the field through in `grpc_server.py` handler
+3. Use the parameter in storage instead of hardcoding
+
+#### Gap 3: No E2E Test for Full Implicit Feedback Loop
+
+**Problem**: `test_scenario_5_learning_loop.py` only tests explicit feedback. There's no test that exercises the full flow:
+
+```
+Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Implicit Feedback → Fire Recorded with source='implicit'
+```
+
+**Impact**: We can't verify the implicit feedback loop actually works through the full Orchestrator flow.
+
+**Fix Required**:
+- Create E2E test that runs through Orchestrator
+- Verify Flight Recorder records `feedback_source='implicit'`
+- Verify confidence updates correctly
+
+#### Next Steps
+
+1. Fix Gap 1 (GetHeuristic RPC) - required for dynamic heuristic lookup
+2. Fix Gap 2 (feedback_source propagation) - required for correct analytics
+3. Create E2E test (Gap 3) - validation that everything works together
 
 ---
 

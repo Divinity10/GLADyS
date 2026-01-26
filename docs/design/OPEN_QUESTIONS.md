@@ -21,7 +21,7 @@
 
 | Category | Open | Resolved | Gaps |
 |----------|------|----------|------|
-| Learning | 3 | 4 | 0 |
+| Learning | 4 | 4 | 0 |
 | Memory | 1 | 1 | 0 |
 | Plugins & Skills | 3 | 2 | 0 |
 | Infrastructure | 1 | 1 | 1 |
