@@ -465,7 +465,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             "executive_connected": str(self._executive_client is not None).lower(),
             "memory_connected": str(self._memory_client is not None).lower(),
             "registered_components": str(len(self.registry.get_all_status())),
-            "accumulated_events": str(self.accumulator.event_count()),
+            "accumulated_events": str(self.accumulator.current_event_count),
         }
 
         return types_pb2.GetHealthDetailsResponse(

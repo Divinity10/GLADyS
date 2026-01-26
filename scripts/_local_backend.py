@@ -30,7 +30,10 @@ SERVICE_CONFIGS = {
     "orchestrator": {
         "cwd": ROOT / "src" / "orchestrator",
         "cmd": ["uv", "run", "python", "-m", "gladys_orchestrator", "start"],
-        "env": {},
+        "env": {
+            # OutcomeWatcher patterns for implicit feedback (Phase 2)
+            "OUTCOME_PATTERNS_JSON": '[{"trigger_pattern":"oven","outcome_pattern":"oven off","timeout_sec":120},{"trigger_pattern":"alert","outcome_pattern":"acknowledged","timeout_sec":60}]',
+        },
         "depends_on": [],
     },
     "executive-stub": {

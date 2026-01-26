@@ -106,6 +106,9 @@ services:
       SALIENCE_MEMORY_ADDRESS: memory-rust:50052      # Rust fast path
       MEMORY_STORAGE_ADDRESS: memory-python:50051     # For event storage
       EXECUTIVE_ADDRESS: executive-stub:50053
+      # OutcomeWatcher patterns for implicit feedback (Phase 2)
+      # JSON array: trigger_pattern matches heuristic condition, outcome_pattern matches result event
+      OUTCOME_PATTERNS_JSON: '[{"trigger_pattern":"oven","outcome_pattern":"oven off","timeout_sec":120},{"trigger_pattern":"alert","outcome_pattern":"acknowledged","timeout_sec":60}]'
     ports:
       - "50060:50050"  # Host 50060 -> Container 50050 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild

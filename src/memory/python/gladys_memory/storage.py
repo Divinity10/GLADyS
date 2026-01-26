@@ -281,7 +281,9 @@ class MemoryStorage:
 
         row = await self._pool.fetchrow(
             """
-            SELECT id, name, condition_text, effects_json, confidence, origin, success_count, updated_at
+            SELECT id, name, condition, action, confidence, origin,
+                   fire_count, success_count, updated_at,
+                   condition->>'text' as condition_text
             FROM heuristics
             WHERE id = $1
             """,
@@ -291,7 +293,11 @@ class MemoryStorage:
         if not row:
             return None
 
-        return dict(row)
+        result = dict(row)
+        # Build effects_json from action for proto compatibility
+        import json
+        result["effects_json"] = json.dumps(result.get("action") or {})
+        return result
 
     async def query_heuristics(
         self,
