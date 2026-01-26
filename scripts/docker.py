@@ -45,6 +45,9 @@ SERVICE_GROUPS = {
 # All app services (excludes db which is infrastructure)
 APP_SERVICES = ["memory-python", "memory-rust", "orchestrator", "executive-stub"]
 
+# Valid service choices: groups + individual services + 'all'
+SERVICE_CHOICES = list(SERVICE_GROUPS.keys()) + APP_SERVICES + ["all"]
+
 # Container names for direct docker commands
 CONTAINERS = {
     "memory-python": "gladys-integration-memory-python",
@@ -92,14 +95,22 @@ def get_container_status(container_name: str) -> dict:
 
 
 def resolve_services(name: str) -> list[str]:
-    """Resolve service name to docker-compose service names."""
+    """Resolve service name to docker-compose service names.
+
+    Accepts:
+    - 'all': All app services
+    - Group names: 'memory', 'orchestrator', 'executive'
+    - Individual services: 'memory-python', 'memory-rust', 'orchestrator', 'executive-stub'
+    """
     if name == "all":
         return APP_SERVICES
     elif name in SERVICE_GROUPS:
         return SERVICE_GROUPS[name]
+    elif name in APP_SERVICES:
+        return [name]
     else:
         print(f"Unknown service: {name}")
-        print(f"Valid services: {', '.join(SERVICE_GROUPS.keys())} or 'all'")
+        print(f"Valid: {', '.join(SERVICE_CHOICES)}")
         sys.exit(1)
 
 
@@ -415,7 +426,7 @@ Examples:
     start_parser = subparsers.add_parser("start", help="Start service(s)")
     start_parser.add_argument(
         "service",
-        choices=list(SERVICE_GROUPS.keys()) + ["all"],
+        choices=SERVICE_CHOICES,
         help="Service to start (or 'all')",
     )
     start_parser.add_argument(
@@ -434,7 +445,7 @@ Examples:
     stop_parser = subparsers.add_parser("stop", help="Stop service(s)")
     stop_parser.add_argument(
         "service",
-        choices=list(SERVICE_GROUPS.keys()) + ["all"],
+        choices=SERVICE_CHOICES,
         help="Service to stop (or 'all')",
     )
     stop_parser.set_defaults(func=cmd_stop)
@@ -443,7 +454,7 @@ Examples:
     restart_parser = subparsers.add_parser("restart", help="Restart service(s)")
     restart_parser.add_argument(
         "service",
-        choices=list(SERVICE_GROUPS.keys()) + ["all"],
+        choices=SERVICE_CHOICES,
         help="Service to restart (or 'all')",
     )
     restart_parser.set_defaults(func=cmd_restart)
@@ -465,7 +476,7 @@ Examples:
     logs_parser = subparsers.add_parser("logs", help="Follow service logs")
     logs_parser.add_argument(
         "service",
-        choices=list(SERVICE_GROUPS.keys()) + ["all"],
+        choices=SERVICE_CHOICES,
         help="Service logs to follow",
     )
     logs_parser.set_defaults(func=cmd_logs)
