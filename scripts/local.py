@@ -4,17 +4,22 @@
 This script manages services running directly on your machine (not Docker).
 For Docker services, use: python scripts/docker.py
 
+Local runs the same architecture as Docker:
+  - memory-python: Storage (PostgreSQL CRUD, embeddings)
+  - memory-rust: Salience Gateway (LRU cache, fast path)
+  - orchestrator: Event routing
+  - executive: LLM reasoning stub
+
 Usage:
-    python scripts/local.py start memory
-    python scripts/local.py start all
-    python scripts/local.py stop memory
-    python scripts/local.py restart all
-    python scripts/local.py status
-    python scripts/local.py test test_td_learning.py
-    python scripts/local.py psql
-    python scripts/local.py clean heuristics
-    python scripts/local.py clean all
-    python scripts/local.py reset
+    python scripts/local.py start all              # Start all (runs migrations first)
+    python scripts/local.py start all --no-migrate # Start without migrations
+    python scripts/local.py migrate                # Run migrations only
+    python scripts/local.py migrate -f 008         # Run specific migration
+    python scripts/local.py status                 # Show service status
+    python scripts/local.py test test_file.py      # Run specific test
+    python scripts/local.py psql                   # Open database shell
+    python scripts/local.py clean heuristics       # Clear heuristics
+    python scripts/local.py reset                  # Full reset
 """
 
 import argparse
@@ -35,13 +40,21 @@ from _gladys import (
 )
 
 # Service definitions for local environment
-# Note: Local dev uses Python memory only (no separate Rust service)
+# Both Python (storage) and Rust (salience/fast path) run - same architecture as Docker
 SERVICES = {
-    "memory": {
+    "memory-python": {
         "port": LOCAL_PORTS.memory_python,
         "cwd": ROOT / "src" / "memory" / "python",
         "cmd": ["uv", "run", "python", "-m", "gladys_memory.grpc_server"],
-        "description": SERVICE_DESCRIPTIONS["memory"],
+        "description": SERVICE_DESCRIPTIONS["memory-python"],
+    },
+    "memory-rust": {
+        "port": LOCAL_PORTS.memory_rust,
+        "cwd": ROOT / "src" / "memory" / "rust",
+        "cmd": ["cargo", "run", "--release"],
+        "env": {"STORAGE_ADDRESS": f"http://localhost:{LOCAL_PORTS.memory_python}"},
+        "description": SERVICE_DESCRIPTIONS["memory-rust"],
+        "depends_on": ["memory-python"],
     },
     "orchestrator": {
         "port": LOCAL_PORTS.orchestrator,
@@ -120,7 +133,18 @@ def start_service(name: str, wait: bool = True) -> bool:
         print(f"  {name}: Already running on port {port}")
         return True
 
+    # Start dependencies first
+    for dep in svc.get("depends_on", []):
+        if not is_port_open("localhost", SERVICES[dep]["port"]):
+            print(f"  {name}: Starting dependency {dep} first...")
+            if not start_service(dep, wait=True):
+                print(f"  {name}: Failed to start dependency {dep}")
+                return False
+
     print(f"  Starting {name} ({svc['description']})...")
+
+    # Merge environment variables
+    env = {**os.environ, **svc.get("env", {})}
 
     # Start the process
     try:
@@ -129,6 +153,7 @@ def start_service(name: str, wait: bool = True) -> bool:
             proc = subprocess.Popen(
                 svc["cmd"],
                 cwd=svc["cwd"],
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
@@ -138,6 +163,7 @@ def start_service(name: str, wait: bool = True) -> bool:
             proc = subprocess.Popen(
                 svc["cmd"],
                 cwd=svc["cwd"],
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
@@ -215,8 +241,81 @@ def status_service(name: str) -> dict:
     }
 
 
+def cmd_migrate(args):
+    """Run database migrations.
+
+    Migrations are safe to run multiple times - uses IF NOT EXISTS patterns.
+    """
+    migrations_dir = ROOT / "src" / "memory" / "migrations"
+
+    if not migrations_dir.exists():
+        print(f"Migrations directory not found: {migrations_dir}")
+        return 1
+
+    # Get all .sql files sorted by name (excludes .bak files)
+    all_migrations = sorted(f for f in migrations_dir.glob("*.sql") if not f.name.endswith(".bak"))
+
+    if args.file:
+        # Run specific file
+        migration_files = [m for m in all_migrations if args.file in m.name]
+        if not migration_files:
+            print(f"No migration matching '{args.file}' found.")
+            return 1
+    else:
+        migration_files = all_migrations
+
+    if not migration_files:
+        print("No migration files found.")
+        return 0
+
+    print(f"Running {len(migration_files)} migrations against LOCAL database...")
+    errors = 0
+    env = os.environ.copy()
+    env["PGPASSWORD"] = "gladys"
+
+    for migration in migration_files:
+        print(f"  Applying {migration.name}...", end=" ", flush=True)
+
+        result = subprocess.run(
+            ["psql", "-h", "localhost", "-p", str(LOCAL_PORTS.db),
+             "-U", "gladys", "-d", "gladys", "-f", str(migration)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+        # Check for real errors (not "already exists" notices)
+        if result.returncode != 0:
+            stderr = result.stderr.lower()
+            # These are acceptable "errors" for idempotent migrations
+            if "already exists" in stderr or "does not exist, skipping" in stderr:
+                print("OK (already applied)")
+            else:
+                print(f"FAILED")
+                print(f"    {result.stderr.strip()}")
+                errors += 1
+        else:
+            print("OK")
+
+    if errors:
+        print(f"\n{errors} migration(s) failed.")
+        return 1
+    else:
+        print("\nAll migrations applied successfully.")
+        return 0
+
+
 def cmd_start(args):
     """Handle start command."""
+    # Run migrations first (unless skipped)
+    if not args.no_migrate:
+        print("Running database migrations...")
+        migrate_args = argparse.Namespace(file=None)
+        result = cmd_migrate(migrate_args)
+        if result != 0:
+            print("Warning: Some migrations failed. Continuing with service start...")
+        print()
+
     services = list(SERVICES.keys()) if args.service == "all" else [args.service]
 
     print("Starting LOCAL services...")
@@ -373,16 +472,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python scripts/local.py start memory          # Start memory service
-    python scripts/local.py start all             # Start all services
-    python scripts/local.py stop memory           # Stop memory service
-    python scripts/local.py restart all           # Restart all services
+    python scripts/local.py start all             # Start all (runs migrations first)
+    python scripts/local.py start all --no-migrate # Start without migrations
+    python scripts/local.py migrate               # Run all migrations
+    python scripts/local.py migrate -f 008        # Run specific migration
     python scripts/local.py status                # Show status of all services
-    python scripts/local.py test test_td_learning.py  # Run specific test
-    python scripts/local.py test                  # Run all tests
+    python scripts/local.py test test_file.py    # Run specific test
     python scripts/local.py psql                  # Open database shell
     python scripts/local.py clean heuristics      # Clear heuristics table
-    python scripts/local.py clean all             # Clear all data
     python scripts/local.py reset                 # Full reset (clean + restart)
 """,
     )
@@ -400,6 +497,11 @@ Examples:
         "--no-wait",
         action="store_true",
         help="Don't wait for service to be ready",
+    )
+    start_parser.add_argument(
+        "--no-migrate",
+        action="store_true",
+        help="Skip database migrations",
     )
     start_parser.set_defaults(func=cmd_start)
 
@@ -437,6 +539,14 @@ Examples:
     # psql
     psql_parser = subparsers.add_parser("psql", help="Open database shell")
     psql_parser.set_defaults(func=cmd_psql)
+
+    # migrate
+    migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
+    migrate_parser.add_argument(
+        "--file", "-f",
+        help="Run only specific migration file (substring match)",
+    )
+    migrate_parser.set_defaults(func=cmd_migrate)
 
     # clean
     clean_parser = subparsers.add_parser("clean", help="Clean database tables")

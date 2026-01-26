@@ -126,3 +126,125 @@ class MemoryStorageClient:
                 stored += 1
 
         return stored
+
+    async def record_heuristic_fire(
+        self,
+        heuristic_id: str,
+        event_id: str,
+        episodic_event_id: str = "",
+    ) -> str:
+        """
+        Record that a heuristic fired ("Flight Recorder").
+
+        Args:
+            heuristic_id: UUID of heuristic that fired
+            event_id: ID of event that triggered it
+            episodic_event_id: Optional: UUID of persisted episodic event
+
+        Returns:
+            Fire record ID (UUID) if successful, empty string otherwise.
+        """
+        if not self._stub:
+            logger.warning("MemoryStorage not connected, fire not recorded")
+            return ""
+
+        try:
+            request = memory_pb2.RecordHeuristicFireRequest(
+                heuristic_id=heuristic_id,
+                event_id=event_id,
+                episodic_event_id=episodic_event_id
+            )
+            response = await self._stub.RecordHeuristicFire(request)
+            return response.fire_id
+        except grpc.RpcError as e:
+            logger.error(f"Failed to record heuristic fire: {e}")
+            return ""
+
+    async def update_heuristic_confidence(
+        self,
+        heuristic_id: str,
+        positive: bool,
+        learning_rate: float = 0.0,
+        predicted_success: float = 0.0,
+        feedback_source: str = "explicit",
+    ) -> dict:
+        """
+        Update heuristic confidence based on feedback.
+
+        Used for both explicit (user thumbs up/down) and implicit
+        (outcome observed) feedback.
+
+        Args:
+            heuristic_id: UUID of the heuristic to update
+            positive: True for positive feedback, False for negative
+            learning_rate: Optional override (0 = use default 0.1)
+            predicted_success: LLM's prediction for TD learning
+            feedback_source: "explicit" or "implicit"
+
+        Returns:
+            Dict with success, old_confidence, new_confidence, delta, td_error
+        """
+        if not self._stub:
+            logger.warning("MemoryStorage not connected, feedback not sent")
+            return {"success": False, "error": "Not connected"}
+
+        try:
+            request = memory_pb2.UpdateHeuristicConfidenceRequest(
+                heuristic_id=heuristic_id,
+                positive=positive,
+                learning_rate=learning_rate,
+                predicted_success=predicted_success,
+            )
+            response = await self._stub.UpdateHeuristicConfidence(request)
+
+            source_label = f"[{feedback_source}]" if feedback_source else ""
+            if response.success:
+                logger.info(
+                    f"Confidence updated {source_label}: {heuristic_id[:8]}... "
+                    f"{response.old_confidence:.2f} → {response.new_confidence:.2f}"
+                )
+
+            return {
+                "success": response.success,
+                "error": response.error,
+                "old_confidence": response.old_confidence,
+                "new_confidence": response.new_confidence,
+                "delta": response.delta,
+                "td_error": response.td_error,
+            }
+
+        except grpc.RpcError as e:
+            logger.error(f"Failed to update heuristic confidence: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_heuristic(self, heuristic_id: str) -> dict | None:
+        """
+        Get a heuristic by ID.
+
+        Used by OutcomeWatcher to get condition_text for pattern matching.
+
+        Returns:
+            Dict with heuristic fields, or None if not found.
+        """
+        if not self._stub:
+            logger.warning("MemoryStorage not connected")
+            return None
+
+        try:
+            request = memory_pb2.GetHeuristicRequest(id=heuristic_id)
+            response = await self._stub.GetHeuristic(request)
+
+            if response.heuristic and response.heuristic.id:
+                return {
+                    "id": response.heuristic.id,
+                    "name": response.heuristic.name,
+                    "condition_text": response.heuristic.condition_text,
+                    "effects_json": response.heuristic.effects_json,
+                    "confidence": response.heuristic.confidence,
+                    "origin": response.heuristic.origin,
+                }
+            return None
+
+        except grpc.RpcError as e:
+            logger.error(f"Failed to get heuristic: {e}")
+            return None

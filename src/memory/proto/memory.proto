@@ -46,6 +46,17 @@ service MemoryStorage {
 
     // Expand context: get entity + relationships + related entities (for LLM prompts)
     rpc ExpandContext(ExpandContextRequest) returns (ExpandContextResponse);
+
+    // --- Heuristic Fire Tracking ("Flight Recorder") ---
+
+    // Record that a heuristic fired
+    rpc RecordHeuristicFire(RecordHeuristicFireRequest) returns (RecordHeuristicFireResponse);
+
+    // Update fire record with outcome
+    rpc UpdateFireOutcome(UpdateFireOutcomeRequest) returns (UpdateFireOutcomeResponse);
+
+    // Get fires awaiting feedback
+    rpc GetPendingFires(GetPendingFiresRequest) returns (GetPendingFiresResponse);
 }
 
 // Salience Gateway Service - the "amygdala"
@@ -349,3 +360,45 @@ message ExpandContextResponse {
     repeated Relationship relationships = 2; // All relationships in the context
     string error = 3;
 }
+
+// --- Heuristic Fire Tracking ---
+
+message RecordHeuristicFireRequest {
+    string heuristic_id = 1;            // UUID of heuristic that fired
+    string event_id = 2;                // ID of event that triggered it
+    string episodic_event_id = 3;       // Optional: UUID of persisted event
+}
+
+message RecordHeuristicFireResponse {
+    string fire_id = 1;                 // UUID of the created fire record
+}
+
+message UpdateFireOutcomeRequest {
+    string fire_id = 1;                 // UUID of the fire record to update
+    string outcome = 2;                 // 'success', 'fail'
+    string feedback_source = 3;         // 'explicit', 'implicit'
+}
+
+message UpdateFireOutcomeResponse {
+    bool success = 1;
+}
+
+message GetPendingFiresRequest {
+    string heuristic_id = 1;            // Optional: filter by heuristic
+    int32 max_age_seconds = 2;          // Default 300
+}
+
+message GetPendingFiresResponse {
+    repeated HeuristicFire fires = 1;
+}
+
+message HeuristicFire {
+    string id = 1;
+    string heuristic_id = 2;
+    string event_id = 3;
+    int64 fired_at_ms = 4;
+    string outcome = 5;
+    string feedback_source = 6;
+    string episodic_event_id = 7;
+}
+

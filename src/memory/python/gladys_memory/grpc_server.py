@@ -301,7 +301,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 limit=limit,
                 source_filter=source_filter,
                 query_embedding=query_embedding,
-                min_similarity=0.7,  # Semantic similarity threshold
+                min_similarity=settings.salience.heuristic_min_similarity,
             )
 
             matches = []
@@ -459,7 +459,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             # Embedding similarity search
             if request.query_embedding:
                 query_embedding = _bytes_to_embedding(request.query_embedding)
-                min_similarity = request.min_similarity if request.min_similarity > 0 else 0.7
+                min_similarity = request.min_similarity if request.min_similarity > 0 else settings.salience.heuristic_min_similarity
                 limit = request.limit if request.limit > 0 else 10
                 entity_type = request.entity_type if request.entity_type else None
 
@@ -643,6 +643,66 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             )
         except Exception as ex:
             await context.abort(grpc.StatusCode.INTERNAL, str(ex))
+
+    # =========================================================================
+    # Heuristic Fire Tracking ("Flight Recorder")
+    # =========================================================================
+
+    async def RecordHeuristicFire(self, request, context):
+        """Record that a heuristic fired."""
+        try:
+            heuristic_id = request.heuristic_id
+            if not heuristic_id:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No heuristic_id provided")
+
+            fire_id = await self.storage.record_heuristic_fire(
+                heuristic_id=UUID(heuristic_id),
+                event_id=request.event_id,
+                episodic_event_id=UUID(request.episodic_event_id) if request.episodic_event_id else None
+            )
+            return memory_pb2.RecordHeuristicFireResponse(fire_id=str(fire_id))
+        except Exception as e:
+            logger.error(f"RecordHeuristicFire error: {e}")
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
+    async def UpdateFireOutcome(self, request, context):
+        """Update a fire record with outcome."""
+        try:
+            success = await self.storage.update_fire_outcome(
+                fire_id=UUID(request.fire_id),
+                outcome=request.outcome,
+                feedback_source=request.feedback_source
+            )
+            return memory_pb2.UpdateFireOutcomeResponse(success=success)
+        except Exception as e:
+            logger.error(f"UpdateFireOutcome error: {e}")
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
+    async def GetPendingFires(self, request, context):
+        """Get fires awaiting feedback."""
+        try:
+            h_id = UUID(request.heuristic_id) if request.heuristic_id else None
+            max_age = request.max_age_seconds if request.max_age_seconds > 0 else 300
+            
+            fires = await self.storage.get_pending_fires(h_id, max_age)
+            
+            proto_fires = [
+                memory_pb2.HeuristicFire(
+                    id=str(f["id"]),
+                    heuristic_id=str(f["heuristic_id"]),
+                    event_id=f["event_id"],
+                    fired_at_ms=int(f["fired_at"].timestamp() * 1000),
+                    outcome=f["outcome"],
+                    feedback_source=f["feedback_source"] or "",
+                    episodic_event_id=str(f["episodic_event_id"]) if f["episodic_event_id"] else ""
+                )
+                for f in fires
+            ]
+            return memory_pb2.GetPendingFiresResponse(fires=proto_fires)
+        except Exception as e:
+            logger.error(f"GetPendingFires error: {e}")
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
 
 
 async def serve(

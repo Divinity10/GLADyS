@@ -1,5 +1,6 @@
 """Orchestrator configuration."""
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -34,3 +35,22 @@ class OrchestratorConfig(BaseSettings):
     salience_memory_address: str = "localhost:50052"  # Rust SalienceGateway
     memory_storage_address: str = "localhost:50051"   # Python MemoryStorage
     executive_address: str = "localhost:50053"
+
+    # Outcome Watcher settings (Phase 2: Implicit Feedback)
+    outcome_watcher_enabled: bool = Field(
+        default=True,
+        description="Enable implicit feedback via outcome observation",
+    )
+    outcome_cleanup_interval_sec: int = Field(
+        default=30,
+        description="How often to cleanup expired outcome expectations",
+    )
+    # Default outcome patterns - JSON array of objects with:
+    # - trigger_pattern: substring match on heuristic condition_text
+    # - outcome_pattern: substring match on outcome event raw_text
+    # - timeout_sec: how long to wait (default 120)
+    # - is_success: true = outcome means success (default true)
+    outcome_patterns_json: str = Field(
+        default='[]',
+        description="JSON array of outcome patterns for implicit feedback",
+    )

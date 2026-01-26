@@ -201,19 +201,34 @@ class LearningLoopTest:
 
     async def cleanup_test_data(self):
         """Remove any heuristics created by previous test runs."""
-        print("  Cleaning up test data via run.py...")
+        # Detect environment from RUST_ADDRESS port
+        is_docker = ":5006" in RUST_ADDRESS  # Docker uses 50060-50063
+        env_script = "docker.py" if is_docker else "local.py"
+        rust_service = "memory-rust"
+
+        print(f"  Cleaning up test data (env: {'docker' if is_docker else 'local'})...")
         try:
-            # Truncate DB
-            cmd = [sys.executable, str(PROJECT_ROOT / "src" / "integration" / "run.py"), "clean", "heuristics"]
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            # Truncate heuristics table using psql
+            # For local: connects to localhost:5432
+            # For docker: the postgres is also on localhost but mapped port
+            db_host = "localhost"
+            db_port = "5432"
+            db_name = "gladys"
+            db_user = "gladys"
+
+            cmd = ["psql", "-h", db_host, "-p", db_port, "-U", db_user, "-d", db_name,
+                   "-c", "TRUNCATE TABLE heuristics CASCADE;"]
+            env = os.environ.copy()
+            env["PGPASSWORD"] = "gladys"
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
             if result.returncode == 0:
-                print(f"    [OK] DB Cleanup successful: {result.stdout.strip()}")
+                print("    [OK] DB Cleanup successful")
             else:
                 print(f"    [Warn] DB Cleanup failed: {result.stderr}")
-            
-            # Restart Rust service to clear cache
+
+            # Restart Rust service to clear cache using project scripts
             print("  Restarting Salience Gateway (Rust) to clear cache...")
-            cmd_restart = [sys.executable, str(PROJECT_ROOT / "src" / "integration" / "run.py"), "restart", "memory"]
+            cmd_restart = [sys.executable, str(PROJECT_ROOT / "scripts" / env_script), "restart", rust_service]
             result_restart = subprocess.run(cmd_restart, capture_output=True, text=True)
             if result_restart.returncode == 0:
                  print("    [OK] Rust service restarted.")
@@ -222,7 +237,7 @@ class LearningLoopTest:
 
             # gRPC channels handle reconnection automatically, brief wait for service health
             await asyncio.sleep(2)
-            
+
         except Exception as e:
             print(f"    [Warn] Cleanup execution failed: {e}")
 

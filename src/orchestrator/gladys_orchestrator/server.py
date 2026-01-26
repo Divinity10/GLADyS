@@ -1,6 +1,7 @@
 """gRPC server for the Orchestrator service."""
 
 import asyncio
+import json
 import logging
 from concurrent import futures
 from typing import AsyncIterator
@@ -12,6 +13,7 @@ from .config import OrchestratorConfig
 from .registry import ComponentRegistry
 from .router import EventRouter
 from .accumulator import MomentAccumulator
+from .outcome_watcher import OutcomeWatcher, OutcomePattern
 from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
 from .clients.memory_client import MemoryStorageClient
@@ -48,16 +50,70 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         self._salience_client = salience_client
         self._executive_client = executive_client
         self._memory_client = memory_client
-        self.router = EventRouter(config, salience_client, executive_client)
+
+        # Create OutcomeWatcher for implicit feedback (Phase 2)
+        self._outcome_watcher = self._create_outcome_watcher(config, memory_client)
+
+        self.router = EventRouter(
+            config,
+            salience_client,
+            executive_client,
+            memory_client=self._memory_client,
+            outcome_watcher=self._outcome_watcher,
+        )
         self.accumulator = MomentAccumulator(config)
         self._running = False
 
+    def _create_outcome_watcher(
+        self,
+        config: OrchestratorConfig,
+        memory_client: MemoryStorageClient | None,
+    ) -> OutcomeWatcher | None:
+        """Create OutcomeWatcher from config if enabled."""
+        if not config.outcome_watcher_enabled:
+            logger.info("OutcomeWatcher disabled in config")
+            return None
+
+        # Parse outcome patterns from JSON config
+        patterns = []
+        try:
+            patterns_data = json.loads(config.outcome_patterns_json)
+            for p in patterns_data:
+                patterns.append(OutcomePattern(
+                    trigger_pattern=p.get("trigger_pattern", ""),
+                    outcome_pattern=p.get("outcome_pattern", ""),
+                    timeout_sec=p.get("timeout_sec", 120),
+                    is_success=p.get("is_success", True),
+                ))
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse outcome_patterns_json: {e}")
+
+        if patterns:
+            logger.info(f"OutcomeWatcher enabled with {len(patterns)} patterns")
+        else:
+            logger.info("OutcomeWatcher enabled but no patterns configured")
+
+        return OutcomeWatcher(patterns=patterns, memory_client=memory_client)
+
     async def start(self) -> None:
-        """Start background tasks (moment ticker, health checks)."""
+        """Start background tasks (moment ticker, health checks, outcome cleanup)."""
         self._running = True
         # Start moment accumulator tick loop
         asyncio.create_task(self._moment_tick_loop())
+        # Start outcome watcher cleanup loop (if enabled)
+        if self._outcome_watcher:
+            asyncio.create_task(self._outcome_cleanup_loop())
         logger.info("Orchestrator servicer started")
+
+    async def _outcome_cleanup_loop(self) -> None:
+        """Background loop that cleans up expired outcome expectations."""
+        cleanup_interval = self.config.outcome_cleanup_interval_sec
+        while self._running:
+            await asyncio.sleep(cleanup_interval)
+            if self._outcome_watcher:
+                expired = self._outcome_watcher.cleanup_expired()
+                if expired > 0:
+                    logger.debug(f"OutcomeWatcher: Cleaned up {expired} expired expectations")
 
     async def stop(self) -> None:
         """Stop background tasks gracefully."""

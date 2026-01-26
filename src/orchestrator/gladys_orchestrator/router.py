@@ -12,11 +12,12 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from .accumulator import Moment
 from .config import OrchestratorConfig
 from .generated import common_pb2
+from .outcome_watcher import OutcomeWatcher
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +53,21 @@ class EventRouter:
     4. Otherwise → accumulate into current moment
     """
 
-    def __init__(self, config: OrchestratorConfig, salience_client=None, executive_client=None):
+    def __init__(
+        self,
+        config: OrchestratorConfig,
+        salience_client=None,
+        executive_client=None,
+        memory_client: Optional[Any] = None,
+        outcome_watcher: Optional[OutcomeWatcher] = None,
+    ):
         self.config = config
         self._subscribers: dict[str, Subscriber] = {}
         self._response_subscribers: dict[str, ResponseSubscriber] = {}
         self._salience_client = salience_client
         self._executive_client = executive_client
+        self._memory_client = memory_client
+        self._outcome_watcher = outcome_watcher
 
     async def route_event(self, event: Any, accumulator: Any) -> dict:
         """
@@ -68,6 +78,13 @@ class EventRouter:
         event_id = getattr(event, "id", "unknown")
 
         try:
+            # Step 0: Check if this event satisfies any pending outcome expectations
+            # (Implicit feedback - Phase 2)
+            if self._outcome_watcher:
+                resolved = await self._outcome_watcher.check_event(event)
+                if resolved:
+                    logger.info(f"Event {event_id} satisfied outcome for heuristics: {resolved}")
+
             # Step 1: Get salience score
             salience = await self._get_salience(event)
             matched_heuristic_id = salience.get("_matched_heuristic", "")
@@ -90,6 +107,17 @@ class EventRouter:
                 "predicted_success": 0.0,
                 "prediction_confidence": 0.0,
             }
+
+            # Step 4: Record heuristic fire (Flight Recorder)
+            if matched_heuristic_id and self._memory_client:
+                # fire-and-forget, don't block the response
+                asyncio.create_task(
+                    self._memory_client.record_heuristic_fire(
+                        heuristic_id=matched_heuristic_id,
+                        event_id=event_id,
+                        episodic_event_id=getattr(event, "id", "") # Link if possible
+                    )
+                )
 
             if max_salience >= self.config.high_salience_threshold:
                 # HIGH salience → immediate to Executive
@@ -123,6 +151,14 @@ class EventRouter:
                 # LOW salience → accumulate
                 logger.debug(f"Event {event_id}: LOW salience ({max_salience:.2f}) → accumulate")
                 accumulator.add_event(event)
+
+            # Step 4: Register heuristic fire for outcome tracking (if applicable)
+            if matched_heuristic_id and self._outcome_watcher:
+                await self._outcome_watcher.register_fire(
+                    heuristic_id=matched_heuristic_id,
+                    event_id=event_id,
+                    predicted_success=result.get("predicted_success", 0.0),
+                )
 
             # Also broadcast to subscribers (for monitoring, etc.)
             await self._broadcast_to_subscribers(event)

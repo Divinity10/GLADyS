@@ -96,6 +96,11 @@ class SalienceSettings(BaseSettings):
         ge=0.0, le=1.0,
         description="Minimum confidence to consider a heuristic",
     )
+    heuristic_min_similarity: float = Field(
+        default=0.7,
+        ge=0.0, le=1.0,
+        description="Minimum cosine similarity for semantic heuristic matching",
+    )
 
     # Novelty score thresholds
     novelty_high_boost: float = Field(

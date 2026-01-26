@@ -1,6 +1,7 @@
 """PostgreSQL storage backend for GLADyS Memory."""
 
 import json
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
@@ -306,7 +307,7 @@ class MemoryStorage:
         limit: int = 10,
         source_filter: str | None = None,
         query_embedding: Optional[np.ndarray] = None,
-        min_similarity: float = 0.7,
+        min_similarity: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         """Query heuristics matching event text using semantic similarity.
 
@@ -320,11 +321,13 @@ class MemoryStorage:
             source_filter: If provided, only return heuristics whose condition
                            text starts with this source/domain prefix
             query_embedding: Pre-computed embedding for event_text (384-dim)
-            min_similarity: Minimum cosine similarity threshold (default 0.7)
+            min_similarity: Minimum cosine similarity threshold (uses config default)
 
         Returns:
             List of matching heuristics with similarity ranking
         """
+        if min_similarity is None:
+            min_similarity = settings.salience.heuristic_min_similarity
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
@@ -588,7 +591,127 @@ class MemoryStorage:
             positive,
         )
 
+        # Update the most recent fire record with the outcome
+        await self._update_most_recent_fire(
+            heuristic_id=heuristic_id,
+            outcome='success' if positive else 'fail',
+            feedback_source='explicit'
+        )
+
         return (old_confidence, new_confidence, change, td_error)
+
+    # =========================================================================
+    # Heuristic Fire tracking ("Flight Recorder")
+    # =========================================================================
+
+    async def record_heuristic_fire(
+        self,
+        heuristic_id: UUID,
+        event_id: str,
+        episodic_event_id: Optional[UUID] = None,
+    ) -> UUID:
+        """Record that a heuristic fired. Returns the fire record ID."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        fire_id = uuid.uuid4()
+        await self._pool.execute(
+            """
+            INSERT INTO heuristic_fires (id, heuristic_id, event_id, episodic_event_id)
+            VALUES ($1, $2, $3, $4)
+            """,
+            fire_id,
+            heuristic_id,
+            event_id,
+            episodic_event_id,
+        )
+        return fire_id
+
+    async def update_fire_outcome(
+        self,
+        fire_id: UUID,
+        outcome: str,  # 'success' or 'fail'
+        feedback_source: str,  # 'explicit' or 'implicit'
+    ) -> bool:
+        """Update a fire record with its outcome. Returns True if found."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        result = await self._pool.execute(
+            """
+            UPDATE heuristic_fires
+            SET outcome = $2,
+                feedback_source = $3,
+                feedback_at = NOW()
+            WHERE id = $1
+            """,
+            fire_id,
+            outcome,
+            feedback_source,
+        )
+        # UPDATE returns 'UPDATE 1' or 'UPDATE 0'
+        return result == "UPDATE 1"
+
+    async def get_pending_fires(
+        self,
+        heuristic_id: Optional[UUID] = None,
+        max_age_seconds: int = 300,
+    ) -> list[dict]:
+        """Get fires awaiting feedback (outcome='unknown')."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        if heuristic_id:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id
+                FROM heuristic_fires
+                WHERE outcome = 'unknown'
+                  AND heuristic_id = $1
+                  AND fired_at > NOW() - INTERVAL '1 second' * $2
+                ORDER BY fired_at DESC
+                """,
+                heuristic_id,
+                max_age_seconds,
+            )
+        else:
+            rows = await self._pool.fetch(
+                """
+                SELECT id, heuristic_id, event_id, fired_at, episodic_event_id
+                FROM heuristic_fires
+                WHERE outcome = 'unknown'
+                  AND fired_at > NOW() - INTERVAL '1 second' * $2
+                ORDER BY fired_at DESC
+                """,
+                max_age_seconds,
+            )
+
+        return [dict(row) for row in rows]
+
+    async def _update_most_recent_fire(
+        self,
+        heuristic_id: UUID,
+        outcome: str,
+        feedback_source: str,
+    ) -> bool:
+        """Find the most recent 'unknown' fire for a heuristic and update it."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Find most recent fire for this heuristic that is still 'unknown'
+        row = await self._pool.fetchrow(
+            """
+            SELECT id FROM heuristic_fires
+            WHERE heuristic_id = $1 AND outcome = 'unknown'
+            ORDER BY fired_at DESC
+            LIMIT 1
+            """,
+            heuristic_id
+        )
+        
+        if row:
+            return await self.update_fire_outcome(row["id"], outcome, feedback_source)
+        return False
 
     # =========================================================================
     # Entity Operations (Semantic Memory)
@@ -693,11 +816,13 @@ class MemoryStorage:
     async def query_entities_by_similarity(
         self,
         query_embedding: np.ndarray,
-        min_similarity: float = 0.7,
+        min_similarity: Optional[float] = None,
         entity_type: Optional[str] = None,
         limit: int = 10,
     ) -> list[tuple[dict[str, Any], float]]:
         """Query entities by embedding similarity."""
+        if min_similarity is None:
+            min_similarity = settings.salience.heuristic_min_similarity
         if not self._pool:
             raise RuntimeError("Not connected to database")
 

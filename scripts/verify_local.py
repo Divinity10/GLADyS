@@ -82,7 +82,7 @@ def check_pgvector() -> bool:
         return True
     else:
         print(f"  {RED}FAIL{RESET}: pgvector extension not installed")
-        print(f"  {YELLOW}See memory.md for installation instructions{RESET}")
+        print(f"  {YELLOW}See docs/design/DEVELOPMENT.md for installation instructions{RESET}")
         return False
 
 

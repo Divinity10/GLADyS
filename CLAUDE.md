@@ -137,6 +137,27 @@ Non-negotiable unless an ADR is superseded:
 | 0014 | Executive | Decision loop, skill orchestration |
 | 0015 | Personality | Response traits, humor, customization |
 
+## Database Schema Management
+
+**CRITICAL**: Local and Docker databases must stay in sync unless you have a specific reason to diverge.
+
+### How It Works
+- Migrations live in `src/memory/migrations/` (numbered .sql files)
+- Both `scripts/local.py start` and `scripts/docker.py start` run migrations automatically
+- Use `--no-migrate` only if you intentionally need different schemas
+
+### When Adding/Modifying Schema
+1. Create migration in `src/memory/migrations/` with next number (e.g., `009_new_feature.sql`)
+2. Use `IF NOT EXISTS` / `IF EXISTS` for idempotency
+3. Run `python scripts/local.py migrate` to apply locally
+4. Run `python scripts/docker.py migrate` to apply to Docker
+5. **Both environments must have the same schema** — if you skip one, document why in claude_memory.md
+
+### Red Flags
+- Test fails with "column does not exist" → migration not applied
+- Different behavior between local and Docker → schema drift
+- **Never assume migrations are applied** — verify with `\d tablename` in psql if unsure
+
 ## Tool Usage
 
 If you encounter errors reading files via the editor, run `cat <filename>` in the terminal instead.

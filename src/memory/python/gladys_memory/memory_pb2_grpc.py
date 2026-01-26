@@ -101,6 +101,21 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.ExpandContextRequest.SerializeToString,
                 response_deserializer=memory__pb2.ExpandContextResponse.FromString,
                 _registered_method=True)
+        self.RecordHeuristicFire = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/RecordHeuristicFire',
+                request_serializer=memory__pb2.RecordHeuristicFireRequest.SerializeToString,
+                response_deserializer=memory__pb2.RecordHeuristicFireResponse.FromString,
+                _registered_method=True)
+        self.UpdateFireOutcome = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/UpdateFireOutcome',
+                request_serializer=memory__pb2.UpdateFireOutcomeRequest.SerializeToString,
+                response_deserializer=memory__pb2.UpdateFireOutcomeResponse.FromString,
+                _registered_method=True)
+        self.GetPendingFires = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetPendingFires',
+                request_serializer=memory__pb2.GetPendingFiresRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetPendingFiresResponse.FromString,
+                _registered_method=True)
 
 
 class MemoryStorageServicer(object):
@@ -202,6 +217,29 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RecordHeuristicFire(self, request, context):
+        """--- Heuristic Fire Tracking ("Flight Recorder") ---
+
+        Record that a heuristic fired
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateFireOutcome(self, request, context):
+        """Update fire record with outcome
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPendingFires(self, request, context):
+        """Get fires awaiting feedback
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MemoryStorageServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -269,6 +307,21 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.ExpandContext,
                     request_deserializer=memory__pb2.ExpandContextRequest.FromString,
                     response_serializer=memory__pb2.ExpandContextResponse.SerializeToString,
+            ),
+            'RecordHeuristicFire': grpc.unary_unary_rpc_method_handler(
+                    servicer.RecordHeuristicFire,
+                    request_deserializer=memory__pb2.RecordHeuristicFireRequest.FromString,
+                    response_serializer=memory__pb2.RecordHeuristicFireResponse.SerializeToString,
+            ),
+            'UpdateFireOutcome': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateFireOutcome,
+                    request_deserializer=memory__pb2.UpdateFireOutcomeRequest.FromString,
+                    response_serializer=memory__pb2.UpdateFireOutcomeResponse.SerializeToString,
+            ),
+            'GetPendingFires': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetPendingFires,
+                    request_deserializer=memory__pb2.GetPendingFiresRequest.FromString,
+                    response_serializer=memory__pb2.GetPendingFiresResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -624,6 +677,87 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/ExpandContext',
             memory__pb2.ExpandContextRequest.SerializeToString,
             memory__pb2.ExpandContextResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RecordHeuristicFire(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/RecordHeuristicFire',
+            memory__pb2.RecordHeuristicFireRequest.SerializeToString,
+            memory__pb2.RecordHeuristicFireResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateFireOutcome(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/UpdateFireOutcome',
+            memory__pb2.UpdateFireOutcomeRequest.SerializeToString,
+            memory__pb2.UpdateFireOutcomeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetPendingFires(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetPendingFires',
+            memory__pb2.GetPendingFiresRequest.SerializeToString,
+            memory__pb2.GetPendingFiresResponse.FromString,
             options,
             channel_credentials,
             insecure,
