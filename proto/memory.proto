@@ -1,0 +1,445 @@
+syntax = "proto3";
+
+package gladys.memory;
+
+import "types.proto";
+
+// Memory Storage Service - Python backend
+// Handles persistent storage, embeddings, and complex queries
+service MemoryStorage {
+    // Store a new episodic event
+    rpc StoreEvent(StoreEventRequest) returns (StoreEventResponse);
+
+    // Query events by time range
+    rpc QueryByTime(QueryByTimeRequest) returns (QueryEventsResponse);
+
+    // Query events by embedding similarity
+    rpc QueryBySimilarity(QueryBySimilarityRequest) returns (QueryEventsResponse);
+
+    // Generate embedding for text
+    rpc GenerateEmbedding(GenerateEmbeddingRequest) returns (GenerateEmbeddingResponse);
+
+    // Store/update a heuristic
+    rpc StoreHeuristic(StoreHeuristicRequest) returns (StoreHeuristicResponse);
+
+    // Query heuristics by condition match (embedding similarity)
+    rpc QueryHeuristics(QueryHeuristicsRequest) returns (QueryHeuristicsResponse);
+
+    // Query heuristics by text search (PostgreSQL tsvector)
+    // Used by Rust fast path on cache miss - faster than embedding similarity
+    rpc QueryMatchingHeuristics(QueryMatchingHeuristicsRequest) returns (QueryHeuristicsResponse);
+
+    // Get a single heuristic by ID
+    rpc GetHeuristic(GetHeuristicRequest) returns (GetHeuristicResponse);
+
+    // Update heuristic confidence based on feedback (TD learning)
+    rpc UpdateHeuristicConfidence(UpdateHeuristicConfidenceRequest) returns (UpdateHeuristicConfidenceResponse);
+
+    // --- Semantic Memory (Entities & Relationships) ---
+
+    // Store or update an entity
+    rpc StoreEntity(StoreEntityRequest) returns (StoreEntityResponse);
+
+    // Query entities by name, type, or embedding
+    rpc QueryEntities(QueryEntitiesRequest) returns (QueryEntitiesResponse);
+
+    // Store a relationship between entities
+    rpc StoreRelationship(StoreRelationshipRequest) returns (StoreRelationshipResponse);
+
+    // Get relationships for an entity (1-hop context)
+    rpc GetRelationships(GetRelationshipsRequest) returns (GetRelationshipsResponse);
+
+    // Expand context: get entity + relationships + related entities (for LLM prompts)
+    rpc ExpandContext(ExpandContextRequest) returns (ExpandContextResponse);
+
+    // --- Heuristic Fire Tracking ("Flight Recorder") ---
+
+    // Record that a heuristic fired
+    rpc RecordHeuristicFire(RecordHeuristicFireRequest) returns (RecordHeuristicFireResponse);
+
+    // Update fire record with outcome
+    rpc UpdateFireOutcome(UpdateFireOutcomeRequest) returns (UpdateFireOutcomeResponse);
+
+    // Get fires awaiting feedback
+    rpc GetPendingFires(GetPendingFiresRequest) returns (GetPendingFiresResponse);
+
+    // --- Health Check ---
+    rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
+    rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
+}
+
+// Salience Gateway Service - the "amygdala"
+// Co-located with Memory per ADR-0001 §5.1
+// Provides fast salience evaluation for incoming events
+service SalienceGateway {
+    // Evaluate salience of an event
+    // Uses heuristics from Memory + novelty detection from Rust fast path
+    rpc EvaluateSalience(EvaluateSalienceRequest) returns (EvaluateSalienceResponse);
+
+    // --- Cache management ---
+
+    // Clear entire heuristic cache
+    rpc FlushCache(FlushCacheRequest) returns (FlushCacheResponse);
+
+    // Remove single heuristic from cache
+    rpc EvictFromCache(EvictFromCacheRequest) returns (EvictFromCacheResponse);
+
+    // Get cache performance statistics
+    rpc GetCacheStats(GetCacheStatsRequest) returns (GetCacheStatsResponse);
+
+    // List heuristics currently in cache
+    rpc ListCachedHeuristics(ListCachedHeuristicsRequest) returns (ListCachedHeuristicsResponse);
+
+    // --- Health Check ---
+    rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
+    rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
+}
+
+// --- Cache Management Messages ---
+
+message FlushCacheRequest {}
+message FlushCacheResponse {
+    int32 entries_flushed = 1;
+}
+
+message EvictFromCacheRequest {
+    string heuristic_id = 1;
+}
+message EvictFromCacheResponse {
+    bool found = 1;
+}
+
+message GetCacheStatsRequest {}
+message GetCacheStatsResponse {
+    int32 current_size = 1;
+    int32 max_capacity = 2;
+    float hit_rate = 3;
+    int64 total_hits = 4;
+    int64 total_misses = 5;
+}
+
+message ListCachedHeuristicsRequest {
+    int32 limit = 1;  // 0 = all
+}
+
+message CachedHeuristicInfo {
+    string heuristic_id = 1;
+    string name = 2;
+    int32 hit_count = 3;
+    int64 cached_at_unix = 4;
+    int64 last_hit_unix = 5;
+}
+
+message ListCachedHeuristicsResponse {
+    repeated CachedHeuristicInfo heuristics = 1;
+}
+
+// --- Events ---
+
+message EpisodicEvent {
+    string id = 1;                      // UUID
+    int64 timestamp_ms = 2;             // Unix timestamp milliseconds
+    string source = 3;                  // Sensor ID
+    string raw_text = 4;                // Natural language description
+    bytes embedding = 5;                // 384-dim float32 vector (serialized)
+    gladys.types.SalienceVector salience = 6;
+    string structured_json = 7;         // Domain-specific data as JSON string
+    repeated string entity_ids = 8;     // Referenced entity UUIDs
+
+    // Prediction instrumentation
+    float predicted_success = 9;        // LLM's prediction of action success (0.0-1.0)
+    float prediction_confidence = 10;   // LLM's confidence in that prediction (0.0-1.0)
+    string response_id = 11;            // Links to executive response/reasoning trace
+    string response_text = 12;          // The actual LLM response text
+}
+
+message StoreEventRequest {
+    EpisodicEvent event = 1;
+}
+
+message StoreEventResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+message QueryByTimeRequest {
+    int64 start_ms = 1;
+    int64 end_ms = 2;
+    string source_filter = 3;
+    int32 limit = 4;
+}
+
+message QueryBySimilarityRequest {
+    bytes query_embedding = 1;
+    float similarity_threshold = 2;
+    int64 time_filter_hours = 3;
+    int32 limit = 4;
+}
+
+message QueryEventsResponse {
+    repeated EpisodicEvent events = 1;
+    string error = 2;
+}
+
+// --- Embeddings ---
+
+message GenerateEmbeddingRequest {
+    string text = 1;
+}
+
+message GenerateEmbeddingResponse {
+    bytes embedding = 1;
+    string error = 2;
+}
+
+// --- Heuristics (CBR Design) ---
+
+message Heuristic {
+    string id = 1;
+    string name = 2;
+    string condition_text = 3;
+    bytes condition_embedding = 4;
+    float similarity_threshold = 5;
+    string effects_json = 6;
+    float confidence = 7;
+    float learning_rate = 8;
+    string origin = 9;
+    string origin_id = 10;
+    repeated string next_heuristic_ids = 11;
+    bool is_terminal = 12;
+    int64 last_fired_ms = 13;
+    int32 fire_count = 14;
+    int32 success_count = 15;
+    int64 created_at_ms = 16;
+    int64 updated_at_ms = 17;
+}
+
+message StoreHeuristicRequest {
+    Heuristic heuristic = 1;
+    bool generate_embedding = 2;
+}
+
+message StoreHeuristicResponse {
+    bool success = 1;
+    string error = 2;
+    string heuristic_id = 3;
+}
+
+message QueryHeuristicsRequest {
+    string query_text = 1;
+    bytes query_embedding = 2;
+    float min_similarity = 3;
+    float min_confidence = 4;
+    int32 limit = 5;
+}
+
+message QueryMatchingHeuristicsRequest {
+    string event_text = 1;
+    float min_confidence = 2;
+    int32 limit = 3;
+    string source_filter = 4;
+}
+
+message QueryHeuristicsResponse {
+    repeated HeuristicMatch matches = 1;
+    string error = 2;
+}
+
+message HeuristicMatch {
+    Heuristic heuristic = 1;
+    float similarity = 2;
+    float score = 3;
+}
+
+message GetHeuristicRequest {
+    string id = 1;
+}
+
+message GetHeuristicResponse {
+    Heuristic heuristic = 1;
+    string error = 2;
+}
+
+// --- TD Learning: Confidence Updates ---
+
+message UpdateHeuristicConfidenceRequest {
+    string heuristic_id = 1;
+    bool positive = 2;
+    float learning_rate = 3;
+    float predicted_success = 4;
+    string feedback_source = 5;
+}
+
+message UpdateHeuristicConfidenceResponse {
+    bool success = 1;
+    string error = 2;
+    float old_confidence = 3;
+    float new_confidence = 4;
+    float delta = 5;
+    float td_error = 6;
+}
+
+// --- Salience Evaluation ---
+
+message EvaluateSalienceRequest {
+    string event_id = 1;
+    string source = 2;
+    string raw_text = 3;
+    string structured_json = 4;
+    repeated string entity_ids = 5;
+    bool skip_novelty_detection = 6;
+}
+
+message EvaluateSalienceResponse {
+    gladys.types.SalienceVector salience = 1;
+    bool from_cache = 2;
+    string matched_heuristic_id = 3;
+    string error = 4;
+    bool novelty_detection_skipped = 5;
+}
+
+// --- Semantic Memory: Entities ---
+
+message Entity {
+    string id = 1;
+    string canonical_name = 2;
+    repeated string aliases = 3;
+    string entity_type = 4;
+    string attributes_json = 5;
+    bytes embedding = 6;
+    string source = 7;
+    int64 first_seen_ms = 8;
+    int64 last_seen_ms = 9;
+    int32 mention_count = 10;
+    int64 created_at_ms = 11;
+    int64 updated_at_ms = 12;
+}
+
+message StoreEntityRequest {
+    Entity entity = 1;
+    bool generate_embedding = 2;
+}
+
+message StoreEntityResponse {
+    bool success = 1;
+    string error = 2;
+    string entity_id = 3;
+}
+
+message QueryEntitiesRequest {
+    string name_query = 1;
+    string entity_type = 2;
+    bytes query_embedding = 3;
+    float min_similarity = 4;
+    int32 limit = 5;
+}
+
+message QueryEntitiesResponse {
+    repeated EntityMatch matches = 1;
+    string error = 2;
+}
+
+message EntityMatch {
+    Entity entity = 1;
+    float similarity = 2;
+}
+
+// --- Semantic Memory: Relationships ---
+
+message Relationship {
+    string id = 1;
+    string subject_id = 2;
+    string predicate = 3;
+    string object_id = 4;
+    string attributes_json = 5;
+    float confidence = 6;
+    string source = 7;
+    string source_event_id = 8;
+    int64 created_at_ms = 9;
+    int64 updated_at_ms = 10;
+}
+
+message StoreRelationshipRequest {
+    Relationship relationship = 1;
+}
+
+message StoreRelationshipResponse {
+    bool success = 1;
+    string error = 2;
+    string relationship_id = 3;
+}
+
+message GetRelationshipsRequest {
+    string entity_id = 1;
+    string predicate_filter = 2;
+    bool include_incoming = 3;
+    bool include_outgoing = 4;
+    float min_confidence = 5;
+    int32 limit = 6;
+}
+
+message GetRelationshipsResponse {
+    repeated RelationshipWithEntity relationships = 1;
+    string error = 2;
+}
+
+message RelationshipWithEntity {
+    Relationship relationship = 1;
+    Entity related_entity = 2;
+}
+
+// --- Context Expansion ---
+
+message ExpandContextRequest {
+    repeated string entity_ids = 1;
+    int32 max_hops = 2;
+    int32 max_entities = 3;
+    float min_confidence = 4;
+}
+
+message ExpandContextResponse {
+    repeated Entity entities = 1;
+    repeated Relationship relationships = 2;
+    string error = 3;
+}
+
+// --- Heuristic Fire Tracking ---
+
+message RecordHeuristicFireRequest {
+    string heuristic_id = 1;
+    string event_id = 2;
+    string episodic_event_id = 3;
+}
+
+message RecordHeuristicFireResponse {
+    string fire_id = 1;
+}
+
+message UpdateFireOutcomeRequest {
+    string fire_id = 1;
+    string outcome = 2;
+    string feedback_source = 3;
+}
+
+message UpdateFireOutcomeResponse {
+    bool success = 1;
+}
+
+message GetPendingFiresRequest {
+    string heuristic_id = 1;
+    int32 max_age_seconds = 2;
+}
+
+message GetPendingFiresResponse {
+    repeated HeuristicFire fires = 1;
+}
+
+message HeuristicFire {
+    string id = 1;
+    string heuristic_id = 2;
+    string event_id = 3;
+    int64 fired_at_ms = 4;
+    string outcome = 5;
+    string feedback_source = 6;
+    string episodic_event_id = 7;
+}

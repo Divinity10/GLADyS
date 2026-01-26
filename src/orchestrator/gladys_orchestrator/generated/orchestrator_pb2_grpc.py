@@ -5,6 +5,7 @@ import warnings
 
 from . import common_pb2 as common__pb2
 from . import orchestrator_pb2 as orchestrator__pb2
+from . import types_pb2 as types__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -87,6 +88,16 @@ class OrchestratorServiceStub(object):
                 request_serializer=orchestrator__pb2.SystemStatusRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.SystemStatusResponse.FromString,
                 _registered_method=True)
+        self.GetHealth = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/GetHealth',
+                request_serializer=types__pb2.GetHealthRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthResponse.FromString,
+                _registered_method=True)
+        self.GetHealthDetails = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/GetHealthDetails',
+                request_serializer=types__pb2.GetHealthDetailsRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthDetailsResponse.FromString,
+                _registered_method=True)
         self.ResolveComponent = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/ResolveComponent',
                 request_serializer=orchestrator__pb2.ResolveRequest.SerializeToString,
@@ -106,7 +117,6 @@ class OrchestratorServiceServicer(object):
 
     def PublishEvents(self, request_iterator, context):
         """Sensors publish events through this streaming RPC
-        Orchestrator fans out to subscribers
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -120,7 +130,7 @@ class OrchestratorServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def SubscribeResponses(self, request, context):
-        """Subscribe to receive responses (for accumulated events and proactive messages)
+        """Subscribe to receive responses
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -172,6 +182,19 @@ class OrchestratorServiceServicer(object):
     def GetSystemStatus(self, request, context):
         """Get status of all components
         """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealth(self, request, context):
+        """Service health check (unified interface across all services)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealthDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -234,6 +257,16 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     servicer.GetSystemStatus,
                     request_deserializer=orchestrator__pb2.SystemStatusRequest.FromString,
                     response_serializer=orchestrator__pb2.SystemStatusResponse.SerializeToString,
+            ),
+            'GetHealth': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealth,
+                    request_deserializer=types__pb2.GetHealthRequest.FromString,
+                    response_serializer=types__pb2.GetHealthResponse.SerializeToString,
+            ),
+            'GetHealthDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealthDetails,
+                    request_deserializer=types__pb2.GetHealthDetailsRequest.FromString,
+                    response_serializer=types__pb2.GetHealthDetailsResponse.SerializeToString,
             ),
             'ResolveComponent': grpc.unary_unary_rpc_method_handler(
                     servicer.ResolveComponent,
@@ -491,6 +524,60 @@ class OrchestratorService(object):
             '/gladys.v1.OrchestratorService/GetSystemStatus',
             orchestrator__pb2.SystemStatusRequest.SerializeToString,
             orchestrator__pb2.SystemStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealth(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/GetHealth',
+            types__pb2.GetHealthRequest.SerializeToString,
+            types__pb2.GetHealthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealthDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/GetHealthDetails',
+            types__pb2.GetHealthDetailsRequest.SerializeToString,
+            types__pb2.GetHealthDetailsResponse.FromString,
             options,
             channel_credentials,
             insecure,

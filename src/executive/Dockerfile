@@ -51,9 +51,14 @@ RUN for f in gladys_memory/generated/*_pb2*.py; do \
     fi; \
     done
 
-# Copy the stub server (context is src/)
-COPY executive/stub_server.py /app/
+# Copy the executive package (context is src/)
+COPY executive/gladys_executive/ /app/gladys_executive/
+
+# Create __init__.py if missing
+RUN touch /app/gladys_executive/__init__.py
 
 EXPOSE 50053
 
-CMD ["python", "stub_server.py"]
+# Use standardized entry point
+ENTRYPOINT ["python", "-m", "gladys_executive"]
+CMD ["start"]

@@ -4,6 +4,7 @@ import grpc
 import warnings
 
 from . import executive_pb2 as executive__pb2
+from . import types_pb2 as types__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -51,6 +52,16 @@ class ExecutiveServiceStub(object):
                 request_serializer=executive__pb2.ProvideFeedbackRequest.SerializeToString,
                 response_deserializer=executive__pb2.ProvideFeedbackResponse.FromString,
                 _registered_method=True)
+        self.GetHealth = channel.unary_unary(
+                '/gladys.v1.ExecutiveService/GetHealth',
+                request_serializer=types__pb2.GetHealthRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthResponse.FromString,
+                _registered_method=True)
+        self.GetHealthDetails = channel.unary_unary(
+                '/gladys.v1.ExecutiveService/GetHealthDetails',
+                request_serializer=types__pb2.GetHealthDetailsRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthDetailsResponse.FromString,
+                _registered_method=True)
 
 
 class ExecutiveServiceServicer(object):
@@ -79,6 +90,19 @@ class ExecutiveServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetHealth(self, request, context):
+        """Health check
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealthDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ExecutiveServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -96,6 +120,16 @@ def add_ExecutiveServiceServicer_to_server(servicer, server):
                     servicer.ProvideFeedback,
                     request_deserializer=executive__pb2.ProvideFeedbackRequest.FromString,
                     response_serializer=executive__pb2.ProvideFeedbackResponse.SerializeToString,
+            ),
+            'GetHealth': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealth,
+                    request_deserializer=types__pb2.GetHealthRequest.FromString,
+                    response_serializer=types__pb2.GetHealthResponse.SerializeToString,
+            ),
+            'GetHealthDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealthDetails,
+                    request_deserializer=types__pb2.GetHealthDetailsRequest.FromString,
+                    response_serializer=types__pb2.GetHealthDetailsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -181,6 +215,60 @@ class ExecutiveService(object):
             '/gladys.v1.ExecutiveService/ProvideFeedback',
             executive__pb2.ProvideFeedbackRequest.SerializeToString,
             executive__pb2.ProvideFeedbackResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealth(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.ExecutiveService/GetHealth',
+            types__pb2.GetHealthRequest.SerializeToString,
+            types__pb2.GetHealthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealthDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.ExecutiveService/GetHealthDetails',
+            types__pb2.GetHealthDetailsRequest.SerializeToString,
+            types__pb2.GetHealthDetailsResponse.FromString,
             options,
             channel_credentials,
             insecure,

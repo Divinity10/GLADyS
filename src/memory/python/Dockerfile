@@ -28,4 +28,6 @@ ENV STORAGE_PORT=5432
 
 EXPOSE 50051
 
-CMD ["python", "-m", "gladys_memory.grpc_server"]
+# Use standardized entry point
+ENTRYPOINT ["python", "-m", "gladys_memory"]
+CMD ["start"]

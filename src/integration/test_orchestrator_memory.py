@@ -2,22 +2,29 @@
 """Integration test: Orchestrator <-> Memory via gRPC.
 
 Prerequisites:
-  docker-compose up -d  (from this directory)
+  python scripts/local.py start all
 
 This test:
 1. Stores a heuristic in Memory that triggers high salience for "threat" events
 2. Sends a matching event to Orchestrator
 3. Verifies Orchestrator routes based on Memory's salience evaluation
+
+Service Ports:
+- MemoryStorage (Python): 50051 - Stores heuristics/events
+- SalienceGateway (Rust): 50052 - Evaluates salience (with caching)
+- Orchestrator: 50050 - Routes events
 """
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 import grpc
+import pytest
 from google.protobuf.timestamp_pb2 import Timestamp
 
 # Add orchestrator to path for generated protos
@@ -30,10 +37,11 @@ from gladys_orchestrator.generated import memory_pb2
 from gladys_orchestrator.generated import memory_pb2_grpc
 
 
-import os
-
 ORCHESTRATOR_ADDRESS = os.environ.get("ORCHESTRATOR_ADDRESS", "localhost:50050")
-MEMORY_ADDRESS = os.environ.get("SALIENCE_MEMORY_ADDRESS", "localhost:50051")
+# MemoryStorage (Python) - for storing heuristics
+MEMORY_STORAGE_ADDRESS = os.environ.get("MEMORY_STORAGE_ADDRESS", "localhost:50051")
+# SalienceGateway (Rust) - for salience evaluation
+SALIENCE_GATEWAY_ADDRESS = os.environ.get("SALIENCE_GATEWAY_ADDRESS", "localhost:50052")
 
 
 async def wait_for_service(address: str, name: str, timeout: float = 30.0) -> bool:
@@ -54,7 +62,7 @@ async def wait_for_service(address: str, name: str, timeout: float = 30.0) -> bo
 
 async def setup_test_heuristic() -> str:
     """Store a heuristic that triggers high threat salience for 'danger' keyword."""
-    channel = grpc.aio.insecure_channel(MEMORY_ADDRESS)
+    channel = grpc.aio.insecure_channel(MEMORY_STORAGE_ADDRESS)
     stub = memory_pb2_grpc.MemoryStorageStub(channel)
 
     heuristic_id = str(uuid4())
@@ -89,6 +97,21 @@ async def cleanup_heuristic(heuristic_id: str) -> None:
     """Clean up test heuristic (not implemented in proto - would need to add)."""
     # For now, heuristics persist. In a real test, we'd clean up.
     pass
+
+
+# Pytest fixture to ensure test heuristic exists
+@pytest.fixture(scope="module")
+def event_loop():
+    """Create an event loop for the module."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="module")
+async def test_heuristic_id():
+    """Create a test heuristic for salience tests."""
+    return await setup_test_heuristic()
 
 
 async def test_low_salience_event() -> bool:
@@ -174,27 +197,29 @@ async def test_high_salience_event() -> bool:
     return False
 
 
-async def test_salience_evaluation_directly() -> bool:
-    """Test Memory's SalienceGateway directly."""
-    print("\n--- Test: Direct SalienceGateway Call ---")
+async def test_salience_evaluation_directly(test_heuristic_id):
+    """Test Memory's SalienceGateway directly (Rust service on 50052).
 
-    channel = grpc.aio.insecure_channel(MEMORY_ADDRESS)
+    Uses pytest fixture to ensure test heuristic exists first.
+    """
+    print("\n--- Test: Direct SalienceGateway Call ---")
+    print(f"  Test heuristic ID: {test_heuristic_id}")
+
+    channel = grpc.aio.insecure_channel(SALIENCE_GATEWAY_ADDRESS)
     stub = memory_pb2_grpc.SalienceGatewayStub(channel)
 
     # Request salience for a threat event
+    # Note: Empty source means no source_filter, so all heuristics are considered
     request = memory_pb2.EvaluateSalienceRequest(
         event_id=str(uuid4()),
-        source="test",
+        source="",  # Empty = no source filter
         raw_text="danger threat attack incoming!",
     )
 
     try:
         response = await stub.EvaluateSalience(request)
 
-        if response.error:
-            print(f"[FAIL] Error: {response.error}")
-            await channel.close()
-            return False
+        assert not response.error, f"Unexpected error: {response.error}"
 
         salience = response.salience
         print(f"  threat: {salience.threat:.2f}")
@@ -202,20 +227,14 @@ async def test_salience_evaluation_directly() -> bool:
         print(f"  matched_heuristic: {response.matched_heuristic_id or 'none'}")
         print(f"  from_cache: {response.from_cache}")
 
-        # Verify high threat was detected
-        if salience.threat >= 0.7:
-            print(f"[OK] High threat detected ({salience.threat:.2f})")
-            await channel.close()
-            return True
-        else:
-            print(f"[FAIL] Expected high threat, got {salience.threat:.2f}")
-            await channel.close()
-            return False
+        # Verify high threat was detected (requires heuristic match)
+        assert salience.threat >= 0.7, f"Expected threat >= 0.7, got {salience.threat:.2f}"
+        assert response.matched_heuristic_id, "Expected a heuristic to match"
 
-    except grpc.RpcError as e:
-        print(f"[FAIL] gRPC error: {e.code()} - {e.details()}")
+        print(f"[OK] High threat detected ({salience.threat:.2f})")
+
+    finally:
         await channel.close()
-        return False
 
 
 async def main() -> int:
@@ -226,12 +245,16 @@ async def main() -> int:
 
     # Check services are running
     print("\nChecking services...")
-    if not await wait_for_service(MEMORY_ADDRESS, "Memory"):
-        print("\n[FAIL] Memory service not available. Run: docker-compose up -d")
+    if not await wait_for_service(MEMORY_STORAGE_ADDRESS, "MemoryStorage (Python)"):
+        print("\n[FAIL] MemoryStorage service not available. Run: python local.py start memory-python")
+        return 1
+
+    if not await wait_for_service(SALIENCE_GATEWAY_ADDRESS, "SalienceGateway (Rust)"):
+        print("\n[FAIL] SalienceGateway service not available. Run: python local.py start memory-rust")
         return 1
 
     if not await wait_for_service(ORCHESTRATOR_ADDRESS, "Orchestrator"):
-        print("\n[FAIL] Orchestrator service not available. Run: docker-compose up -d")
+        print("\n[FAIL] Orchestrator service not available. Run: python local.py start orchestrator")
         return 1
 
     # Setup test data

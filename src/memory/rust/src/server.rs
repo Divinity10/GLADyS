@@ -9,7 +9,9 @@
 //! - Rust caches matched heuristics for metadata/stats (not for re-matching)
 //! - LRU cache stores recently used heuristics for quick stat updates
 
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{info, debug, warn};
@@ -17,7 +19,16 @@ use tracing::{info, debug, warn};
 use crate::config::{SalienceConfig, ServerConfig, StorageConfig};
 use crate::client::{ClientConfig, StorageClient};
 use crate::proto::salience_gateway_server::SalienceGateway;
-use crate::proto::{EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceVector};
+use crate::proto::{
+    EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceVector,
+    FlushCacheRequest, FlushCacheResponse, EvictFromCacheRequest, EvictFromCacheResponse,
+    GetCacheStatsRequest, GetCacheStatsResponse, ListCachedHeuristicsRequest,
+    ListCachedHeuristicsResponse, CachedHeuristicInfo,
+};
+use crate::proto::gladys::types::{
+    GetHealthRequest, GetHealthResponse, GetHealthDetailsRequest, GetHealthDetailsResponse,
+    HealthStatus,
+};
 use crate::{CachedHeuristic, MemoryCache};
 
 /// The SalienceGateway service implementation.
@@ -33,6 +44,8 @@ pub struct SalienceService {
     config: SalienceConfig,
     /// Storage configuration for querying Python on cache miss
     storage_config: Option<StorageConfig>,
+    /// When the service was started (for uptime tracking)
+    started_at: Instant,
 }
 
 impl SalienceService {
@@ -47,7 +60,7 @@ impl SalienceService {
         config: SalienceConfig,
         storage_config: Option<StorageConfig>,
     ) -> Self {
-        Self { cache, config, storage_config }
+        Self { cache, config, storage_config, started_at: Instant::now() }
     }
 
     /// Query Python storage for matching heuristics.
@@ -90,6 +103,8 @@ impl SalienceService {
                                     confidence: h.confidence,
                                     last_accessed_ms: 0,
                                     cached_at_ms: 0, // Will be set by add_heuristic
+                                    hit_count: 0,
+                                    last_hit_ms: 0,
                                 })
                             })
                             .collect();
@@ -201,7 +216,15 @@ impl SalienceGateway for SalienceService {
                 for h in heuristics_from_storage {
                     let h_id = h.id;
                     let h_name = h.name.clone();
-                    cache.add_heuristic(h);
+
+                    // Check if it's already in cache to track hits/misses
+                    if cache.get_heuristic(&h_id).is_some() {
+                        cache.record_hit();
+                        cache.touch_heuristic(&h_id);
+                    } else {
+                        cache.record_miss();
+                        cache.add_heuristic(h);
+                    }
 
                     // Use the first (best) match from storage
                     // Python returns results ordered by semantic similarity
@@ -241,6 +264,107 @@ impl SalienceGateway for SalienceService {
             error: String::new(),
             // Rust fast path never does novelty detection (no embedding model)
             novelty_detection_skipped: true,
+        }))
+    }
+
+    /// Clear entire heuristic cache
+    async fn flush_cache(
+        &self,
+        _request: Request<FlushCacheRequest>,
+    ) -> Result<Response<FlushCacheResponse>, Status> {
+        info!("Flushing heuristic cache");
+        let mut cache = self.cache.write().await;
+        let entries_flushed = cache.flush_heuristics() as i32;
+        Ok(Response::new(FlushCacheResponse { entries_flushed }))
+    }
+
+    /// Remove single heuristic from cache
+    async fn evict_from_cache(
+        &self,
+        request: Request<EvictFromCacheRequest>,
+    ) -> Result<Response<EvictFromCacheResponse>, Status> {
+        let req = request.into_inner();
+        let id = uuid::Uuid::parse_str(&req.heuristic_id)
+            .map_err(|e| Status::invalid_argument(format!("Invalid UUID: {}", e)))?;
+
+        info!(heuristic_id = %id, "Evicting heuristic from cache");
+        let mut cache = self.cache.write().await;
+        let found = cache.remove_heuristic(&id);
+        Ok(Response::new(EvictFromCacheResponse { found }))
+    }
+
+    /// Get cache performance statistics
+    async fn get_cache_stats(
+        &self,
+        _request: Request<GetCacheStatsRequest>,
+    ) -> Result<Response<GetCacheStatsResponse>, Status> {
+        let cache = self.cache.read().await;
+        let stats = cache.stats();
+        Ok(Response::new(GetCacheStatsResponse {
+            current_size: stats.heuristic_count as i32,
+            max_capacity: stats.max_heuristics as i32,
+            hit_rate: stats.hit_rate(),
+            total_hits: stats.total_hits as i64,
+            total_misses: stats.total_misses as i64,
+        }))
+    }
+
+    /// List heuristics currently in cache
+    async fn list_cached_heuristics(
+        &self,
+        request: Request<ListCachedHeuristicsRequest>,
+    ) -> Result<Response<ListCachedHeuristicsResponse>, Status> {
+        let req = request.into_inner();
+        let cache = self.cache.read().await;
+        let heuristics = cache.list_heuristics(req.limit as usize);
+
+        let info = heuristics
+            .into_iter()
+            .map(|h| CachedHeuristicInfo {
+                heuristic_id: h.id.to_string(),
+                name: h.name.clone(),
+                hit_count: h.hit_count as i32,
+                cached_at_unix: h.cached_at_ms / 1000,
+                last_hit_unix: h.last_hit_ms / 1000,
+            })
+            .collect();
+
+        Ok(Response::new(ListCachedHeuristicsResponse {
+            heuristics: info,
+        }))
+    }
+
+    /// Basic health check
+    async fn get_health(
+        &self,
+        _request: Request<GetHealthRequest>,
+    ) -> Result<Response<GetHealthResponse>, Status> {
+        Ok(Response::new(GetHealthResponse {
+            status: HealthStatus::Healthy.into(),
+            message: String::new(),
+        }))
+    }
+
+    /// Detailed health check with uptime and metrics
+    async fn get_health_details(
+        &self,
+        _request: Request<GetHealthDetailsRequest>,
+    ) -> Result<Response<GetHealthDetailsResponse>, Status> {
+        let cache = self.cache.read().await;
+        let stats = cache.stats();
+        let uptime = self.started_at.elapsed().as_secs() as i64;
+
+        let mut details = HashMap::new();
+        details.insert("cache_size".to_string(), stats.heuristic_count.to_string());
+        details.insert("cache_capacity".to_string(), stats.max_heuristics.to_string());
+        details.insert("cache_hit_rate".to_string(), format!("{:.2}", stats.hit_rate()));
+        details.insert("total_hits".to_string(), stats.total_hits.to_string());
+        details.insert("total_misses".to_string(), stats.total_misses.to_string());
+
+        Ok(Response::new(GetHealthDetailsResponse {
+            status: HealthStatus::Healthy.into(),
+            uptime_seconds: uptime,
+            details,
         }))
     }
 }
@@ -298,6 +422,8 @@ mod tests {
             confidence: 0.95,
             last_accessed_ms: 0,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         };
 
         let mut salience = SalienceVector {
@@ -318,5 +444,81 @@ mod tests {
         assert!((salience.threat - 0.9).abs() < 0.001);
         // Opportunity should stay at 0.5 (was already higher)
         assert!((salience.opportunity - 0.5).abs() < 0.001);
+    }
+
+    #[tokio::test]
+    async fn test_cache_management_rpcs() {
+        let cache_config = crate::config::CacheConfig {
+            max_events: 10,
+            max_heuristics: 5,
+            novelty_threshold: 0.9,
+            heuristic_ttl_ms: 0,
+        };
+        let cache = Arc::new(RwLock::new(MemoryCache::new(cache_config)));
+        let service = SalienceService::new(cache.clone());
+
+        // 1. Add some heuristics to cache
+        let id1 = uuid::Uuid::new_v4();
+        let id2 = uuid::Uuid::new_v4();
+        {
+            let mut c = cache.write().await;
+            c.add_heuristic(CachedHeuristic {
+                id: id1,
+                name: "h1".to_string(),
+                condition: serde_json::json!({}),
+                action: serde_json::json!({}),
+                confidence: 0.9,
+                last_accessed_ms: 1000,
+                cached_at_ms: 1000,
+                hit_count: 5,
+                last_hit_ms: 1000,
+            });
+            c.add_heuristic(CachedHeuristic {
+                id: id2,
+                name: "h2".to_string(),
+                condition: serde_json::json!({}),
+                action: serde_json::json!({}),
+                confidence: 0.8,
+                last_accessed_ms: 2000,
+                cached_at_ms: 2000,
+                hit_count: 2,
+                last_hit_ms: 2000,
+            });
+            c.record_hit();
+            c.record_miss();
+        }
+
+        // 2. Test ListCachedHeuristics
+        let list_req = Request::new(ListCachedHeuristicsRequest { limit: 0 });
+        let list_resp = service.list_cached_heuristics(list_req).await.unwrap().into_inner();
+        assert_eq!(list_resp.heuristics.len(), 2);
+        
+        // 3. Test GetCacheStats
+        let stats_req = Request::new(GetCacheStatsRequest {});
+        let stats_resp = service.get_cache_stats(stats_req).await.unwrap().into_inner();
+        assert_eq!(stats_resp.current_size, 2);
+        assert_eq!(stats_resp.total_hits, 1);
+        assert_eq!(stats_resp.total_misses, 1);
+
+        // 4. Test EvictFromCache
+        let evict_req = Request::new(EvictFromCacheRequest { heuristic_id: id1.to_string() });
+        let evict_resp = service.evict_from_cache(evict_req).await.unwrap().into_inner();
+        assert!(evict_resp.found);
+        
+        {
+            let c = cache.read().await;
+            assert_eq!(c.stats().heuristic_count, 1);
+            assert!(c.get_heuristic(&id1).is_none());
+        }
+
+        // 5. Test FlushCache
+        let flush_req = Request::new(FlushCacheRequest {});
+        let flush_resp = service.flush_cache(flush_req).await.unwrap().into_inner();
+        assert_eq!(flush_resp.entries_flushed, 1);
+        
+        {
+            let c = cache.read().await;
+            assert_eq!(c.stats().heuristic_count, 0);
+        }
     }
 }

@@ -1,0 +1,17 @@
+[project]
+name = "gladys-admin"
+version = "0.1.0"
+description = "Admin tools for managing GLADyS services"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "psycopg2-binary>=2.9",  # Database access for local backend
+]
+
+[project.scripts]
+gladys-docker = "docker:main"
+gladys-local = "local:main"
+gladys-sync = "_sync_check:run_sync_check"
+
+[tool.uv]
+dev-dependencies = []

@@ -53,6 +53,10 @@ pub struct MemoryCache {
     heuristics: HashMap<Uuid, CachedHeuristic>,
     /// Configuration
     config: CacheConfig,
+    /// Statistics: total hits (found in cache)
+    total_hits: u64,
+    /// Statistics: total misses (not found in cache, requires storage query)
+    total_misses: u64,
 }
 
 /// Cached event in L0
@@ -76,6 +80,10 @@ pub struct CachedHeuristic {
     pub last_accessed_ms: i64,
     /// Time when this heuristic was cached (for TTL-based invalidation)
     pub cached_at_ms: i64,
+    /// Number of times this heuristic was matched
+    pub hit_count: u64,
+    /// Last time this heuristic was matched
+    pub last_hit_ms: i64,
 }
 
 // Re-export CacheConfig from config module
@@ -87,6 +95,8 @@ impl MemoryCache {
             events_by_id: HashMap::new(),
             heuristics: HashMap::new(),
             config,
+            total_hits: 0,
+            total_misses: 0,
         }
     }
 
@@ -153,6 +163,16 @@ impl MemoryCache {
         self.events_by_id.get_mut(id)
     }
 
+    /// Record a cache hit.
+    pub fn record_hit(&mut self) {
+        self.total_hits += 1;
+    }
+
+    /// Record a cache miss.
+    pub fn record_miss(&mut self) {
+        self.total_misses += 1;
+    }
+
     /// Add a heuristic to the cache with LRU eviction.
     /// Evicts least-recently-accessed heuristics if cache is full.
     pub fn add_heuristic(&mut self, mut heuristic: CachedHeuristic) {
@@ -186,16 +206,42 @@ impl MemoryCache {
         self.heuristics.insert(heuristic.id, heuristic);
     }
 
-    /// Touch a heuristic (update last_accessed for LRU).
+    /// Touch a heuristic (update last_accessed for LRU and record a hit).
     pub fn touch_heuristic(&mut self, id: &Uuid) {
         if let Some(h) = self.heuristics.get_mut(id) {
-            h.last_accessed_ms = current_time_ms();
+            let now = current_time_ms();
+            h.last_accessed_ms = now;
+            h.last_hit_ms = now;
+            h.hit_count += 1;
         }
     }
 
     /// Get a heuristic from cache.
     pub fn get_heuristic(&self, id: &Uuid) -> Option<&CachedHeuristic> {
         self.heuristics.get(id)
+    }
+
+    /// Remove a heuristic from cache.
+    pub fn remove_heuristic(&mut self, id: &Uuid) -> bool {
+        self.heuristics.remove(id).is_some()
+    }
+
+    /// Clear all heuristics from cache.
+    pub fn flush_heuristics(&mut self) -> usize {
+        let count = self.heuristics.len();
+        self.heuristics.clear();
+        count
+    }
+
+    /// Get all heuristics in cache.
+    pub fn list_heuristics(&self, limit: usize) -> Vec<&CachedHeuristic> {
+        let mut h: Vec<&CachedHeuristic> = self.heuristics.values().collect();
+        h.sort_by_key(|h| -h.last_accessed_ms); // Most recent first
+        if limit > 0 {
+            h.into_iter().take(limit).collect()
+        } else {
+            h
+        }
     }
 
     /// Get all heuristics above a confidence threshold that haven't expired.
@@ -226,6 +272,9 @@ impl MemoryCache {
             event_count: self.events_by_id.len(),
             heuristic_count: self.heuristics.len(),
             max_events: self.config.max_events,
+            max_heuristics: self.config.max_heuristics,
+            total_hits: self.total_hits,
+            total_misses: self.total_misses,
         }
     }
 }
@@ -236,6 +285,20 @@ pub struct CacheStats {
     pub event_count: usize,
     pub heuristic_count: usize,
     pub max_events: usize,
+    pub max_heuristics: usize,
+    pub total_hits: u64,
+    pub total_misses: u64,
+}
+
+impl CacheStats {
+    pub fn hit_rate(&self) -> f32 {
+        let total = self.total_hits + self.total_misses;
+        if total == 0 {
+            0.0
+        } else {
+            self.total_hits as f32 / total as f32
+        }
+    }
 }
 
 /// Get current time in milliseconds since Unix epoch.
@@ -379,6 +442,8 @@ mod tests {
             confidence: 0.3,
             last_accessed_ms: 0,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -389,6 +454,8 @@ mod tests {
             confidence: 0.9,
             last_accessed_ms: 0,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         let high_conf = cache.get_heuristics_by_confidence(0.5);
@@ -422,6 +489,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 1000, // Oldest
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -432,6 +501,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -442,6 +513,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 3000, // Newest
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         assert_eq!(cache.stats().heuristic_count, 3);
@@ -456,6 +529,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 4000,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         assert_eq!(cache.stats().heuristic_count, 3);
@@ -487,6 +562,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 1000,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -497,6 +574,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         cache.add_heuristic(CachedHeuristic {
@@ -507,6 +586,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 3000,
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         // Touch id1 - should update its last_accessed to now
@@ -523,6 +604,8 @@ mod tests {
             confidence: 0.5,
             last_accessed_ms: 0, // Will be set by add_heuristic
             cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
         });
 
         assert!(cache.get_heuristic(&id1).is_some()); // id1 was touched, should survive

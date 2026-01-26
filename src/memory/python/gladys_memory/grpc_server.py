@@ -116,6 +116,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
     ):
         self.storage = storage
         self.embeddings = embeddings
+        self._started_at = datetime.now(timezone.utc)
 
     async def StoreEvent(self, request, context):
         """Store a new episodic event."""
@@ -733,6 +734,28 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             logger.error(f"GetPendingFires error: {e}")
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
+    async def GetHealth(self, request, context):
+        """Basic health check."""
+        return types_pb2.GetHealthResponse(
+            status=types_pb2.HEALTH_STATUS_HEALTHY,
+            message=""
+        )
+
+    async def GetHealthDetails(self, request, context):
+        """Detailed health check with uptime and metrics."""
+        uptime = int((datetime.now(timezone.utc) - self._started_at).total_seconds())
+
+        # Gather details from storage
+        details = {
+            "db_connected": "true" if self.storage._pool else "false",
+            "embedding_model": settings.embedding.model_name,
+        }
+
+        return types_pb2.GetHealthDetailsResponse(
+            status=types_pb2.HEALTH_STATUS_HEALTHY,
+            uptime_seconds=uptime,
+            details=details
+        )
 
 
 async def serve(

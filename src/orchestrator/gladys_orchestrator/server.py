@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from concurrent import futures
+from datetime import datetime, timezone
 from typing import AsyncIterator
 
 import grpc
@@ -22,6 +23,7 @@ from .clients.memory_client import MemoryStorageClient
 from .generated import common_pb2
 from .generated import orchestrator_pb2
 from .generated import orchestrator_pb2_grpc
+from .generated import types_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         )
         self.accumulator = MomentAccumulator(config)
         self._running = False
+        self._started_at = datetime.now(timezone.utc)
 
     def _create_outcome_watcher(
         self,
@@ -432,6 +435,44 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 capabilities=info.capabilities,
             )
         return orchestrator_pb2.ResolveResponse(found=False)
+
+    # -------------------------------------------------------------------------
+    # Health Check RPCs
+    # -------------------------------------------------------------------------
+
+    async def GetHealth(
+        self,
+        request: types_pb2.GetHealthRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> types_pb2.GetHealthResponse:
+        """Basic health check."""
+        return types_pb2.GetHealthResponse(
+            status=types_pb2.HEALTH_STATUS_HEALTHY,
+            message=""
+        )
+
+    async def GetHealthDetails(
+        self,
+        request: types_pb2.GetHealthDetailsRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> types_pb2.GetHealthDetailsResponse:
+        """Detailed health check with uptime and metrics."""
+        uptime = int((datetime.now(timezone.utc) - self._started_at).total_seconds())
+
+        # Gather connection status
+        details = {
+            "salience_connected": str(self._salience_client is not None).lower(),
+            "executive_connected": str(self._executive_client is not None).lower(),
+            "memory_connected": str(self._memory_client is not None).lower(),
+            "registered_components": str(len(self.registry.get_all_status())),
+            "accumulated_events": str(self.accumulator.event_count()),
+        }
+
+        return types_pb2.GetHealthDetailsResponse(
+            status=types_pb2.HEALTH_STATUS_HEALTHY,
+            uptime_seconds=uptime,
+            details=details
+        )
 
 
 async def serve(config: OrchestratorConfig | None = None) -> None:

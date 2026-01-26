@@ -9,13 +9,6 @@ package gladys.types;
 // PRINCIPLE: If a type is CREATED by service A and CONSUMED by service B,
 // it belongs here. This prevents class mismatch errors when copying between
 // proto messages from different packages.
-//
-// Examples:
-//   - SalienceVector: created by Router, consumed by Memory → HERE
-//   - Heuristic: created by Memory, consumed only by Memory → memory.proto
-//   - Event: created by Orchestrator, consumed by Executive → common.proto (maybe here later)
-//
-// This file is synced to src/orchestrator/proto/ by proto_sync.py.
 
 // Salience dimensions for event evaluation.
 // Used in both Event (orchestrator routing) and EpisodicEvent (memory storage).
@@ -29,4 +22,30 @@ message SalienceVector {
     float emotional = 7;            // -1 to 1
     float actionability = 8;        // 0-1
     float habituation = 9;          // 0-1
+}
+
+// ============================================================================
+// HEALTH CHECK - Shared health messages for all services
+// ============================================================================
+
+enum HealthStatus {
+    HEALTH_STATUS_UNKNOWN = 0;
+    HEALTH_STATUS_HEALTHY = 1;
+    HEALTH_STATUS_UNHEALTHY = 2;
+    HEALTH_STATUS_DEGRADED = 3;     // Partially functional
+}
+
+message GetHealthRequest {}
+
+message GetHealthResponse {
+    HealthStatus status = 1;
+    string message = 2;             // Optional: reason for status
+}
+
+message GetHealthDetailsRequest {}
+
+message GetHealthDetailsResponse {
+    HealthStatus status = 1;
+    int64 uptime_seconds = 2;
+    map<string, string> details = 3;  // Service-specific key-value pairs
 }

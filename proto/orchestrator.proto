@@ -2,6 +2,7 @@ syntax = "proto3";
 package gladys.v1;
 
 import "common.proto";
+import "types.proto";
 import "google/protobuf/timestamp.proto";
 
 // ============================================================================
@@ -14,13 +15,12 @@ service OrchestratorService {
     // --------------------------------------------------------------------
 
     // Sensors publish events through this streaming RPC
-    // Orchestrator fans out to subscribers
     rpc PublishEvents(stream Event) returns (stream EventAck);
 
     // Components subscribe to receive events
     rpc SubscribeEvents(SubscribeRequest) returns (stream Event);
 
-    // Subscribe to receive responses (for accumulated events and proactive messages)
+    // Subscribe to receive responses
     rpc SubscribeResponses(SubscribeResponsesRequest) returns (stream EventResponse);
 
     // Manually flush the moment accumulator (for testing)
@@ -49,6 +49,10 @@ service OrchestratorService {
     // Get status of all components
     rpc GetSystemStatus(SystemStatusRequest) returns (SystemStatusResponse);
 
+    // Service health check (unified interface across all services)
+    rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
+    rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
+
     // --------------------------------------------------------------------
     // Service Discovery
     // --------------------------------------------------------------------
@@ -64,64 +68,53 @@ service OrchestratorService {
 message EventAck {
     string event_id = 1;
     bool accepted = 2;
-    string error_message = 3;       // If not accepted
-
-    // Response from Executive (if routed to LLM)
-    string response_id = 4;         // Executive's response ID
-    string response_text = 5;       // The actual response
-    float predicted_success = 6;    // LLM's prediction (0.0-1.0)
-    float prediction_confidence = 7; // LLM's confidence (0.0-1.0)
-
-    // Routing information
-    bool routed_to_llm = 8;         // True if went to Executive/LLM
-    string matched_heuristic_id = 9; // If fast-path via heuristic
+    string error_message = 3;
+    string response_id = 4;
+    string response_text = 5;
+    float predicted_success = 6;
+    float prediction_confidence = 7;
+    bool routed_to_llm = 8;
+    string matched_heuristic_id = 9;
 }
 
 message SubscribeRequest {
     string subscriber_id = 1;
-    repeated string source_filters = 2;   // Empty = all sources
-    repeated string event_types = 3;      // Empty = all types
+    repeated string source_filters = 2;
+    repeated string event_types = 3;
 }
 
 message SubscribeResponsesRequest {
     string subscriber_id = 1;
-    repeated string source_filters = 2;   // Empty = all sources
-    bool include_immediate = 3;           // Also receive IMMEDIATE path responses (default: false)
+    repeated string source_filters = 2;
+    bool include_immediate = 3;
 }
 
-// Response for an event (streamed to subscribers)
 message EventResponse {
     string event_id = 1;
     string response_id = 2;
     string response_text = 3;
-
-    // Prediction data
     float predicted_success = 4;
     float prediction_confidence = 5;
-
-    // Routing information
     RoutingPath routing_path = 6;
     string matched_heuristic_id = 7;
-
-    // Timing
     int64 event_timestamp_ms = 8;
     int64 response_timestamp_ms = 9;
 }
 
 enum RoutingPath {
     ROUTING_PATH_UNSPECIFIED = 0;
-    ROUTING_PATH_IMMEDIATE = 1;      // HIGH salience, sent immediately to Executive
-    ROUTING_PATH_ACCUMULATED = 2;    // LOW salience, batched in moment, sent on tick
+    ROUTING_PATH_IMMEDIATE = 1;
+    ROUTING_PATH_ACCUMULATED = 2;
 }
 
 message FlushMomentRequest {
-    string reason = 1;  // Optional: why the flush was triggered (for logging)
+    string reason = 1;
 }
 
 message FlushMomentResponse {
     int32 events_flushed = 1;
-    bool moment_sent = 2;             // True if moment was sent to Executive
-    string error_message = 3;         // If moment send failed
+    bool moment_sent = 2;
+    string error_message = 3;
 }
 
 // ----------------------------------------------------------------------------
@@ -130,23 +123,18 @@ message FlushMomentResponse {
 
 message RegisterRequest {
     string component_id = 1;
-    string component_type = 2;      // sensor, salience, executive, output, memory
-    string address = 3;             // host:port
+    string component_type = 2;
+    string address = 3;
     ComponentCapabilities capabilities = 4;
     RequestMetadata metadata = 15;
 }
 
 message ComponentCapabilities {
-    // Transport mode (for sensors)
     TransportMode transport_mode = 1;
     int32 batch_size = 2;
     int32 batch_interval_ms = 3;
-
-    // Supported instructions (for configurable sensors)
     bool configurable = 4;
     repeated string supported_instructions = 5;
-
-    // Instance policy
     InstancePolicy instance_policy = 6;
 }
 
@@ -158,14 +146,14 @@ enum TransportMode {
 }
 
 enum InstancePolicy {
-    INSTANCE_POLICY_SINGLE = 0;     // Default: only one instance allowed
-    INSTANCE_POLICY_MULTIPLE = 1;   // Multiple instances allowed
+    INSTANCE_POLICY_SINGLE = 0;
+    INSTANCE_POLICY_MULTIPLE = 1;
 }
 
 message RegisterResponse {
     bool success = 1;
     string error_message = 2;
-    string assigned_id = 3;         // May differ from requested if conflict
+    string assigned_id = 3;
 }
 
 message UnregisterRequest {
@@ -216,7 +204,7 @@ message HeartbeatRequest {
 
 message HeartbeatResponse {
     bool acknowledged = 1;
-    repeated PendingCommand pending_commands = 2;  // Commands queued for this component
+    repeated PendingCommand pending_commands = 2;
 }
 
 message PendingCommand {
@@ -239,7 +227,7 @@ message SystemStatusResponse {
 
 message ResolveRequest {
     string component_id = 1;
-    string component_type = 2;      // Alternative: resolve by type
+    string component_type = 2;
     RequestMetadata metadata = 15;
 }
 

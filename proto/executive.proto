@@ -2,6 +2,7 @@ syntax = "proto3";
 package gladys.v1;
 
 import "common.proto";
+import "types.proto";
 
 // ExecutiveService - the decision-making component.
 // Receives events/moments from Orchestrator and processes them.
@@ -14,49 +15,50 @@ service ExecutiveService {
 
     // Provide feedback on a previous response (for heuristic formation)
     rpc ProvideFeedback(ProvideFeedbackRequest) returns (ProvideFeedbackResponse);
+
+    // Health check
+    rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
+    rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
 }
 
 // Request to process a single high-salience event
 message ProcessEventRequest {
-    Event event = 1;                    // Event with salience populated
-    bool immediate = 2;                 // True = high salience, bypassed moment
+    Event event = 1;
+    bool immediate = 2;
     RequestMetadata metadata = 15;
 }
 
 message ProcessEventResponse {
     bool accepted = 1;
     string error_message = 2;
-    string response_id = 3;             // ID of this response (for feedback correlation)
-    string response_text = 4;           // The LLM's response text (if any)
-
-    // Prediction instrumentation (Instrument Now, Analyze Later - §27)
-    float predicted_success = 5;        // LLM's prediction of action success (0.0-1.0)
-    float prediction_confidence = 6;    // LLM's confidence in that prediction (0.0-1.0)
+    string response_id = 3;
+    string response_text = 4;
+    float predicted_success = 5;
+    float prediction_confidence = 6;
 }
 
 // Request to process an accumulated moment
 message ProcessMomentRequest {
-    Moment moment = 1;                  // Accumulated events
+    Moment moment = 1;
     RequestMetadata metadata = 15;
 }
 
 message ProcessMomentResponse {
     bool accepted = 1;
     string error_message = 2;
-    int32 events_processed = 3;         // How many events were acted on
-    // Future: decisions made, actions queued, etc.
+    int32 events_processed = 3;
 }
 
 // Request to provide feedback on a previous LLM response
 message ProvideFeedbackRequest {
-    string event_id = 1;                // Which event/response this feedback is for
-    bool positive = 2;                  // Thumbs up (true) or down (false)
-    string response_id = 3;             // ID of the LLM response being rated (optional)
+    string event_id = 1;
+    bool positive = 2;
+    string response_id = 3;
     RequestMetadata metadata = 15;
 }
 
 message ProvideFeedbackResponse {
     bool accepted = 1;
     string error_message = 2;
-    string created_heuristic_id = 3;    // ID of new heuristic (if positive feedback created one)
+    string created_heuristic_id = 3;
 }

@@ -4,6 +4,7 @@ import grpc
 import warnings
 
 from . import memory_pb2 as memory__pb2
+from . import types_pb2 as types__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -120,6 +121,16 @@ class MemoryStorageStub(object):
                 '/gladys.memory.MemoryStorage/GetPendingFires',
                 request_serializer=memory__pb2.GetPendingFiresRequest.SerializeToString,
                 response_deserializer=memory__pb2.GetPendingFiresResponse.FromString,
+                _registered_method=True)
+        self.GetHealth = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetHealth',
+                request_serializer=types__pb2.GetHealthRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthResponse.FromString,
+                _registered_method=True)
+        self.GetHealthDetails = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetHealthDetails',
+                request_serializer=types__pb2.GetHealthDetailsRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthDetailsResponse.FromString,
                 _registered_method=True)
 
 
@@ -252,6 +263,19 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetHealth(self, request, context):
+        """--- Health Check ---
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealthDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MemoryStorageServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -339,6 +363,16 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.GetPendingFires,
                     request_deserializer=memory__pb2.GetPendingFiresRequest.FromString,
                     response_serializer=memory__pb2.GetPendingFiresResponse.SerializeToString,
+            ),
+            'GetHealth': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealth,
+                    request_deserializer=types__pb2.GetHealthRequest.FromString,
+                    response_serializer=types__pb2.GetHealthResponse.SerializeToString,
+            ),
+            'GetHealthDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealthDetails,
+                    request_deserializer=types__pb2.GetHealthDetailsRequest.FromString,
+                    response_serializer=types__pb2.GetHealthDetailsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -812,6 +846,60 @@ class MemoryStorage(object):
             metadata,
             _registered_method=True)
 
+    @staticmethod
+    def GetHealth(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetHealth',
+            types__pb2.GetHealthRequest.SerializeToString,
+            types__pb2.GetHealthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealthDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetHealthDetails',
+            types__pb2.GetHealthDetailsRequest.SerializeToString,
+            types__pb2.GetHealthDetailsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
 
 class SalienceGatewayStub(object):
     """Salience Gateway Service - the "amygdala"
@@ -830,6 +918,36 @@ class SalienceGatewayStub(object):
                 request_serializer=memory__pb2.EvaluateSalienceRequest.SerializeToString,
                 response_deserializer=memory__pb2.EvaluateSalienceResponse.FromString,
                 _registered_method=True)
+        self.FlushCache = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/FlushCache',
+                request_serializer=memory__pb2.FlushCacheRequest.SerializeToString,
+                response_deserializer=memory__pb2.FlushCacheResponse.FromString,
+                _registered_method=True)
+        self.EvictFromCache = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/EvictFromCache',
+                request_serializer=memory__pb2.EvictFromCacheRequest.SerializeToString,
+                response_deserializer=memory__pb2.EvictFromCacheResponse.FromString,
+                _registered_method=True)
+        self.GetCacheStats = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/GetCacheStats',
+                request_serializer=memory__pb2.GetCacheStatsRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetCacheStatsResponse.FromString,
+                _registered_method=True)
+        self.ListCachedHeuristics = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/ListCachedHeuristics',
+                request_serializer=memory__pb2.ListCachedHeuristicsRequest.SerializeToString,
+                response_deserializer=memory__pb2.ListCachedHeuristicsResponse.FromString,
+                _registered_method=True)
+        self.GetHealth = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/GetHealth',
+                request_serializer=types__pb2.GetHealthRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthResponse.FromString,
+                _registered_method=True)
+        self.GetHealthDetails = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/GetHealthDetails',
+                request_serializer=types__pb2.GetHealthDetailsRequest.SerializeToString,
+                response_deserializer=types__pb2.GetHealthDetailsResponse.FromString,
+                _registered_method=True)
 
 
 class SalienceGatewayServicer(object):
@@ -846,6 +964,49 @@ class SalienceGatewayServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def FlushCache(self, request, context):
+        """--- Cache management ---
+
+        Clear entire heuristic cache
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def EvictFromCache(self, request, context):
+        """Remove single heuristic from cache
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCacheStats(self, request, context):
+        """Get cache performance statistics
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListCachedHeuristics(self, request, context):
+        """List heuristics currently in cache
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealth(self, request, context):
+        """--- Health Check ---
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetHealthDetails(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SalienceGatewayServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -853,6 +1014,36 @@ def add_SalienceGatewayServicer_to_server(servicer, server):
                     servicer.EvaluateSalience,
                     request_deserializer=memory__pb2.EvaluateSalienceRequest.FromString,
                     response_serializer=memory__pb2.EvaluateSalienceResponse.SerializeToString,
+            ),
+            'FlushCache': grpc.unary_unary_rpc_method_handler(
+                    servicer.FlushCache,
+                    request_deserializer=memory__pb2.FlushCacheRequest.FromString,
+                    response_serializer=memory__pb2.FlushCacheResponse.SerializeToString,
+            ),
+            'EvictFromCache': grpc.unary_unary_rpc_method_handler(
+                    servicer.EvictFromCache,
+                    request_deserializer=memory__pb2.EvictFromCacheRequest.FromString,
+                    response_serializer=memory__pb2.EvictFromCacheResponse.SerializeToString,
+            ),
+            'GetCacheStats': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCacheStats,
+                    request_deserializer=memory__pb2.GetCacheStatsRequest.FromString,
+                    response_serializer=memory__pb2.GetCacheStatsResponse.SerializeToString,
+            ),
+            'ListCachedHeuristics': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCachedHeuristics,
+                    request_deserializer=memory__pb2.ListCachedHeuristicsRequest.FromString,
+                    response_serializer=memory__pb2.ListCachedHeuristicsResponse.SerializeToString,
+            ),
+            'GetHealth': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealth,
+                    request_deserializer=types__pb2.GetHealthRequest.FromString,
+                    response_serializer=types__pb2.GetHealthResponse.SerializeToString,
+            ),
+            'GetHealthDetails': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetHealthDetails,
+                    request_deserializer=types__pb2.GetHealthDetailsRequest.FromString,
+                    response_serializer=types__pb2.GetHealthDetailsResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -885,6 +1076,168 @@ class SalienceGateway(object):
             '/gladys.memory.SalienceGateway/EvaluateSalience',
             memory__pb2.EvaluateSalienceRequest.SerializeToString,
             memory__pb2.EvaluateSalienceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def FlushCache(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/FlushCache',
+            memory__pb2.FlushCacheRequest.SerializeToString,
+            memory__pb2.FlushCacheResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def EvictFromCache(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/EvictFromCache',
+            memory__pb2.EvictFromCacheRequest.SerializeToString,
+            memory__pb2.EvictFromCacheResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCacheStats(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/GetCacheStats',
+            memory__pb2.GetCacheStatsRequest.SerializeToString,
+            memory__pb2.GetCacheStatsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCachedHeuristics(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/ListCachedHeuristics',
+            memory__pb2.ListCachedHeuristicsRequest.SerializeToString,
+            memory__pb2.ListCachedHeuristicsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealth(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/GetHealth',
+            types__pb2.GetHealthRequest.SerializeToString,
+            types__pb2.GetHealthResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetHealthDetails(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/GetHealthDetails',
+            types__pb2.GetHealthDetailsRequest.SerializeToString,
+            types__pb2.GetHealthDetailsResponse.FromString,
             options,
             channel_credentials,
             insecure,
