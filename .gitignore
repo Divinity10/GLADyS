@@ -33,13 +33,14 @@ config/local.yaml
 .claude/
 
 # Personal working memory (per-user, not shared)
-memory.md
+claude_memory.md
 gemini_memory.md
 **/memory-*.md
 
 # Reviews and transient reports
 docs/reviews/
 docs/validation/*_report.md
+docs/prompts/
 
 
 # Implementation prompts and plans (working docs, not committed)

@@ -1,6 +1,6 @@
 -- GLADyS Memory Subsystem - Relationships Schema
 -- Semantic memory: entity relationships for context retrieval
--- See OPEN_QUESTIONS.md §24: LLM reasons, graph provides context
+-- See docs/design/questions/memory.md §24: LLM reasons, graph provides context
 
 -- =============================================================================
 -- RELATIONSHIPS

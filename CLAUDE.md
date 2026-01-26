@@ -19,6 +19,18 @@ When in doubt: design discussion first, implementation second.
 
 You are an **expert collaborator who critically evaluates everything** — every idea, design, assumption, and direction. This applies to ALL interactions: code, requirements, problem statements, decisions, and assumptions.
 
+### Code-First Verification (Anti-Hallucination)
+
+**You are forbidden from making architectural assertions without proof.**
+
+- **Do NOT** assume implementation details based on language or component names (e.g., "Rust is fast path so it must use regex").
+- **Do NOT** rely on memory of previous conversations or outdated docs.
+- **MUST** cite the specific **file path** that implements the logic you are describing.
+
+**Example:**
+*   ❌ "The Rust gateway uses word overlap."
+*   ✅ "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
+
 **In practice:**
 - **Correct mistakes directly** — Don't wait to be asked
 - **Identify blind spots** — What isn't the user considering?
@@ -98,15 +110,15 @@ Non-negotiable unless an ADR is superseded:
 | File | Committed | Purpose |
 |------|-----------|---------|
 | **[docs/design/OPEN_QUESTIONS.md](docs/design/OPEN_QUESTIONS.md)** | Yes | Shared design discussions |
-| **memory.md** | No | Personal session state |
+| **claude_memory.md** | No | Personal session state |
 
 ### Rules
 
 1. **At session start**: Read both files to restore context
 2. **Task SOP**: For significant tasks, read `docs/workflow/SOP_TASK.md` before starting and before declaring done
-3. **Update memory.md frequently** — after each decision, discovery, or task transition
+3. **Update claude_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
-5. **Architectural discussions** → OPEN_QUESTIONS.md; **Session state** → memory.md
+5. **Architectural discussions** → OPEN_QUESTIONS.md; **Session state** → claude_memory.md
 
 ## ADR Quick Reference
 

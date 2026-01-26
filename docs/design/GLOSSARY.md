@@ -59,7 +59,7 @@ A plugin that operates within the brain. Transforms, analyzes, or answers questi
 
 **Direction:** Brain ↔ Brain
 
-See: ADR-0003, OPEN_QUESTIONS.md Section 9
+See: ADR-0003, [questions/plugins.md](questions/plugins.md) §9
 
 ### Preprocessor
 *Subtype of Skill*
@@ -224,7 +224,7 @@ Performance tier that determines scheduling priority and timeout budgets.
 | `comfort` | <5000ms | Thermostat, lighting |
 | `background` | Best-effort | Learning, batch analysis |
 
-See: OPEN_QUESTIONS.md Section 11
+See: [questions/infrastructure.md](questions/infrastructure.md) §11
 
 ### Sleep Mode
 Low-activity period when heavy batch processing (pattern detection, embedding generation) can run. Activated after user idle for configurable duration.
