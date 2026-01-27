@@ -1,12 +1,58 @@
 # PoC Validation Roadmap
 
-**Last Updated**: 2026-01-25
+**Last Updated**: 2026-01-27
 
 ## Purpose
 
 This document defines what the Proof of Concept must validate to confirm GLADyS is feasible. Rather than proving abstract mechanisms work, we prove the system can handle real-world tasks that humans find trivial.
 
 The PoC is successful when we can demonstrate (with mocked sensors/actuators) that the architecture supports basic assistant functionality.
+
+---
+
+## Why GLADyS? (Killer Features)
+
+### What makes GLADyS different?
+
+| Capability | Alexa/Siri | ChatGPT | GLADyS |
+|------------|------------|---------|--------|
+| Responds to commands | ✅ | ✅ | ✅ |
+| Learns preferences | ✅ shallow | ❌ | ✅ deep (behavioral patterns) |
+| Proactive actions | ✅ notifications | ❌ | ✅ salience-driven, context-aware |
+| Cross-domain awareness | ❌ siloed | ❌ no state | ✅ unified memory |
+| Gets faster with use | ❌ | ❌ | ✅ heuristic learning |
+| Local/private by default | ❌ cloud | ❌ cloud | ✅ local-first |
+| Customizable personality | ❌ fixed | ❌ | ✅ configurable |
+
+### Killer Features (Priority Order)
+
+1. **"The Second Time is Faster"** (Heuristic Learning)
+   - First request: LLM reasons through the problem (slow)
+   - User feedback: "That was helpful"
+   - Second request: Heuristic fires, skips LLM (instant)
+   - *No existing assistant does this.*
+
+2. **Proactive Intelligence**
+   - Not just "reminder in 10 minutes"
+   - "Steve just came online and you wanted to play — want me to message him?"
+   - Requires salience evaluation + real sensors
+
+3. **Cross-Domain Reasoning**
+   - "Is Steve free for dinner?" checks Discord + Calendar + knows which Steve
+   - Unified memory across all domains
+
+4. **Pattern Detection** (Post-PoC)
+   - "I notice you always turn on the porch light at sunset. Automate this?"
+   - System learns without explicit feedback
+
+### What the PoC Must Prove
+
+| Feature | PoC Requirement | Status |
+|---------|-----------------|--------|
+| Heuristic creation | Explicit feedback → new heuristic stored | ⚠️ Needs validation |
+| Heuristic matching | Similar event → heuristic fires | ✅ Proven |
+| Cross-domain query | Multi-hop reasoning works | ✅ Proven |
+| Proactive action | Real sensor → system responds | 🔴 No real sensor yet |
 
 ---
 
