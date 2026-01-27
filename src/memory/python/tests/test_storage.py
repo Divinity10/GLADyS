@@ -342,3 +342,72 @@ class TestHeuristicStorage:
         )
         assert row["fire_count"] == 1
         assert row["success_count"] == 1
+
+    async def test_bayesian_confidence_calculation(self, storage):
+        """Should calculate confidence using Bayesian Beta-Binomial formula.
+
+        Formula: confidence = (1 + success_count) / (2 + fire_count)
+        With Beta(1,1) prior (uniform).
+        """
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_bayesian_heuristic",
+            condition={"text": "test condition"},
+            action={"type": "suggestion", "message": "test response"},
+            confidence=0.5,  # Initial value (will be overwritten by Bayesian)
+        )
+
+        # Simulate heuristic firing once (fire_count = 1)
+        await storage.update_heuristic_fired(heuristic_id, success=False)
+
+        # Get baseline: fire_count=1, success_count=0
+        # Expected confidence = (1 + 0) / (2 + 1) = 1/3 ≈ 0.333
+        row = await storage._pool.fetchrow(
+            "SELECT fire_count, success_count, confidence FROM heuristics WHERE id = $1",
+            heuristic_id
+        )
+        assert row["fire_count"] == 1
+        assert row["success_count"] == 0
+
+        # Positive feedback: success_count -> 1
+        # Expected: (1 + 1) / (2 + 1) = 2/3 ≈ 0.667
+        old_conf, new_conf, delta, td_error = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+        )
+        assert td_error is None  # Bayesian doesn't use TD error
+        assert abs(new_conf - (2.0 / 3.0)) < 0.001
+        assert delta == new_conf - old_conf
+
+        # Fire again (fire_count = 2), then negative feedback
+        await storage.update_heuristic_fired(heuristic_id, success=False)
+        # Now: fire_count=2, success_count=1
+        # Negative feedback doesn't change success_count
+        # Expected: (1 + 1) / (2 + 2) = 2/4 = 0.5
+        old_conf, new_conf, delta, td_error = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=False,
+        )
+        assert abs(new_conf - 0.5) < 0.001
+
+        # Two more positive feedbacks after firing
+        await storage.update_heuristic_fired(heuristic_id, success=False)
+        # fire_count=3, success_count=1
+        _, new_conf, _, _ = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+        )
+        # success_count -> 2
+        # Expected: (1 + 2) / (2 + 3) = 3/5 = 0.6
+        assert abs(new_conf - 0.6) < 0.001
+
+        await storage.update_heuristic_fired(heuristic_id, success=False)
+        # fire_count=4, success_count=2
+        _, new_conf, _, _ = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+        )
+        # success_count -> 3
+        # Expected: (1 + 3) / (2 + 4) = 4/6 ≈ 0.667
+        assert abs(new_conf - (4.0 / 6.0)) < 0.001
