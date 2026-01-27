@@ -41,12 +41,14 @@ gemini_memory.md
 docs/reviews/
 docs/validation/*_report.md
 docs/prompts/
+docs/archive/
 
 
 # Implementation prompts and plans (working docs, not committed)
 docs/design/*_PROMPT.md
 docs/design/*_IMPL_PROMPT.md
 docs/design/IMPLEMENTATION_PLAN.md
+docs/design/*_WORK_LOG.md
 
 # Windows device names
 nul
