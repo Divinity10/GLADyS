@@ -50,8 +50,8 @@ services:
 
   memory-python:
     build:
-      context: ../memory/python
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: src/memory/python/Dockerfile
     container_name: gladys-integration-memory-python
     environment:
       STORAGE_HOST: postgres

@@ -14,12 +14,29 @@ import time
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from gladys_common import get_logger
+
 from .accumulator import Moment
 from .config import OrchestratorConfig
 from .generated import types_pb2
 from .outcome_watcher import OutcomeWatcher
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+
+def _handle_task_exception(task: asyncio.Task) -> None:
+    """Log exceptions from fire-and-forget tasks."""
+    try:
+        exc = task.exception()
+        if exc is not None:
+            logger.error(
+                "background_task_failed",
+                task_name=task.get_name(),
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+    except asyncio.CancelledError:
+        pass  # Task was cancelled, not an error
 
 
 @dataclass
@@ -112,13 +129,15 @@ class EventRouter:
             if matched_heuristic_id and self._memory_client:
                 logger.info(f"Recording heuristic fire: heuristic={matched_heuristic_id}, event={event_id}")
                 # fire-and-forget, don't block the response
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self._memory_client.record_heuristic_fire(
                         heuristic_id=matched_heuristic_id,
                         event_id=event_id,
                         episodic_event_id=""  # Episodic event not yet stored at fire time
-                    )
+                    ),
+                    name="record_heuristic_fire"
                 )
+                task.add_done_callback(_handle_task_exception)
             elif matched_heuristic_id:
                 logger.warning(f"Cannot record fire: memory_client is None (heuristic={matched_heuristic_id})")
 

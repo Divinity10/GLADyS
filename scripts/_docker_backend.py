@@ -38,8 +38,15 @@ class DockerBackend(ServiceBackend):
         # Ensure db is up first if starting app services
         if any(n != "db" for n in names):
             self._compose_cmd(["up", "-d", "postgres"])
-            # Simple wait for DB port (not perfect but helpful)
-            # Full healthcheck wait happens below if wait=True
+            print("Waiting for database to be ready...")
+            for _ in range(30):
+                st = self.get_service_status("db")
+                if st.get("healthy"):
+                    print("Database ready.")
+                    break
+                time.sleep(1)
+            else:
+                print("Warning: Database start timed out or is unhealthy.")
 
         print(f"Starting DOCKER services: {', '.join(names)}...")
         # Map names to compose service names (postgres is named 'postgres' in yaml, 'db' in our abstraction)
@@ -53,16 +60,18 @@ class DockerBackend(ServiceBackend):
             # We use docker ps to wait/check? No, compose doesn't have a 'wait' command until V2.
             # We'll poll inspect manually for a few seconds
             for _ in range(30):
-                all_healthy = True
+                unhealthy = []
                 for name in names:
                     if name == "db" or name == "postgres": continue # DB takes longer, skip fast check
                     st = self.get_service_status(name)
                     if not st.get("healthy"):
-                        all_healthy = False
-                        break
-                if all_healthy:
+                        unhealthy.append(name)
+                
+                if not unhealthy:
                     print("All services healthy.")
                     break
+                
+                print(f"Waiting for: {', '.join(unhealthy)}...")
                 time.sleep(1)
                 
         return result.returncode == 0
@@ -155,6 +164,7 @@ class DockerBackend(ServiceBackend):
         if not python_exe.exists():
             python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "bin" / "python"
         if not python_exe.exists():
+            print("Warning: Using system python fallback for health check")
             python_exe = Path("python")
 
         address = f"localhost:{port}"
@@ -254,6 +264,7 @@ class DockerBackend(ServiceBackend):
         # We run it using the venv from memory-python which has grpcio
         python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
+            print("Warning: Using system python fallback for cache command")
             python_exe = "python" # Fallback
             
         cmd = [str(python_exe), str(ROOT / "scripts" / "_cache_client.py"), "--address", address] + args

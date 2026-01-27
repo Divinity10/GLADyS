@@ -114,7 +114,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         while self._running:
             await asyncio.sleep(cleanup_interval)
             if self._outcome_watcher:
-                expired = self._outcome_watcher.cleanup_expired()
+                expired = await self._outcome_watcher.cleanup_expired()
                 if expired > 0:
                     logger.debug(f"OutcomeWatcher: Cleaned up {expired} expired expectations")
 

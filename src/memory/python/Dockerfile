@@ -1,4 +1,7 @@
 # GLADyS Memory Storage - Python Service
+#
+# Build context is PROJECT ROOT so gladys-common is accessible.
+# Set via docker-compose.yml
 
 FROM python:3.13-slim-bookworm
 
@@ -12,14 +15,22 @@ WORKDIR /app
 # Install uv for fast dependency management
 RUN pip install uv
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy gladys-common first (dependency)
+COPY src/common/pyproject.toml ./common/pyproject.toml
+COPY src/common/gladys_common ./common/gladys_common
 
-# Install dependencies
-RUN uv pip install --system -e .
+# Copy memory-python dependency files
+COPY src/memory/python/pyproject.toml ./
+
+# Remove uv.sources (local dev paths don't apply in Docker) and fix path
+# Then install gladys-common and memory-python
+RUN sed -i '/\[tool.uv.sources\]/,/^$/d' pyproject.toml && \
+    sed -i 's/"gladys-common",/"gladys-common @ file:\/\/\/app\/common",/' pyproject.toml && \
+    uv pip install --system -e ./common && \
+    uv pip install --system -e .
 
 # Copy source code
-COPY gladys_memory ./gladys_memory
+COPY src/memory/python/gladys_memory ./gladys_memory
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

@@ -76,8 +76,9 @@ def find_pid_by_port(port: int) -> Optional[int]:
             )
             if result.stdout.strip():
                 return int(result.stdout.strip().split()[0])
-    except Exception:
-        pass
+    except Exception as e:
+        if os.environ.get("DEBUG"):
+            print(f"Debug: find_pid_by_port failed: {e}")
     return None
 
 
@@ -262,6 +263,7 @@ class LocalBackend(ServiceBackend):
         if not python_exe.exists():
             python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "bin" / "python"
         if not python_exe.exists():
+            print("Warning: Using system python fallback for health check")
             python_exe = Path("python")
 
         address = f"localhost:{port}"
@@ -395,6 +397,7 @@ class LocalBackend(ServiceBackend):
         # We run it using the venv from memory-python which has grpcio
         python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
+            print("Warning: Using system python fallback for cache command")
             python_exe = "python" # Fallback
             
         cmd = [str(python_exe), str(ROOT / "scripts" / "_cache_client.py"), "--address", address] + args

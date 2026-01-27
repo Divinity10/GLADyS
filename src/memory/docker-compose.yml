@@ -27,8 +27,8 @@ services:
 
   python-storage:
     build:
-      context: ./python
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: src/memory/python/Dockerfile
     container_name: gladys-memory-storage
     environment:
       STORAGE_HOST: postgres
@@ -44,8 +44,8 @@ services:
 
   rust-fast-path:
     build:
-      context: .
-      dockerfile: rust/Dockerfile
+      context: ../..
+      dockerfile: src/memory/rust/Dockerfile
     container_name: gladys-memory-fast-path
     environment:
       STORAGE_ADDRESS: http://python-storage:50051

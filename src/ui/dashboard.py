@@ -68,30 +68,48 @@ if "subscribed" not in st.session_state:
     st.session_state.subscribed = False
 if "env_mode" not in st.session_state:
     st.session_state.env_mode = "Docker" # Default
+if "grpc_channels" not in st.session_state:
+    st.session_state.grpc_channels = {}
 
 # --- gRPC Clients ---
+
+def get_or_create_channel(address: str) -> grpc.Channel:
+    """Get cached channel or create new one."""
+    if address not in st.session_state.grpc_channels:
+        st.session_state.grpc_channels[address] = grpc.insecure_channel(address)
+    return st.session_state.grpc_channels[address]
+
+def close_all_channels():
+    """Close all cached channels (call on env switch)."""
+    if "grpc_channels" in st.session_state:
+        for addr, channel in st.session_state.grpc_channels.items():
+            try:
+                channel.close()
+            except Exception as e:
+                print(f"Error closing channel for {addr}: {e}")
+        st.session_state.grpc_channels = {}
 
 def get_current_config():
     return ENV_CONFIGS[st.session_state.env_mode]
 
 def get_executive_stub():
     conf = get_current_config()
-    channel = grpc.insecure_channel(conf["EXECUTIVE_ADDR"])
+    channel = get_or_create_channel(conf["EXECUTIVE_ADDR"])
     return executive_pb2_grpc.ExecutiveServiceStub(channel)
 
 def get_memory_stub():
     conf = get_current_config()
-    channel = grpc.insecure_channel(conf["MEMORY_ADDR"])
+    channel = get_or_create_channel(conf["MEMORY_ADDR"])
     return memory_pb2_grpc.MemoryStorageStub(channel)
 
 def get_orchestrator_stub():
     conf = get_current_config()
-    channel = grpc.insecure_channel(conf["ORCHESTRATOR_ADDR"])
+    channel = get_or_create_channel(conf["ORCHESTRATOR_ADDR"])
     return orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
 
 def get_salience_stub():
     conf = get_current_config()
-    channel = grpc.insecure_channel(conf["SALIENCE_ADDR"])
+    channel = get_or_create_channel(conf["SALIENCE_ADDR"])
     return memory_pb2_grpc.SalienceGatewayStub(channel)
 
 def send_event_to_orchestrator(event):
@@ -140,19 +158,19 @@ def run_service_command(command: str, service: str = "all", extra_args: list = N
 def response_subscriber_thread(q, orchestrator_addr):
     """Background thread to subscribe to responses."""
     try:
-        # Create a dedicated channel for the thread
-        channel = grpc.insecure_channel(orchestrator_addr)
-        orch_stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
-        
-        # Using a unique ID for the dashboard
-        subscriber_id = f"dashboard-{uuid.uuid4().hex[:8]}"
-        req = orchestrator_pb2.SubscribeResponsesRequest(
-            subscriber_id=subscriber_id,
-            include_immediate=True
-        )
-        responses = orch_stub.SubscribeResponses(req)
-        for resp in responses:
-            q.put(resp)
+        # Create a dedicated channel for the thread and ensure it's closed on exit
+        with grpc.insecure_channel(orchestrator_addr) as channel:
+            orch_stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+            
+            # Using a unique ID for the dashboard
+            subscriber_id = f"dashboard-{uuid.uuid4().hex[:8]}"
+            req = orchestrator_pb2.SubscribeResponsesRequest(
+                subscriber_id=subscriber_id,
+                include_immediate=True
+            )
+            responses = orch_stub.SubscribeResponses(req)
+            for resp in responses:
+                q.put(resp)
     except Exception as e:
         print(f"Subscription error: {e}")
 
@@ -250,6 +268,7 @@ def render_sidebar():
     
     # If mode changed, update state and clear cache
     if env_mode != st.session_state.env_mode:
+        close_all_channels()
         st.session_state.env_mode = env_mode
         st.cache_resource.clear()
         st.rerun()

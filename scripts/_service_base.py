@@ -350,10 +350,21 @@ class ServiceManager:
 
     def cmd_reset(self, args):
         print("Resetting environment...")
-        self.backend.stop_service(list(self.services.keys()))
-        self.backend.clean_db("all")
-        self.backend.start_service(list(self.services.keys()))
-        return 0
+        success = True
+        
+        if not self.backend.stop_service(list(self.services.keys())):
+            print("Failed to stop services.")
+            success = False
+            
+        if self.backend.clean_db("all") != 0:
+            print("Failed to clean database.")
+            success = False
+            
+        if not self.backend.start_service(list(self.services.keys())):
+            print("Failed to start services.")
+            success = False
+            
+        return 0 if success else 1
 
     def cmd_cache_stats(self, args):
         return self.backend.cache_stats()

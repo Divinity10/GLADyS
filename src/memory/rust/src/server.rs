@@ -66,18 +66,19 @@ impl SalienceService {
     }
 
     /// Query Python storage for matching heuristics.
-    /// Returns matched heuristics if found.
+    /// Returns a Result containing a vector of heuristics (empty if none found),
+    /// or an error message if the query failed.
     async fn query_storage_for_heuristics(
         &self,
         event_text: &str,
         source_filter: Option<&str>,
         trace_id: Option<&str>,
-    ) -> Option<Vec<CachedHeuristic>> {
+    ) -> Result<Vec<CachedHeuristic>, String> {
         let storage_config = match self.storage_config.as_ref() {
             Some(cfg) => cfg,
             None => {
                 warn!("No storage_config - cannot query Python for heuristics");
-                return None;
+                return Err("No storage config".to_string());
             }
         };
 
@@ -114,10 +115,21 @@ impl SalienceService {
                                     return None;
                                 }
                                 let h = m.heuristic?;
-                                let id = uuid::Uuid::parse_str(&h.id).ok()?;
+                                let id = match uuid::Uuid::parse_str(&h.id) {
+                                    Ok(uuid) => uuid,
+                                    Err(e) => {
+                                        warn!(id = %h.id, error = %e, "Failed to parse heuristic UUID");
+                                        return None;
+                                    }
+                                };
                                 let condition = serde_json::json!({ "text": h.condition_text });
-                                let action: serde_json::Value = serde_json::from_str(&h.effects_json)
-                                    .unwrap_or(serde_json::json!({}));
+                                let action: serde_json::Value = match serde_json::from_str(&h.effects_json) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        warn!(id = %h.id, error = %e, "Failed to parse effects JSON");
+                                        serde_json::json!({})
+                                    }
+                                };
                                 Some(CachedHeuristic {
                                     id,
                                     name: h.name,
@@ -132,22 +144,19 @@ impl SalienceService {
                             })
                             .collect();
                         debug!(count = heuristics.len(), "Heuristics after conversion");
-                        if heuristics.is_empty() {
-                            None
-                        } else {
-                            debug!(count = heuristics.len(), "Found heuristics from storage");
-                            Some(heuristics)
-                        }
+                        Ok(heuristics)
                     }
                     Err(e) => {
-                        warn!("Failed to query storage for heuristics: {}", e);
-                        None
+                        let err_msg = format!("Failed to query storage for heuristics: {}", e);
+                        warn!("{}", err_msg);
+                        Err(err_msg)
                     }
                 }
             }
             Err(e) => {
-                warn!("Failed to connect to Python storage: {}", e);
-                None
+                let err_msg = format!("Failed to connect to Python storage: {}", e);
+                warn!("{}", err_msg);
+                Err(err_msg)
             }
         }
     }
@@ -238,37 +247,50 @@ impl SalienceGateway for SalienceService {
             // NOTE: source_filter is for domain-prefixed conditions (e.g., "minecraft:").
             // Don't automatically filter by event source - let semantic matching work.
             // Heuristics can optionally use condition prefixes for domain separation.
-            if let Some(heuristics_from_storage) = self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
-                // Add to local cache for stats tracking
-                let mut cache = self.cache.write().await;
-                for h in heuristics_from_storage {
-                    let h_id = h.id;
-                    let h_name = h.name.clone();
+            match self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
+                Ok(heuristics_from_storage) => {
+                    // Add to local cache for stats tracking
+                    let mut cache = self.cache.write().await;
+                    for h in heuristics_from_storage {
+                        let h_id = h.id;
+                        let h_name = h.name.clone();
 
-                    // Check if it's already in cache to track hits/misses
-                    if cache.get_heuristic(&h_id).is_some() {
-                        cache.record_hit();
-                        cache.touch_heuristic(&h_id);
-                    } else {
-                        cache.record_miss();
-                        cache.add_heuristic(h);
-                    }
+                        // Check if it's already in cache to track hits/misses
+                        if cache.get_heuristic(&h_id).is_some() {
+                            cache.record_hit();
+                            cache.touch_heuristic(&h_id);
+                        } else {
+                            cache.record_miss();
+                            cache.add_heuristic(h);
+                        }
 
-                    // Use the first (best) match from storage
-                    // Python returns results ordered by semantic similarity
-                    if matched_heuristic_id.is_empty() {
-                        if let Some(cached_h) = cache.get_heuristic(&h_id) {
-                            info!(
-                                trace_id = %trace_id,
-                                heuristic_id = %h_id,
-                                heuristic_name = %h_name,
-                                "Heuristic matched (semantic similarity)"
-                            );
-                            matched_heuristic_id = h_id.to_string();
-                            from_storage = true;
-                            Self::apply_heuristic_salience(&mut salience, cached_h);
+                        // Use the first (best) match from storage
+                        // Python returns results ordered by semantic similarity
+                        if matched_heuristic_id.is_empty() {
+                            if let Some(cached_h) = cache.get_heuristic(&h_id) {
+                                info!(
+                                    trace_id = %trace_id,
+                                    heuristic_id = %h_id,
+                                    heuristic_name = %h_name,
+                                    "Heuristic matched (semantic similarity)"
+                                );
+                                matched_heuristic_id = h_id.to_string();
+                                from_storage = true;
+                                Self::apply_heuristic_salience(&mut salience, cached_h);
+                            }
                         }
                     }
+                },
+                Err(e) => {
+                    // Storage query failed - return error to caller so Orchestrator knows
+                    // that salience evaluation was incomplete/failed.
+                    return Ok(Response::new(EvaluateSalienceResponse {
+                        salience: Some(salience), // Return base salience (novelty only)
+                        from_cache: false,
+                        matched_heuristic_id: String::new(),
+                        error: e,
+                        novelty_detection_skipped: true,
+                    }));
                 }
             }
         }

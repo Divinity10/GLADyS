@@ -58,7 +58,7 @@ class OutcomeWatcher:
         await watcher.check_event(event)
 
         # Periodically clean up expired expectations:
-        watcher.cleanup_expired()
+        await watcher.cleanup_expired()
     """
 
     def __init__(
@@ -142,7 +142,8 @@ class OutcomeWatcher:
                     predicted_success=predicted_success,
                     is_success_outcome=pattern.is_success,
                 )
-                self._pending.append(pending)
+                async with self._lock:
+                    self._pending.append(pending)
                 logger.info(
                     f"OutcomeWatcher: Registered expectation for heuristic {heuristic_id}: "
                     f"waiting for '{pattern.outcome_pattern}' within {pattern.timeout_sec}s"
@@ -207,7 +208,7 @@ class OutcomeWatcher:
                 predicted_success=pending.predicted_success,
                 feedback_source="implicit",  # Mark as implicit feedback
             )
-            if result.get("success"):
+            if result and result.get("success"):
                 logger.info(
                     f"OutcomeWatcher: Confidence updated for {pending.heuristic_id}: "
                     f"{result.get('old_confidence', 0):.2f} → {result.get('new_confidence', 0):.2f} "
@@ -223,15 +224,17 @@ class OutcomeWatcher:
             logger.error(f"OutcomeWatcher: Error sending feedback: {e}")
             return False
 
-    def cleanup_expired(self) -> int:
+    async def cleanup_expired(self) -> int:
         """
         Remove expired pending outcomes.
 
         Returns count of expired expectations removed.
         """
         now = datetime.utcnow()
-        expired = [p for p in self._pending if p.timeout_at < now]
-        self._pending = [p for p in self._pending if p.timeout_at >= now]
+
+        async with self._lock:
+            expired = [p for p in self._pending if p.timeout_at < now]
+            self._pending = [p for p in self._pending if p.timeout_at >= now]
 
         for p in expired:
             logger.debug(

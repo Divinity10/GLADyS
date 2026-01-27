@@ -196,6 +196,7 @@ class MemoryStorageClient:
                 positive=positive,
                 learning_rate=learning_rate,
                 predicted_success=predicted_success,
+                feedback_source=feedback_source,
             )
             response = await self._stub.UpdateHeuristicConfidence(request)
 

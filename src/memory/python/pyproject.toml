@@ -18,6 +18,7 @@ dependencies = [
 
     # Embeddings
     "sentence-transformers>=2.2",
+    "requests>=2.28",  # Required by huggingface-hub for model downloads
 
     # Utilities
     "pydantic>=2.0",

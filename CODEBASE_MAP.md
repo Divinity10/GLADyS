@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-01-26
+**Last verified**: 2026-01-26 (updated with code review findings)
 
 ---
 
@@ -193,6 +193,120 @@
 
 ---
 
+## Concurrency Model
+
+### Overview
+
+| Component | Runtime | Event Loop | gRPC Mode | Thread Model |
+|-----------|---------|------------|-----------|--------------|
+| **Orchestrator** | Python asyncio | Single via `asyncio.run()` | `grpc.aio` (async) | Single-threaded + ThreadPoolExecutor for gRPC |
+| **Memory Python** | Python asyncio | Single via `asyncio.run()` | `grpc.aio` (async) | Single-threaded |
+| **Memory Rust** | Tokio | Multi-threaded Tokio runtime | Tonic (async) | Tokio work-stealing |
+| **Executive** | Python asyncio | Single via `asyncio.run()` | `grpc.aio` (async) | Single-threaded |
+| **Dashboard** | Streamlit | None (sync) | `grpc` (sync) | Main + background subscription thread |
+
+### Orchestrator Concurrency
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    asyncio Event Loop                        │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
+│  │ gRPC Server     │  │ _moment_tick    │  │ _outcome     │ │
+│  │ (handles RPCs)  │  │ _loop()         │  │ _cleanup     │ │
+│  │                 │  │ (100ms tick)    │  │ _loop()      │ │
+│  └─────────────────┘  └─────────────────┘  └──────────────┘ │
+│                                                              │
+│  Fire-and-forget tasks: asyncio.create_task() ──► NO ERROR  │
+│                                                   HANDLING   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Background tasks** (created via `asyncio.create_task()`):
+- `_moment_tick_loop()` - Flushes accumulated events to Executive every 100ms
+- `_outcome_cleanup_loop()` - Cleans expired outcome expectations every 30s
+- `record_heuristic_fire()` - Fire-and-forget, **no error handling** (known issue)
+
+**gRPC Server**: Uses `ThreadPoolExecutor(max_workers=config.max_workers)` but all handlers are `async def` running on the asyncio loop.
+
+### Dashboard Concurrency (PROBLEMATIC)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Streamlit Process                         │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ Main Thread (Streamlit)                                 ││
+│  │ - Reruns entire script on every user interaction        ││
+│  │ - Uses SYNC grpc (blocking calls)                       ││
+│  │ - Creates new gRPC channel per stub call                ││
+│  │ - Channels NEVER closed (resource leak)                 ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │ Background Thread (response_subscriber_thread)          ││
+│  │ - Started at module level (line 163-171)                ││
+│  │ - Daemon thread (dies with process)                     ││
+│  │ - Uses thread-safe queue.Queue for communication        ││
+│  │ - CANNOT be restarted if environment changes            ││
+│  │ - Errors print to console, not visible in UI            ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key problems**:
+1. Sync gRPC in main thread blocks UI during calls
+2. Background thread started once, can't recover from env switch
+3. No mechanism to stop/restart subscription thread
+4. gRPC channels leaked on every call
+
+### Rust Memory (Tokio)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Tokio Runtime                             │
+│  ┌─────────────────┐  ┌─────────────────────────────────┐   │
+│  │ Tonic gRPC      │  │ Arc<RwLock<MemoryCache>>        │   │
+│  │ Server          │  │ (thread-safe cache access)      │   │
+│  │                 │  │                                 │   │
+│  │ Handles:        │  │ - Read lock for queries         │   │
+│  │ - EvaluateSal.  │  │ - Write lock for updates        │   │
+│  │ - Cache ops     │  │                                 │   │
+│  └─────────────────┘  └─────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Uses Tokio's multi-threaded work-stealing runtime. `Arc<RwLock<>>` ensures thread-safe cache access.
+
+### Sync/Async Boundaries
+
+| Caller | Callee | Boundary |
+|--------|--------|----------|
+| Orchestrator (async) | Memory Python (async) | Clean - both async |
+| Orchestrator (async) | Memory Rust (async) | Clean - both async |
+| Dashboard (sync) | Orchestrator (async) | **MISMATCH** - sync client calling async server |
+| Dashboard thread (sync) | Orchestrator (async) | Sync streaming over gRPC |
+
+### Message Queues
+
+| Queue | Type | Location | Purpose |
+|-------|------|----------|---------|
+| `asyncio.Queue` | In-memory | `router.py` Subscriber.queue | Event delivery to subscribers |
+| `asyncio.Queue` | In-memory | `router.py` ResponseSubscriber.queue | Response delivery to subscribers |
+| `queue.Queue` | Thread-safe | `dashboard.py` session_state.response_queue | Background thread → main thread |
+
+No external message queues (Redis, RabbitMQ, etc.) are used. All queues are in-process.
+
+### Known Concurrency Issues
+
+| Issue | Location | Severity | Description |
+|-------|----------|----------|-------------|
+| Fire-and-forget | `router.py:115` | HIGH | `asyncio.create_task()` without error callback |
+| Race condition | `outcome_watcher.py` | HIGH | `_pending` list modified without lock |
+| Channel leak | `dashboard.py:77-95` | HIGH | gRPC channels never closed |
+| Thread lifecycle | `dashboard.py:163-171` | HIGH | Can't restart subscription thread |
+| Sync/async mismatch | `dashboard.py` | MEDIUM | Sync gRPC blocks Streamlit main thread |
+
+---
+
 ## Key Conventions
 
 ### Heuristic Matching
@@ -338,15 +452,141 @@ See `docs/design/LOGGING_STANDARD.md` for full specification.
 
 ---
 
+## OutcomeWatcher (Implicit Feedback)
+
+**Location**: `src/orchestrator/gladys_orchestrator/outcome_watcher.py`
+**Integrated in**: `router.py`
+
+Watches for "outcomes" after heuristic fires to provide implicit feedback. When a heuristic fires and a subsequent event matches the expected outcome pattern, positive feedback is automatically sent.
+
+### Integration Points
+
+| Location | What Happens |
+|----------|--------------|
+| `router.py:83-86` | Every incoming event is checked against pending outcomes via `check_event()` |
+| `router.py:159-164` | When heuristic matches, fire is registered with expected outcome via `register_fire()` |
+| `server.py:57` | OutcomeWatcher created via `_create_outcome_watcher()` |
+| `server.py:107-108` | Cleanup loop started for expired expectations |
+
+### Configuration
+
+| Config Key | Default | Purpose |
+|------------|---------|---------|
+| `outcome_watcher_enabled` | `True` | Enable/disable outcome watching |
+| `outcome_cleanup_interval_sec` | `30` | How often to clean expired expectations |
+| `outcome_patterns_json` | `'[]'` | JSON array of trigger→outcome patterns |
+
+### Known Issues (to be fixed)
+
+- **Race condition**: `_pending` list modified without lock in `register_fire()` and `cleanup_expired()`
+- **None check**: `result.get('success')` could fail if client returns None
+
+---
+
+## Dashboard (UI)
+
+**Location**: `src/ui/dashboard.py` (1070 lines - refactoring planned)
+**Framework**: Streamlit
+**Port**: 8501
+
+The dashboard provides a dev/debug interface for GLADyS with tabs for event simulation, memory inspection, cache management, and service controls.
+
+### Known Issues (to be fixed)
+
+| Issue | Severity | Description |
+|-------|----------|-------------|
+| gRPC channel leak | HIGH | Channels created in `get_*_stub()` are never closed |
+| Silent thread errors | HIGH | Background thread errors print to console, not visible in UI |
+| Thread lifecycle | HIGH | Subscription thread started at module level, can't recover from env changes |
+| Bare except clauses | MEDIUM | Several places swallow all exceptions silently |
+
+### Planned Refactoring
+
+See `docs/design/REFACTORING_PLAN.md` Phase 1 for modularization plan:
+- Extract `components/grpc_clients.py` for channel lifecycle management
+- Extract `components/service_controls.py` for start/stop logic
+- Extract tab-specific components (event_lab, memory_console, etc.)
+
+---
+
+## Docker Build Requirements (CRITICAL)
+
+When adding dependencies or modifying code that uses shared packages, Docker builds will BREAK unless you follow these rules:
+
+### 1. gladys_common Dependency Pattern
+
+Any Python service using `gladys_common` (via `from gladys_common import ...`) MUST:
+
+1. **Use project root as build context** in docker-compose.yml:
+   ```yaml
+   build:
+     context: ../..  # Project root
+     dockerfile: src/service/Dockerfile
+   ```
+
+2. **Copy gladys_common in Dockerfile**:
+   ```dockerfile
+   # Copy gladys-common first (dependency)
+   COPY src/common/pyproject.toml ./common/pyproject.toml
+   COPY src/common/gladys_common ./common/gladys_common
+   ```
+
+3. **Strip uv.sources and fix path** before installing:
+   ```dockerfile
+   RUN sed -i '/\[tool.uv.sources\]/,/^$/d' pyproject.toml && \
+       sed -i 's/"gladys-common",/"gladys-common @ file:\/\/\/app\/common",/' pyproject.toml && \
+       pip install -e ./common && \
+       pip install -e .
+   ```
+
+**Services currently using gladys_common**:
+- `src/orchestrator/` (router.py, __main__.py)
+- `src/memory/python/` (grpc_server.py)
+
+### 2. Local Path Dependencies in pyproject.toml
+
+Files with `[tool.uv.sources]` sections that specify local paths:
+- `src/orchestrator/pyproject.toml` → `gladys-common = { path = "../common" }`
+- `src/memory/python/pyproject.toml` → `gladys-common = { path = "../../common" }`
+
+These paths work locally but NOT in Docker unless handled as shown above.
+
+### 3. Transitive Dependencies
+
+Some packages may not install all their transitive dependencies correctly. Known examples:
+- `huggingface-hub` and `sentence-transformers` require `requests` but it may not be auto-installed via uv
+- **Fix**: Add explicit dependency in pyproject.toml: `"requests>=2.28"`
+
+### 4. Verification After Changes
+
+After modifying Dockerfiles or dependencies:
+```bash
+# Rebuild with no cache to catch issues
+python scripts/docker.py build <service> --no-cache
+
+# Check packages in container
+docker run --rm --entrypoint pip <image> freeze | grep <package>
+
+# Run tests
+python scripts/docker.py test
+```
+
+---
+
 ## Common Mistakes to Avoid
 
 1. **Port confusion**: MemoryStorage is 50051, SalienceGateway is 50052. They're different!
 2. **Assuming keyword matching**: Heuristics use embedding similarity, not word overlap
 3. **source vs origin**: `source` is the event sensor, `origin` is how the heuristic was created
-4. **source_filter**: Filters by condition_text PREFIX, not by origin field
+4. **source_filter misuse**: Filters by condition_text PREFIX (e.g., "minecraft:..."), NOT by event.source
 5. **Stale stubs**: After editing `proto/*.proto`, run `python scripts/proto_gen.py` to regenerate
 6. **Docker ports**: Add 10 to local ports (50051 → 50061)
 7. **Missing trace IDs**: Always extract/propagate `x-gladys-trace-id` from gRPC metadata
+8. **Fire-and-forget tasks**: `asyncio.create_task()` without error handling silently drops exceptions
+9. **gRPC channel leaks**: Always close channels or use a managed client class
+10. **Async lock scope**: If using `asyncio.Lock`, protect ALL access points, not just some
+11. **Adding gladys_common import without Dockerfile update**: If you add `from gladys_common import ...` to a service, the Dockerfile MUST be updated (see Docker Build Requirements above)
+12. **Using local context for services with shared deps**: docker-compose.yml must use project root context (`../..`) for any service that depends on gladys_common
 
 ---
 
@@ -388,3 +628,4 @@ python scripts/local.py query "SELECT * FROM heuristics LIMIT 5"
 - `docs/adr/` - Architecture decisions
 - `docs/design/OPEN_QUESTIONS.md` - Active design discussions
 - `docs/design/LOGGING_STANDARD.md` - Logging and observability specification
+- `docs/design/REFACTORING_PLAN.md` - Code quality fixes and dashboard modularization
