@@ -9,6 +9,7 @@ Executive receives events with salience already attached.
 """
 
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -123,6 +124,7 @@ class EventRouter:
                 "response_text": "",
                 "predicted_success": 0.0,
                 "prediction_confidence": 0.0,
+                "queued": False,  # True if event was queued for async processing
             }
 
             # Step 4: Record heuristic fire (Flight Recorder)
@@ -141,6 +143,68 @@ class EventRouter:
             elif matched_heuristic_id:
                 logger.warning(f"Cannot record fire: memory_client is None (heuristic={matched_heuristic_id})")
 
+            # Step 5: Check for high-confidence heuristic shortcut (System 1 fast path)
+            # If matched heuristic has confidence >= threshold, return action immediately
+            # without calling LLM. This is the "learned response" path.
+            if matched_heuristic_id and self._memory_client:
+                heuristic = await self._memory_client.get_heuristic(matched_heuristic_id)
+                if heuristic:
+                    confidence = heuristic.get("confidence", 0.0)
+                    if confidence >= self.config.heuristic_confidence_threshold:
+                        # High-confidence heuristic - use cached action
+                        logger.info(
+                            f"HEURISTIC_SHORTCUT: event={event_id}, "
+                            f"heuristic={matched_heuristic_id}, confidence={confidence:.3f}"
+                        )
+
+                        # Extract action message from effects_json
+                        action_text = ""
+                        effects_json = heuristic.get("effects_json", "{}")
+                        try:
+                            action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
+                            # Try common action message fields
+                            action_text = (
+                                action.get("message") or
+                                action.get("text") or
+                                action.get("response") or
+                                ""
+                            )
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse effects_json for heuristic {matched_heuristic_id}")
+
+                        result["response_text"] = action_text
+                        result["prediction_confidence"] = confidence
+                        result["predicted_success"] = confidence  # Use confidence as prediction
+                        result["queued"] = False
+
+                        # Broadcast response to subscribers
+                        await self.broadcast_response({
+                            "event_id": event_id,
+                            "response_id": "",
+                            "response_text": action_text,
+                            "predicted_success": confidence,
+                            "prediction_confidence": confidence,
+                            "routing_path": "HEURISTIC",
+                            "matched_heuristic_id": matched_heuristic_id,
+                            "event_source": getattr(event, "source", ""),
+                            "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
+                            "response_timestamp_ms": int(time.time() * 1000),
+                        })
+
+                        # Register for outcome tracking
+                        if self._outcome_watcher:
+                            await self._outcome_watcher.register_fire(
+                                heuristic_id=matched_heuristic_id,
+                                event_id=event_id,
+                                predicted_success=confidence,
+                            )
+
+                        # Broadcast to event subscribers
+                        await self._broadcast_to_subscribers(event)
+
+                        return result
+
+            # Step 6: Route based on salience (no high-conf heuristic matched)
             if max_salience >= self.config.high_salience_threshold:
                 # HIGH salience → immediate to Executive
                 logger.debug(f"Event {event_id}: HIGH salience ({max_salience:.2f}) → immediate")

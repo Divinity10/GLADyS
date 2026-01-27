@@ -31,6 +31,11 @@ class OrchestratorConfig(BaseSettings):
     # Events with max salience dimension above this threshold go immediately to Executive
     high_salience_threshold: float = 0.7
 
+    # Heuristic confidence threshold for System 1 (fast path) responses
+    # If matched heuristic has confidence >= this threshold, return action immediately
+    # without calling LLM. Lower values = more aggressive use of learned responses.
+    heuristic_confidence_threshold: float = 0.7
+
     # Health check settings
     heartbeat_timeout_sec: int = 30
     health_check_interval_sec: int = 10
