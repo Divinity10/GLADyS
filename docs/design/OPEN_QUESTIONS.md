@@ -13,7 +13,7 @@
 | [Plugins & Skills](questions/plugins.md) | Sensors, actuators, skill design, integrations |
 | [Infrastructure](questions/infrastructure.md) | Deployment, latency profiles, operations |
 | [Data Types](questions/data-types.md) | Continuous vs discrete data |
-| [Cross-Cutting](questions/cross-cutting.md) | Audit, output routing, architectural gaps |
+| [Cross-Cutting](questions/cross-cutting.md) | Orchestrator/Executive boundary, output routing, audit, architectural gaps |
 
 ---
 
@@ -26,7 +26,7 @@
 | Plugins & Skills | 3 | 2 | 0 |
 | Infrastructure | 1 | 1 | 1 |
 | Data Types | 1 | 0 | 0 |
-| Cross-Cutting | 2 | 3 | 1 |
+| Cross-Cutting | 5 | 3 | 1 |
 
 ---
 

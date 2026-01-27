@@ -2,11 +2,265 @@
 
 Topics that span multiple subsystems: audit, output routing, integration, and architectural gaps.
 
-**Last updated**: 2026-01-25
+**Last updated**: 2026-01-26
 
 ---
 
 ## Open Questions
+
+### Q: Orchestrator vs Executive Responsibility Boundary (§30)
+
+**Status**: Design decision needed
+**Priority**: High (affects PoC architecture)
+**Created**: 2026-01-26
+
+#### Problem
+
+The current PoC has the Orchestrator deciding whether to use a heuristic or invoke Executive reasoning:
+
+```
+Current flow:
+Event → Salience (returns heuristic match) → Orchestrator decides:
+  - High confidence + high salience → execute heuristic, skip Executive
+  - Otherwise → send to Executive
+```
+
+**Issue**: The Orchestrator is making a *decision*, but decision-making is the Executive's domain. The Orchestrator should be a **dispatcher**, not a **decider**.
+
+#### Proposed: Executive Decides
+
+```
+Proposed flow:
+Event → Salience (returns heuristic match) → Orchestrator ALWAYS sends to Executive:
+  - event data
+  - salience evaluation
+  - matched heuristic (if any) + confidence
+
+Executive decides:
+  - High confidence heuristic? → use it, skip LLM
+  - Low confidence heuristic? → use LLM, maybe informed by heuristic
+  - No heuristic? → full reasoning
+  - Overloaded? → rate limit, use heuristic only, or drop low-priority
+  - Low urgency + low salience? → no response needed
+```
+
+#### Why Executive Should Decide
+
+The Executive has context the Orchestrator doesn't:
+
+| Context | Why It Matters |
+|---------|----------------|
+| **Current load** | Can decide to use heuristic-only when overloaded |
+| **Conversation state** | "We're in the middle of something" affects priority |
+| **Active goals** | Heuristic might conflict with current goal |
+| **User preferences** | Some users want more/less reasoning |
+| **Response history** | "I just said this" - avoid repetition |
+
+#### Separation of Concerns
+
+| Concern | Should Belong To |
+|---------|------------------|
+| "Is this urgent?" | Salience |
+| "Route to which subsystem?" | Orchestrator |
+| "Use heuristic or reason?" | **Executive** |
+| "What action to take?" | Executive |
+| "Which actuator/output?" | Executive (or Output Router) |
+
+#### Exception: Emergency Fast-Path
+
+For truly critical situations (safety alerts, threat detection), the Orchestrator may execute immediately and inform the Executive after:
+
+```
+if heuristic.confidence >= 0.95 AND salience.urgency == CRITICAL:
+    # Emergency fast-path: execute immediately, inform Executive after
+    execute(heuristic)
+    notify_executive(event, heuristic, "executed_fast_path")
+```
+
+This is more like a hardware interrupt than a decision.
+
+#### Executive Responses When Overloaded
+
+When the Executive is under load, it can respond with:
+
+1. **Rate limit signal** - Tell Orchestrator to slow down
+2. **Heuristic-only mode** - Accept heuristic without reasoning
+3. **No response needed** - Low urgency events can be dropped
+4. **Batch mode** - Accumulate and process together
+
+#### Impact on PoC
+
+Current PoC implementation in `router.py` would need to change:
+- Remove confidence threshold logic from Orchestrator
+- Always send to Executive with heuristic context attached
+- Add fast-path exception for critical urgency only
+
+#### Decision Needed
+
+1. Should we implement this change in the PoC?
+2. What threshold defines "critical urgency" for the fast-path?
+3. How does Executive signal rate limiting back to Orchestrator?
+
+---
+
+### Q: Orchestrator Coordination Model (§31)
+
+**Status**: Open - needs design
+**Priority**: High (affects scalability and reliability)
+**Created**: 2026-01-26
+
+#### Context
+
+The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Several related design questions need answers before the PoC becomes the product.
+
+#### Questions
+
+##### 31.1 Multi-Threading for Sensor Volume
+
+**Question**: Should the Orchestrator be multi-threaded to handle varying sensor volumes?
+
+**Current state**: Single-threaded asyncio event loop.
+
+**Options**:
+1. **Keep single-threaded asyncio** - Simpler, sufficient if we don't block
+2. **Thread pool for CPU-bound work** - Already have ThreadPoolExecutor for gRPC
+3. **Multiple event loops** - One per sensor category (high-volume vs low-volume)
+4. **External message queue** - Redis/RabbitMQ to decouple ingestion from processing
+
+**Consideration**: asyncio handles I/O concurrency well. The question is whether we have CPU-bound work that blocks the loop.
+
+##### 31.2 Communication System (Sync/Async/Queue)
+
+**Question**: What communication pattern between Orchestrator and Executive?
+
+**Current state**: Synchronous gRPC calls (Orchestrator waits for Executive response).
+
+**Options**:
+1. **Keep sync gRPC** - Simple, request-response semantics
+2. **Async gRPC with callbacks** - Non-blocking, but complex error handling
+3. **Message queue** - Decouple completely, Executive pulls work
+4. **Streaming gRPC** - Bidirectional stream for ongoing conversation
+
+**Consideration**: Sync is fine if Executive responds quickly. If LLM reasoning takes seconds, we block the Orchestrator event loop.
+
+##### 31.3 Simultaneous Subsystem Calls
+
+**Question**: Should Orchestrator send to multiple subsystems in parallel?
+
+**Current state**: Sequential calls (Salience → then route based on result).
+
+**Options**:
+1. **Keep sequential** - Simpler, Salience result informs routing
+2. **Parallel fan-out** - Send to Memory + Salience + Executive simultaneously
+3. **Speculative execution** - Start Executive while waiting for Salience, abort if not needed
+
+**Consideration**: Parallel improves latency but wastes resources if we don't need all results.
+
+##### 31.4 Action Routing to Actuators
+
+**Question**: How are Executive decisions routed to the correct actuator?
+
+**Current state**: Not implemented. Executive returns response text, no actuator integration.
+
+**Design needed**:
+- Does Executive specify actuator directly? ("turn on light in kitchen")
+- Or does a separate Action Router interpret intent?
+- How are actuator capabilities discovered?
+- What happens if actuator is unavailable?
+
+**Related**: ADR-0011 (Actuators) defines the actuator interface but not the routing.
+
+##### 31.5 Back-Pressure and Overload
+
+**Question**: What happens when sensors produce faster than we can process?
+
+**Current state**: Events pile up in asyncio queues. No back-pressure. Eventually OOM.
+
+**Options**:
+1. **Drop oldest** - Discard events that have been waiting too long
+2. **Drop lowest priority** - Keep urgent, discard background
+3. **Sample** - Process 1 in N events during overload
+4. **Signal back-pressure** - Tell sensors to slow down
+5. **Batch aggressively** - Combine multiple events into one
+
+**Consideration**: Need different strategies for different event types. Safety events should never be dropped.
+
+---
+
+### Q: PoC Validation Scope (§32)
+
+**Status**: Open - needs definition
+**Priority**: High (guides all implementation decisions)
+**Created**: 2026-01-26
+
+#### Context
+
+The PoC will eventually morph into the product. We need clarity on what the PoC must prove and in what sequence, to avoid both over-engineering and under-engineering.
+
+#### Questions
+
+##### 32.1 What Do We Need to Prove?
+
+Core hypotheses to validate:
+
+| Hypothesis | What Would Prove It |
+|------------|---------------------|
+| Heuristics can replace LLM reasoning | Same quality response, <100ms vs >1s |
+| TD learning improves heuristics | Confidence correlates with outcome accuracy |
+| Salience reduces noise | Fewer irrelevant events reach Executive |
+| Semantic matching works | Similar situations match similar heuristics |
+| Multi-sensor integration | Events from different sensors combine coherently |
+
+##### 32.2 Sequence of Proof
+
+What order should we validate hypotheses?
+
+**Proposed**:
+1. **Single sensor → heuristic → response** (current PoC scope)
+2. **Feedback → confidence update** (partially implemented)
+3. **Heuristic creation from reasoning** (not implemented)
+4. **Multi-sensor fusion** (not implemented)
+5. **Actuator integration** (not implemented)
+
+##### 32.3 How Do We Measure Success?
+
+| Metric | Target | How to Measure |
+|--------|--------|----------------|
+| Heuristic hit rate | >50% of events | Dashboard counter |
+| Response latency (heuristic) | <100ms p95 | Prometheus histogram |
+| Response latency (reasoning) | <3s p95 | Prometheus histogram |
+| Confidence accuracy | Confidence correlates with thumbs up/down | Statistical analysis |
+| False positive rate | <10% irrelevant responses | User feedback |
+
+##### 32.4 How Do We Fine-Tune?
+
+What knobs exist for tuning system behavior?
+
+| Parameter | Current | Tunable? |
+|-----------|---------|----------|
+| Similarity threshold | 0.7 | Yes (per-heuristic) |
+| Learning rate | 0.1 | Yes (per-heuristic) |
+| Moment window | 100ms | Yes (config) |
+| High salience threshold | 0.7 | Yes (config) |
+| Outcome wait time | 60s | Yes (config) |
+
+##### 32.5 How/When Do We Benchmark?
+
+**Questions**:
+- What load should we test? (events/second)
+- What's the baseline to compare against?
+- When do we run benchmarks? (CI? Manual?)
+- What hardware assumptions?
+
+##### 32.6 Testing Strategy
+
+**Questions** (also in §14.8):
+- How do you regression test a learning system?
+- What's deterministic vs non-deterministic?
+- Simulation environments for sensors?
+- How to prevent learned behavior drift?
+
+---
 
 ### Q: Cross-Cutting Integration Questions (§12)
 
