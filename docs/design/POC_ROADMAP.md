@@ -113,6 +113,8 @@ These scenarios guide what we build. Each exposes layers that must work.
 
 ### Scenario 4: Learning Loop (Original PoC Focus)
 
+**Design details**: See [LEARNING_LOOP_DESIGN.md](LEARNING_LOOP_DESIGN.md) for architecture and milestones.
+
 **Flow**: Event → LLM Reasoning → Feedback → Heuristic → Skip LLM next time
 
 **Why this scenario matters**:
@@ -133,6 +135,8 @@ These scenarios guide what we build. Each exposes layers that must work.
 ---
 
 ### Scenario 5: "The Second Time is Faster" (Learning Experience)
+
+**Design details**: See [LEARNING_LOOP_DESIGN.md](LEARNING_LOOP_DESIGN.md) — this scenario validates Milestone 1.
 
 **User experience**:
 
