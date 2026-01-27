@@ -876,27 +876,27 @@ def render_recent_events(time_filter_clause, params):
 
 def render_heuristics():
     st.subheader("Learned Knowledge Base (Heuristics)")
-    
+
     query = """
-        SELECT 
-            name, 
-            condition, 
-            confidence, 
-            fire_count, 
-            success_count, 
-            origin, 
+        SELECT
+            id,
+            name,
+            condition,
+            confidence,
+            fire_count,
+            success_count,
+            origin,
             frozen
-        FROM heuristics 
+        FROM heuristics
         ORDER BY confidence DESC
     """
     df = fetch_data(query)
-    
+
     if df.empty:
         st.info("No heuristics learned yet.")
         return
 
     # Helper to stringify JSON for display
-    # Check if condition is dict or string
     def format_cond(val):
         if isinstance(val, dict):
             return json.dumps(val)
@@ -904,16 +904,13 @@ def render_heuristics():
 
     df['condition'] = df['condition'].apply(format_cond)
 
-    # Style confidence
-    def highlight_confidence(val):
-        color = 'red' if val < 0.3 else 'orange' if val < 0.7 else 'green'
-        return f'color: {color}; font-weight: bold'
-
-    st.dataframe(
-        df.style.map(highlight_confidence, subset=['confidence']),
+    # Show dataframe with row selection
+    event = st.dataframe(
+        df,
         column_config={
+            "id": None,  # Hide ID column
             "name": "Rule Name",
-            "condition": "Condition Pattern",
+            "condition": st.column_config.TextColumn("Condition Pattern", width="large"),
             "confidence": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1, format="%.2f"),
             "fire_count": "Fired",
             "success_count": "Succeeded",
@@ -921,8 +918,38 @@ def render_heuristics():
             "frozen": "Frozen"
         },
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        selection_mode="single-row",
+        on_select="rerun",
+        key="heuristics_table"
     )
+
+    # Handle selection and delete
+    if event and event.selection and event.selection.rows:
+        selected_idx = event.selection.rows[0]
+        selected_row = df.iloc[selected_idx]
+        selected_id = selected_row['id']
+        selected_name = selected_row['name']
+
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info(f"Selected: **{selected_name}**")
+        with col2:
+            if st.button("🗑️ Delete", type="secondary", use_container_width=True):
+                try:
+                    conf = get_current_config()
+                    conn = get_db_connection(DB_HOST, conf["DB_PORT"], DB_NAME, DB_USER, DB_PASS)
+                    if conn:
+                        cur = conn.cursor()
+                        cur.execute("DELETE FROM heuristics WHERE id = %s", (str(selected_id),))
+                        conn.commit()
+                        cur.close()
+                        st.success(f"Deleted: {selected_name}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to connect to database")
+                except Exception as e:
+                    st.error(f"Delete failed: {e}")
 
 # --- Cache Inspector ---
 
@@ -937,7 +964,7 @@ def render_cache_tab():
         stats_resp = stub.GetCacheStats(memory_pb2.GetCacheStatsRequest(), timeout=5)
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Cache Size", f"{stats_resp.size} / {stats_resp.capacity}")
+        col1.metric("Cache Size", f"{stats_resp.current_size} / {stats_resp.max_capacity}")
         col2.metric("Hit Rate", f"{stats_resp.hit_rate:.1%}")
         col3.metric("Total Hits", stats_resp.total_hits)
         col4.metric("Total Misses", stats_resp.total_misses)
@@ -960,14 +987,16 @@ def render_cache_tab():
         list_resp = stub.ListCachedHeuristics(memory_pb2.ListCachedHeuristicsRequest(), timeout=5)
 
         if list_resp.heuristics:
+            import time
+            now = int(time.time())
             cache_data = []
             for h in list_resp.heuristics:
+                last_hit_ago = f"{now - h.last_hit_unix}s ago" if h.last_hit_unix > 0 else "-"
                 cache_data.append({
-                    "ID": h.id[:8] if h.id else "-",
+                    "ID": h.heuristic_id[:8] if h.heuristic_id else "-",
                     "Name": h.name or "-",
                     "Hits": h.hit_count,
-                    "Last Hit": f"{h.last_hit_ms // 1000}s ago" if h.last_hit_ms > 0 else "-",
-                    "Confidence": f"{h.confidence:.2f}" if h.confidence else "-",
+                    "Last Hit": last_hit_ago,
                 })
             st.dataframe(cache_data, use_container_width=True, hide_index=True)
         else:
@@ -1004,7 +1033,7 @@ def render_flight_recorder():
         SELECT
             hf.fired_at,
             h.name as heuristic_name,
-            hf.event_text,
+            hf.event_id,
             hf.outcome,
             hf.feedback_source,
             hf.heuristic_id
@@ -1026,7 +1055,7 @@ def render_flight_recorder():
         column_config={
             "fired_at": st.column_config.DatetimeColumn("Time", format="HH:mm:ss"),
             "heuristic_name": "Heuristic",
-            "event_text": st.column_config.TextColumn("Event", width="large"),
+            "event_id": st.column_config.TextColumn("Event ID", width="medium"),
             "outcome": "Outcome",
             "feedback_source": "Feedback Source",
             "heuristic_id": None,  # Hide
