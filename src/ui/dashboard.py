@@ -255,194 +255,197 @@ def fetch_data(query, params=None):
 # --- Components ---
 
 def render_sidebar():
-    st.sidebar.title("GLADyS Control")
-    
-    # Environment Switcher
-    st.sidebar.subheader("Environment")
+    """Minimal sidebar: environment, service health, controls."""
+    st.sidebar.title("GLADyS")
+
+    # Initialize session state
+    if "confirm_stop_all" not in st.session_state:
+        st.session_state.confirm_stop_all = False
+    if "last_cmd_output" not in st.session_state:
+        st.session_state.last_cmd_output = ""
+    if "time_range" not in st.session_state:
+        st.session_state.time_range = "All Time"
+
+    # Environment Switcher (no "Mode" label)
     env_mode = st.sidebar.radio(
-        "Mode", 
-        ["Docker", "Local"], 
+        "Environment",
+        ["Docker", "Local"],
         index=0 if st.session_state.env_mode == "Docker" else 1,
-        horizontal=True
+        horizontal=True,
+        label_visibility="collapsed"
     )
-    
-    # If mode changed, update state and clear cache
+
     if env_mode != st.session_state.env_mode:
         close_all_channels()
         st.session_state.env_mode = env_mode
         st.cache_resource.clear()
         st.rerun()
 
-    current_conf = get_current_config()
-    st.sidebar.caption(f"Orchestrator: {current_conf['ORCHESTRATOR_ADDR']}")
-    st.sidebar.caption(f"DB Port: {current_conf['DB_PORT']}")
-
-    if st.sidebar.button("🔄 Refresh Dashboard"):
+    # Refresh button
+    if st.sidebar.button("🔄 Refresh", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-    
-    auto_refresh = st.sidebar.toggle("Auto-refresh (2s)", value=False)
-    if auto_refresh:
-        time.sleep(2)
-        st.rerun()
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Filters")
-    time_range = st.sidebar.selectbox(
-        "Time Range",
-        ["Last Hour", "Last 24 Hours", "All Time"],
-        index=2 # Default to All Time to avoid timezone confusion
-    )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Testing Tools")
-    if st.sidebar.button("🗑️ Clear Local History"):
-        st.session_state.response_history = []
-        st.rerun()
-        
-    if st.sidebar.button("🚽 Flush Accumulator"):
-        try:
-            orch_stub = get_orchestrator_stub()
-            resp = orch_stub.FlushMoment(orchestrator_pb2.FlushMomentRequest(reason="Manual flush from UI"))
-            if resp.moment_sent:
-                st.sidebar.success(f"Flushed {resp.events_flushed} events")
-            else:
-                st.sidebar.info("Accumulator empty")
-        except Exception as e:
-            st.sidebar.error(f"Flush failed: {e}")
 
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("Service Health")
+    # Compact Service Health (one line per service)
+    st.sidebar.caption("**Services**")
 
-    # gRPC health checks for all services
     services = [
-        ("memory-python", get_memory_stub, "MemoryStorage"),
-        ("memory-rust", get_salience_stub, "SalienceGateway"),
-        ("orchestrator", get_orchestrator_stub, "Orchestrator"),
-        ("executive", get_executive_stub, "Executive"),
+        ("memory-py", "memory-python", get_memory_stub),
+        ("memory-rs", "memory-rust", get_salience_stub),
+        ("orchestrator", "orchestrator", get_orchestrator_stub),
+        ("executive", "executive", get_executive_stub),
     ]
 
-    for name, stub_fn, svc_type in services:
+    # Build status and track selected service
+    if "selected_service" not in st.session_state:
+        st.session_state.selected_service = "all"
+
+    service_statuses = {}
+    for display_name, cmd_name, stub_fn in services:
+        status_icon = "⚫"
         try:
             stub = stub_fn()
             resp = stub.GetHealth(types_pb2.GetHealthRequest(), timeout=2)
             if resp.status == types_pb2.HEALTH_STATUS_HEALTHY:
-                st.sidebar.success(f"{name}: HEALTHY")
+                status_icon = "🟢"
             elif resp.status == types_pb2.HEALTH_STATUS_DEGRADED:
-                st.sidebar.warning(f"{name}: DEGRADED")
+                status_icon = "🟡"
             else:
-                st.sidebar.error(f"{name}: UNHEALTHY")
+                status_icon = "🔴"
         except Exception:
-            st.sidebar.error(f"{name}: UNREACHABLE")
+            status_icon = "⚫"
+        service_statuses[cmd_name] = status_icon
 
-    # Database connection
+    # Check database
+    current_conf = get_current_config()
     try:
-        conn = get_db_connection(
-            DB_HOST,
-            current_conf["DB_PORT"],
-            DB_NAME,
-            DB_USER,
-            DB_PASS
-        )
-        if conn:
-            st.sidebar.success(f"database: Connected")
+        conn = get_db_connection(DB_HOST, current_conf["DB_PORT"], DB_NAME, DB_USER, DB_PASS)
+        db_icon = "🟢" if conn else "🔴"
     except:
-        st.sidebar.error("database: Disconnected")
+        db_icon = "⚫"
 
-    # --- Service Controls ---
+    # Service selection with radio buttons (compact)
+    service_options = ["all"] + [s[1] for s in services]
+    service_labels = {
+        "all": "All Services",
+        "memory-python": f"{service_statuses['memory-python']} memory-py",
+        "memory-rust": f"{service_statuses['memory-rust']} memory-rs",
+        "orchestrator": f"{service_statuses['orchestrator']} orchestrator",
+        "executive": f"{service_statuses['executive']} executive",
+    }
+
+    selected = st.sidebar.radio(
+        "Select service",
+        service_options,
+        format_func=lambda x: service_labels.get(x, x),
+        label_visibility="collapsed",
+        key="svc_radio"
+    )
+    st.session_state.selected_service = selected
+
+    # Database status (not selectable for actions)
+    st.sidebar.caption(f"{db_icon} database")
+
+    # Action buttons (vertical layout)
     st.sidebar.markdown("---")
-    with st.sidebar.expander("Service Controls", expanded=False):
-        st.caption(f"Managing {st.session_state.env_mode} services")
 
-        # Initialize confirmation states
-        if "confirm_stop_all" not in st.session_state:
-            st.session_state.confirm_stop_all = False
-        if "confirm_clean_db" not in st.session_state:
-            st.session_state.confirm_clean_db = False
-        if "last_cmd_output" not in st.session_state:
-            st.session_state.last_cmd_output = ""
+    target = st.session_state.selected_service
 
-        # Service selector
-        service_target = st.selectbox(
-            "Target",
-            ["all", "memory-python", "memory-rust", "orchestrator", "executive-stub"],
-            key="svc_target"
-        )
+    if st.sidebar.button("▶️ Start", key="btn_start", use_container_width=True):
+        with st.spinner(f"Starting {target}..."):
+            success, output = run_service_command("start", target)
+        st.session_state.last_cmd_output = output
+        st.toast(f"Started {target}" if success else "Start failed", icon="✅" if success else "❌")
+        st.rerun()
 
-        col1, col2 = st.columns(2)
+    if st.sidebar.button("🔄 Restart", key="btn_restart", use_container_width=True):
+        with st.spinner(f"Restarting {target}..."):
+            success, output = run_service_command("restart", target)
+        st.session_state.last_cmd_output = output
+        st.toast(f"Restarted {target}" if success else "Restart failed", icon="✅" if success else "❌")
+        st.rerun()
 
-        # Restart - no confirmation needed
-        if col1.button("🔄 Restart", use_container_width=True):
-            with st.spinner(f"Restarting {service_target}..."):
-                success, output = run_service_command("restart", service_target)
-            if success:
-                st.success(f"Restarted {service_target}")
-            else:
-                st.error(f"Failed to restart")
-            st.session_state.last_cmd_output = output
-            st.rerun()
-
-        # Start - no confirmation needed
-        if col2.button("▶️ Start", use_container_width=True):
-            with st.spinner(f"Starting {service_target}..."):
-                success, output = run_service_command("start", service_target)
-            if success:
-                st.success(f"Started {service_target}")
-            else:
-                st.error(f"Failed to start")
-            st.session_state.last_cmd_output = output
-            st.rerun()
-
-        # Stop - soft warning for individual, confirm for all
-        if service_target == "all":
-            # Two-step confirmation for stop all
-            if not st.session_state.confirm_stop_all:
-                if st.button("⏹️ Stop All", use_container_width=True, type="secondary"):
-                    st.session_state.confirm_stop_all = True
-                    st.rerun()
-            else:
-                st.warning("Stop ALL services?")
-                c1, c2 = st.columns(2)
-                if c1.button("Yes, Stop", type="primary"):
-                    with st.spinner("Stopping all services..."):
-                        success, output = run_service_command("stop", "all")
-                    st.session_state.confirm_stop_all = False
-                    st.session_state.last_cmd_output = output
-                    if success:
-                        st.success("All services stopped")
-                    else:
-                        st.error("Failed to stop services")
-                    st.rerun()
-                if c2.button("Cancel"):
-                    st.session_state.confirm_stop_all = False
-                    st.rerun()
-        else:
-            # Single service stop - just a warning banner
-            if st.button(f"⏹️ Stop {service_target}", use_container_width=True, type="secondary"):
-                with st.spinner(f"Stopping {service_target}..."):
-                    success, output = run_service_command("stop", service_target)
-                st.session_state.last_cmd_output = output
-                if success:
-                    st.success(f"Stopped {service_target}")
-                else:
-                    st.error(f"Failed to stop")
+    # Stop with confirmation for "all"
+    if target == "all":
+        if not st.session_state.confirm_stop_all:
+            if st.sidebar.button("🟥 Stop", key="btn_stop", use_container_width=True):
+                st.session_state.confirm_stop_all = True
                 st.rerun()
+        else:
+            st.sidebar.warning("Stop ALL?")
+            c1, c2 = st.sidebar.columns(2)
+            if c1.button("Yes", key="confirm_stop"):
+                with st.spinner("Stopping..."):
+                    success, output = run_service_command("stop", "all")
+                st.session_state.confirm_stop_all = False
+                st.session_state.last_cmd_output = output
+                st.toast("Stopped all" if success else "Failed", icon="✅" if success else "❌")
+                st.rerun()
+            if c2.button("No", key="cancel_stop"):
+                st.session_state.confirm_stop_all = False
+                st.rerun()
+    else:
+        if st.sidebar.button("🟥 Stop", key="btn_stop", use_container_width=True):
+            with st.spinner(f"Stopping {target}..."):
+                success, output = run_service_command("stop", target)
+            st.session_state.last_cmd_output = output
+            st.toast(f"Stopped {target}" if success else "Failed", icon="✅" if success else "❌")
+            st.rerun()
+
+    return st.session_state.time_range
+
+
+def render_settings_tab():
+    """Settings & Diagnostics tab - moved from sidebar."""
+    st.header("⚙️ Settings & Diagnostics")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Filters")
+        time_range = st.selectbox(
+            "Time Range",
+            ["Last Hour", "Last 24 Hours", "All Time"],
+            index=["Last Hour", "Last 24 Hours", "All Time"].index(st.session_state.time_range),
+            key="time_range_select"
+        )
+        if time_range != st.session_state.time_range:
+            st.session_state.time_range = time_range
+            st.rerun()
 
         st.markdown("---")
-        st.caption("Database Operations")
+        st.subheader("Testing Tools")
+        if st.button("🗑️ Clear Local History", use_container_width=True):
+            st.session_state.response_history = []
+            st.toast("History cleared", icon="✅")
+            st.rerun()
 
-        # Migrate - no confirmation
+        if st.button("🚽 Flush Accumulator", use_container_width=True):
+            try:
+                orch_stub = get_orchestrator_stub()
+                resp = orch_stub.FlushMoment(orchestrator_pb2.FlushMomentRequest(reason="Manual flush from UI"))
+                if resp.moment_sent:
+                    st.success(f"Flushed {resp.events_flushed} events")
+                else:
+                    st.info("Accumulator empty")
+            except Exception as e:
+                st.error(f"Flush failed: {e}")
+
+    with col2:
+        st.subheader("Database Operations")
+
+        # Initialize confirmation state
+        if "confirm_clean_db" not in st.session_state:
+            st.session_state.confirm_clean_db = False
+
         if st.button("📦 Run Migrations", use_container_width=True):
             with st.spinner("Running migrations..."):
                 success, output = run_service_command("migrate")
             st.session_state.last_cmd_output = output
-            if success:
-                st.success("Migrations complete")
-            else:
-                st.error("Migration failed")
-            st.rerun()
+            st.toast("Migrations complete" if success else "Migration failed", icon="✅" if success else "❌")
 
-        # Clean DB - requires confirmation
         clean_target = st.selectbox(
             "Clean target",
             ["heuristics", "events", "all"],
@@ -456,26 +459,36 @@ def render_sidebar():
         else:
             st.error(f"DELETE all {clean_target} data?")
             c1, c2 = st.columns(2)
-            if c1.button("Yes, Delete", type="primary"):
+            if c1.button("Yes, Delete", type="primary", key="confirm_delete"):
                 with st.spinner(f"Cleaning {clean_target}..."):
                     success, output = run_service_command("clean", clean_target)
                 st.session_state.confirm_clean_db = False
                 st.session_state.last_cmd_output = output
-                if success:
-                    st.success(f"Cleaned {clean_target}")
-                else:
-                    st.error("Clean failed")
+                st.toast(f"Cleaned {clean_target}" if success else "Clean failed", icon="✅" if success else "❌")
                 st.rerun()
             if c2.button("Cancel", key="cancel_clean"):
                 st.session_state.confirm_clean_db = False
                 st.rerun()
 
-        # Show last command output (collapsed)
-        if st.session_state.last_cmd_output:
-            with st.expander("Last command output", expanded=False):
-                st.code(st.session_state.last_cmd_output, language="text")
+        st.markdown("---")
+        st.subheader("Connection Info")
+        current_conf = get_current_config()
+        conn_data = [
+            {"Service": "Orchestrator", "Address": current_conf["ORCHESTRATOR_ADDR"]},
+            {"Service": "Memory (Python)", "Address": current_conf["MEMORY_ADDR"]},
+            {"Service": "Salience (Rust)", "Address": current_conf["SALIENCE_ADDR"]},
+            {"Service": "Executive", "Address": current_conf["EXECUTIVE_ADDR"]},
+            {"Service": "Database", "Address": f"localhost:{current_conf['DB_PORT']}"},
+        ]
+        st.dataframe(conn_data, use_container_width=True, hide_index=True)
 
-    return time_range
+    # Command output log
+    st.markdown("---")
+    st.subheader("Command Log")
+    if st.session_state.last_cmd_output:
+        st.code(st.session_state.last_cmd_output, language="text")
+    else:
+        st.caption("No commands executed yet.")
 
 def render_stats_summary(time_filter_clause, params):
     # Queries
@@ -676,8 +689,9 @@ def render_event_simulator():
                 send_feedback(st.session_state.last_event_id, st.session_state.last_response_id, False)
             
             # Show prediction if available
-            if st.session_state.get("last_pred_success", 0) > 0:
-                st.progress(st.session_state.last_pred_success, text=f"Pred. Success: {st.session_state.last_pred_success:.2f}")
+            pred_val = st.session_state.get("last_pred_success", 0)
+            if pred_val and not pd.isna(pred_val) and 0 <= pred_val <= 1:
+                st.progress(pred_val, text=f"Pred. Success: {pred_val:.2f}")
 
 def send_feedback(event_id, response_id, positive):
     try:
@@ -787,91 +801,117 @@ def render_response_history():
     st.table(history_data)
 
 def render_recent_events(time_filter_clause, params):
-    st.subheader("Recent System Activity (DB)")
-    st.caption("Select a row to inspect cognitive details.")
-    
+    st.subheader("Recent System Activity")
+
     query = f"""
-        SELECT 
+        SELECT
             id,
-            timestamp, 
-            source, 
-            raw_text, 
+            timestamp,
+            source,
+            raw_text,
             salience,
-            predicted_success, 
-            prediction_confidence, 
+            predicted_success,
+            prediction_confidence,
             response_id
-        FROM episodic_events 
+        FROM episodic_events
         WHERE archived = false {time_filter_clause}
-        ORDER BY timestamp DESC 
-        LIMIT 15
+        ORDER BY timestamp DESC
+        LIMIT 20
     """
     df = fetch_data(query, params)
-    
+
     if df.empty:
         st.info("No events found in database.")
         return
 
-    # Use selection mode to allow deep dive
-    event_selection = st.dataframe(
-        df,
-        column_config={
-            "id": None, # Hide
-            "salience": None, # Hide
-            "timestamp": st.column_config.DatetimeColumn("Time", format="HH:mm:ss"),
-            "source": "Source",
-            "raw_text": st.column_config.TextColumn("Event", width="large"),
-            "predicted_success": st.column_config.ProgressColumn("Pred. Success", min_value=0, max_value=1, format="%.2f"),
-            "prediction_confidence": st.column_config.NumberColumn("Pred. Conf", format="%.2f"),
-            "response_id": "LLM ID"
-        },
-        use_container_width=True,
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row"
-    )
+    # Initialize expanded rows state
+    if "expanded_events" not in st.session_state:
+        st.session_state.expanded_events = set()
 
-    # Render Detail View if a row is selected
-    if event_selection and event_selection.get("selection", {}).get("rows"):
-        selected_idx = event_selection["selection"]["rows"][0]
-        row = df.iloc[selected_idx]
-        
-        st.markdown("---")
-        st.subheader(f"🔬 Event Analysis: `{row['id'][:8]}`")
-        
-        c1, c2 = st.columns([2, 1])
-        
-        with c1:
-            st.write("**Full Event Text**")
-            st.info(row['raw_text'])
-            
-            # Salience Breakdown
-            st.write("**Cognitive Load (Salience)**")
+    # Column header row
+    h0, h1, h2, h3, h4 = st.columns([0.5, 1.2, 1.5, 5.5, 0.8])
+    h0.caption("")
+    h1.caption("**Time**")
+    h2.caption("**Source**")
+    h3.caption("**Event**")
+    h4.caption("**Path**")
+
+    # Render each row with expandable details
+    for idx, row in df.iterrows():
+        event_id = str(row['id'])
+        is_expanded = event_id in st.session_state.expanded_events
+
+        # Format display values
+        time_str = row['timestamp'].strftime("%H:%M:%S") if hasattr(row['timestamp'], 'strftime') else str(row['timestamp'])[:8]
+        preview = row['raw_text'][:70] + "..." if len(row['raw_text']) > 70 else row['raw_text']
+        path_icon = "🧠" if row['response_id'] else "⚡"
+        source_str = (row['source'][:10] if row['source'] else "-")
+        toggle_label = "➖" if is_expanded else "➕"
+
+        # Main row with columns
+        c0, c1, c2, c3, c4 = st.columns([0.5, 1.2, 1.5, 5.5, 0.8])
+        if c0.button(toggle_label, key=f"toggle_{event_id}", help="Expand/collapse"):
+            if is_expanded:
+                st.session_state.expanded_events.discard(event_id)
+            else:
+                st.session_state.expanded_events.add(event_id)
+            st.rerun()
+
+        c1.write(time_str)
+        c2.write(source_str)
+        c3.write(preview)
+        c4.write(path_icon)
+
+        # Expanded detail row (columnar layout with subtle background)
+        if is_expanded:
+            # Parse salience
             sal = row['salience']
             if isinstance(sal, str):
-                try: sal = json.loads(sal)
-                except: sal = {}
-            
-            if sal:
-                sc1, sc2, sc3 = st.columns(3)
-                sc1.metric("Threat", f"{sal.get('threat', 0.0):.2f}")
-                sc2.metric("Opportunity", f"{sal.get('opportunity', 0.0):.2f}")
-                sc3.metric("Novelty", f"{sal.get('novelty', 0.0):.2f}")
-            else:
-                st.caption("No salience data recorded for this event.")
+                try:
+                    sal = json.loads(sal)
+                except:
+                    sal = {}
 
-        with c2:
-            st.write("**Outcome Prediction**")
-            if row['predicted_success'] is not None:
-                st.progress(row['predicted_success'], text=f"Success: {row['predicted_success']:.2f}")
-                st.caption(f"Confidence: {row['prediction_confidence']:.2f}")
-            else:
-                st.caption("No prediction available (System 1/Fast Path).")
-            
-            st.write("**Attribution**")
-            if row['response_id']:
-                st.code(f"Resp: {row['response_id']}", language="text")
-            else:
-                st.caption("Direct heuristic match.")
+            # Build metadata values
+            threat_val = f"{sal.get('threat', 0):.2f}" if sal else "-"
+            opp_val = f"{sal.get('opportunity', 0):.2f}" if sal else "-"
+            nov_val = f"{sal.get('novelty', 0):.2f}" if sal else "-"
+
+            pred_val = row['predicted_success']
+            pred_str = f"{pred_val:.2f}" if pred_val is not None and not pd.isna(pred_val) and 0 <= pred_val <= 1 else "-"
+
+            path_str = f"LLM: {row['response_id'][:8]}" if row['response_id'] else "Heuristic"
+
+            # Escape HTML in raw_text
+            raw_escaped = row['raw_text'].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br/>")
+
+            # Render as styled HTML table with dark background for contrast
+            st.markdown(f"""
+            <div style="background: #262730; padding: 8px 12px; margin: 4px 0 8px 0; border-radius: 4px; border-left: 3px solid #4a90d9;">
+                <div style="margin-bottom: 8px; font-family: monospace; white-space: pre-wrap; color: #fafafa;">{raw_escaped}</div>
+                <table style="width: 100%; font-size: 0.9em; color: #fafafa;">
+                    <tr style="color: #a0a0a0; font-weight: bold;">
+                        <td>Event ID</td>
+                        <td>Threat</td>
+                        <td>Opportunity</td>
+                        <td>Novelty</td>
+                        <td>Pred. Success</td>
+                        <td>Response Path</td>
+                    </tr>
+                    <tr>
+                        <td><code style="color: #79c0ff;">{event_id[:8]}</code></td>
+                        <td>{threat_val}</td>
+                        <td>{opp_val}</td>
+                        <td>{nov_val}</td>
+                        <td>{pred_str}</td>
+                        <td>{path_str}</td>
+                    </tr>
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Row separator
+        st.divider()
 
 
 def render_heuristics():
@@ -904,7 +944,7 @@ def render_heuristics():
 
     df['condition'] = df['condition'].apply(format_cond)
 
-    # Show dataframe with row selection
+    # Show dataframe with multi-row selection for bulk operations
     event = st.dataframe(
         df,
         column_config={
@@ -919,32 +959,45 @@ def render_heuristics():
         },
         use_container_width=True,
         hide_index=True,
-        selection_mode="single-row",
+        selection_mode="multi-row",
         on_select="rerun",
         key="heuristics_table"
     )
 
-    # Handle selection and delete
+    # Handle selection and delete (supports multi-select)
     if event and event.selection and event.selection.rows:
-        selected_idx = event.selection.rows[0]
-        selected_row = df.iloc[selected_idx]
-        selected_id = selected_row['id']
-        selected_name = selected_row['name']
+        selected_indices = event.selection.rows
+        selected_rows = df.iloc[selected_indices]
+        selected_count = len(selected_indices)
 
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.info(f"Selected: **{selected_name}**")
+            if selected_count == 1:
+                st.info(f"Selected: **{selected_rows.iloc[0]['name']}**")
+            else:
+                names = ", ".join(selected_rows['name'].head(3).tolist())
+                if selected_count > 3:
+                    names += f" (+{selected_count - 3} more)"
+                st.info(f"Selected {selected_count} heuristics: **{names}**")
         with col2:
-            if st.button("🗑️ Delete", type="secondary", use_container_width=True):
+            btn_label = f"🗑️ Delete ({selected_count})" if selected_count > 1 else "🗑️ Delete"
+            if st.button(btn_label, type="secondary", use_container_width=True):
                 try:
                     conf = get_current_config()
                     conn = get_db_connection(DB_HOST, conf["DB_PORT"], DB_NAME, DB_USER, DB_PASS)
                     if conn:
                         cur = conn.cursor()
-                        cur.execute("DELETE FROM heuristics WHERE id = %s", (str(selected_id),))
+                        ids_to_delete = [str(row['id']) for _, row in selected_rows.iterrows()]
+                        cur.execute(
+                            "DELETE FROM heuristics WHERE id = ANY(%s::uuid[])",
+                            (ids_to_delete,)
+                        )
                         conn.commit()
                         cur.close()
-                        st.success(f"Deleted: {selected_name}")
+                        if selected_count == 1:
+                            st.success(f"Deleted: {selected_rows.iloc[0]['name']}")
+                        else:
+                            st.success(f"Deleted {selected_count} heuristics")
                         st.rerun()
                     else:
                         st.error("Failed to connect to database")
@@ -1085,21 +1138,24 @@ def main():
     render_stats_summary(time_filter, params)
     st.markdown("---")
 
-    tab_lab, tab_events, tab_cache, tab_recorder = st.tabs([
+    tab_lab, tab_memory, tab_events, tab_cache, tab_recorder, tab_settings = st.tabs([
         "🔬 Laboratory",
+        "🧠 Memory",
         "📜 Event Log",
         "💾 Cache",
-        "🎯 Flight Recorder"
+        "🎯 Flight Recorder",
+        "⚙️ Settings"
     ])
 
     with tab_lab:
-        col_l, col_r = st.columns([2, 1])
-        with col_l:
-            render_event_simulator()
-            st.markdown("---")
-            render_response_history()
-        with col_r:
-            render_memory_console()
+        render_event_simulator()
+        st.markdown("---")
+        render_response_history()
+        st.markdown("---")
+        render_heuristics()
+
+    with tab_memory:
+        render_memory_console()
 
     with tab_events:
         render_recent_events(time_filter, params)
@@ -1110,8 +1166,8 @@ def main():
     with tab_recorder:
         render_flight_recorder()
 
-    st.markdown("---")
-    render_heuristics()
+    with tab_settings:
+        render_settings_tab()
 
 if __name__ == "__main__":
     main()
