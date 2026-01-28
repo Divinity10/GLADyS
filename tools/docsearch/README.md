@@ -19,16 +19,16 @@ docsearch memory
 
 ```bash
 # Search for topics (Union)
-docsearch memory learning
+python tools/docsearch/docsearch.py "memory" "learning"
 
 # Search for Intersection (AND)
-docsearch bayesian personality --and
+python tools/docsearch/docsearch.py "bayesian" "personality" --and
 
 # Exclude topics
-docsearch learning --exclude personality
+python tools/docsearch/docsearch.py "learning" --exclude personality
 
 # Pack session memory
-docsearch --memory-only
+python tools/docsearch/docsearch.py --memory-only
 ```
 
 ## How it Works

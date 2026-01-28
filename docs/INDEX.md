@@ -45,10 +45,10 @@
 | :--- | :--- | :--- |
 | **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
-| **Code** | `scripts/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |
+| **Code** | `scripts/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |   
 | **Code** | `scripts/_queue_client.py` | Queue management gRPC client for CLI. |
+| **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
 | **Test** | `src/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
-
 ## 🎭 Executive & Personality
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
 
