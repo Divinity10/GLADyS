@@ -212,10 +212,8 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             h = request.heuristic
 
             # Build condition dict from condition_text
-            # Store as {"text": "...", "origin": "..."} for CBR matching
+            # Origin is stored in dedicated column, not in condition JSONB
             condition = {"text": h.condition_text} if h.condition_text else {}
-            if h.origin:
-                condition["origin"] = h.origin
 
             # Parse effects_json into action dict
             action = {}
@@ -247,6 +245,8 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 action=action,
                 confidence=h.confidence if h.confidence > 0 else 0.5,
                 condition_embedding=condition_embedding,
+                origin=h.origin or "learned",
+                origin_id=h.origin_id or None,
             )
             logger.info("StoreHeuristic success", heuristic_id=h.id)
             return memory_pb2.StoreHeuristicResponse(

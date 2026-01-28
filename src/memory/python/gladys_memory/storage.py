@@ -237,6 +237,8 @@ class MemoryStorage:
         confidence: float,
         source_pattern_ids: Optional[list[UUID]] = None,
         condition_embedding: Optional[np.ndarray] = None,
+        origin: Optional[str] = None,
+        origin_id: Optional[str] = None,
     ) -> None:
         """Store a new heuristic.
 
@@ -248,14 +250,16 @@ class MemoryStorage:
             confidence: Confidence score (0.0 to 1.0)
             source_pattern_ids: Optional list of pattern IDs this heuristic was derived from
             condition_embedding: Optional embedding for semantic matching (384-dim)
+            origin: How this heuristic was created (built_in, pack, learned, user)
+            origin_id: Reference to origin source (pack ID, trace ID, etc.)
         """
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
         await self._pool.execute(
             """
-            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids, condition_embedding)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids, condition_embedding, origin, origin_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 condition = EXCLUDED.condition,
@@ -263,6 +267,8 @@ class MemoryStorage:
                 confidence = EXCLUDED.confidence,
                 source_pattern_ids = EXCLUDED.source_pattern_ids,
                 condition_embedding = COALESCE(EXCLUDED.condition_embedding, heuristics.condition_embedding),
+                origin = COALESCE(EXCLUDED.origin, heuristics.origin),
+                origin_id = COALESCE(EXCLUDED.origin_id, heuristics.origin_id),
                 updated_at = NOW()
             """,
             id,
@@ -272,6 +278,8 @@ class MemoryStorage:
             confidence,
             source_pattern_ids or [],
             condition_embedding,
+            origin or "learned",
+            origin_id,
         )
 
     async def get_heuristic(self, heuristic_id: UUID) -> dict | None:
