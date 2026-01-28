@@ -114,26 +114,6 @@ class TestEventRouter:
         # sub-2 filters for "other-sensor", should not receive
         assert queue2.qsize() == 0
 
-    @pytest.mark.asyncio
-    async def test_send_moment_to_executive(self):
-        """Moments are sent to executive (deprecated but still works)."""
-        config = OrchestratorConfig()
-        router = EventRouter(config)
-
-        # Create mock moment-like object
-        @dataclass
-        class MockMoment:
-            events: list = None
-            def __post_init__(self):
-                self.events = self.events or []
-
-        moment = MockMoment()
-        moment.events.append(MockEvent(id="e1"))
-        moment.events.append(MockEvent(id="e2"))
-
-        # Should not raise (deprecated method still works)
-        await router.send_moment_to_executive(moment)
-
     def test_get_max_salience(self):
         """Max salience correctly excludes habituation."""
         config = OrchestratorConfig()

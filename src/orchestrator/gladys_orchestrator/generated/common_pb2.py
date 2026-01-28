@@ -27,7 +27,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from . import types_pb2 as types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x12\tgladys.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x0btypes.proto\"x\n\x0fRequestMetadata\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x10\n\x08trace_id\x18\x02 \x01(\t\x12\x0f\n\x07span_id\x18\x03 \x01(\t\x12\x14\n\x0ctimestamp_ms\x18\x04 \x01(\x03\x12\x18\n\x10source_component\x18\x05 \x01(\t\"\xc7\x02\n\x05\x45vent\x12\n\n\x02id\x18\x01 \x01(\t\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06source\x18\x03 \x01(\t\x12\x10\n\x08raw_text\x18\x04 \x01(\t\x12+\n\nstructured\x18\x05 \x01(\x0b\x32\x17.google.protobuf.Struct\x12.\n\x08salience\x18\x06 \x01(\x0b\x32\x1c.gladys.types.SalienceVector\x12\x12\n\nentity_ids\x18\x07 \x03(\t\x12\x0e\n\x06tokens\x18\x08 \x03(\x05\x12\x14\n\x0ctokenizer_id\x18\t \x01(\t\x12\x1c\n\x14matched_heuristic_id\x18\n \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"\x88\x01\n\x06Moment\x12 \n\x06\x65vents\x18\x01 \x03(\x0b\x32\x10.gladys.v1.Event\x12.\n\nstart_time\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12,\n\x08\x65nd_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x80\x02\n\x0f\x43omponentStatus\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12(\n\x05state\x18\x02 \x01(\x0e\x32\x19.gladys.v1.ComponentState\x12\x0f\n\x07message\x18\x03 \x01(\t\x12\x32\n\x0elast_heartbeat\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x38\n\x07metrics\x18\x05 \x03(\x0b\x32\'.gladys.v1.ComponentStatus.MetricsEntry\x1a.\n\x0cMetricsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x95\x01\n\x0b\x45rrorDetail\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x36\n\x08metadata\x18\x03 \x03(\x0b\x32$.gladys.v1.ErrorDetail.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*\xf3\x01\n\x0e\x43omponentState\x12\x1b\n\x17\x43OMPONENT_STATE_UNKNOWN\x10\x00\x12\x1c\n\x18\x43OMPONENT_STATE_STARTING\x10\x01\x12\x1a\n\x16\x43OMPONENT_STATE_ACTIVE\x10\x02\x12\x1a\n\x16\x43OMPONENT_STATE_PAUSED\x10\x03\x12\x1c\n\x18\x43OMPONENT_STATE_STOPPING\x10\x04\x12\x1b\n\x17\x43OMPONENT_STATE_STOPPED\x10\x05\x12\x19\n\x15\x43OMPONENT_STATE_ERROR\x10\x06\x12\x18\n\x14\x43OMPONENT_STATE_DEAD\x10\x07\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\x12\tgladys.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x0btypes.proto\"x\n\x0fRequestMetadata\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x10\n\x08trace_id\x18\x02 \x01(\t\x12\x0f\n\x07span_id\x18\x03 \x01(\t\x12\x14\n\x0ctimestamp_ms\x18\x04 \x01(\x03\x12\x18\n\x10source_component\x18\x05 \x01(\t\"\xc7\x02\n\x05\x45vent\x12\n\n\x02id\x18\x01 \x01(\t\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06source\x18\x03 \x01(\t\x12\x10\n\x08raw_text\x18\x04 \x01(\t\x12+\n\nstructured\x18\x05 \x01(\x0b\x32\x17.google.protobuf.Struct\x12.\n\x08salience\x18\x06 \x01(\x0b\x32\x1c.gladys.types.SalienceVector\x12\x12\n\nentity_ids\x18\x07 \x03(\t\x12\x0e\n\x06tokens\x18\x08 \x03(\x05\x12\x14\n\x0ctokenizer_id\x18\t \x01(\t\x12\x1c\n\x14matched_heuristic_id\x18\n \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"\x80\x02\n\x0f\x43omponentStatus\x12\x14\n\x0c\x63omponent_id\x18\x01 \x01(\t\x12(\n\x05state\x18\x02 \x01(\x0e\x32\x19.gladys.v1.ComponentState\x12\x0f\n\x07message\x18\x03 \x01(\t\x12\x32\n\x0elast_heartbeat\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x38\n\x07metrics\x18\x05 \x03(\x0b\x32\'.gladys.v1.ComponentStatus.MetricsEntry\x1a.\n\x0cMetricsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x95\x01\n\x0b\x45rrorDetail\x12\x0c\n\x04\x63ode\x18\x01 \x01(\t\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x36\n\x08metadata\x18\x03 \x03(\x0b\x32$.gladys.v1.ErrorDetail.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*\xf3\x01\n\x0e\x43omponentState\x12\x1b\n\x17\x43OMPONENT_STATE_UNKNOWN\x10\x00\x12\x1c\n\x18\x43OMPONENT_STATE_STARTING\x10\x01\x12\x1a\n\x16\x43OMPONENT_STATE_ACTIVE\x10\x02\x12\x1a\n\x16\x43OMPONENT_STATE_PAUSED\x10\x03\x12\x1c\n\x18\x43OMPONENT_STATE_STOPPING\x10\x04\x12\x1b\n\x17\x43OMPONENT_STATE_STOPPED\x10\x05\x12\x19\n\x15\x43OMPONENT_STATE_ERROR\x10\x06\x12\x18\n\x14\x43OMPONENT_STATE_DEAD\x10\x07\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -38,20 +38,18 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_COMPONENTSTATUS_METRICSENTRY']._serialized_options = b'8\001'
   _globals['_ERRORDETAIL_METADATAENTRY']._loaded_options = None
   _globals['_ERRORDETAIL_METADATAENTRY']._serialized_options = b'8\001'
-  _globals['_COMPONENTSTATE']._serialized_start=1106
-  _globals['_COMPONENTSTATE']._serialized_end=1349
+  _globals['_COMPONENTSTATE']._serialized_start=967
+  _globals['_COMPONENTSTATE']._serialized_end=1210
   _globals['_REQUESTMETADATA']._serialized_start=103
   _globals['_REQUESTMETADATA']._serialized_end=223
   _globals['_EVENT']._serialized_start=226
   _globals['_EVENT']._serialized_end=553
-  _globals['_MOMENT']._serialized_start=556
-  _globals['_MOMENT']._serialized_end=692
-  _globals['_COMPONENTSTATUS']._serialized_start=695
-  _globals['_COMPONENTSTATUS']._serialized_end=951
-  _globals['_COMPONENTSTATUS_METRICSENTRY']._serialized_start=905
-  _globals['_COMPONENTSTATUS_METRICSENTRY']._serialized_end=951
-  _globals['_ERRORDETAIL']._serialized_start=954
-  _globals['_ERRORDETAIL']._serialized_end=1103
-  _globals['_ERRORDETAIL_METADATAENTRY']._serialized_start=1056
-  _globals['_ERRORDETAIL_METADATAENTRY']._serialized_end=1103
+  _globals['_COMPONENTSTATUS']._serialized_start=556
+  _globals['_COMPONENTSTATUS']._serialized_end=812
+  _globals['_COMPONENTSTATUS_METRICSENTRY']._serialized_start=766
+  _globals['_COMPONENTSTATUS_METRICSENTRY']._serialized_end=812
+  _globals['_ERRORDETAIL']._serialized_start=815
+  _globals['_ERRORDETAIL']._serialized_end=964
+  _globals['_ERRORDETAIL_METADATAENTRY']._serialized_start=917
+  _globals['_ERRORDETAIL_METADATAENTRY']._serialized_end=964
 # @@protoc_insertion_point(module_scope)

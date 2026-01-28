@@ -28,7 +28,7 @@ if _version_not_supported:
 
 class ExecutiveServiceStub(object):
     """ExecutiveService - the decision-making component.
-    Receives events/moments from Orchestrator and processes them.
+    Receives events from Orchestrator and processes them.
     """
 
     def __init__(self, channel):
@@ -41,11 +41,6 @@ class ExecutiveServiceStub(object):
                 '/gladys.v1.ExecutiveService/ProcessEvent',
                 request_serializer=executive__pb2.ProcessEventRequest.SerializeToString,
                 response_deserializer=executive__pb2.ProcessEventResponse.FromString,
-                _registered_method=True)
-        self.ProcessMoment = channel.unary_unary(
-                '/gladys.v1.ExecutiveService/ProcessMoment',
-                request_serializer=executive__pb2.ProcessMomentRequest.SerializeToString,
-                response_deserializer=executive__pb2.ProcessMomentResponse.FromString,
                 _registered_method=True)
         self.ProvideFeedback = channel.unary_unary(
                 '/gladys.v1.ExecutiveService/ProvideFeedback',
@@ -66,18 +61,11 @@ class ExecutiveServiceStub(object):
 
 class ExecutiveServiceServicer(object):
     """ExecutiveService - the decision-making component.
-    Receives events/moments from Orchestrator and processes them.
+    Receives events from Orchestrator and processes them.
     """
 
     def ProcessEvent(self, request, context):
-        """Process a high-salience event immediately (bypasses moment accumulation)
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ProcessMoment(self, request, context):
-        """Process an accumulated moment (batch of events on tick)
+        """Process an event (queued by EventQueue, processed by salience priority)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -111,11 +99,6 @@ def add_ExecutiveServiceServicer_to_server(servicer, server):
                     request_deserializer=executive__pb2.ProcessEventRequest.FromString,
                     response_serializer=executive__pb2.ProcessEventResponse.SerializeToString,
             ),
-            'ProcessMoment': grpc.unary_unary_rpc_method_handler(
-                    servicer.ProcessMoment,
-                    request_deserializer=executive__pb2.ProcessMomentRequest.FromString,
-                    response_serializer=executive__pb2.ProcessMomentResponse.SerializeToString,
-            ),
             'ProvideFeedback': grpc.unary_unary_rpc_method_handler(
                     servicer.ProvideFeedback,
                     request_deserializer=executive__pb2.ProvideFeedbackRequest.FromString,
@@ -141,7 +124,7 @@ def add_ExecutiveServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class ExecutiveService(object):
     """ExecutiveService - the decision-making component.
-    Receives events/moments from Orchestrator and processes them.
+    Receives events from Orchestrator and processes them.
     """
 
     @staticmethod
@@ -161,33 +144,6 @@ class ExecutiveService(object):
             '/gladys.v1.ExecutiveService/ProcessEvent',
             executive__pb2.ProcessEventRequest.SerializeToString,
             executive__pb2.ProcessEventResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ProcessMoment(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/gladys.v1.ExecutiveService/ProcessMoment',
-            executive__pb2.ProcessMomentRequest.SerializeToString,
-            executive__pb2.ProcessMomentResponse.FromString,
             options,
             channel_credentials,
             insecure,

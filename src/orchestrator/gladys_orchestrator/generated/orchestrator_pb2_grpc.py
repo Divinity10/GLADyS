@@ -58,11 +58,6 @@ class OrchestratorServiceStub(object):
                 request_serializer=orchestrator__pb2.SubscribeResponsesRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.EventResponse.FromString,
                 _registered_method=True)
-        self.FlushMoment = channel.unary_unary(
-                '/gladys.v1.OrchestratorService/FlushMoment',
-                request_serializer=orchestrator__pb2.FlushMomentRequest.SerializeToString,
-                response_deserializer=orchestrator__pb2.FlushMomentResponse.FromString,
-                _registered_method=True)
         self.RegisterComponent = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/RegisterComponent',
                 request_serializer=orchestrator__pb2.RegisterRequest.SerializeToString,
@@ -87,6 +82,11 @@ class OrchestratorServiceStub(object):
                 '/gladys.v1.OrchestratorService/GetSystemStatus',
                 request_serializer=orchestrator__pb2.SystemStatusRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.SystemStatusResponse.FromString,
+                _registered_method=True)
+        self.GetQueueStats = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/GetQueueStats',
+                request_serializer=orchestrator__pb2.GetQueueStatsRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.GetQueueStatsResponse.FromString,
                 _registered_method=True)
         self.GetHealth = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/GetHealth',
@@ -136,13 +136,6 @@ class OrchestratorServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def FlushMoment(self, request, context):
-        """Manually flush the moment accumulator (for testing)
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def RegisterComponent(self, request, context):
         """--------------------------------------------------------------------
         Component Lifecycle
@@ -181,6 +174,13 @@ class OrchestratorServiceServicer(object):
 
     def GetSystemStatus(self, request, context):
         """Get status of all components
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetQueueStats(self, request, context):
+        """Get event queue statistics
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -228,11 +228,6 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     request_deserializer=orchestrator__pb2.SubscribeResponsesRequest.FromString,
                     response_serializer=orchestrator__pb2.EventResponse.SerializeToString,
             ),
-            'FlushMoment': grpc.unary_unary_rpc_method_handler(
-                    servicer.FlushMoment,
-                    request_deserializer=orchestrator__pb2.FlushMomentRequest.FromString,
-                    response_serializer=orchestrator__pb2.FlushMomentResponse.SerializeToString,
-            ),
             'RegisterComponent': grpc.unary_unary_rpc_method_handler(
                     servicer.RegisterComponent,
                     request_deserializer=orchestrator__pb2.RegisterRequest.FromString,
@@ -257,6 +252,11 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     servicer.GetSystemStatus,
                     request_deserializer=orchestrator__pb2.SystemStatusRequest.FromString,
                     response_serializer=orchestrator__pb2.SystemStatusResponse.SerializeToString,
+            ),
+            'GetQueueStats': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetQueueStats,
+                    request_deserializer=orchestrator__pb2.GetQueueStatsRequest.FromString,
+                    response_serializer=orchestrator__pb2.GetQueueStatsResponse.SerializeToString,
             ),
             'GetHealth': grpc.unary_unary_rpc_method_handler(
                     servicer.GetHealth,
@@ -362,33 +362,6 @@ class OrchestratorService(object):
             '/gladys.v1.OrchestratorService/SubscribeResponses',
             orchestrator__pb2.SubscribeResponsesRequest.SerializeToString,
             orchestrator__pb2.EventResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def FlushMoment(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/gladys.v1.OrchestratorService/FlushMoment',
-            orchestrator__pb2.FlushMomentRequest.SerializeToString,
-            orchestrator__pb2.FlushMomentResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -524,6 +497,33 @@ class OrchestratorService(object):
             '/gladys.v1.OrchestratorService/GetSystemStatus',
             orchestrator__pb2.SystemStatusRequest.SerializeToString,
             orchestrator__pb2.SystemStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetQueueStats(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/GetQueueStats',
+            orchestrator__pb2.GetQueueStatsRequest.SerializeToString,
+            orchestrator__pb2.GetQueueStatsResponse.FromString,
             options,
             channel_credentials,
             insecure,

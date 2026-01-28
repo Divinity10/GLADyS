@@ -3,8 +3,7 @@
 
 Validates the backend features powering the Lab Bench UI:
 - SubscribeResponses (Streaming events)
-- FlushMoment (Manual accumulator processing)
-- Salience Override (Force IMMEDIATE/ACCUMULATED)
+- Salience routing (HIGH → IMMEDIATE, LOW → QUEUED)
 - Metadata Fidelity (Response IDs, Heuristic IDs)
 
 Usage:
@@ -17,7 +16,6 @@ import logging
 import os
 import sys
 import uuid
-import time
 from pathlib import Path
 
 import grpc
@@ -59,7 +57,7 @@ async def memory_stub():
 
 @pytest.mark.asyncio
 async def test_immediate_path_override(orchestrator_stub):
-    """Verify forcing HIGH salience bypasses accumulator."""
+    """Verify HIGH salience events are routed immediately to LLM."""
     event_id = str(uuid.uuid4())
     event_text = f"URGENT: Server fire! {event_id}"
     
@@ -82,79 +80,6 @@ async def test_immediate_path_override(orchestrator_stub):
     assert ack.accepted
     assert ack.routed_to_llm, "Should be routed to LLM (Immediate Path)"
     # We might check for response_id if stub is running, but routed_to_llm is the key signal
-
-@pytest.mark.asyncio
-async def test_accumulated_path_flush(orchestrator_stub):
-    """Verify forcing LOW salience + FlushMoment works end-to-end."""
-    event_id = str(uuid.uuid4())
-    subscriber_id = f"test-sub-{uuid.uuid4().hex[:8]}"
-    
-    # 1. Start Subscriber (to catch the flushed event)
-    # We need to run this in background
-    queue = asyncio.Queue()
-    
-    async def listen():
-        try:
-            req = orchestrator_pb2.SubscribeResponsesRequest(
-                subscriber_id=subscriber_id,
-                include_immediate=False
-            )
-            async for resp in orchestrator_stub.SubscribeResponses(req):
-                await queue.put(resp)
-        except Exception as e:
-            logger.error(f"Subscription stream ended: {e}")
-
-    listen_task = asyncio.create_task(listen())
-    await asyncio.sleep(0.5) # Wait for subscription to register
-
-    # 2. Send LOW salience event
-    async def event_gen():
-        yield common_pb2.Event(
-            id=event_id,
-            source="test_bench",
-            raw_text=f"Background noise {event_id}",
-            salience=common_pb2.SalienceVector(novelty=0.1)
-        )
-    
-    ack = None
-    async for response in orchestrator_stub.PublishEvents(event_gen()):
-        ack = response
-    
-    assert ack.accepted
-    assert not ack.routed_to_llm, "Should NOT be routed to LLM (Accumulated Path)"
-
-    # 3. Flush Accumulator
-    flush_resp = await orchestrator_stub.FlushMoment(
-        orchestrator_pb2.FlushMomentRequest(reason="Test flush")
-    )
-    
-    # It might be 0 if the auto-ticker beat us to it, but usually >0 in tests
-    # We care more that the event appears in the stream
-    
-    # 4. Verify Stream Receipt
-    try:
-        # Wait up to 5s for event to appear in stream
-        found = False
-        start_time = time.time()
-        while time.time() - start_time < 5:
-            if queue.empty():
-                await asyncio.sleep(0.1)
-                continue
-                
-            resp = await queue.get()
-            if resp.event_id == event_id:
-                found = True
-                assert resp.routing_path == orchestrator_pb2.ROUTING_PATH_ACCUMULATED
-                break
-        
-        assert found, "Event did not appear in SubscribeResponses stream after Flush"
-        
-    finally:
-        listen_task.cancel()
-        try:
-            await listen_task
-        except asyncio.CancelledError:
-            pass
 
 @pytest.mark.asyncio
 async def test_heuristic_metadata(orchestrator_stub, memory_stub):

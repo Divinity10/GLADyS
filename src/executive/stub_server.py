@@ -280,14 +280,6 @@ def format_event_for_llm(event: Any) -> str:
     return f"[{event.source}]{salience_str}: {event.raw_text}"
 
 
-def format_moment_for_llm(moment: Any) -> str:
-    """Format a moment (batch of events) into an LLM prompt."""
-    lines = ["Recent events:"]
-    for event in moment.events:
-        lines.append(f"  - {format_event_for_llm(event)}")
-    return "\n".join(lines)
-
-
 EXECUTIVE_SYSTEM_PROMPT = """You are GLADyS, a helpful AI assistant observing events in a user's environment.
 
 When given events, briefly acknowledge what happened and suggest any relevant actions or responses.
@@ -406,7 +398,7 @@ class HeuristicStore:
 class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
     """Stub implementation of ExecutiveService for testing.
 
-    Processes events/moments and optionally calls an LLM for responses.
+    Processes events and optionally calls an LLM for responses.
     Tracks reasoning traces for heuristic formation via feedback.
     """
 
@@ -417,8 +409,6 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         heuristic_store: HeuristicStore | None = None,
     ):
         self.events_received = 0
-        self.moments_received = 0
-        self.total_events_in_moments = 0
         self.heuristics_created = 0
         self.ollama = ollama_client
         self.memory_client = memory_client
@@ -542,44 +532,6 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             response_text=response_text,
             predicted_success=predicted_success,
             prediction_confidence=prediction_confidence,
-        )
-
-    async def ProcessMoment(
-        self,
-        request: executive_pb2.ProcessMomentRequest,
-        context: grpc.aio.ServicerContext,
-    ) -> executive_pb2.ProcessMomentResponse:
-        """Process an accumulated moment."""
-        self.moments_received += 1
-        moment = request.moment
-        event_count = len(moment.events)
-        self.total_events_in_moments += event_count
-
-        # Log moment summary
-        logger.info(f"MOMENT: {event_count} events")
-        for i, event in enumerate(moment.events[:3]):  # Log first 3 events
-            threat = event.salience.threat if event.salience else 0.0
-            logger.info(f"  [{i}] id={event.id}, source={event.source}, threat={threat:.2f}")
-        if event_count > 3:
-            logger.info(f"  ... and {event_count - 3} more events")
-
-        # If we have an LLM, summarize the moment
-        if self.ollama and event_count > 0:
-            prompt = format_moment_for_llm(moment) + "\n\nBriefly summarize and note anything that needs attention."
-            response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
-            if response:
-                logger.info(f"GLADyS: {response.strip()}")
-
-        # Log stats periodically
-        if self.moments_received % 10 == 0:
-            logger.info(
-                f"STATS: {self.events_received} immediate events, "
-                f"{self.moments_received} moments, {self.total_events_in_moments} total events"
-            )
-
-        return executive_pb2.ProcessMomentResponse(
-            accepted=True,
-            events_processed=event_count,
         )
 
     async def ProvideFeedback(

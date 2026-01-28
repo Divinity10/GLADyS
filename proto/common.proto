@@ -50,14 +50,6 @@ message Event {
 // SalienceVector moved to types.proto (gladys.types.SalienceVector)
 // Single source of truth for cross-service types
 
-// A batch of events accumulated by Orchestrator and sent to Executive on tick.
-// Events are timestamp-ordered with salience already evaluated and attached.
-message Moment {
-    repeated Event events = 1;                  // Events with salience populated
-    google.protobuf.Timestamp start_time = 2;  // First event timestamp
-    google.protobuf.Timestamp end_time = 3;    // Last event timestamp (or flush time)
-}
-
 // ============================================================================
 // COMPONENT STATUS
 // ============================================================================

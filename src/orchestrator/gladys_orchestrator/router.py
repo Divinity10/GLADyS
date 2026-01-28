@@ -1,8 +1,8 @@
 """Event routing logic for the Orchestrator.
 
-Routes events based on salience:
-- HIGH salience → immediate to Executive (bypass moment accumulation)
-- LOW salience → accumulate into current moment
+Routes events based on heuristic confidence and salience:
+- High-conf heuristic match → return cached action immediately
+- Otherwise → queue for async LLM processing (priority by salience)
 
 Events are annotated with evaluated salience before routing so that
 Executive receives events with salience already attached.
@@ -61,13 +61,13 @@ class ResponseSubscriber:
 
 class EventRouter:
     """
-    Routes events based on salience evaluation.
+    Routes events based on heuristic confidence and salience.
 
     Flow:
     1. Receive event from sensor/preprocessor
-    2. Query Salience+Memory for salience score (via gRPC)
-    3. If max(salience dimensions) > threshold → send immediately to Executive
-    4. Otherwise → accumulate into current moment
+    2. Query Salience+Memory for salience score and heuristic match (via gRPC)
+    3. If high-conf heuristic match (>= threshold) → return action immediately
+    4. Otherwise → queue for async LLM processing (priority by salience)
     """
 
     def __init__(
@@ -309,10 +309,10 @@ class EventRouter:
         """
         Attach evaluated salience to an event.
 
-        Events sent to Executive (via moment or immediate) should have
-        salience already populated so Executive doesn't need to re-evaluate.
+        Events sent to Executive should have salience already populated so
+        Executive doesn't need to re-evaluate.
 
-        Also attaches matched_heuristic_id for TD learning feedback correlation.
+        Also attaches matched_heuristic_id for feedback correlation.
         """
         if not hasattr(event, "salience"):
             logger.warning(f"Event {getattr(event, 'id', 'unknown')} has no salience field")
@@ -361,7 +361,7 @@ class EventRouter:
 
     async def _send_immediate(self, event: Any) -> dict | None:
         """
-        Send event immediately to Executive (bypass moment accumulation).
+        Send event immediately to Executive for LLM processing.
 
         Returns the Executive response dict, or None if no Executive connected.
         """
@@ -377,51 +377,6 @@ class EventRouter:
         else:
             logger.info(f"IMMEDIATE: Event {event_id} (no Executive connected)")
             return None
-
-    async def send_moment_to_executive(self, moment: Any) -> None:
-        """
-        DEPRECATED: Send accumulated moment to Executive.
-
-        This method is no longer used - events are now processed individually
-        via EventQueue. Kept for potential future batch processing.
-        """
-        if not hasattr(moment, 'events') or not moment.events:
-            return
-
-        event_count = len(moment.events)
-        response_timestamp_ms = int(time.time() * 1000)
-
-        if self._executive_client:
-            success = await self._executive_client.send_moment(moment)
-            if success:
-                logger.info(f"MOMENT: {event_count} events delivered to Executive")
-            else:
-                logger.warning(f"MOMENT: {event_count} events delivery failed")
-        else:
-            logger.info(f"MOMENT: {event_count} events (no Executive connected)")
-
-        # Broadcast ACCUMULATED responses to response subscribers
-        # Note: ProcessMomentResponse doesn't return per-event responses,
-        # so we broadcast individual event acknowledgments without response_text.
-        # Phase 2: Extend ProcessMomentResponse to return per-event responses.
-        for event in moment.events:
-            event_id = getattr(event, "id", "unknown")
-            await self.broadcast_response({
-                "event_id": event_id,
-                "response_id": "",  # No per-event response from moment processing
-                "response_text": f"[Processed in moment batch with {event_count} events]",
-                "predicted_success": 0.0,
-                "prediction_confidence": 0.0,
-                "routing_path": "ACCUMULATED",
-                "matched_heuristic_id": getattr(event, "matched_heuristic_id", ""),
-                "event_source": getattr(event, "source", ""),
-                "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
-                "response_timestamp_ms": response_timestamp_ms,
-            })
-
-        # Also notify event subscribers
-        for event in moment.events:
-            await self._broadcast_to_subscribers(event)
 
     async def _broadcast_to_subscribers(self, event: Any, immediate: bool = False) -> None:
         """Broadcast event to all matching subscribers."""
@@ -496,7 +451,7 @@ class EventRouter:
         - response_text: str
         - predicted_success: float
         - prediction_confidence: float
-        - routing_path: str ("IMMEDIATE" or "ACCUMULATED")
+        - routing_path: str ("IMMEDIATE", "HEURISTIC", or "QUEUED")
         - matched_heuristic_id: str
         - event_source: str (for filtering)
         """

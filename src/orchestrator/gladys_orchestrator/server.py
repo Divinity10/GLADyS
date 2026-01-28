@@ -34,10 +34,9 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
 
     Responsibilities:
     - Receive events from sensors/preprocessors
-    - Query Salience+Memory for salience scores
-    - Route HIGH salience immediately to Executive
-    - Accumulate LOW salience into moments
-    - Send moments on configurable tick (default 100ms)
+    - Query Salience+Memory for salience scores and heuristic matches
+    - High-conf heuristic match → return action immediately
+    - Otherwise → queue for async LLM processing by priority (salience)
     """
 
     def __init__(
@@ -233,11 +232,11 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         Streaming RPC: Subscribe to receive responses (for evaluation UI).
 
         Receives responses for:
-        - ACCUMULATED events (after moment is sent to Executive on tick)
-        - Optionally IMMEDIATE events (if include_immediate=True)
+        - QUEUED events (processed asynchronously by priority)
+        - Optionally IMMEDIATE/HEURISTIC events (if include_immediate=True)
 
         This allows the evaluation UI to see responses for events that went
-        through the accumulator path, not just IMMEDIATE path events.
+        through the queue path, not just heuristic shortcut events.
         """
         subscriber_id = request.subscriber_id
         source_filters = list(request.source_filters) if request.source_filters else None
@@ -273,31 +272,9 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         """Convert routing path string to proto enum value."""
         if path == "IMMEDIATE":
             return orchestrator_pb2.ROUTING_PATH_IMMEDIATE
-        elif path == "ACCUMULATED":
-            return orchestrator_pb2.ROUTING_PATH_ACCUMULATED
+        elif path == "QUEUED":
+            return orchestrator_pb2.ROUTING_PATH_QUEUED
         return orchestrator_pb2.ROUTING_PATH_UNSPECIFIED
-
-    async def FlushMoment(
-        self,
-        request: orchestrator_pb2.FlushMomentRequest,
-        context: grpc.aio.ServicerContext,
-    ) -> orchestrator_pb2.FlushMomentResponse:
-        """
-        Legacy RPC - moment accumulator replaced with event queue.
-
-        Now returns queue stats instead of flushing.
-        Queue events are processed asynchronously by the worker.
-        """
-        reason = request.reason or "queue stats"
-        logger.info(f"FlushMoment called (now returns queue stats): {reason}")
-
-        # Return queue stats instead of flushing
-        stats = self.event_queue.stats
-        return orchestrator_pb2.FlushMomentResponse(
-            events_flushed=stats.get("total_processed", 0),
-            moment_sent=False,  # No longer applicable
-            error_message=f"Queue: {stats.get('queue_size', 0)} pending, {stats.get('total_processed', 0)} processed",
-        )
 
     # -------------------------------------------------------------------------
     # Component Lifecycle RPCs
@@ -385,6 +362,20 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             for c in components_dicts
         ]
         return orchestrator_pb2.SystemStatusResponse(components=components)
+
+    async def GetQueueStats(
+        self,
+        request: orchestrator_pb2.GetQueueStatsRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> orchestrator_pb2.GetQueueStatsResponse:
+        """Get event queue statistics for monitoring/troubleshooting."""
+        stats = self.event_queue.stats
+        return orchestrator_pb2.GetQueueStatsResponse(
+            queue_size=stats.get("queue_size", 0),
+            total_queued=stats.get("total_queued", 0),
+            total_processed=stats.get("total_processed", 0),
+            total_timed_out=stats.get("total_timed_out", 0),
+        )
 
     # -------------------------------------------------------------------------
     # Service Discovery RPCs

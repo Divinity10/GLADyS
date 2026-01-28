@@ -5,13 +5,10 @@ import "common.proto";
 import "types.proto";
 
 // ExecutiveService - the decision-making component.
-// Receives events/moments from Orchestrator and processes them.
+// Receives events from Orchestrator and processes them.
 service ExecutiveService {
-    // Process a high-salience event immediately (bypasses moment accumulation)
+    // Process an event (queued by EventQueue, processed by salience priority)
     rpc ProcessEvent(ProcessEventRequest) returns (ProcessEventResponse);
-
-    // Process an accumulated moment (batch of events on tick)
-    rpc ProcessMoment(ProcessMomentRequest) returns (ProcessMomentResponse);
 
     // Provide feedback on a previous response (for heuristic formation)
     rpc ProvideFeedback(ProvideFeedbackRequest) returns (ProvideFeedbackResponse);
@@ -35,18 +32,6 @@ message ProcessEventResponse {
     string response_text = 4;
     float predicted_success = 5;
     float prediction_confidence = 6;
-}
-
-// Request to process an accumulated moment
-message ProcessMomentRequest {
-    Moment moment = 1;
-    RequestMetadata metadata = 15;
-}
-
-message ProcessMomentResponse {
-    bool accepted = 1;
-    string error_message = 2;
-    int32 events_processed = 3;
 }
 
 // Request to provide feedback on a previous LLM response

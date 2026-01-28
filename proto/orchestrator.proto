@@ -23,9 +23,6 @@ service OrchestratorService {
     // Subscribe to receive responses
     rpc SubscribeResponses(SubscribeResponsesRequest) returns (stream EventResponse);
 
-    // Manually flush the moment accumulator (for testing)
-    rpc FlushMoment(FlushMomentRequest) returns (FlushMomentResponse);
-
     // --------------------------------------------------------------------
     // Component Lifecycle
     // --------------------------------------------------------------------
@@ -48,6 +45,9 @@ service OrchestratorService {
 
     // Get status of all components
     rpc GetSystemStatus(SystemStatusRequest) returns (SystemStatusResponse);
+
+    // Get event queue statistics
+    rpc GetQueueStats(GetQueueStatsRequest) returns (GetQueueStatsResponse);
 
     // Service health check (unified interface across all services)
     rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
@@ -105,17 +105,7 @@ message EventResponse {
 enum RoutingPath {
     ROUTING_PATH_UNSPECIFIED = 0;
     ROUTING_PATH_IMMEDIATE = 1;
-    ROUTING_PATH_ACCUMULATED = 2;
-}
-
-message FlushMomentRequest {
-    string reason = 1;
-}
-
-message FlushMomentResponse {
-    int32 events_flushed = 1;
-    bool moment_sent = 2;
-    string error_message = 3;
+    ROUTING_PATH_QUEUED = 2;  // Renamed from ACCUMULATED - events processed via queue
 }
 
 // ----------------------------------------------------------------------------
@@ -220,6 +210,15 @@ message SystemStatusRequest {
 message SystemStatusResponse {
     repeated ComponentStatus components = 1;
     google.protobuf.Timestamp timestamp = 2;
+}
+
+message GetQueueStatsRequest {}
+
+message GetQueueStatsResponse {
+    int32 queue_size = 1;         // Current number of pending events
+    int64 total_queued = 2;       // Lifetime total events queued
+    int64 total_processed = 3;    // Lifetime total events processed
+    int64 total_timed_out = 4;    // Lifetime total events timed out
 }
 
 // ----------------------------------------------------------------------------

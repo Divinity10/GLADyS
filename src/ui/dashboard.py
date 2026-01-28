@@ -488,8 +488,13 @@ def render_settings_tab():
         if st.button("📊 Queue Stats", use_container_width=True):
             try:
                 orch_stub = get_orchestrator_stub()
-                resp = orch_stub.FlushMoment(orchestrator_pb2.FlushMomentRequest(reason="Stats from UI"))
-                st.info(resp.error_message or "No stats available")
+                resp = orch_stub.GetQueueStats(orchestrator_pb2.GetQueueStatsRequest())
+                st.info(
+                    f"Queue: {resp.queue_size} pending, "
+                    f"{resp.total_queued} total queued, "
+                    f"{resp.total_processed} processed, "
+                    f"{resp.total_timed_out} timed out"
+                )
             except Exception as e:
                 st.error(f"Stats failed: {e}")
 
@@ -874,7 +879,7 @@ def render_response_history():
         
         path_str = "Unknown"
         if resp.routing_path == 1: path_str = "IMMEDIATE"
-        elif resp.routing_path == 2: path_str = "ACCUMULATED"
+        elif resp.routing_path == 2: path_str = "QUEUED"
         
         history_data.append({
             "Time": datetime.fromtimestamp(resp.response_timestamp_ms / 1000).strftime("%H:%M:%S"),
