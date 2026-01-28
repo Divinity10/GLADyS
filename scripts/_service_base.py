@@ -107,6 +107,11 @@ class ServiceBackend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def queue_list(self, limit: int = 0) -> int:
+        """List events in the queue. Returns exit code."""
+        pass
+
+    @abc.abstractmethod
     def get_service_health(self, name: str, detailed: bool = False) -> Dict[str, Any]:
         """Get gRPC health status from a service.
         Returns: {
@@ -255,6 +260,10 @@ class ServiceManager:
 
         queue_stats = queue_sub.add_parser("stats", help="Show event queue statistics")
         queue_stats.set_defaults(func=self.cmd_queue_stats)
+
+        queue_list = queue_sub.add_parser("list", help="List events in the queue")
+        queue_list.add_argument("--limit", type=int, default=0, help="Max events to show (0=all)")
+        queue_list.set_defaults(func=self.cmd_queue_list)
 
         return parser
 
@@ -460,6 +469,9 @@ class ServiceManager:
 
     def cmd_queue_stats(self, args):
         return self.backend.queue_stats()
+
+    def cmd_queue_list(self, args):
+        return self.backend.queue_list(args.limit)
 
     def run(self):
         args = self.parser.parse_args()

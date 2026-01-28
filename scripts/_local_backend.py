@@ -456,3 +456,9 @@ class LocalBackend(ServiceBackend):
 
     def queue_stats(self) -> int:
         return self._run_queue_cmd(["stats"])
+
+    def queue_list(self, limit: int = 0) -> int:
+        args = ["list"]
+        if limit > 0:
+            args.extend(["--limit", str(limit)])
+        return self._run_queue_cmd(args)
