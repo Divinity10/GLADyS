@@ -148,10 +148,9 @@ make up   # Starts all services including executive-stub
 ```
 
 **Features:**
-- `ProcessMoment` RPC - handles accumulated events
+- `ProcessEvent` RPC - handles events requiring LLM reasoning
 - Optional Ollama LLM integration (set `OLLAMA_URL` env var)
 - `ProvideFeedback` RPC - pattern extraction for heuristic formation
-- File-based heuristic storage (PoC only)
 
 **Key files:**
 - [src/executive/gladys_executive/server.py](../src/executive/gladys_executive/server.py) - Python stub implementation
@@ -265,7 +264,7 @@ This script:
 
 ### Service Management
 
-For service ports, configuration, running services, and troubleshooting, see **[SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md)**.
+For service ports, see **[CODEBASE_MAP.md](../CODEBASE_MAP.md#service-ports)**.
 
 Quick start:
 ```bash
@@ -341,8 +340,7 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 |------|-------|
 | Architecture decisions | [docs/adr/](adr/) |
 | Open design questions | [docs/design/questions/](design/questions/README.md) |
-| **Service management** | [docs/design/SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
-| Performance baseline | [docs/design/PERFORMANCE_BASELINE.md](design/PERFORMANCE_BASELINE.md) |
+| Service ports & layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
 | Memory subsystem | [src/memory/](../src/memory/) |
 | Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
 | Executive stub | [src/executive/](../src/executive/) |

@@ -25,10 +25,10 @@
 #
 # Test flow:
 #   1. Client sends event to Orchestrator (50050)
-#   2. Orchestrator queries SalienceGateway (Rust fast path)
-#   3. Orchestrator routes based on salience score
-#   4. High salience → immediate to Executive (+ LLM if configured)
-#   5. Low salience → accumulate into moment, send on tick (100ms)
+#   2. Orchestrator queries SalienceGateway (Rust fast path) for salience + heuristic match
+#   3. Orchestrator routes based on heuristic confidence and salience:
+#      - High-confidence heuristic (>=0.7) → return cached action immediately
+#      - Otherwise → queue by salience priority, process async via Executive
 
 services:
   postgres:

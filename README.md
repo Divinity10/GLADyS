@@ -40,17 +40,17 @@ Key principles:
 |-----------|--------|
 | Architecture Design | 🔄 Core defined, evolving |
 | Memory Subsystem | 🧪 Proof of concept |
-| Orchestrator | ⏳ Not started |
-| Executive | ⏳ Not started |
+| Orchestrator | 🧪 Proof of concept |
+| Executive | 🧪 Proof of concept (stub) |
 | Sensors | ⏳ Not started |
 
 ## Tech Stack
 
 | Component | Technology |
 |-----------|------------|
-| Orchestrator | Rust |
+| Orchestrator | Python |
 | Memory | Rust + Python + PostgreSQL |
-| Executive | C# |
+| Executive | Python (stub; production: C#) |
 | Sensors/Skills | Various |
 | Communication | gRPC |
 
@@ -61,7 +61,7 @@ Key principles:
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to get involved |
 | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Development setup |
 | [docs/adr/](docs/adr/) | Architecture decisions |
-| [docs/design/OPEN_QUESTIONS.md](docs/design/OPEN_QUESTIONS.md) | Active design discussions |
+| [docs/design/questions/](docs/design/questions/) | Active design discussions |
 
 ## Quick Start
 

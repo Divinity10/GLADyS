@@ -21,10 +21,10 @@
 | What You Need | Where to Look |
 |---------------|---------------|
 | High-level system understanding | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) |
-| **Running services (local/Docker)** | [SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
+| **Running services (local/Docker)** | [GETTING_STARTED.md](GETTING_STARTED.md#running-the-full-stack) |
+| Service ports & codebase layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |
 | Open design questions | [design/questions/](design/questions/README.md) |
-| Architecture review status | [ARCHITECTURE_REVIEW.md](design/ARCHITECTURE_REVIEW.md) |
 | Use cases and requirements | [USE_CASES.md](design/USE_CASES.md) |
 | Personality templates | [PERSONALITY_TEMPLATES.md](design/PERSONALITY_TEMPLATES.md) |
 
@@ -33,11 +33,11 @@
 ## Common Developer Tasks
 
 ### Running & Managing Services
-| I want to... | See |
-|--------------|-----|
-| Start/stop services | [SERVICE_MANAGEMENT.md](design/SERVICE_MANAGEMENT.md) |
+| I want to... | Command |
+|--------------|---------|
+| Start all services | `python scripts/docker.py start all` |
 | Check what's running | `python scripts/docker.py status` |
-| View service logs | [SERVICE_MANAGEMENT.md #logs](design/SERVICE_MANAGEMENT.md#logs-docker-only) |
+| View service logs | `python scripts/docker.py logs` |
 | Reset everything | `python scripts/docker.py reset` |
 
 ### Debugging & Investigation

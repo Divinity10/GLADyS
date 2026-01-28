@@ -105,99 +105,41 @@ Non-negotiable unless an ADR is superseded:
 4. **Defense in depth**: Multiple security layers (ADR-0008)
 5. **Polyglot by design**: Rust orchestrator, Python ML, C# executive (ADR-0001)
 
-## Working Memory
+## Documentation & Authority
 
-| File | Committed | Purpose |
-|------|-----------|---------|
-| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Yes | Service topology, ports, data flow (read first!) |
-| **[docs/design/OPEN_QUESTIONS.md](docs/design/OPEN_QUESTIONS.md)** | Yes | Shared design discussions |
-| **claude_memory.md** | No | Personal session state |
+### Authority Hierarchy (Most Recent Wins)
 
-### Rules
+When sources conflict, follow this order for **current implementation**:
 
-1. **At session start**: Read CODEBASE_MAP.md (for service/port info) and both memory files
-2. **Task SOP**: For significant tasks, read `docs/workflow/SOP_TASK.md` before starting and before declaring done
+1. **claude_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
+2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
+3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
+
+**Rule**: ADRs describe where we're going. PoC may cut corners. If claude_memory.md says "skip pending_events table," that overrides any design doc that says otherwise.
+
+### Navigation
+
+| File | Purpose |
+|------|---------|
+| **[docs/INDEX.md](docs/INDEX.md)** | Documentation map - find ADRs, design docs by concept |
+| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Service topology, ports, troubleshooting |
+| **claude_memory.md** | Current session state, active decisions (gitignored) |
+
+### Session Rules
+
+1. **At session start**: Read claude_memory.md first (current state), then CODEBASE_MAP.md if needed
+2. **Finding docs**: Use `docs/INDEX.md` to locate ADRs and design docs by topic
 3. **Update claude_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
-5. **Architectural discussions** → OPEN_QUESTIONS.md; **Session state** → claude_memory.md
 
-## ADR Quick Reference
+### Critical ADRs (affect daily decisions)
 
-| ADR | Topic | Key Points |
-|-----|-------|------------|
-| 0001 | Architecture | Brain-inspired, sensor → salience → executive flow |
-| 0003 | Plugins | YAML manifests for sensors and skills |
-| 0004 | Memory | L0-L4 hierarchy, PostgreSQL + pgvector |
-| 0005 | gRPC | Service contracts, 1000ms latency budget |
-| 0006 | Observability | Prometheus, Loki, Jaeger, Grafana |
-| 0008 | Security | Permissions, sandboxing, age restrictions |
-| 0009 | Memory Contracts | Episodic ingest, compaction policy, provenance |
-| 0010 | Learning | Learning pipeline, Bayesian inference, System 1/2 |
-| 0011 | Actuators | Physical device control, safety, rate limiting |
-| 0013 | Salience | Attention pipeline, budget allocation, habituation |
-| 0014 | Executive | Decision loop, skill orchestration |
-| 0015 | Personality | Response traits, humor, customization |
+| ADR | Topic |
+|-----|-------|
+| 0001 | Architecture (sensor → salience → executive flow) |
+| 0004 | Memory (L0-L4, PostgreSQL + pgvector) |
+| 0010 | Learning (Bayesian, System 1/2) |
+| 0013 | Salience (attention, habituation) |
 
-## Database Schema Management
+Full list: `docs/INDEX.md`
 
-**CRITICAL**: Local and Docker databases must stay in sync unless you have a specific reason to diverge.
-
-### How It Works
-- Migrations live in `src/memory/migrations/` (numbered .sql files)
-- Both `scripts/local.py start` and `scripts/docker.py start` run migrations automatically
-- Use `--no-migrate` only if you intentionally need different schemas
-
-### When Adding/Modifying Schema
-1. Create migration in `src/memory/migrations/` with next number (e.g., `009_new_feature.sql`)
-2. Use `IF NOT EXISTS` / `IF EXISTS` for idempotency
-3. Run `python scripts/local.py migrate` to apply locally
-4. Run `python scripts/docker.py migrate` to apply to Docker
-5. **Both environments must have the same schema** — if you skip one, document why in claude_memory.md
-
-### Red Flags
-- Test fails with "column does not exist" → migration not applied
-- Different behavior between local and Docker → schema drift
-- **Never assume migrations are applied** — verify with `\d tablename` in psql if unsure
-
-## Docker Development
-
-### Proto Files and Docker Builds
-
-**CRITICAL**: Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT build contexts.
-
-| Service | Dockerfile | Build Context | Proto Access |
-|---------|------------|---------------|--------------|
-| memory-python | `src/memory/python/Dockerfile` | `src/memory/python/` | Uses pre-committed stubs |
-| memory-rust | `src/memory/rust/Dockerfile` | `src/memory/` | Needs `proto/` in context |
-| orchestrator | `src/orchestrator/Dockerfile` | `src/orchestrator/` | Needs `proto/` in context |
-| executive | `src/executive/Dockerfile` | `src/` | Uses `orchestrator/proto/` path |
-
-**Common Problems:**
-- Health RPCs return `UNIMPLEMENTED` → Docker image has old proto stubs
-- Services show "running (healthy)" but gRPC health fails → Image needs rebuild
-- `docker compose build` shows no output → Cached layers used, may be stale
-
-**Solution for proto changes:**
-```bash
-# Force rebuild specific image (no cache)
-docker compose -f src/integration/docker-compose.yml build --no-cache memory-rust
-
-# Restart to use new image
-python scripts/docker.py restart memory-rust
-```
-
-### Python Services with Volume Mounts
-
-memory-python and orchestrator have source mounted as volumes in `docker-compose.yml`:
-```yaml
-volumes:
-  - ../memory/python/gladys_memory:/app/gladys_memory:ro
-```
-
-This means Python code changes are picked up WITHOUT rebuild. But:
-- Proto stub changes still require rebuild (stubs are in generated/ dirs)
-- The `--force-recreate` flag recreates containers but doesn't rebuild images
-
-## Tool Usage
-
-If you encounter errors reading files via the editor, run `cat <filename>` in the terminal instead.

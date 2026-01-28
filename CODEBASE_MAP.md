@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-01-26 (updated with code review findings)
+**Last verified**: 2026-01-27 (updated: EventQueue replaces MomentAccumulator)
 
 ---
 
@@ -211,9 +211,9 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                    asyncio Event Loop                        │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐ │
-│  │ gRPC Server     │  │ _moment_tick    │  │ _outcome     │ │
-│  │ (handles RPCs)  │  │ _loop()         │  │ _cleanup     │ │
-│  │                 │  │ (100ms tick)    │  │ _loop()      │ │
+│  │ gRPC Server     │  │ EventQueue      │  │ _outcome     │ │
+│  │ (handles RPCs)  │  │ _worker_loop()  │  │ _cleanup     │ │
+│  │                 │  │ (async dequeue) │  │ _loop()      │ │
 │  └─────────────────┘  └─────────────────┘  └──────────────┘ │
 │                                                              │
 │  Fire-and-forget tasks: asyncio.create_task() ──► NO ERROR  │
@@ -222,7 +222,8 @@
 ```
 
 **Background tasks** (created via `asyncio.create_task()`):
-- `_moment_tick_loop()` - Flushes accumulated events to Executive every 100ms
+- `EventQueue._worker_loop()` - Dequeues events by priority, sends to Executive
+- `EventQueue._timeout_scanner_loop()` - Removes expired events (default 30s timeout)
 - `_outcome_cleanup_loop()` - Cleans expired outcome expectations every 30s
 - `record_heuristic_fire()` - Fire-and-forget, **no error handling** (known issue)
 
@@ -335,7 +336,7 @@ All float 0.0-1.0:
 GLADys/
 ├── proto/                      # SHARED PROTO DEFINITIONS (source of truth)
 │   ├── types.proto             # Shared types (SalienceVector, Health messages)
-│   ├── common.proto            # Common message types (Event, Moment)
+│   ├── common.proto            # Common message types (Event)
 │   ├── memory.proto            # MemoryStorage + SalienceGateway services
 │   ├── orchestrator.proto      # OrchestratorService
 │   └── executive.proto         # ExecutiveService
@@ -571,6 +572,62 @@ docker run --rm --entrypoint pip <image> freeze | grep <package>
 python scripts/docker.py test
 ```
 
+### 5. Proto Files and Build Contexts
+
+Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT build contexts:
+
+| Service | Dockerfile | Build Context | Proto Access |
+|---------|------------|---------------|--------------|
+| memory-python | `src/memory/python/Dockerfile` | `src/memory/python/` | Uses pre-committed stubs |
+| memory-rust | `src/memory/rust/Dockerfile` | `src/memory/` | Needs `proto/` in context |
+| orchestrator | `src/orchestrator/Dockerfile` | `src/orchestrator/` | Needs `proto/` in context |
+| executive | `src/executive/Dockerfile` | `src/` | Uses `orchestrator/proto/` path |
+
+**Proto change problems:**
+- Health RPCs return `UNIMPLEMENTED` → Docker image has old proto stubs
+- Services show "running (healthy)" but gRPC health fails → Image needs rebuild
+
+**Solution:**
+```bash
+docker compose -f src/integration/docker-compose.yml build --no-cache memory-rust
+python scripts/docker.py restart memory-rust
+```
+
+### 6. Python Services with Volume Mounts
+
+memory-python and orchestrator have source mounted as volumes in `docker-compose.yml`:
+```yaml
+volumes:
+  - ../memory/python/gladys_memory:/app/gladys_memory:ro
+```
+
+Python code changes are picked up WITHOUT rebuild. But:
+- Proto stub changes still require rebuild (stubs are in generated/ dirs)
+- `--force-recreate` recreates containers but doesn't rebuild images
+
+---
+
+## Database Schema Management
+
+**CRITICAL**: Local and Docker databases must stay in sync unless you have a specific reason to diverge.
+
+### How It Works
+- Migrations live in `src/memory/migrations/` (numbered .sql files)
+- Both `scripts/local.py start` and `scripts/docker.py start` run migrations automatically
+- Use `--no-migrate` only if you intentionally need different schemas
+
+### When Adding/Modifying Schema
+1. Create migration in `src/memory/migrations/` with next number (e.g., `009_new_feature.sql`)
+2. Use `IF NOT EXISTS` / `IF EXISTS` for idempotency
+3. Run `python scripts/local.py migrate` to apply locally
+4. Run `python scripts/docker.py migrate` to apply to Docker
+5. **Both environments must have the same schema** — if you skip one, document why in claude_memory.md
+
+### Red Flags
+- Test fails with "column does not exist" → migration not applied
+- Different behavior between local and Docker → schema drift
+- **Never assume migrations are applied** — verify with `\d tablename` in psql if unsure
+
 ---
 
 ## Common Mistakes to Avoid
@@ -587,6 +644,67 @@ python scripts/docker.py test
 10. **Async lock scope**: If using `asyncio.Lock`, protect ALL access points, not just some
 11. **Adding gladys_common import without Dockerfile update**: If you add `from gladys_common import ...` to a service, the Dockerfile MUST be updated (see Docker Build Requirements above)
 12. **Using local context for services with shared deps**: docker-compose.yml must use project root context (`../..`) for any service that depends on gladys_common
+
+---
+
+## Troubleshooting
+
+### "No immediate response" in UI despite services running
+
+**Symptoms**: Event submitted in UI shows "(No immediate response)" even though all services show healthy.
+
+**Diagnostic steps**:
+
+1. **Run the integration test**:
+   ```bash
+   uv run python tests/integration/test_llm_response_flow.py
+   ```
+   This tests Executive directly AND through Orchestrator. If both pass, the issue is in the UI.
+
+2. **Check LLM configuration**:
+   ```bash
+   python scripts/local.py status
+   ```
+   Look for the `ollama` line - it should show `[OK] running` with your model name.
+
+3. **Verify named endpoint resolution**: The Executive uses named endpoints. If you changed `.env` to use `OLLAMA_ENDPOINT=local`, the Executive MUST be restarted to pick up the change:
+   ```bash
+   python scripts/local.py restart executive-stub
+   ```
+
+**Root causes** (in order of likelihood):
+
+| Cause | Check | Fix |
+|-------|-------|-----|
+| Executive not restarted after config change | `status` shows wrong model | `restart executive-stub` |
+| Salience too low (event queued) | UI shows "QUEUED" path | Select "Force HIGH (Immediate)" in UI or wait for async processing |
+| Named endpoint not resolved | Executive startup doesn't show Ollama URL | Check `.env` has `OLLAMA_ENDPOINT_<NAME>` matching `OLLAMA_ENDPOINT` |
+| Ollama unreachable | `status` shows `[--] unreachable` | Start Ollama or fix URL |
+| Wrong environment selected | UI sidebar shows "Docker" | Switch to "Local" in UI sidebar |
+
+**Key insight**: The Executive reads `.env` at startup and resolves named endpoints then. Changing `.env` has no effect until restart. This is different from the scripts which re-read `.env` on every invocation.
+
+### Services fail to start
+
+**"Address already in use"**: Another instance is running. Use `local.py stop all` first or check for zombie processes.
+
+**"Connection refused" on health check**: Service crashed immediately after starting. Run in foreground to see errors:
+```bash
+python -m gladys_executive start  # instead of via local.py
+```
+
+### Database schema issues
+
+**"column does not exist"**: Migration not applied. Run:
+```bash
+python scripts/local.py migrate
+```
+
+**Different behavior local vs Docker**: Schema drift. Ensure both use same migrations:
+```bash
+python scripts/local.py migrate
+python scripts/docker.py migrate
+```
 
 ---
 
@@ -622,10 +740,11 @@ python scripts/local.py query "SELECT * FROM heuristics LIMIT 5"
 
 ## See Also
 
+- `docs/INDEX.md` - Documentation map (find docs by concept)
+- `docs/design/DESIGN.md` - Living design doc (current implementation)
 - `src/memory/README.md` - Memory subsystem details
 - `src/orchestrator/README.md` - Event routing details
 - `src/executive/README.md` - LLM integration details
 - `docs/adr/` - Architecture decisions
-- `docs/design/OPEN_QUESTIONS.md` - Active design discussions
+- `docs/design/questions/` - Active design discussions
 - `docs/design/LOGGING_STANDARD.md` - Logging and observability specification
-- `docs/design/REFACTORING_PLAN.md` - Code quality fixes and dashboard modularization
