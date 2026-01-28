@@ -193,6 +193,29 @@
 
 ---
 
+## Data Ownership: Who Writes What
+
+Each table has a single owning component. No table is written by multiple services.
+
+| Table | Owner | Write Paths | Key Files |
+|-------|-------|-------------|-----------|
+| `episodic_events` | Orchestrator | (1) Immediate heuristic match, (2) After queued event processed | `server.py:182`, `event_queue.py:248` |
+| `heuristic_fires` | Orchestrator | On any heuristic match (fire-and-forget) | `router.py:130` |
+| `heuristics` | Executive | On positive feedback (learned patterns) | `stub_server.py:691` |
+| `heuristics.confidence` | Executive | On any feedback (TD learning update) | `stub_server.py:660` |
+| `heuristic_fires.outcome` | OutcomeWatcher | Implicit feedback (pattern match on later events) | `outcome_watcher.py` |
+
+### Response Delivery
+
+All event responses flow through the Orchestrator — no component can push responses directly to clients.
+
+| Path | Flow | Delivery |
+|------|------|----------|
+| Immediate (heuristic) | Sensor → Orchestrator → EventAck (inline) | Synchronous in PublishEvents stream |
+| Queued (LLM) | Sensor → Orchestrator → Queue → Executive → Orchestrator → broadcast | Async via SubscribeResponses stream |
+
+---
+
 ## Concurrency Model
 
 ### Overview
