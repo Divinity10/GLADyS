@@ -79,6 +79,7 @@ class EventQueue:
         self._worker_task: Optional[asyncio.Task] = None
         self._timeout_task: Optional[asyncio.Task] = None
         self._shutdown = False
+        self._enqueue_event = asyncio.Event()  # Signaled when new items are enqueued
 
         # Stats
         self._total_queued = 0
@@ -162,6 +163,9 @@ class EventQueue:
         self._counter += 1
         self._total_queued += 1
 
+        # Wake the worker immediately
+        self._enqueue_event.set()
+
         logger.debug(
             f"Queued event {event_id}: salience={salience:.2f}, "
             f"queue_size={len(self._pending)}"
@@ -176,8 +180,9 @@ class EventQueue:
                 # Get next event from queue
                 queued = self._dequeue()
                 if queued is None:
-                    # Queue empty, wait a bit
-                    await asyncio.sleep(0.05)  # 50ms polling
+                    # Wait until enqueue() signals a new item
+                    self._enqueue_event.clear()
+                    await self._enqueue_event.wait()
                     continue
 
                 # Process the event
@@ -226,8 +231,11 @@ class EventQueue:
             self._total_processed += 1
 
             # Broadcast response
+            logger.debug(
+                f"Broadcast check: callback={bool(self._broadcast_callback)}, response={bool(response)}"
+            )
             if self._broadcast_callback and response:
-                await self._broadcast_callback({
+                broadcast_data = {
                     "event_id": event_id,
                     "response_id": response.get("response_id", ""),
                     "response_text": response.get("response_text", ""),
@@ -238,7 +246,9 @@ class EventQueue:
                     "event_source": getattr(queued.event, "source", ""),
                     "event_timestamp_ms": queued.enqueue_time_ms,
                     "response_timestamp_ms": int(time.time() * 1000),
-                })
+                }
+                logger.info(f"Broadcasting response for event {event_id}")
+                await self._broadcast_callback(broadcast_data)
 
             logger.info(
                 f"Processed event {event_id}: "
