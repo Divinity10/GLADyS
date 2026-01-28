@@ -571,14 +571,6 @@ def render_settings_tab():
         ]
         st.dataframe(conn_data, use_container_width=True, hide_index=True)
 
-    # Command output log
-    st.markdown("---")
-    st.subheader("Command Log")
-    if st.session_state.last_cmd_output:
-        st.code(st.session_state.last_cmd_output, language="text")
-    else:
-        st.caption("No commands executed yet.")
-
 def render_stats_summary(time_filter_clause, params):
     # Queries
     events_query = f"SELECT COUNT(*) FROM episodic_events WHERE archived = false {time_filter_clause}"
@@ -1152,6 +1144,110 @@ def render_cache_tab():
         st.caption("Make sure the Rust service (memory-rust) is running.")
 
 
+# --- Logs Tab ---
+
+# Log directory for local services (matches _gladys.py)
+LOCAL_LOG_DIR = Path.home() / ".gladys" / "logs"
+
+
+def fetch_service_logs(service_name: str, tail: int = 100) -> str:
+    """Fetch recent logs for a service.
+
+    Docker: Uses docker-compose logs
+    Local: Reads from ~/.gladys/logs/<service>.log
+    """
+    env_mode = st.session_state.env_mode
+
+    if env_mode == "Docker":
+        compose_file = PROJECT_ROOT / "src" / "integration" / "docker-compose.yml"
+        # Map UI service names to compose service names
+        compose_name = service_name if service_name != "db" else "postgres"
+
+        try:
+            result = subprocess.run(
+                ["docker-compose", "-f", str(compose_file), "logs", "--tail", str(tail), compose_name],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding="utf-8",
+                cwd=str(PROJECT_ROOT)
+            )
+            if result.returncode == 0:
+                return result.stdout or "(No logs available)"
+            else:
+                return f"Error fetching logs: {result.stderr}"
+        except subprocess.TimeoutExpired:
+            return "Log fetch timed out"
+        except Exception as e:
+            return f"Error: {e}"
+    else:
+        # Local mode - read from log files
+        log_file = LOCAL_LOG_DIR / f"{service_name}.log"
+
+        if not log_file.exists():
+            return f"(No log file at {log_file})\n\nService may not have started yet, or restart required for file logging."
+
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+            if tail:
+                lines = lines[-tail:]
+
+            if lines:
+                return "".join(lines)
+            else:
+                return "(Log file is empty)"
+        except Exception as e:
+            return f"Error reading log file: {e}"
+
+
+def render_logs_tab():
+    """Logs tab - Command Log and Service Logs."""
+    st.header("Logs")
+
+    # Command Log section (moved from Settings)
+    with st.expander("Command Log", expanded=True):
+        st.caption("Output from recent service management commands")
+        if st.session_state.last_cmd_output:
+            st.code(st.session_state.last_cmd_output, language="text")
+        else:
+            st.info("No commands executed yet.")
+
+        if st.button("Clear Command Log", key="clear_cmd_log"):
+            st.session_state.last_cmd_output = ""
+            st.rerun()
+
+    # Service Logs section
+    st.subheader("Service Logs")
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.caption("View recent output from GLADyS services")
+    with col2:
+        tail_lines = st.selectbox("Lines", [50, 100, 200, 500], index=1, key="log_tail_lines")
+
+    services = [
+        ("memory-python", "Memory (Python)"),
+        ("memory-rust", "Salience Gateway (Rust)"),
+        ("orchestrator", "Orchestrator"),
+        ("executive-stub", "Executive"),
+    ]
+
+    env_mode = st.session_state.env_mode
+    if env_mode == "Local":
+        st.info(f"Local logs stored in: {LOCAL_LOG_DIR}")
+
+    for svc_name, svc_label in services:
+        with st.expander(f"{svc_label}", expanded=False):
+            if st.button(f"Fetch Logs", key=f"fetch_logs_{svc_name}"):
+                with st.spinner(f"Fetching {svc_label} logs..."):
+                    logs = fetch_service_logs(svc_name, tail=tail_lines)
+                st.code(logs, language="text")
+            else:
+                st.caption("Click 'Fetch Logs' to load service output")
+
+
 # --- Flight Recorder ---
 
 def render_flight_recorder():
@@ -1230,12 +1326,13 @@ def main():
     render_stats_summary(time_filter, params)
     st.markdown("---")
 
-    tab_lab, tab_memory, tab_events, tab_cache, tab_recorder, tab_settings = st.tabs([
+    tab_lab, tab_memory, tab_events, tab_cache, tab_recorder, tab_logs, tab_settings = st.tabs([
         "🔬 Laboratory",
         "🧠 Memory",
         "📜 Event Log",
         "💾 Cache",
         "🎯 Flight Recorder",
+        "📋 Logs",
         "⚙️ Settings"
     ])
 
@@ -1257,6 +1354,9 @@ def main():
 
     with tab_recorder:
         render_flight_recorder()
+
+    with tab_logs:
+        render_logs_tab()
 
     with tab_settings:
         render_settings_tab()

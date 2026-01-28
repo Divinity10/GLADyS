@@ -12,6 +12,21 @@ from pathlib import Path
 # Project root
 ROOT = Path(__file__).parent.parent
 
+# Log directory for local services
+LOG_DIR = Path.home() / ".gladys" / "logs"
+
+
+def ensure_log_dir() -> Path:
+    """Ensure log directory exists and return path."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    return LOG_DIR
+
+
+def get_log_file(service_name: str) -> Path:
+    """Get log file path for a service."""
+    ensure_log_dir()
+    return LOG_DIR / f"{service_name}.log"
+
 
 def load_env_file(env_path: Path | None = None) -> None:
     """Load environment variables from .env file.

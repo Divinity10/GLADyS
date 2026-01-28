@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from _gladys import LOCAL_PORTS, ROOT, get_test_env, is_port_open, is_windows
+from _gladys import LOCAL_PORTS, ROOT, get_test_env, get_log_file, is_port_open, is_windows
 from _service_base import ServiceBackend
 
 
@@ -144,6 +144,12 @@ class LocalBackend(ServiceBackend):
 
         # Merge environment variables
         env = {**os.environ, **config.get("env", {})}
+
+        # Set LOG_FILE for structured logging (gladys_common)
+        log_file = get_log_file(name)
+        env["LOG_FILE"] = str(log_file)
+        # Also write DEBUG to file for troubleshooting
+        env.setdefault("LOG_FILE_LEVEL", "DEBUG")
 
         # Start the process
         try:
@@ -289,15 +295,33 @@ class LocalBackend(ServiceBackend):
             return {"status": "UNKNOWN", "error": str(e)}
 
     def get_logs(self, names: List[str], follow: bool = True, tail: Optional[int] = None) -> None:
-        """Stream or view service logs.
+        """View service logs from log files.
 
-        Note: Local services run detached without log files by default.
-        This is a limitation - consider adding file-based logging.
+        Log files are stored in ~/.gladys/logs/<service>.log
         """
-        print("Log viewing not yet implemented for local services.")
-        print("Local services run detached. Consider:")
-        print("  - Running services in foreground for debugging")
-        print("  - Adding file-based logging to services")
+        for name in names:
+            log_file = get_log_file(name)
+            print(f"\n=== {name} logs ({log_file}) ===")
+
+            if not log_file.exists():
+                print(f"  (No log file found. Service may not have started yet.)")
+                continue
+
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                if tail:
+                    lines = lines[-tail:]
+
+                if lines:
+                    for line in lines:
+                        print(line.rstrip())
+                else:
+                    print("  (Log file is empty)")
+
+            except Exception as e:
+                print(f"  Error reading log file: {e}")
 
     def run_sql(self, sql: str, database: str = "gladys") -> int:
         """Run SQL command/query."""
