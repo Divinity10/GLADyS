@@ -6,6 +6,8 @@
 import abc
 import argparse
 import sys
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -97,6 +99,11 @@ class ServiceBackend(abc.ABC):
     @abc.abstractmethod
     def cache_evict(self, heuristic_id: str) -> int:
         """Evict heuristic from cache. Returns exit code."""
+        pass
+
+    @abc.abstractmethod
+    def queue_stats(self) -> int:
+        """Show event queue statistics. Returns exit code."""
         pass
 
     @abc.abstractmethod
@@ -242,6 +249,13 @@ class ServiceManager:
         cache_evict.add_argument("id", help="Heuristic ID to evict")
         cache_evict.set_defaults(func=self.cmd_cache_evict)
 
+        # Queue Management (orchestrator event queue)
+        queue = subparsers.add_parser("queue", help="Event queue management (orchestrator)")
+        queue_sub = queue.add_subparsers(dest="queue_command", required=True)
+
+        queue_stats = queue_sub.add_parser("stats", help="Show event queue statistics")
+        queue_stats.set_defaults(func=self.cmd_queue_stats)
+
         return parser
 
     def _add_service_command(self, subparsers, name, help_text, extra_args=None):
@@ -272,6 +286,50 @@ class ServiceManager:
         no_cache = getattr(args, "no_cache", False)
         return 0 if self.backend.build_service(services, no_cache=no_cache) else 1
 
+    def _check_ollama_status(self) -> dict:
+        """Check if Ollama LLM server is running.
+
+        Uses OLLAMA_URL and OLLAMA_MODEL environment variables.
+        Returns endpoint name, URL, model, and connection status.
+        """
+        import os
+        ollama_url = os.environ.get("OLLAMA_URL")
+        ollama_model = os.environ.get("OLLAMA_MODEL")
+        endpoint_name = os.environ.get("OLLAMA_ENDPOINT")
+
+        if not ollama_url:
+            return {
+                "running": False, "healthy": False,
+                "status_text": "not configured",
+                "url": None, "model": None, "endpoint": None
+            }
+
+        # Normalize URL (ensure it has /api/tags endpoint)
+        base_url = ollama_url.rstrip("/")
+        check_url = f"{base_url}/api/tags"
+
+        try:
+            req = urllib.request.Request(
+                check_url,
+                headers={"Accept": "application/json"}
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                if resp.status == 200:
+                    return {
+                        "running": True, "healthy": True,
+                        "status_text": "running",
+                        "url": ollama_url, "model": ollama_model, "endpoint": endpoint_name
+                    }
+        except urllib.error.URLError:
+            pass
+        except Exception:
+            pass
+        return {
+            "running": False, "healthy": False,
+            "status_text": "unreachable",
+            "url": ollama_url, "model": ollama_model, "endpoint": endpoint_name
+        }
+
     def cmd_status(self, args):
         print(f"{ 'Service':<20} {'Status':<20} {'Port':<8} Description")
         print("-" * 80)
@@ -280,6 +338,28 @@ class ServiceManager:
             status_icon = "[OK]" if st.get("healthy") else ("[--]" if not st.get("running") else "[!!]")
             status_text = st.get("status_text", "unknown")
             print(f"{name:<20} {status_icon} {status_text:<15} {svc.port:<8} {svc.description}")
+
+        # Check external dependencies
+        print("-" * 80)
+        print("External Dependencies:")
+        ollama = self._check_ollama_status()
+        ollama_icon = "[OK]" if ollama.get("healthy") else "[--]"
+        ollama_text = ollama.get("status_text", "unknown")
+        ollama_url = ollama.get("url")
+        ollama_model = ollama.get("model")
+        ollama_endpoint = ollama.get("endpoint")
+        if ollama_url:
+            # Extract host:port from URL for display
+            from urllib.parse import urlparse
+            parsed = urlparse(ollama_url)
+            port_str = str(parsed.port) if parsed.port else "11434"
+            endpoint_label = f"[{ollama_endpoint}] " if ollama_endpoint else ""
+            model_label = f" model={ollama_model}" if ollama_model else ""
+            desc = f"LLM {endpoint_label}({parsed.hostname}){model_label}"
+        else:
+            port_str = "-----"
+            desc = "LLM Backend (set OLLAMA_URL)"
+        print(f"{'ollama':<20} {ollama_icon} {ollama_text:<15} {port_str:<8} {desc}")
         return 0
 
     def cmd_health(self, args):
@@ -377,6 +457,9 @@ class ServiceManager:
 
     def cmd_cache_evict(self, args):
         return self.backend.cache_evict(args.id)
+
+    def cmd_queue_stats(self, args):
+        return self.backend.queue_stats()
 
     def run(self):
         args = self.parser.parse_args()

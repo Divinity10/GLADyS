@@ -157,9 +157,10 @@ def main() -> int:
     print(f"\n{BLUE}{'=' * 50}{RESET}")
     print(f"{GREEN}Local environment OK{RESET}")
     print(f"\n{BLUE}To start services:{RESET}")
-    print("  Terminal 1: cd src/memory/python && uv run python -m gladys_memory.grpc_server")
-    print("  Terminal 2: cd src/orchestrator && uv run python run.py start")
-    print("  Terminal 3: cd src/executive && uv run python stub_server.py")
+    print("  python scripts/local.py start all")
+    print(f"\n{BLUE}Or start individual services:{RESET}")
+    print("  python scripts/local.py start memory-python")
+    print("  python scripts/local.py start orchestrator")
     return 0
 
 

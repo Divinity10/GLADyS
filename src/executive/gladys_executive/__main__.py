@@ -25,6 +25,29 @@ except ImportError:
     pass  # dotenv not installed, rely on environment variables
 
 
+def resolve_ollama_endpoint() -> None:
+    """Resolve OLLAMA_URL and OLLAMA_MODEL from named endpoints.
+
+    Supports named endpoints like:
+        OLLAMA_ENDPOINT_LOCAL=http://localhost:11434
+        OLLAMA_ENDPOINT_LOCAL_MODEL=gemma3:1b
+        OLLAMA_ENDPOINT=local
+    """
+    endpoint_name = os.environ.get("OLLAMA_ENDPOINT", "").strip().upper()
+    if not endpoint_name:
+        return
+
+    endpoint_url = os.environ.get(f"OLLAMA_ENDPOINT_{endpoint_name}")
+    if endpoint_url:
+        os.environ["OLLAMA_URL"] = endpoint_url
+        model_name = os.environ.get(f"OLLAMA_ENDPOINT_{endpoint_name}_MODEL")
+        if model_name:
+            os.environ["OLLAMA_MODEL"] = model_name
+
+
+resolve_ollama_endpoint()
+
+
 def setup_logging(verbose: bool = False) -> None:
     """Configure logging."""
     level = logging.DEBUG if verbose else logging.INFO

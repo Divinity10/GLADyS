@@ -3,6 +3,7 @@
 This module is used by local.py and docker.py to avoid code duplication.
 """
 
+import os
 import socket
 import sys
 from dataclasses import dataclass
@@ -10,6 +11,80 @@ from pathlib import Path
 
 # Project root
 ROOT = Path(__file__).parent.parent
+
+
+def load_env_file(env_path: Path | None = None) -> None:
+    """Load environment variables from .env file.
+
+    Simple loader that doesn't require python-dotenv dependency.
+    Reads the .env file and sets variables that aren't already set.
+    """
+    if env_path is None:
+        env_path = ROOT / ".env"
+
+    if not env_path.exists():
+        return
+
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if not line or line.startswith("#"):
+                continue
+            # Parse KEY=value
+            if "=" in line:
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip()
+                # Don't override existing env vars
+                if key and key not in os.environ:
+                    os.environ[key] = value
+
+
+def resolve_ollama_endpoint() -> None:
+    """Resolve OLLAMA_URL and OLLAMA_MODEL from named endpoints.
+
+    Supports named endpoints like:
+        OLLAMA_ENDPOINT_LOCAL=http://localhost:11434
+        OLLAMA_ENDPOINT_LOCAL_MODEL=gemma3:1b
+        OLLAMA_ENDPOINT_REMOTE=http://server:11435
+        OLLAMA_ENDPOINT_REMOTE_MODEL=gemma3:4b
+        OLLAMA_ENDPOINT=local
+
+    The OLLAMA_ENDPOINT value (case-insensitive) selects which
+    OLLAMA_ENDPOINT_<name> to use as OLLAMA_URL and which
+    OLLAMA_ENDPOINT_<name>_MODEL to use as OLLAMA_MODEL.
+
+    Falls back to OLLAMA_URL/OLLAMA_MODEL if OLLAMA_ENDPOINT is not set.
+    """
+    endpoint_name = os.environ.get("OLLAMA_ENDPOINT", "").strip().upper()
+
+    if not endpoint_name:
+        # No named endpoint configured, use OLLAMA_URL directly (backward compat)
+        return
+
+    # Look for OLLAMA_ENDPOINT_<name>
+    endpoint_key = f"OLLAMA_ENDPOINT_{endpoint_name}"
+    endpoint_url = os.environ.get(endpoint_key)
+
+    if endpoint_url:
+        os.environ["OLLAMA_URL"] = endpoint_url
+
+        # Also check for endpoint-specific model
+        model_key = f"OLLAMA_ENDPOINT_{endpoint_name}_MODEL"
+        model_name = os.environ.get(model_key)
+        if model_name:
+            os.environ["OLLAMA_MODEL"] = model_name
+    else:
+        # Named endpoint not found - warn but don't fail
+        print(f"Warning: OLLAMA_ENDPOINT={endpoint_name} but {endpoint_key} not defined")
+
+
+# Load .env file on module import
+load_env_file()
+
+# Resolve named Ollama endpoint
+resolve_ollama_endpoint()
 
 
 @dataclass
@@ -45,7 +120,7 @@ SERVICE_DESCRIPTIONS = {
     "memory": "Memory Storage + Salience Gateway",
     "memory-python": "Memory Storage (Python)",
     "memory-rust": "Salience Gateway (Rust)",
-    "orchestrator": "Event routing and accumulation",
+    "orchestrator": "Event routing and priority queue",
     "executive": "Executive stub (LLM planning)",
     "db": "PostgreSQL + pgvector",
 }

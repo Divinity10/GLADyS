@@ -281,3 +281,21 @@ class DockerBackend(ServiceBackend):
 
     def cache_evict(self, heuristic_id: str) -> int:
         return self._run_cache_cmd(["evict", heuristic_id])
+
+    def _run_queue_cmd(self, args: List[str]) -> int:
+        """Run a queue client command against orchestrator."""
+        address = f"localhost:{DOCKER_PORTS.orchestrator}"
+        # Use orchestrator venv
+        python_exe = ROOT / "src" / "orchestrator" / ".venv" / "Scripts" / "python.exe"
+        if not python_exe.exists():
+            # Fallback to memory-python venv
+            python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+        if not python_exe.exists():
+            print("Warning: Using system python fallback for queue command")
+            python_exe = Path("python")
+
+        cmd = [str(python_exe), str(ROOT / "scripts" / "_queue_client.py"), "--address", address] + args
+        return subprocess.run(cmd).returncode
+
+    def queue_stats(self) -> int:
+        return self._run_queue_cmd(["stats"])
