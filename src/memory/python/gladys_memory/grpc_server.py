@@ -225,6 +225,14 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 except json.JSONDecodeError:
                     action = {"raw": h.effects_json}
 
+            # Warn if effects_json doesn't have canonical 'message' field
+            if action and "message" not in action:
+                logger.warning(
+                    "StoreHeuristic: effects_json missing 'message' field",
+                    heuristic_id=h.id,
+                    available_keys=list(action.keys()),
+                )
+
             # Always generate embedding for semantic matching
             # This is critical for correct heuristic matching
             condition_embedding = None
