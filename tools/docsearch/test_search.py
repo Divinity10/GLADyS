@@ -10,7 +10,7 @@ import os
 sys.path.append(str(Path(__file__).parent))
 
 # We will implement this class in the actual script
-from search import DocGraph, Node, IndexParser
+from docsearch import DocGraph, Node, IndexParser
 
 class TestDocGraph(unittest.TestCase):
     def setUp(self):
