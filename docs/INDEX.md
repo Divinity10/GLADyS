@@ -39,13 +39,15 @@
 | **Impl** | `src/memory/python/gladys_memory/storage.py` | Storage implementation (Code). |
 
 ## 🛠️ Infrastructure & Ops
-*Keywords: Docker, Scripts, Ports, Deployment, CLI*
+*Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
-| **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout. |
+| **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
-| **Code** | `scripts/_service_base.py` | Core automation framework. |
+| **Code** | `scripts/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |
+| **Code** | `scripts/_queue_client.py` | Queue management gRPC client for CLI. |
+| **Test** | `src/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
 
 ## 🎭 Executive & Personality
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
@@ -55,10 +57,11 @@
 | **Truth** | [ADR-0014](adr/ADR-0014-Executive-Decision-Loop.md) | The OODA decision loop specification. |
 | **Truth** | [ADR-0015](adr/ADR-0015-Personality-Subsystem.md) | Personality traits and response styles. |
 | **Design** | [DESIGN.md#executive-subsystem](design/DESIGN.md#executive-subsystem) | **Current Implementation**: Python stub, Ollama integration. |
+| **Impl** | `src/executive/gladys_executive/stub_server.py` | Executive gRPC server (TD learning, heuristic writes). |
 | **Config** | [Templates](design/PERSONALITY_TEMPLATES.md) | Specific personality configurations (Murderbot, Butler). |
 
 ## 🔌 Plugins & World
-*Keywords: Sensors, Actuators, Manifest, Safety, Audit*
+*Keywords: Sensors, Actuators, Manifest, Safety, Audit, Subscription, Dashboard*
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
@@ -66,6 +69,9 @@
 | **Truth** | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) | Actuator safety bounds and permissions. |
 | **Truth** | [ADR-0012](adr/ADR-0012-Audit-Logging.md) | Immutable audit logging requirements. |
 | **Design** | [DESIGN.md#orchestrator-subsystem](design/DESIGN.md#orchestrator-subsystem) | **Current Implementation**: Orchestrator routing and plugin mgmt. |
+| **Impl** | `src/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
+| **Impl** | `src/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
+| **UI** | `src/ui/dashboard.py` | Streamlit dashboard (Laboratory, Event Log, Queue panel). |
 
 ---
 

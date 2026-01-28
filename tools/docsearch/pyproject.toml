@@ -1,0 +1,16 @@
+[project]
+name = "docsearch"
+version = "0.1.0"
+description = "Graph-based documentation search and context packer"
+authors = [
+    { name = "Scott", email = "scott@example.com" }
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+docsearch = "docsearch.search:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
