@@ -305,3 +305,7 @@ class DockerBackend(ServiceBackend):
         if limit > 0:
             args.extend(["--limit", str(limit)])
         return self._run_queue_cmd(args)
+
+    def queue_watch(self, interval: float = 1.0) -> int:
+        args = ["watch", "--interval", str(interval)]
+        return self._run_queue_cmd(args)

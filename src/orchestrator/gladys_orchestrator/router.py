@@ -477,6 +477,13 @@ class EventRouter:
         """
         event_source = response.get("event_source", "")
         routing_path = response.get("routing_path", "")
+        event_id = response.get("event_id", "")
+
+        subscriber_count = len(self._response_subscribers)
+        logger.info(
+            f"broadcast_response: event_id={event_id}, routing_path={routing_path}, "
+            f"subscriber_count={subscriber_count}"
+        )
 
         for subscriber in list(self._response_subscribers.values()):
             # Skip IMMEDIATE responses if subscriber doesn't want them
@@ -490,5 +497,8 @@ class EventRouter:
 
             try:
                 subscriber.queue.put_nowait(response)
+                logger.debug(
+                    f"Delivered response {event_id} to subscriber {subscriber.subscriber_id}"
+                )
             except asyncio.QueueFull:
                 logger.warning(f"Response subscriber {subscriber.subscriber_id} queue full, dropping response")

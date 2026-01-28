@@ -112,6 +112,11 @@ class ServiceBackend(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def queue_watch(self, interval: float = 1.0) -> int:
+        """Watch queue activity in real-time. Returns exit code."""
+        pass
+
+    @abc.abstractmethod
     def get_service_health(self, name: str, detailed: bool = False) -> Dict[str, Any]:
         """Get gRPC health status from a service.
         Returns: {
@@ -264,6 +269,10 @@ class ServiceManager:
         queue_list = queue_sub.add_parser("list", help="List events in the queue")
         queue_list.add_argument("--limit", type=int, default=0, help="Max events to show (0=all)")
         queue_list.set_defaults(func=self.cmd_queue_list)
+
+        queue_watch = queue_sub.add_parser("watch", help="Watch queue activity in real-time (Ctrl+C to stop)")
+        queue_watch.add_argument("--interval", type=float, default=1.0, help="Poll interval in seconds (default: 1.0)")
+        queue_watch.set_defaults(func=self.cmd_queue_watch)
 
         return parser
 
@@ -472,6 +481,9 @@ class ServiceManager:
 
     def cmd_queue_list(self, args):
         return self.backend.queue_list(args.limit)
+
+    def cmd_queue_watch(self, args):
+        return self.backend.queue_watch(args.interval)
 
     def run(self):
         args = self.parser.parse_args()

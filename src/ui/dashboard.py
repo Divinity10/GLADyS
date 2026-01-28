@@ -214,20 +214,24 @@ def response_subscriber_thread(q, orchestrator_addr):
     """Background thread to subscribe to responses."""
     try:
         # Create a dedicated channel for the thread and ensure it's closed on exit
+        print(f"[Subscription] Connecting to {orchestrator_addr}...")
         with grpc.insecure_channel(orchestrator_addr) as channel:
             orch_stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
-            
+
             # Using a unique ID for the dashboard
             subscriber_id = f"dashboard-{uuid.uuid4().hex[:8]}"
+            print(f"[Subscription] Subscribing as {subscriber_id}")
             req = orchestrator_pb2.SubscribeResponsesRequest(
                 subscriber_id=subscriber_id,
                 include_immediate=True
             )
             responses = orch_stub.SubscribeResponses(req)
+            print(f"[Subscription] Stream established, waiting for responses...")
             for resp in responses:
+                print(f"[Subscription] Received response for event {resp.event_id}")
                 q.put(resp)
     except Exception as e:
-        print(f"Subscription error: {e}")
+        print(f"[Subscription] Error: {e}")
 
 # Start subscription thread only once
 # Note: If environment switches, we might need to restart this thread.
@@ -242,21 +246,6 @@ if not st.session_state.subscribed:
     )
     thread.start()
     st.session_state.subscribed = True
-
-def process_queue():
-    """Move messages from queue to session state history."""
-    new_items = False
-    while not st.session_state.response_queue.empty():
-        try:
-            resp = st.session_state.response_queue.get_nowait()
-            st.session_state.response_history.insert(0, resp)
-            # Keep last 50
-            if len(st.session_state.response_history) > 50:
-                st.session_state.response_history.pop()
-            new_items = True
-        except queue.Empty:
-            break
-    return new_items
 
 # --- Database Functions ---
 
@@ -854,55 +843,61 @@ def render_memory_console():
                     st.error(f"gRPC Error: {e}")
 
 
-def render_queue_panel():
-    """Render the event queue status panel."""
+@st.fragment(run_every=2)  # Polls subscription queue; refreshes both panels on new responses
+def render_queue_and_responses():
+    """Render queue panel and response history as a single fragment.
+
+    Combined into one fragment so the queue view updates exactly when
+    a new response arrives (event-driven), rather than on independent timers.
+    """
+    # --- Process subscription queue first (drives refresh) ---
+    new_count = 0
+    while not st.session_state.response_queue.empty():
+        try:
+            resp = st.session_state.response_queue.get_nowait()
+            st.session_state.response_history.insert(0, resp)
+            if len(st.session_state.response_history) > 50:
+                st.session_state.response_history.pop()
+            new_count += 1
+        except queue.Empty:
+            break
+
+    if new_count > 0:
+        st.toast(f"Received {new_count} new response(s)", icon="📨")
+
+    # --- Queue Panel ---
     st.subheader("📥 Event Queue")
-
-    col1, col2 = st.columns([4, 1])
-
-    with col2:
-        refresh = st.button("🔄", help="Refresh queue", key="refresh_queue")
-
-    # Fetch queue data
     try:
         orch_stub = get_orchestrator_stub()
         resp = orch_stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=10))
 
-        with col1:
-            if resp.total_count == 0:
-                st.caption("Queue is empty")
-            else:
-                st.caption(f"**{resp.total_count}** pending")
-
-        if resp.total_count > 0:
+        if resp.total_count == 0:
+            st.caption("Queue is empty")
+        else:
+            st.caption(f"**{resp.total_count}** pending")
             for ev in resp.events:
                 age_sec = ev.age_ms / 1000
                 st.text(f"• {ev.source:<12} sal={ev.salience:.2f}  age={age_sec:.1f}s")
     except Exception as e:
-        with col1:
-            st.caption(f"(unavailable: {e})")
+        st.caption(f"(unavailable: {e})")
 
+    st.markdown("---")
 
-def render_response_history():
+    # --- Response History ---
     st.subheader("🛰️ Live Response Stream")
-    
-    if process_queue():
-        # Small hack to trigger UI refresh when background items arrive if auto-refresh is off
-        pass
 
     if not st.session_state.response_history:
         st.info("Waiting for responses...")
         return
 
-    # Prepare data for display
     history_data = []
     for resp in st.session_state.response_history:
         latency = resp.response_timestamp_ms - resp.event_timestamp_ms if resp.event_timestamp_ms > 0 else 0
-        
+
         path_str = "Unknown"
         if resp.routing_path == 1: path_str = "IMMEDIATE"
         elif resp.routing_path == 2: path_str = "QUEUED"
-        
+
         history_data.append({
             "Time": datetime.fromtimestamp(resp.response_timestamp_ms / 1000).strftime("%H:%M:%S"),
             "Event ID": resp.event_id[:8],
@@ -911,7 +906,7 @@ def render_response_history():
             "Response": resp.response_text,
             "Latency": f"{latency}ms"
         })
-    
+
     st.table(history_data)
 
 def render_recent_events(time_filter_clause, params):
@@ -1369,9 +1364,7 @@ def main():
     with tab_lab:
         render_event_simulator()
         st.markdown("---")
-        render_queue_panel()
-        st.markdown("---")
-        render_response_history()
+        render_queue_and_responses()
         st.markdown("---")
         render_heuristics()
 
