@@ -1,6 +1,7 @@
 import datetime
 
-from . import common_pb2 as _common_pb2
+import common_pb2 as _common_pb2
+import types_pb2 as _types_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -10,6 +11,12 @@ from collections.abc import Iterable as _Iterable, Mapping as _Mapping
 from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+
+class RoutingPath(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ROUTING_PATH_UNSPECIFIED: _ClassVar[RoutingPath]
+    ROUTING_PATH_IMMEDIATE: _ClassVar[RoutingPath]
+    ROUTING_PATH_QUEUED: _ClassVar[RoutingPath]
 
 class TransportMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -32,6 +39,9 @@ class Command(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     COMMAND_RESUME: _ClassVar[Command]
     COMMAND_RELOAD: _ClassVar[Command]
     COMMAND_HEALTH_CHECK: _ClassVar[Command]
+ROUTING_PATH_UNSPECIFIED: RoutingPath
+ROUTING_PATH_IMMEDIATE: RoutingPath
+ROUTING_PATH_QUEUED: RoutingPath
 TRANSPORT_MODE_UNSPECIFIED: TransportMode
 TRANSPORT_MODE_STREAMING: TransportMode
 TRANSPORT_MODE_BATCHED: TransportMode
@@ -47,14 +57,28 @@ COMMAND_RELOAD: Command
 COMMAND_HEALTH_CHECK: Command
 
 class EventAck(_message.Message):
-    __slots__ = ("event_id", "accepted", "error_message")
+    __slots__ = ("event_id", "accepted", "error_message", "response_id", "response_text", "predicted_success", "prediction_confidence", "routed_to_llm", "matched_heuristic_id", "queued")
     EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     ACCEPTED_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_ID_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_TEXT_FIELD_NUMBER: _ClassVar[int]
+    PREDICTED_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    PREDICTION_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    ROUTED_TO_LLM_FIELD_NUMBER: _ClassVar[int]
+    MATCHED_HEURISTIC_ID_FIELD_NUMBER: _ClassVar[int]
+    QUEUED_FIELD_NUMBER: _ClassVar[int]
     event_id: str
     accepted: bool
     error_message: str
-    def __init__(self, event_id: _Optional[str] = ..., accepted: bool = ..., error_message: _Optional[str] = ...) -> None: ...
+    response_id: str
+    response_text: str
+    predicted_success: float
+    prediction_confidence: float
+    routed_to_llm: bool
+    matched_heuristic_id: str
+    queued: bool
+    def __init__(self, event_id: _Optional[str] = ..., accepted: bool = ..., error_message: _Optional[str] = ..., response_id: _Optional[str] = ..., response_text: _Optional[str] = ..., predicted_success: _Optional[float] = ..., prediction_confidence: _Optional[float] = ..., routed_to_llm: bool = ..., matched_heuristic_id: _Optional[str] = ..., queued: bool = ...) -> None: ...
 
 class SubscribeRequest(_message.Message):
     __slots__ = ("subscriber_id", "source_filters", "event_types")
@@ -65,6 +89,38 @@ class SubscribeRequest(_message.Message):
     source_filters: _containers.RepeatedScalarFieldContainer[str]
     event_types: _containers.RepeatedScalarFieldContainer[str]
     def __init__(self, subscriber_id: _Optional[str] = ..., source_filters: _Optional[_Iterable[str]] = ..., event_types: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class SubscribeResponsesRequest(_message.Message):
+    __slots__ = ("subscriber_id", "source_filters", "include_immediate")
+    SUBSCRIBER_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FILTERS_FIELD_NUMBER: _ClassVar[int]
+    INCLUDE_IMMEDIATE_FIELD_NUMBER: _ClassVar[int]
+    subscriber_id: str
+    source_filters: _containers.RepeatedScalarFieldContainer[str]
+    include_immediate: bool
+    def __init__(self, subscriber_id: _Optional[str] = ..., source_filters: _Optional[_Iterable[str]] = ..., include_immediate: bool = ...) -> None: ...
+
+class EventResponse(_message.Message):
+    __slots__ = ("event_id", "response_id", "response_text", "predicted_success", "prediction_confidence", "routing_path", "matched_heuristic_id", "event_timestamp_ms", "response_timestamp_ms")
+    EVENT_ID_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_ID_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_TEXT_FIELD_NUMBER: _ClassVar[int]
+    PREDICTED_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    PREDICTION_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    ROUTING_PATH_FIELD_NUMBER: _ClassVar[int]
+    MATCHED_HEURISTIC_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_MS_FIELD_NUMBER: _ClassVar[int]
+    RESPONSE_TIMESTAMP_MS_FIELD_NUMBER: _ClassVar[int]
+    event_id: str
+    response_id: str
+    response_text: str
+    predicted_success: float
+    prediction_confidence: float
+    routing_path: RoutingPath
+    matched_heuristic_id: str
+    event_timestamp_ms: int
+    response_timestamp_ms: int
+    def __init__(self, event_id: _Optional[str] = ..., response_id: _Optional[str] = ..., response_text: _Optional[str] = ..., predicted_success: _Optional[float] = ..., prediction_confidence: _Optional[float] = ..., routing_path: _Optional[_Union[RoutingPath, str]] = ..., matched_heuristic_id: _Optional[str] = ..., event_timestamp_ms: _Optional[int] = ..., response_timestamp_ms: _Optional[int] = ...) -> None: ...
 
 class RegisterRequest(_message.Message):
     __slots__ = ("component_id", "component_type", "address", "capabilities", "metadata")
@@ -188,6 +244,58 @@ class SystemStatusResponse(_message.Message):
     components: _containers.RepeatedCompositeFieldContainer[_common_pb2.ComponentStatus]
     timestamp: _timestamp_pb2.Timestamp
     def __init__(self, components: _Optional[_Iterable[_Union[_common_pb2.ComponentStatus, _Mapping]]] = ..., timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class GetQueueStatsRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class GetQueueStatsResponse(_message.Message):
+    __slots__ = ("queue_size", "total_queued", "total_processed", "total_timed_out")
+    QUEUE_SIZE_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_QUEUED_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_PROCESSED_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_TIMED_OUT_FIELD_NUMBER: _ClassVar[int]
+    queue_size: int
+    total_queued: int
+    total_processed: int
+    total_timed_out: int
+    def __init__(self, queue_size: _Optional[int] = ..., total_queued: _Optional[int] = ..., total_processed: _Optional[int] = ..., total_timed_out: _Optional[int] = ...) -> None: ...
+
+class ListQueuedEventsRequest(_message.Message):
+    __slots__ = ("limit",)
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
+    limit: int
+    def __init__(self, limit: _Optional[int] = ...) -> None: ...
+
+class ListQueuedEventsResponse(_message.Message):
+    __slots__ = ("events", "total_count")
+    EVENTS_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_COUNT_FIELD_NUMBER: _ClassVar[int]
+    events: _containers.RepeatedCompositeFieldContainer[QueuedEventInfo]
+    total_count: int
+    def __init__(self, events: _Optional[_Iterable[_Union[QueuedEventInfo, _Mapping]]] = ..., total_count: _Optional[int] = ...) -> None: ...
+
+class QueuedEventInfo(_message.Message):
+    __slots__ = ("event_id", "source", "event_type", "salience", "enqueue_time_ms", "age_ms", "matched_heuristic_id", "heuristic_confidence", "raw_text")
+    EVENT_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SALIENCE_FIELD_NUMBER: _ClassVar[int]
+    ENQUEUE_TIME_MS_FIELD_NUMBER: _ClassVar[int]
+    AGE_MS_FIELD_NUMBER: _ClassVar[int]
+    MATCHED_HEURISTIC_ID_FIELD_NUMBER: _ClassVar[int]
+    HEURISTIC_CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
+    RAW_TEXT_FIELD_NUMBER: _ClassVar[int]
+    event_id: str
+    source: str
+    event_type: str
+    salience: float
+    enqueue_time_ms: int
+    age_ms: int
+    matched_heuristic_id: str
+    heuristic_confidence: float
+    raw_text: str
+    def __init__(self, event_id: _Optional[str] = ..., source: _Optional[str] = ..., event_type: _Optional[str] = ..., salience: _Optional[float] = ..., enqueue_time_ms: _Optional[int] = ..., age_ms: _Optional[int] = ..., matched_heuristic_id: _Optional[str] = ..., heuristic_confidence: _Optional[float] = ..., raw_text: _Optional[str] = ...) -> None: ...
 
 class ResolveRequest(_message.Message):
     __slots__ = ("component_id", "component_type", "metadata")

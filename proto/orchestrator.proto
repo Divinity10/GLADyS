@@ -242,6 +242,7 @@ message QueuedEventInfo {
     int64 age_ms = 6;             // How long in queue
     string matched_heuristic_id = 7;
     float heuristic_confidence = 8;
+    string raw_text = 9;          // Event text for display
 }
 
 // ----------------------------------------------------------------------------

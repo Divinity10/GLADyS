@@ -5,7 +5,7 @@ import json
 import logging
 from concurrent import futures
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 import grpc
 from grpc_reflection.v1alpha import reflection
@@ -68,9 +68,22 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             config,
             process_callback=self.router._send_immediate,
             broadcast_callback=self.router.broadcast_response,
+            store_callback=self._store_queued_event,
         )
         self._running = False
         self._started_at = datetime.now(timezone.utc)
+
+    async def _store_queued_event(self, event: Any, response: dict) -> None:
+        """Store a queued event and its response in episodic memory."""
+        if not self._memory_client:
+            return
+        await self._memory_client.store_event(
+            event=event,
+            response_id=response.get("response_id", ""),
+            response_text=response.get("response_text", ""),
+            predicted_success=response.get("predicted_success", 0.0),
+            prediction_confidence=response.get("prediction_confidence", 0.0),
+        )
 
     def _create_outcome_watcher(
         self,
@@ -412,6 +425,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 age_ms=now_ms - queued.enqueue_time_ms,
                 matched_heuristic_id=queued.matched_heuristic_id,
                 heuristic_confidence=queued.heuristic_confidence,
+                raw_text=getattr(event, "raw_text", ""),
             ))
 
         return orchestrator_pb2.ListQueuedEventsResponse(

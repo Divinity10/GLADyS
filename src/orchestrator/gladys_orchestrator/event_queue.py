@@ -54,6 +54,7 @@ class EventQueue:
         config: OrchestratorConfig,
         process_callback: Optional[Callable[[Any, Optional[dict]], Coroutine[Any, Any, dict]]] = None,
         broadcast_callback: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
+        store_callback: Optional[Callable[[Any, dict], Coroutine[Any, Any, None]]] = None,
     ):
         """
         Initialize the event queue.
@@ -62,10 +63,12 @@ class EventQueue:
             config: Orchestrator configuration
             process_callback: Async function to process event (send to Executive)
             broadcast_callback: Async function to broadcast response to subscribers
+            store_callback: Async function to store event+response in memory
         """
         self.config = config
         self._process_callback = process_callback
         self._broadcast_callback = broadcast_callback
+        self._store_callback = store_callback
 
         # Priority queue: (-salience, counter, event_id) for max-heap behavior
         # Counter breaks ties deterministically (FIFO for same salience)
@@ -249,6 +252,13 @@ class EventQueue:
                 }
                 logger.info(f"Broadcasting response for event {event_id}")
                 await self._broadcast_callback(broadcast_data)
+
+            # Store event + response in memory
+            if self._store_callback and response:
+                try:
+                    await self._store_callback(queued.event, response)
+                except Exception as store_err:
+                    logger.warning(f"Failed to store queued event {event_id}: {store_err}")
 
             logger.info(
                 f"Processed event {event_id}: "

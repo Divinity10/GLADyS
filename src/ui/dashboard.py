@@ -852,6 +852,7 @@ def render_queue_and_responses():
     """
     # --- Process subscription queue first (drives refresh) ---
     new_count = 0
+    latest_resp = None
     while not st.session_state.response_queue.empty():
         try:
             resp = st.session_state.response_queue.get_nowait()
@@ -859,11 +860,20 @@ def render_queue_and_responses():
             if len(st.session_state.response_history) > 50:
                 st.session_state.response_history.pop()
             new_count += 1
+            latest_resp = resp
         except queue.Empty:
             break
 
     if new_count > 0:
         st.toast(f"Received {new_count} new response(s)", icon="📨")
+        # Update "Latest Request Result" with the actual response
+        if latest_resp and latest_resp.response_text:
+            st.session_state.last_response_text = latest_resp.response_text
+            if hasattr(latest_resp, 'event_id'):
+                st.session_state.last_event_id = latest_resp.event_id
+            routing = st.session_state.get("last_routing_info", {})
+            routing["queued"] = False  # No longer queued — response arrived
+            st.session_state.last_routing_info = routing
 
     # --- Queue Panel ---
     st.subheader("📥 Event Queue")
@@ -877,7 +887,8 @@ def render_queue_and_responses():
             st.caption(f"**{resp.total_count}** pending")
             for ev in resp.events:
                 age_sec = ev.age_ms / 1000
-                st.text(f"• {ev.source:<12} sal={ev.salience:.2f}  age={age_sec:.1f}s")
+                text_preview = ev.raw_text[:50] + "..." if len(ev.raw_text) > 50 else ev.raw_text
+                st.text(f"• [{ev.source}] {text_preview}  (sal={ev.salience:.2f}, {age_sec:.0f}s ago)")
     except Exception as e:
         st.caption(f"(unavailable: {e})")
 
@@ -899,7 +910,7 @@ def render_queue_and_responses():
         elif resp.routing_path == 2: path_str = "QUEUED"
 
         history_data.append({
-            "Time": datetime.fromtimestamp(resp.response_timestamp_ms / 1000).strftime("%H:%M:%S"),
+            "Time": datetime.fromtimestamp(resp.response_timestamp_ms / 1000).strftime("%m-%d %H:%M:%S"),
             "Event ID": resp.event_id[:8],
             "Path": path_str,
             "Heuristic": resp.matched_heuristic_id[:8] if resp.matched_heuristic_id else "-",
@@ -951,7 +962,7 @@ def render_recent_events(time_filter_clause, params):
         is_expanded = event_id in st.session_state.expanded_events
 
         # Format display values
-        time_str = row['timestamp'].strftime("%H:%M:%S") if hasattr(row['timestamp'], 'strftime') else str(row['timestamp'])[:8]
+        time_str = row['timestamp'].strftime("%m-%d %H:%M:%S") if hasattr(row['timestamp'], 'strftime') else str(row['timestamp'])[:17]
         preview = row['raw_text'][:70] + "..." if len(row['raw_text']) > 70 else row['raw_text']
         path_icon = "🧠" if row['response_id'] else "⚡"
         source_str = (row['source'][:10] if row['source'] else "-")
