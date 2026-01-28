@@ -395,7 +395,25 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 
         if self.ollama and request.immediate:
             event_context = format_event_for_llm(event)
-            prompt = f"URGENT event: {event_context}\n\nHow should I respond?"
+
+            # Build prompt, including suggestion if present (Scenario 2)
+            prompt = f"URGENT event: {event_context}\n\n"
+            if request.suggestion and request.suggestion.heuristic_id:
+                # Include low-confidence heuristic suggestion for LLM to consider
+                suggestion = request.suggestion
+                prompt += f"""A learned pattern matched this situation:
+- Pattern: "{suggestion.condition_text}"
+- Suggested action: "{suggestion.suggested_action}"
+- Confidence: {suggestion.confidence:.0%}
+
+Consider this suggestion in your response.
+
+"""
+                logger.info(
+                    f"Including suggestion in prompt: heuristic={suggestion.heuristic_id}, "
+                    f"confidence={suggestion.confidence:.2f}"
+                )
+            prompt += "How should I respond?"
             llm_response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
             if llm_response:
                 response_text = llm_response.strip()
