@@ -1,0 +1,44 @@
+plugin:
+  id: calendar-sensor
+  name: "Calendar Sensor"
+  version: "0.1.0"
+  type: sensor
+  description: "Monitors calendar events and emits upcoming meeting notifications"
+  author: "GLADyS Team"
+
+resources:
+  gpu:
+    required: false
+  memory_mb: 128
+  models: []
+  dependencies:
+    python: []  # No external deps for mock version
+
+lifecycle:
+  startup:
+    timeout_ms: 5000
+  shutdown:
+    graceful: true
+  state:
+    persistent: false
+  health:
+    heartbeat_interval_ms: 10000
+    failure_threshold: 3
+
+sensor:
+  modality: app_specific
+
+  activation:
+    type: always  # Calendar sensor runs continuously
+
+  deactivation:
+    type: manual
+
+  output:
+    format: structured
+    schema: schemas/calendar_event.json
+
+  tick:
+    mode: interval
+    interval_ms: 30000  # Check every 30 seconds
+    buffer_size: 5

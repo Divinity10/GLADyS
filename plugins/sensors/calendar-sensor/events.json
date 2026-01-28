@@ -1,0 +1,38 @@
+[
+  {
+    "event_id": "meeting-1",
+    "summary": "Team Standup",
+    "start_time": "2026-01-27T13:01:45.592988",
+    "end_time": "2026-01-27T13:16:45.593109",
+    "location": "Zoom",
+    "organizer": "team-lead@example.com",
+    "attendees": [
+      "dev1@example.com",
+      "dev2@example.com"
+    ],
+    "is_all_day": false
+  },
+  {
+    "event_id": "meeting-2",
+    "summary": "1:1 with Manager",
+    "start_time": "2026-01-27T14:51:45.593122",
+    "end_time": "2026-01-27T15:21:45.593131",
+    "location": "Office Room 3",
+    "organizer": "manager@example.com",
+    "attendees": [],
+    "is_all_day": false
+  },
+  {
+    "event_id": "meeting-3",
+    "summary": "Project Review",
+    "start_time": "2026-01-27T16:51:45.593141",
+    "end_time": "2026-01-27T17:51:45.593147",
+    "location": "Conference Room A",
+    "organizer": "pm@example.com",
+    "attendees": [
+      "team-lead@example.com",
+      "designer@example.com"
+    ],
+    "is_all_day": false
+  }
+]
