@@ -33,6 +33,10 @@ class QueuedEvent:
     salience: float
     enqueue_time_ms: int
     matched_heuristic_id: str = ""
+    # Suggestion context for low-conf heuristic matches (Phase 1)
+    suggested_action: str = ""
+    heuristic_confidence: float = 0.0
+    condition_text: str = ""
 
 
 class EventQueue:

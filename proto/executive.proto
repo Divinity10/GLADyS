@@ -18,10 +18,20 @@ service ExecutiveService {
     rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
 }
 
+// Suggestion from a low-confidence heuristic match
+// Passed to Executive so LLM can consider the pattern
+message HeuristicSuggestion {
+    string heuristic_id = 1;        // UUID of the matched heuristic
+    string suggested_action = 2;    // From effects_json.message
+    float confidence = 3;           // Current confidence (< threshold)
+    string condition_text = 4;      // What pattern matched
+}
+
 // Request to process a single high-salience event
 message ProcessEventRequest {
     Event event = 1;
     bool immediate = 2;
+    HeuristicSuggestion suggestion = 3;  // Optional: low-conf heuristic that matched
     RequestMetadata metadata = 15;
 }
 
