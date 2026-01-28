@@ -52,7 +52,7 @@ class EventQueue:
     def __init__(
         self,
         config: OrchestratorConfig,
-        process_callback: Optional[Callable[[Any], Coroutine[Any, Any, dict]]] = None,
+        process_callback: Optional[Callable[[Any, Optional[dict]], Coroutine[Any, Any, dict]]] = None,
         broadcast_callback: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
     ):
         """
@@ -126,6 +126,9 @@ class EventQueue:
         event: Any,
         salience: float,
         matched_heuristic_id: str = "",
+        suggested_action: str = "",
+        heuristic_confidence: float = 0.0,
+        condition_text: str = "",
     ) -> None:
         """
         Add an event to the queue.
@@ -134,6 +137,9 @@ class EventQueue:
             event: The event to queue
             salience: Priority (higher = process sooner)
             matched_heuristic_id: Optional matched heuristic (for tracking)
+            suggested_action: Action text from low-conf heuristic (Scenario 2)
+            heuristic_confidence: Confidence of matched heuristic
+            condition_text: Condition text from matched heuristic
         """
         event_id = getattr(event, "id", str(id(event)))
         now_ms = int(time.time() * 1000)
@@ -144,6 +150,9 @@ class EventQueue:
             salience=salience,
             enqueue_time_ms=now_ms,
             matched_heuristic_id=matched_heuristic_id,
+            suggested_action=suggested_action,
+            heuristic_confidence=heuristic_confidence,
+            condition_text=condition_text,
         )
 
         self._pending[event_id] = queued
@@ -199,10 +208,19 @@ class EventQueue:
         logger.info(f"Processing queued event {event_id}")
 
         try:
-            # Call Executive via callback
+            # Call Executive via callback with suggestion context
             response = None
             if self._process_callback:
-                response = await self._process_callback(queued.event)
+                # Build suggestion dict if we have low-conf heuristic context
+                suggestion = None
+                if queued.matched_heuristic_id and queued.suggested_action:
+                    suggestion = {
+                        "heuristic_id": queued.matched_heuristic_id,
+                        "suggested_action": queued.suggested_action,
+                        "confidence": queued.heuristic_confidence,
+                        "condition_text": queued.condition_text,
+                    }
+                response = await self._process_callback(queued.event, suggestion)
 
             process_time_ms = int((time.time() - start_time) * 1000)
             self._total_processed += 1

@@ -42,9 +42,14 @@ class ExecutiveClient:
             self._channel = None
             self._stub = None
 
-    async def send_event_immediate(self, event: Any) -> dict:
+    async def send_event_immediate(self, event: Any, suggestion: dict | None = None) -> dict:
         """
         Send a high-salience event immediately (bypass moment accumulation).
+
+        Args:
+            event: The event to process
+            suggestion: Optional suggestion context from low-conf heuristic (Scenario 2)
+                       with keys: heuristic_id, suggested_action, confidence, condition_text
 
         Returns dict with response data from Executive:
         - accepted: bool
@@ -59,9 +64,24 @@ class ExecutiveClient:
             return {"accepted": False, "error_message": "Executive not connected"}
 
         try:
+            # Build suggestion proto if provided
+            suggestion_proto = None
+            if suggestion:
+                suggestion_proto = executive_pb2.HeuristicSuggestion(
+                    heuristic_id=suggestion.get("heuristic_id", ""),
+                    suggested_action=suggestion.get("suggested_action", ""),
+                    confidence=suggestion.get("confidence", 0.0),
+                    condition_text=suggestion.get("condition_text", ""),
+                )
+                logger.debug(
+                    f"Including suggestion in request: heuristic={suggestion.get('heuristic_id')}, "
+                    f"confidence={suggestion.get('confidence', 0):.2f}"
+                )
+
             request = executive_pb2.ProcessEventRequest(
                 event=event,
                 immediate=True,
+                suggestion=suggestion_proto,
             )
             response = await self._stub.ProcessEvent(request)
             return {

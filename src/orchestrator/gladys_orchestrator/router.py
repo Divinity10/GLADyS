@@ -145,31 +145,38 @@ class EventRouter:
             # Step 5: Check for high-confidence heuristic shortcut (System 1 fast path)
             # If matched heuristic has confidence >= threshold, return action immediately
             # without calling LLM. This is the "learned response" path.
+            # If confidence < threshold, pass suggestion context for LLM consideration (Scenario 2).
+            heuristic_data = None  # Store for potential low-conf suggestion
             if matched_heuristic_id and self._memory_client:
                 heuristic = await self._memory_client.get_heuristic(matched_heuristic_id)
                 if heuristic:
                     confidence = heuristic.get("confidence", 0.0)
+
+                    # Extract action message and condition for suggestion context
+                    action_text = ""
+                    effects_json = heuristic.get("effects_json", "{}")
+                    try:
+                        action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
+                        action_text = action.get("message") or action.get("text") or action.get("response") or ""
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse effects_json for heuristic {matched_heuristic_id}")
+
+                    condition_text = heuristic.get("condition_text", "")
+
+                    # Store for potential low-conf suggestion (used if we don't return early)
+                    heuristic_data = {
+                        "heuristic_id": matched_heuristic_id,
+                        "suggested_action": action_text,
+                        "confidence": confidence,
+                        "condition_text": condition_text,
+                    }
+
                     if confidence >= self.config.heuristic_confidence_threshold:
                         # High-confidence heuristic - use cached action
                         logger.info(
                             f"HEURISTIC_SHORTCUT: event={event_id}, "
                             f"heuristic={matched_heuristic_id}, confidence={confidence:.3f}"
                         )
-
-                        # Extract action message from effects_json
-                        action_text = ""
-                        effects_json = heuristic.get("effects_json", "{}")
-                        try:
-                            action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
-                            # Try common action message fields
-                            action_text = (
-                                action.get("message") or
-                                action.get("text") or
-                                action.get("response") or
-                                ""
-                            )
-                        except json.JSONDecodeError:
-                            logger.warning(f"Failed to parse effects_json for heuristic {matched_heuristic_id}")
 
                         result["response_text"] = action_text
                         result["prediction_confidence"] = confidence
@@ -208,6 +215,15 @@ class EventRouter:
             logger.debug(f"Event {event_id}: salience={max_salience:.2f} → queue for async processing")
             result["queued"] = True
             result["_salience"] = max_salience  # For server to use when enqueuing
+
+            # Pass suggestion context for low-conf heuristic matches (Scenario 2)
+            # LLM will see the pattern suggestion even though confidence is below threshold
+            if heuristic_data:
+                result["_suggestion"] = heuristic_data
+                logger.info(
+                    f"LOW_CONF_SUGGESTION: event={event_id}, "
+                    f"heuristic={heuristic_data['heuristic_id']}, confidence={heuristic_data['confidence']:.3f}"
+                )
 
             # Step 4: Register heuristic fire for outcome tracking (if applicable)
             if matched_heuristic_id and self._outcome_watcher:
@@ -359,16 +375,20 @@ class EventRouter:
         ]
         return max(dimensions)
 
-    async def _send_immediate(self, event: Any) -> dict | None:
+    async def _send_immediate(self, event: Any, suggestion: dict | None = None) -> dict | None:
         """
         Send event immediately to Executive for LLM processing.
+
+        Args:
+            event: The event to process
+            suggestion: Optional suggestion context from low-conf heuristic (Scenario 2)
 
         Returns the Executive response dict, or None if no Executive connected.
         """
         event_id = getattr(event, 'id', 'unknown')
 
         if self._executive_client:
-            response = await self._executive_client.send_event_immediate(event)
+            response = await self._executive_client.send_event_immediate(event, suggestion=suggestion)
             if response.get("accepted"):
                 logger.info(f"IMMEDIATE: Event {event_id} delivered to Executive")
             else:

@@ -155,10 +155,14 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 if result.get("queued"):
                     salience = result.get("_salience", 0.5)
                     matched_heuristic_id = result.get("matched_heuristic_id", "")
+                    suggestion = result.get("_suggestion", {})
                     self.event_queue.enqueue(
                         event=event,
                         salience=salience,
                         matched_heuristic_id=matched_heuristic_id,
+                        suggested_action=suggestion.get("suggested_action", ""),
+                        heuristic_confidence=suggestion.get("confidence", 0.0),
+                        condition_text=suggestion.get("condition_text", ""),
                     )
                 else:
                     # Immediate response (heuristic shortcut) - store event now
