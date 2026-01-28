@@ -498,21 +498,6 @@ def render_settings_tab():
             except Exception as e:
                 st.error(f"Stats failed: {e}")
 
-        if st.button("📋 List Queue", use_container_width=True):
-            try:
-                orch_stub = get_orchestrator_stub()
-                resp = orch_stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=20))
-                if resp.total_count == 0:
-                    st.info("Queue is empty")
-                else:
-                    st.write(f"**Queued Events** ({resp.total_count} total)")
-                    for ev in resp.events:
-                        age_sec = ev.age_ms / 1000
-                        heuristic = f" | heuristic: {ev.matched_heuristic_id[:15]}..." if ev.matched_heuristic_id else ""
-                        st.text(f"• {ev.source}: salience={ev.salience:.2f}, age={age_sec:.1f}s{heuristic}")
-            except Exception as e:
-                st.error(f"List failed: {e}")
-
     with col2:
         st.subheader("Database Operations")
 
@@ -867,6 +852,36 @@ def render_memory_console():
                         st.error(f"Failed: {resp.error}")
                 except Exception as e:
                     st.error(f"gRPC Error: {e}")
+
+
+def render_queue_panel():
+    """Render the event queue status panel."""
+    st.subheader("📥 Event Queue")
+
+    col1, col2 = st.columns([4, 1])
+
+    with col2:
+        refresh = st.button("🔄", help="Refresh queue", key="refresh_queue")
+
+    # Fetch queue data
+    try:
+        orch_stub = get_orchestrator_stub()
+        resp = orch_stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=10))
+
+        with col1:
+            if resp.total_count == 0:
+                st.caption("Queue is empty")
+            else:
+                st.caption(f"**{resp.total_count}** pending")
+
+        if resp.total_count > 0:
+            for ev in resp.events:
+                age_sec = ev.age_ms / 1000
+                st.text(f"• {ev.source:<12} sal={ev.salience:.2f}  age={age_sec:.1f}s")
+    except Exception as e:
+        with col1:
+            st.caption(f"(unavailable: {e})")
+
 
 def render_response_history():
     st.subheader("🛰️ Live Response Stream")
@@ -1353,6 +1368,8 @@ def main():
 
     with tab_lab:
         render_event_simulator()
+        st.markdown("---")
+        render_queue_panel()
         st.markdown("---")
         render_response_history()
         st.markdown("---")
