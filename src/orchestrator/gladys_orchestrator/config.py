@@ -36,6 +36,16 @@ class OrchestratorConfig(BaseSettings):
     # without calling LLM. Lower values = more aggressive use of learned responses.
     heuristic_confidence_threshold: float = 0.7
 
+    # Event queue settings (for events without high-confidence heuristics)
+    event_timeout_ms: int = Field(
+        default=30000,
+        description="How long events wait in queue before timing out (ms)",
+    )
+    timeout_scan_interval_ms: int = Field(
+        default=2000,
+        description="How often to scan for timed-out events (ms)",
+    )
+
     # Health check settings
     heartbeat_timeout_sec: int = 30
     health_check_interval_sec: int = 10

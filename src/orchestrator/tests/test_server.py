@@ -18,7 +18,7 @@ class TestOrchestratorServicer:
         assert servicer.config == config
         assert servicer.registry is not None
         assert servicer.router is not None
-        assert servicer.accumulator is not None
+        assert servicer.event_queue is not None
 
     @pytest.mark.asyncio
     async def test_register_component(self):

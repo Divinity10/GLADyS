@@ -4,8 +4,7 @@ import pytest
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
-from gladys_orchestrator.router import EventRouter, Moment
-from gladys_orchestrator.accumulator import MomentAccumulator
+from gladys_orchestrator.router import EventRouter
 from gladys_orchestrator.config import OrchestratorConfig
 
 
@@ -29,26 +28,25 @@ class TestEventRouter:
         assert router._subscribers == {}
 
     @pytest.mark.asyncio
-    async def test_route_low_salience_accumulates(self):
-        """Low salience events are accumulated."""
+    async def test_route_event_returns_queued(self):
+        """Events without high-conf heuristic are marked for queuing."""
         config = OrchestratorConfig(high_salience_threshold=0.7)
         router = EventRouter(config)
-        accumulator = MomentAccumulator(config)
 
         event = MockEvent(id="test-1")
 
-        # Default salience is low (novelty=0.1), should accumulate
-        result = await router.route_event(event, accumulator)
+        # No heuristic match, no salience service → queued
+        result = await router.route_event(event)
 
         assert result["accepted"] is True
-        assert accumulator.current_event_count == 1
+        assert result.get("queued") is True
+        assert "_salience" in result  # Salience included for queue priority
 
     @pytest.mark.asyncio
-    async def test_route_high_salience_immediate(self):
-        """High salience events go immediate (not accumulated)."""
+    async def test_route_high_salience_queued_with_priority(self):
+        """High salience events are queued with higher priority (salience value)."""
         config = OrchestratorConfig(high_salience_threshold=0.7)
         router = EventRouter(config)
-        accumulator = MomentAccumulator(config)
 
         # Create event with high salience attached
         @dataclass
@@ -71,11 +69,12 @@ class TestEventRouter:
 
         event = HighSalienceEvent(id="urgent-1", salience=MockSalience())
 
-        result = await router.route_event(event, accumulator)
+        result = await router.route_event(event)
 
         assert result["accepted"] is True
-        # High salience should NOT be accumulated
-        assert accumulator.current_event_count == 0
+        # Now ALL events without heuristic are queued (high salience = higher priority)
+        assert result.get("queued") is True
+        assert result.get("_salience", 0) >= 0.7  # High salience captured
 
     def test_add_subscriber(self):
         """Subscribers can be added."""
@@ -117,15 +116,22 @@ class TestEventRouter:
 
     @pytest.mark.asyncio
     async def test_send_moment_to_executive(self):
-        """Moments are sent to executive (logged for now)."""
+        """Moments are sent to executive (deprecated but still works)."""
         config = OrchestratorConfig()
         router = EventRouter(config)
 
-        moment = Moment()
+        # Create mock moment-like object
+        @dataclass
+        class MockMoment:
+            events: list = None
+            def __post_init__(self):
+                self.events = self.events or []
+
+        moment = MockMoment()
         moment.events.append(MockEvent(id="e1"))
         moment.events.append(MockEvent(id="e2"))
 
-        # Should not raise
+        # Should not raise (deprecated method still works)
         await router.send_moment_to_executive(moment)
 
     def test_get_max_salience(self):

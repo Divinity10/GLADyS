@@ -51,6 +51,61 @@ DB_NAME = os.environ.get("DB_NAME", "gladys")
 DB_USER = os.environ.get("DB_USER", "gladys")
 DB_PASS = os.environ.get("DB_PASS", "gladys")
 
+def get_llm_config() -> dict:
+    """Get LLM configuration from .env file.
+
+    Returns dict with endpoint, url, model, and status.
+    """
+    env_path = PROJECT_ROOT / ".env"
+    config = {
+        "endpoint": None,
+        "url": None,
+        "model": None,
+        "status": "not configured"
+    }
+
+    if not env_path.exists():
+        return config
+
+    env_vars = {}
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                env_vars[key.strip()] = value.strip()
+
+    # Check for named endpoint pattern
+    endpoint_name = env_vars.get("OLLAMA_ENDPOINT", "").upper()
+    if endpoint_name:
+        config["endpoint"] = endpoint_name.lower()
+        config["url"] = env_vars.get(f"OLLAMA_ENDPOINT_{endpoint_name}")
+        config["model"] = env_vars.get(f"OLLAMA_ENDPOINT_{endpoint_name}_MODEL")
+    else:
+        # Fallback to direct OLLAMA_URL
+        config["url"] = env_vars.get("OLLAMA_URL")
+        config["model"] = env_vars.get("OLLAMA_MODEL")
+
+    if config["url"]:
+        # Check if Ollama is reachable
+        import urllib.request
+        import urllib.error
+        try:
+            req = urllib.request.Request(f"{config['url']}/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    config["status"] = "connected"
+                else:
+                    config["status"] = "error"
+        except urllib.error.URLError:
+            config["status"] = "unreachable"
+        except Exception:
+            config["status"] = "error"
+
+    return config
+
 # Page Config
 st.set_page_config(
     page_title="GLADyS Evaluation Dashboard",
@@ -348,6 +403,14 @@ def render_sidebar():
     # Database status (not selectable for actions)
     st.sidebar.caption(f"{db_icon} database")
 
+    # LLM status
+    llm_config = get_llm_config()
+    llm_icon = "🟢" if llm_config["status"] == "connected" else "🔴" if llm_config["status"] == "unreachable" else "⚫"
+    llm_label = llm_config["model"] or "not configured"
+    if llm_config["endpoint"]:
+        llm_label = f"{llm_config['endpoint']}: {llm_label}"
+    st.sidebar.caption(f"{llm_icon} llm ({llm_label})")
+
     # Action buttons (vertical layout)
     st.sidebar.markdown("---")
 
@@ -422,16 +485,13 @@ def render_settings_tab():
             st.toast("History cleared", icon="✅")
             st.rerun()
 
-        if st.button("🚽 Flush Accumulator", use_container_width=True):
+        if st.button("📊 Queue Stats", use_container_width=True):
             try:
                 orch_stub = get_orchestrator_stub()
-                resp = orch_stub.FlushMoment(orchestrator_pb2.FlushMomentRequest(reason="Manual flush from UI"))
-                if resp.moment_sent:
-                    st.success(f"Flushed {resp.events_flushed} events")
-                else:
-                    st.info("Accumulator empty")
+                resp = orch_stub.FlushMoment(orchestrator_pb2.FlushMomentRequest(reason="Stats from UI"))
+                st.info(resp.error_message or "No stats available")
             except Exception as e:
-                st.error(f"Flush failed: {e}")
+                st.error(f"Stats failed: {e}")
 
     with col2:
         st.subheader("Database Operations")
@@ -473,12 +533,36 @@ def render_settings_tab():
         st.markdown("---")
         st.subheader("Connection Info")
         current_conf = get_current_config()
+
+        # Check service health
+        def check_grpc_health(stub_fn):
+            try:
+                stub = stub_fn()
+                resp = stub.GetHealth(types_pb2.GetHealthRequest(), timeout=2)
+                if resp.status == types_pb2.HEALTH_STATUS_HEALTHY:
+                    return "connected"
+                elif resp.status == types_pb2.HEALTH_STATUS_DEGRADED:
+                    return "degraded"
+                return "error"
+            except Exception:
+                return "offline"
+
+        def check_db_health():
+            try:
+                conn = get_db_connection(DB_HOST, current_conf["DB_PORT"], DB_NAME, DB_USER, DB_PASS)
+                return "connected" if conn else "offline"
+            except Exception:
+                return "offline"
+
+        llm_config = get_llm_config()
+
         conn_data = [
-            {"Service": "Orchestrator", "Address": current_conf["ORCHESTRATOR_ADDR"]},
-            {"Service": "Memory (Python)", "Address": current_conf["MEMORY_ADDR"]},
-            {"Service": "Salience (Rust)", "Address": current_conf["SALIENCE_ADDR"]},
-            {"Service": "Executive", "Address": current_conf["EXECUTIVE_ADDR"]},
-            {"Service": "Database", "Address": f"localhost:{current_conf['DB_PORT']}"},
+            {"Service": "Orchestrator", "Address": current_conf["ORCHESTRATOR_ADDR"], "Status": check_grpc_health(get_orchestrator_stub)},
+            {"Service": "Memory (Python)", "Address": current_conf["MEMORY_ADDR"], "Status": check_grpc_health(get_memory_stub)},
+            {"Service": "Salience (Rust)", "Address": current_conf["SALIENCE_ADDR"], "Status": check_grpc_health(get_salience_stub)},
+            {"Service": "Executive", "Address": current_conf["EXECUTIVE_ADDR"], "Status": check_grpc_health(get_executive_stub)},
+            {"Service": "Database", "Address": f"localhost:{current_conf['DB_PORT']}", "Status": check_db_health()},
+            {"Service": "LLM", "Address": f"{llm_config['url'] or '(not set)'} ({llm_config['model'] or 'no model'})", "Status": llm_config["status"]},
         ]
         st.dataframe(conn_data, use_container_width=True, hide_index=True)
 
@@ -549,8 +633,8 @@ def render_event_simulator():
             
         st.write("Salience Override:")
         force_salience = st.radio(
-            "Salience Override", 
-            ["Let system evaluate", "Force HIGH (Immediate)", "Force LOW (Accumulated)"],
+            "Salience Override",
+            ["Let system evaluate", "Force HIGH (Immediate)", "Force LOW (Queued)"],
             horizontal=True,
             label_visibility="collapsed"
         )
@@ -574,7 +658,7 @@ def render_event_simulator():
                 # Apply salience override if selected
                 if force_salience == "Force HIGH (Immediate)":
                     event.salience.novelty = 0.9
-                elif force_salience == "Force LOW (Accumulated)":
+                elif force_salience == "Force LOW (Queued)":
                     event.salience.novelty = 0.1
                 
                 with st.spinner("GLADyS is thinking..."):
@@ -619,8 +703,10 @@ def render_event_simulator():
                                 st.session_state.last_response_text = f"⚡ Heuristic {ack.matched_heuristic_id[:8]} (Details not found)"
                         except Exception as ex:
                             st.session_state.last_response_text = f"⚡ Heuristic {ack.matched_heuristic_id[:8]}"
-                    elif force_salience == "Force LOW (Accumulated)":
-                        st.session_state.last_response_text = "(Waiting in Accumulator...)"
+                    elif hasattr(ack, 'queued') and ack.queued:
+                        st.session_state.last_response_text = "(Queued for processing...)"
+                    elif force_salience == "Force LOW (Queued)":
+                        st.session_state.last_response_text = "(Queued for processing...)"
                     else:
                         st.session_state.last_response_text = "(No immediate response)"
 
@@ -629,12 +715,13 @@ def render_event_simulator():
                     st.session_state.last_routing_info = {
                         "heuristic_id": ack.matched_heuristic_id,
                         "llm_routed": ack.routed_to_llm,
+                        "queued": ack.queued if hasattr(ack, 'queued') else False,
                         "routing_path": ack.routing_path if hasattr(ack, 'routing_path') else 0
                     }
                     
                     # INJECT into history so it appears in the stream immediately
                     # Only if it's NOT an accumulated event (those come via stream later)
-                    if force_salience != "Force LOW (Accumulated)":
+                    if force_salience != "Force LOW (Queued)":
                         # Create a pseudo-response object matching the structure expected by render_response_history
                         class PseudoResp:
                             def __init__(self, ack, eid):
@@ -667,8 +754,8 @@ def render_event_simulator():
             st.info(f"⚡ **Fast Path (Heuristic Match)**\n\nID: `{info['heuristic_id']}`")
         elif info.get("llm_routed"):
             st.info("🧠 **Slow Path (LLM Reasoning)**")
-        elif force_salience == "Force LOW (Accumulated)":
-            st.warning("⏳ **Accumulated Path**\n\nEvent is waiting in moment buffer. Use 'Flush Accumulator' to process.")
+        elif info.get("queued") or force_salience == "Force LOW (Queued)":
+            st.warning("⏳ **Queued Path**\n\nEvent is in the priority queue. Response will arrive via subscription.")
         
         # 2. Response & Feedback
         c1, c2 = st.columns([2, 1])

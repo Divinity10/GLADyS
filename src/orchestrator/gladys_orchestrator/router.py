@@ -17,7 +17,6 @@ from typing import Any, Optional
 
 from gladys_common import get_logger
 
-from .accumulator import Moment
 from .config import OrchestratorConfig
 from .generated import types_pb2
 from .outcome_watcher import OutcomeWatcher
@@ -87,7 +86,7 @@ class EventRouter:
         self._memory_client = memory_client
         self._outcome_watcher = outcome_watcher
 
-    async def route_event(self, event: Any, accumulator: Any) -> dict:
+    async def route_event(self, event: Any) -> dict:
         """
         Route a single event.
 
@@ -204,39 +203,11 @@ class EventRouter:
 
                         return result
 
-            # Step 6: Route based on salience (no high-conf heuristic matched)
-            if max_salience >= self.config.high_salience_threshold:
-                # HIGH salience → immediate to Executive
-                logger.debug(f"Event {event_id}: HIGH salience ({max_salience:.2f}) → immediate")
-                exec_response = await self._send_immediate(event)
-
-                # Merge Executive response into result
-                result["routed_to_llm"] = True
-                if exec_response:
-                    result["accepted"] = exec_response.get("accepted", True)
-                    result["error_message"] = exec_response.get("error_message", "")
-                    result["response_id"] = exec_response.get("response_id", "")
-                    result["response_text"] = exec_response.get("response_text", "")
-                    result["predicted_success"] = exec_response.get("predicted_success", 0.0)
-                    result["prediction_confidence"] = exec_response.get("prediction_confidence", 0.0)
-
-                    # Broadcast IMMEDIATE response to response subscribers
-                    await self.broadcast_response({
-                        "event_id": event_id,
-                        "response_id": exec_response.get("response_id", ""),
-                        "response_text": exec_response.get("response_text", ""),
-                        "predicted_success": exec_response.get("predicted_success", 0.0),
-                        "prediction_confidence": exec_response.get("prediction_confidence", 0.0),
-                        "routing_path": "IMMEDIATE",
-                        "matched_heuristic_id": matched_heuristic_id,
-                        "event_source": getattr(event, "source", ""),
-                        "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
-                        "response_timestamp_ms": int(time.time() * 1000),
-                    })
-            else:
-                # LOW salience → accumulate
-                logger.debug(f"Event {event_id}: LOW salience ({max_salience:.2f}) → accumulate")
-                accumulator.add_event(event)
+            # Step 6: Queue for async processing (no high-conf heuristic matched)
+            # Events are processed by salience priority (higher = sooner)
+            logger.debug(f"Event {event_id}: salience={max_salience:.2f} → queue for async processing")
+            result["queued"] = True
+            result["_salience"] = max_salience  # For server to use when enqueuing
 
             # Step 4: Register heuristic fire for outcome tracking (if applicable)
             if matched_heuristic_id and self._outcome_watcher:
@@ -407,9 +378,14 @@ class EventRouter:
             logger.info(f"IMMEDIATE: Event {event_id} (no Executive connected)")
             return None
 
-    async def send_moment_to_executive(self, moment: Moment) -> None:
-        """Send accumulated moment to Executive on tick."""
-        if not moment.events:
+    async def send_moment_to_executive(self, moment: Any) -> None:
+        """
+        DEPRECATED: Send accumulated moment to Executive.
+
+        This method is no longer used - events are now processed individually
+        via EventQueue. Kept for potential future batch processing.
+        """
+        if not hasattr(moment, 'events') or not moment.events:
             return
 
         event_count = len(moment.events)

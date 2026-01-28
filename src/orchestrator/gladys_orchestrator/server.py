@@ -13,7 +13,7 @@ from grpc_reflection.v1alpha import reflection
 from .config import OrchestratorConfig
 from .registry import ComponentRegistry
 from .router import EventRouter
-from .accumulator import MomentAccumulator
+from .event_queue import EventQueue
 from .outcome_watcher import OutcomeWatcher, OutcomePattern
 from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
@@ -63,7 +63,13 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             memory_client=self._memory_client,
             outcome_watcher=self._outcome_watcher,
         )
-        self.accumulator = MomentAccumulator(config)
+
+        # Event queue for async processing (replaces MomentAccumulator)
+        self.event_queue = EventQueue(
+            config,
+            process_callback=self.router._send_immediate,
+            broadcast_callback=self.router.broadcast_response,
+        )
         self._running = False
         self._started_at = datetime.now(timezone.utc)
 
@@ -99,10 +105,10 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         return OutcomeWatcher(patterns=patterns, memory_client=memory_client)
 
     async def start(self) -> None:
-        """Start background tasks (moment ticker, health checks, outcome cleanup)."""
+        """Start background tasks (event queue, outcome cleanup)."""
         self._running = True
-        # Start moment accumulator tick loop
-        asyncio.create_task(self._moment_tick_loop())
+        # Start event queue (worker + timeout scanner)
+        await self.event_queue.start()
         # Start outcome watcher cleanup loop (if enabled)
         if self._outcome_watcher:
             asyncio.create_task(self._outcome_cleanup_loop())
@@ -121,25 +127,8 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     async def stop(self) -> None:
         """Stop background tasks gracefully."""
         self._running = False
+        await self.event_queue.stop()
         logger.info("Orchestrator servicer stopped")
-
-    async def _moment_tick_loop(self) -> None:
-        """Background loop that sends accumulated moments to Executive."""
-        tick_interval = self.config.moment_window_ms / 1000.0
-        while self._running:
-            await asyncio.sleep(tick_interval)
-            moment = self.accumulator.flush()
-            if moment and moment.events:
-                await self.router.send_moment_to_executive(moment)
-
-                # Batch-store LOW salience events after sending moment
-                if self._memory_client:
-                    try:
-                        stored = await self._memory_client.store_events(moment.events)
-                        if stored > 0:
-                            logger.debug(f"Batch-stored {stored} events from moment")
-                    except Exception as store_err:
-                        logger.warning(f"Failed to batch-store moment events: {store_err}")
 
     # -------------------------------------------------------------------------
     # Event Routing RPCs
@@ -154,35 +143,43 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         Streaming RPC: Sensors publish events, Orchestrator routes them.
 
         For each event:
-        1. Query Salience+Memory for salience score
-        2. If HIGH salience → immediate to Executive
-        3. If LOW salience → accumulate into current moment
+        1. Query Salience+Memory for salience score and heuristic match
+        2. If high-conf heuristic → return action immediately
+        3. Otherwise → queue for async LLM processing
         """
         async for event in request_iterator:
             try:
-                # Route the event (queries salience, decides path)
-                result = await self.router.route_event(event, self.accumulator)
+                # Route the event (queries salience, checks heuristics)
+                result = await self.router.route_event(event)
 
-                # Store HIGH salience events immediately after Executive responds
-                # Also store Fast Path (heuristic match) events so they appear in history
-                should_store = result.get("routed_to_llm") or result.get("matched_heuristic_id")
-                if should_store and self._memory_client:
-                    try:
-                        await self._memory_client.store_event(
-                            event=event,
-                            response_id=result.get("response_id", ""),
-                            response_text=result.get("response_text", ""),
-                            predicted_success=result.get("predicted_success", 0.0),
-                            prediction_confidence=result.get("prediction_confidence", 0.0),
-                        )
-                    except Exception as store_err:
-                        logger.warning(f"Failed to store event {event.id}: {store_err}")
+                # If event was queued, add to EventQueue for async processing
+                if result.get("queued"):
+                    salience = result.get("_salience", 0.5)
+                    matched_heuristic_id = result.get("matched_heuristic_id", "")
+                    self.event_queue.enqueue(
+                        event=event,
+                        salience=salience,
+                        matched_heuristic_id=matched_heuristic_id,
+                    )
+                else:
+                    # Immediate response (heuristic shortcut) - store event now
+                    if result.get("matched_heuristic_id") and self._memory_client:
+                        try:
+                            await self._memory_client.store_event(
+                                event=event,
+                                response_id=result.get("response_id", ""),
+                                response_text=result.get("response_text", ""),
+                                predicted_success=result.get("predicted_success", 0.0),
+                                prediction_confidence=result.get("prediction_confidence", 0.0),
+                            )
+                        except Exception as store_err:
+                            logger.warning(f"Failed to store event {event.id}: {store_err}")
 
                 yield orchestrator_pb2.EventAck(
                     event_id=result["event_id"],
                     accepted=result["accepted"],
                     error_message=result.get("error_message", ""),
-                    # Executive response data (if routed to LLM)
+                    # Response data (if heuristic shortcut)
                     response_id=result.get("response_id", ""),
                     response_text=result.get("response_text", ""),
                     predicted_success=result.get("predicted_success", 0.0),
@@ -190,6 +187,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                     # Routing info
                     routed_to_llm=result.get("routed_to_llm", False),
                     matched_heuristic_id=result.get("matched_heuristic_id", ""),
+                    queued=result.get("queued", False),
                 )
             except Exception as e:
                 logger.error(f"Error routing event {event.id}: {e}")
@@ -285,46 +283,21 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         context: grpc.aio.ServicerContext,
     ) -> orchestrator_pb2.FlushMomentResponse:
         """
-        Manually flush the moment accumulator (for testing).
+        Legacy RPC - moment accumulator replaced with event queue.
 
-        Immediately sends any accumulated events to Executive, rather than
-        waiting for the next tick. Useful for evaluation and testing.
+        Now returns queue stats instead of flushing.
+        Queue events are processed asynchronously by the worker.
         """
-        reason = request.reason or "manual flush"
-        logger.info(f"Manual moment flush requested: {reason}")
+        reason = request.reason or "queue stats"
+        logger.info(f"FlushMoment called (now returns queue stats): {reason}")
 
-        try:
-            moment = self.accumulator.flush()
-            events_flushed = len(moment.events) if moment else 0
-
-            if events_flushed > 0:
-                await self.router.send_moment_to_executive(moment)
-
-                # Batch-store events after sending moment
-                if self._memory_client:
-                    try:
-                        stored = await self._memory_client.store_events(moment.events)
-                        logger.debug(f"Batch-stored {stored} events from manual flush")
-                    except Exception as store_err:
-                        logger.warning(f"Failed to batch-store flush events: {store_err}")
-
-                return orchestrator_pb2.FlushMomentResponse(
-                    events_flushed=events_flushed,
-                    moment_sent=True,
-                )
-            else:
-                return orchestrator_pb2.FlushMomentResponse(
-                    events_flushed=0,
-                    moment_sent=False,
-                )
-
-        except Exception as e:
-            logger.error(f"Error during manual flush: {e}")
-            return orchestrator_pb2.FlushMomentResponse(
-                events_flushed=0,
-                moment_sent=False,
-                error_message=str(e),
-            )
+        # Return queue stats instead of flushing
+        stats = self.event_queue.stats
+        return orchestrator_pb2.FlushMomentResponse(
+            events_flushed=stats.get("total_processed", 0),
+            moment_sent=False,  # No longer applicable
+            error_message=f"Queue: {stats.get('queue_size', 0)} pending, {stats.get('total_processed', 0)} processed",
+        )
 
     # -------------------------------------------------------------------------
     # Component Lifecycle RPCs
@@ -465,7 +438,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             "executive_connected": str(self._executive_client is not None).lower(),
             "memory_connected": str(self._memory_client is not None).lower(),
             "registered_components": str(len(self.registry.get_all_status())),
-            "accumulated_events": str(self.accumulator.current_event_count),
+            "queued_events": str(self.event_queue.queue_size),
         }
 
         return types_pb2.GetHealthDetailsResponse(
