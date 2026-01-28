@@ -13,20 +13,20 @@ Commands:
 
 import argparse
 import asyncio
-import logging
+import os
 import sys
+
+from gladys_common import setup_logging as gladys_setup_logging
 
 from .config import settings
 from .grpc_server import serve
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    """Configure logging using gladys_common."""
+    if verbose:
+        os.environ.setdefault("LOG_LEVEL", "DEBUG")
+    gladys_setup_logging("memory-python")
 
 
 def cmd_start(args: argparse.Namespace) -> int:

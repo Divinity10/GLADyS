@@ -13,7 +13,6 @@ Note: This is a test stub. The real Executive will be implemented in C#/.NET.
 
 import argparse
 import asyncio
-import logging
 import os
 import sys
 
@@ -23,6 +22,8 @@ try:
     load_dotenv(find_dotenv(usecwd=True))
 except ImportError:
     pass  # dotenv not installed, rely on environment variables
+
+from gladys_common import setup_logging as gladys_setup_logging
 
 
 def resolve_ollama_endpoint() -> None:
@@ -49,12 +50,10 @@ resolve_ollama_endpoint()
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    """Configure logging using gladys_common."""
+    if verbose:
+        os.environ.setdefault("LOG_LEVEL", "DEBUG")
+    gladys_setup_logging("executive")
 
 
 def cmd_start(args: argparse.Namespace) -> int:
