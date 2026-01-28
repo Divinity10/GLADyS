@@ -152,9 +152,19 @@ Environment variables control logging:
 | `LOG_FILE` | (none) | Path to log file (optional) |
 | `LOG_FILE_LEVEL` | `DEBUG` | Level for file output (can differ from console) |
 
+### Local Services (Auto-Configured)
+
+When starting services via `python scripts/local.py start`, the backend automatically sets:
+- `LOG_FILE=~/.gladys/logs/<service>.log`
+- `LOG_FILE_LEVEL=DEBUG`
+
+Log files rotate at 10MB with 5 backups. View logs via:
+- CLI: `python scripts/local.py logs <service> --tail 100`
+- UI: Logs tab → Select service → Fetch Logs
+
 ### Example Configurations
 
-**Local development:**
+**Local development (manual):**
 ```bash
 LOG_LEVEL=DEBUG LOG_FORMAT=human
 ```

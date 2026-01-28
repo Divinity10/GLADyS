@@ -194,9 +194,9 @@ class ServiceManager:
         health.set_defaults(func=self.cmd_health)
 
         # Logs
-        logs = subparsers.add_parser("logs", help="View service logs")
+        logs = subparsers.add_parser("logs", help="View service logs (local: ~/.gladys/logs/, docker: container logs)")
         logs.add_argument("service", help="Service to view (or 'all')")
-        logs.add_argument("-f", "--follow", action="store_true", help="Follow log output")
+        logs.add_argument("-f", "--follow", action="store_true", help="Follow log output (Docker only)")
         logs.add_argument("--tail", type=int, help="Number of lines to show")
         logs.set_defaults(func=self.cmd_logs)
 
