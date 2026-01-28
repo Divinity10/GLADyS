@@ -88,6 +88,11 @@ class OrchestratorServiceStub(object):
                 request_serializer=orchestrator__pb2.GetQueueStatsRequest.SerializeToString,
                 response_deserializer=orchestrator__pb2.GetQueueStatsResponse.FromString,
                 _registered_method=True)
+        self.ListQueuedEvents = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/ListQueuedEvents',
+                request_serializer=orchestrator__pb2.ListQueuedEventsRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.ListQueuedEventsResponse.FromString,
+                _registered_method=True)
         self.GetHealth = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/GetHealth',
                 request_serializer=types__pb2.GetHealthRequest.SerializeToString,
@@ -186,6 +191,13 @@ class OrchestratorServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListQueuedEvents(self, request, context):
+        """List events currently in the queue
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetHealth(self, request, context):
         """Service health check (unified interface across all services)
         """
@@ -257,6 +269,11 @@ def add_OrchestratorServiceServicer_to_server(servicer, server):
                     servicer.GetQueueStats,
                     request_deserializer=orchestrator__pb2.GetQueueStatsRequest.FromString,
                     response_serializer=orchestrator__pb2.GetQueueStatsResponse.SerializeToString,
+            ),
+            'ListQueuedEvents': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListQueuedEvents,
+                    request_deserializer=orchestrator__pb2.ListQueuedEventsRequest.FromString,
+                    response_serializer=orchestrator__pb2.ListQueuedEventsResponse.SerializeToString,
             ),
             'GetHealth': grpc.unary_unary_rpc_method_handler(
                     servicer.GetHealth,
@@ -524,6 +541,33 @@ class OrchestratorService(object):
             '/gladys.v1.OrchestratorService/GetQueueStats',
             orchestrator__pb2.GetQueueStatsRequest.SerializeToString,
             orchestrator__pb2.GetQueueStatsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListQueuedEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/ListQueuedEvents',
+            orchestrator__pb2.ListQueuedEventsRequest.SerializeToString,
+            orchestrator__pb2.ListQueuedEventsResponse.FromString,
             options,
             channel_credentials,
             insecure,

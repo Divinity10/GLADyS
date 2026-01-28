@@ -381,6 +381,44 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             total_timed_out=stats.get("total_timed_out", 0),
         )
 
+    async def ListQueuedEvents(
+        self,
+        request: orchestrator_pb2.ListQueuedEventsRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> orchestrator_pb2.ListQueuedEventsResponse:
+        """List events currently in the queue for troubleshooting."""
+        import time
+
+        now_ms = int(time.time() * 1000)
+        events = []
+
+        # Access pending events from queue (sorted by salience descending)
+        pending_items = sorted(
+            self.event_queue._pending.values(),
+            key=lambda q: q.salience,
+            reverse=True,
+        )
+
+        limit = request.limit if request.limit > 0 else len(pending_items)
+
+        for queued in pending_items[:limit]:
+            event = queued.event
+            events.append(orchestrator_pb2.QueuedEventInfo(
+                event_id=queued.event_id,
+                source=getattr(event, "source", ""),
+                event_type=getattr(event, "event_type", ""),
+                salience=queued.salience,
+                enqueue_time_ms=queued.enqueue_time_ms,
+                age_ms=now_ms - queued.enqueue_time_ms,
+                matched_heuristic_id=queued.matched_heuristic_id,
+                heuristic_confidence=queued.heuristic_confidence,
+            ))
+
+        return orchestrator_pb2.ListQueuedEventsResponse(
+            events=events,
+            total_count=len(self.event_queue._pending),
+        )
+
     # -------------------------------------------------------------------------
     # Service Discovery RPCs
     # -------------------------------------------------------------------------

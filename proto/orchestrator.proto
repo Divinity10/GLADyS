@@ -49,6 +49,9 @@ service OrchestratorService {
     // Get event queue statistics
     rpc GetQueueStats(GetQueueStatsRequest) returns (GetQueueStatsResponse);
 
+    // List events currently in the queue
+    rpc ListQueuedEvents(ListQueuedEventsRequest) returns (ListQueuedEventsResponse);
+
     // Service health check (unified interface across all services)
     rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
     rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
@@ -219,6 +222,26 @@ message GetQueueStatsResponse {
     int64 total_queued = 2;       // Lifetime total events queued
     int64 total_processed = 3;    // Lifetime total events processed
     int64 total_timed_out = 4;    // Lifetime total events timed out
+}
+
+message ListQueuedEventsRequest {
+    int32 limit = 1;              // Max events to return (0 = all)
+}
+
+message ListQueuedEventsResponse {
+    repeated QueuedEventInfo events = 1;
+    int32 total_count = 2;        // Total events in queue (may exceed limit)
+}
+
+message QueuedEventInfo {
+    string event_id = 1;
+    string source = 2;
+    string event_type = 3;
+    float salience = 4;
+    int64 enqueue_time_ms = 5;
+    int64 age_ms = 6;             // How long in queue
+    string matched_heuristic_id = 7;
+    float heuristic_confidence = 8;
 }
 
 // ----------------------------------------------------------------------------
