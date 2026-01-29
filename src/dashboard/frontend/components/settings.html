@@ -1,0 +1,165 @@
+<div id="settings-tab" class="flex flex-col gap-6" x-data="{
+    config: {},
+    cacheStats: {
+        current_size: 0,
+        max_capacity: 0,
+        total_hits: 0,
+        total_misses: 0,
+        hit_rate: 0
+    },
+    cacheEntries: [],
+    loading: false,
+    interval: null,
+    
+    async fetchConfig() {
+        try {
+            const resp = await fetch('/api/config');
+            this.config = await resp.json();
+        } catch (e) {
+            console.error('Failed to fetch config:', e);
+        }
+    },
+    
+    async fetchCache() {
+        this.loading = true;
+        try {
+            const [statsResp, entriesResp] = await Promise.all([
+                fetch('/api/cache/stats'),
+                fetch('/api/cache/entries')
+            ]);
+            this.cacheStats = await statsResp.json();
+            const entriesData = await entriesResp.json();
+            this.cacheEntries = entriesData.entries || [];
+        } catch (e) {
+            console.error('Failed to fetch cache data:', e);
+        } finally {
+            this.loading = false;
+        }
+    },
+    
+    async flushCache() {
+        if (!confirm('Flush the entire Salience Gateway cache? This will impact short-term performance.')) return;
+        try {
+            const resp = await fetch('/api/cache/flush', { method: 'POST' });
+            const data = await resp.json();
+            alert(`Flushed ${data.flushed} entries.`);
+            this.fetchCache();
+        } catch (e) {
+            console.error('Flush failed:', e);
+        }
+    },
+    
+    init() {
+        this.fetchConfig();
+        this.fetchCache();
+        this.interval = setInterval(() => this.fetchCache(), 30000);
+    },
+    
+    destroy() {
+        if (this.interval) clearInterval(this.interval);
+    }
+}" x-init="init()" @destroy="destroy()">
+
+    <!-- Instance Configuration -->
+    <div class="bg-gray-800 p-4 border border-gray-700 rounded shadow-md">
+        <h2 class="text-xs font-bold text-secondary uppercase tracking-widest mb-4">Active Instance Configuration</h2>
+        <div class="grid grid-cols-2 gap-8">
+            <div class="space-y-3">
+                <template x-for="(val, key) in config" :key="key">
+                    <div class="flex justify-between items-center border-b border-gray-700 pb-1 gap-4" x-show="typeof val !== 'object'">
+                        <span class="text-[10px] text-secondary uppercase font-bold" x-text="key.replace(/_/g, ' ') + ':'"></span>
+                        <span class="text-xs font-mono text-gray-300" x-text="val"></span>
+                    </div>
+                </template>
+            </div>
+            <div class="bg-gray-900/50 p-4 rounded border border-gray-700/50">
+                <h3 class="text-[10px] text-secondary uppercase font-bold mb-2">Internal Routing</h3>
+                <template x-for="(val, key) in config" :key="key">
+                    <div x-show="typeof val === 'object'" class="mb-4 last:mb-0">
+                        <h4 class="text-[10px] text-blue-400 font-bold mb-1" x-text="key.toUpperCase()"></h4>
+                        <div class="grid grid-cols-1 gap-1 pl-2 border-l border-gray-700">
+                            <template x-for="(subVal, subKey) in val" :key="subKey">
+                                <div class="flex justify-between text-[11px]">
+                                    <span class="text-secondary" x-text="subKey"></span>
+                                    <span class="font-mono text-gray-400" x-text="subVal"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cache Management -->
+    <div class="grid grid-cols-3 gap-6">
+        <!-- Cache Stats -->
+        <div class="bg-gray-800 p-4 border border-gray-700 rounded shadow-md flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xs font-bold text-secondary uppercase tracking-widest">Cache Statistics</h2>
+                <button @click="flushCache()" class="btn text-red-400 border-red-900 hover:bg-red-900/30 text-[10px] px-2 py-0.5">Flush Cache</button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-gray-900 p-3 rounded border border-gray-700 text-center">
+                    <div class="text-[10px] text-secondary uppercase mb-1">Hit Rate</div>
+                    <div class="text-2xl font-bold" :class="cacheStats.hit_rate > 80 ? 'text-green-400' : 'text-yellow-400'" x-text="cacheStats.hit_rate.toFixed(1) + '%'"></div>
+                </div>
+                <div class="bg-gray-900 p-3 rounded border border-gray-700 text-center">
+                    <div class="text-[10px] text-secondary uppercase mb-1">Utilization</div>
+                    <div class="text-2xl font-bold text-blue-400" x-text="Math.round((cacheStats.current_size / cacheStats.max_capacity) * 100) + '%'"></div>
+                </div>
+            </div>
+            
+            <div class="space-y-2 text-xs">
+                <div class="flex justify-between gap-4">
+                    <span class="text-secondary">Total Hits:</span>
+                    <span class="font-mono" x-text="cacheStats.total_hits"></span>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <span class="text-secondary">Total Misses:</span>
+                    <span class="font-mono" x-text="cacheStats.total_misses"></span>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <span class="text-secondary">Current Items:</span>
+                    <span class="font-mono" x-text="cacheStats.current_size"></span>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <span class="text-secondary">Max Capacity:</span>
+                    <span class="font-mono" x-text="cacheStats.max_capacity"></span>
+                </div>
+            </div>
+            <div class="mt-auto text-[10px] text-secondary italic text-center">Refreshes every 30s</div>
+        </div>
+
+        <!-- Cache Entries Table -->
+        <div class="col-span-2 bg-gray-800 p-4 border border-gray-700 rounded shadow-md flex flex-col">
+            <h2 class="text-xs font-bold text-secondary uppercase tracking-widest mb-4">Cached Heuristics</h2>
+            <div class="flex-1 overflow-auto bg-gray-900 border border-gray-700 rounded">
+                <table class="dense-table w-full">
+                    <thead class="bg-gray-800 sticky top-0">
+                        <tr>
+                            <th class="w-48">Name</th>
+                            <th>Condition Preview</th>
+                            <th class="w-20 text-center">Hits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="entry in cacheEntries" :key="entry.heuristic_id">
+                            <tr class="hover:bg-gray-800 transition-colors border-b border-gray-800 last:border-0">
+                                <td class="font-bold text-[11px] truncate max-w-[12rem]" x-text="entry.name"></td>
+                                <td class="text-secondary italic text-[11px] truncate max-w-md" x-text="entry.condition_text"></td>
+                                <td class="text-center font-mono text-blue-400 font-bold" x-text="entry.hit_count"></td>
+                            </tr>
+                        </template>
+                        <template x-if="cacheEntries.length === 0">
+                            <tr>
+                                <td colspan="3" class="p-8 text-center text-secondary italic">Cache is empty or stats not yet gathered.</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

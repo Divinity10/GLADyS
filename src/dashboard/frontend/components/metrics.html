@@ -1,0 +1,22 @@
+<div class="flex items-center justify-center h-full gap-0">
+    <div class="px-8 h-full flex items-center justify-center border-r border-gray-800 gap-3">
+        <span class="text-secondary">Events</span>
+        <span class="font-bold text-blue-400">{{ metrics.total_events }}</span>
+    </div>
+    <div class="px-8 h-full flex items-center justify-center border-r border-gray-800 gap-3">
+        <span class="text-secondary">Heuristics</span>
+        <span class="font-bold text-blue-400">{{ metrics.active_heuristics }}</span>
+    </div>
+    <div class="px-8 h-full flex items-center justify-center border-r border-gray-800 gap-3">
+        <span class="text-secondary">LLM Calls</span>
+        <span class="font-bold text-blue-400">{{ metrics.llm_calls }}</span>
+    </div>
+    <div class="px-8 h-full flex items-center justify-center border-r border-gray-800 gap-3">
+        <span class="text-secondary">Fast Path</span>
+        <span class="font-bold {% if metrics.fast_path_rate > 70 %}text-green-400{% else %}text-yellow-400{% endif %}">{{ metrics.fast_path_rate }}%</span>
+    </div>
+    <div class="px-8 h-full flex items-center justify-center gap-3">
+        <span class="text-secondary">Cache Hit</span>
+        <span class="font-bold {% if metrics.cache_hit_rate > 80 %}text-green-400{% else %}text-yellow-400{% endif %}">{{ metrics.cache_hit_rate }}%</span>
+    </div>
+</div>

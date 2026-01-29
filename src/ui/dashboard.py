@@ -605,18 +605,18 @@ def render_event_simulator():
     with st.form("event_form", clear_on_submit=False):
         st.write("Source Mode:")
         source_mode = st.radio("Source Mode", ["Preset", "Custom"], horizontal=True, label_visibility="collapsed")
-        
+
         c1, c2 = st.columns([1, 3]) # Wider ratio for better text space
-        
+
         with c1:
             if source_mode == "Preset":
                 source = st.selectbox("Source", ["minecraft", "kitchen", "smart_home", "work", "health"], key="sim_source_select")
             else:
                 source = st.text_input("Source", value="email", key="sim_source_custom")
-        
+
         with c2:
-            raw_text = st.text_input("Event Text", placeholder="Describe what happened...", key="sim_text")
-            
+            raw_text = st.text_area("Event Text (one per line for batch)", placeholder="Describe what happened...\nSecond event here...", key="sim_text", height=100)
+
         st.write("Salience Override:")
         force_salience = st.radio(
             "Salience Override",
@@ -624,147 +624,70 @@ def render_event_simulator():
             horizontal=True,
             label_visibility="collapsed"
         )
-            
-        submit = st.form_submit_button("🚀 Process Event", use_container_width=True)
+
+        submit = st.form_submit_button("🚀 Process Event(s)", use_container_width=True)
 
     if submit:
         if not raw_text:
             st.warning("Please enter event text.")
         else:
-            try:
-                event_id = str(uuid.uuid4())
-                
-                # Build Event
-                event = common_pb2.Event(
-                    id=event_id,
-                    source=source,
-                    raw_text=raw_text,
-                )
-                
-                # Apply salience override if selected
-                if force_salience == "Force HIGH (Immediate)":
-                    event.salience.novelty = 0.9
-                elif force_salience == "Force LOW (Queued)":
-                    event.salience.novelty = 0.1
-                
-                with st.spinner("GLADyS is thinking..."):
-                    # Route through Orchestrator (handles heuristics + LLM + storage)
-                    ack = send_event_to_orchestrator(event)
-                
-                if ack and ack.accepted:
-                    st.session_state.last_event_id = event_id
-                    st.session_state.last_response_id = ack.response_id
-                    
-                    # Store response text (use heuristic action if raw text is empty but heuristic matched)
-                    if ack.response_text:
-                        st.session_state.last_response_text = ack.response_text
-                    elif ack.matched_heuristic_id:
-                        # Fetch heuristic details to show the action message
-                        try:
-                            # We don't have a direct 'GetHeuristic' RPC in the proto imported, 
-                            # but we can query the DB directly since this is a dashboard.
-                            # Querying DB is faster and we already have db functions.
-                            # But we need to use the docker DB connection.
-                            h_query = "SELECT action FROM heuristics WHERE id = %s"
-                            h_df = fetch_data(h_query, (ack.matched_heuristic_id,))
-                            
-                            if not h_df.empty:
-                                action_json = h_df.iloc[0, 0]
-                                # Check if it's a dict (jsonb) or string
-                                if isinstance(action_json, str):
-                                    try:
-                                        action = json.loads(action_json)
-                                    except:
-                                        action = {"raw": action_json}
-                                else:
-                                    action = action_json
-                                
-                                # Extract message
-                                msg = action.get("message") or action.get("text") or action.get("response")
-                                if msg:
-                                    st.session_state.last_response_text = f"{msg} (via Heuristic)"
-                                else:
-                                    st.session_state.last_response_text = f"Action: {json.dumps(action)}"
-                            else:
-                                st.session_state.last_response_text = f"⚡ Heuristic {ack.matched_heuristic_id[:8]} (Details not found)"
-                        except Exception as ex:
-                            st.session_state.last_response_text = f"⚡ Heuristic {ack.matched_heuristic_id[:8]}"
-                    elif hasattr(ack, 'queued') and ack.queued:
-                        st.session_state.last_response_text = "(Queued for processing...)"
+            # Split into lines for batch submission
+            lines = [line.strip() for line in raw_text.strip().splitlines() if line.strip()]
+            sent = 0
+            queued = 0
+            immediate = 0
+
+            for line_text in lines:
+                try:
+                    event_id = str(uuid.uuid4())
+                    event = common_pb2.Event(
+                        id=event_id,
+                        source=source,
+                        raw_text=line_text,
+                    )
+
+                    if force_salience == "Force HIGH (Immediate)":
+                        event.salience.novelty = 0.9
                     elif force_salience == "Force LOW (Queued)":
-                        st.session_state.last_response_text = "(Queued for processing...)"
+                        event.salience.novelty = 0.1
+
+                    ack = send_event_to_orchestrator(event)
+
+                    if ack and ack.accepted:
+                        sent += 1
+                        is_queued = (hasattr(ack, 'queued') and ack.queued) or force_salience == "Force LOW (Queued)"
+
+                        if is_queued:
+                            queued += 1
+                        else:
+                            immediate += 1
+                            # Inject immediate responses into history
+                            class PseudoResp:
+                                def __init__(self, ack, eid, event_text):
+                                    self.event_id = eid
+                                    self.response_id = ack.response_id
+                                    self.response_text = ack.response_text or "(no response text)"
+                                    self.event_text = event_text
+                                    self.predicted_success = ack.predicted_success
+                                    self.prediction_confidence = ack.prediction_confidence
+                                    self.routing_path = 1  # IMMEDIATE
+                                    self.matched_heuristic_id = ack.matched_heuristic_id
+                                    self.event_timestamp_ms = int(time.time() * 1000)
+                                    self.response_timestamp_ms = int(time.time() * 1000)
+                            st.session_state.response_history.insert(0, PseudoResp(ack, event_id, line_text))
                     else:
-                        st.session_state.last_response_text = "(No immediate response)"
+                        st.error(f"Rejected: {line_text[:40]}... — {ack.error_message if ack else 'No response'}")
+                except Exception as e:
+                    st.error(f"Failed: {line_text[:40]}... — {e}")
 
-                    st.session_state.last_pred_success = ack.predicted_success
-                    st.session_state.last_pred_conf = ack.prediction_confidence
-                    st.session_state.last_routing_info = {
-                        "heuristic_id": ack.matched_heuristic_id,
-                        "llm_routed": ack.routed_to_llm,
-                        "queued": ack.queued if hasattr(ack, 'queued') else False,
-                        "routing_path": ack.routing_path if hasattr(ack, 'routing_path') else 0
-                    }
-                    
-                    # INJECT into history so it appears in the stream immediately
-                    # Only if it's NOT an accumulated event (those come via stream later)
-                    if force_salience != "Force LOW (Queued)":
-                        # Create a pseudo-response object matching the structure expected by render_response_history
-                        class PseudoResp:
-                            def __init__(self, ack, eid):
-                                self.event_id = eid
-                                self.response_id = ack.response_id
-                                self.response_text = ack.response_text or f"⚡ Heuristic {ack.matched_heuristic_id[:8]}"
-                                self.predicted_success = ack.predicted_success
-                                self.prediction_confidence = ack.prediction_confidence
-                                self.routing_path = 1 if ack.matched_heuristic_id else (1 if ack.routed_to_llm else 0) # Assume IMMEDIATE/Fast if we got an ack
-                                self.matched_heuristic_id = ack.matched_heuristic_id
-                                self.event_timestamp_ms = int(time.time() * 1000)
-                                self.response_timestamp_ms = int(time.time() * 1000)
-                        
-                        st.session_state.response_history.insert(0, PseudoResp(ack, event_id))
-                        if len(st.session_state.response_history) > 50:
-                            st.session_state.response_history.pop()
-                        
-                else:
-                    st.error(f"Event rejected: {ack.error_message if ack else 'No response from Orchestrator'}")
-            except Exception as e:
-                st.error(f"Failed to process event: {e}")
+            if len(st.session_state.response_history) > 50:
+                st.session_state.response_history = st.session_state.response_history[:50]
 
-    # Persistent Results Area
-    if "last_response_text" in st.session_state:
-        st.markdown("### Latest Request Result")
-        
-        # 1. Routing Info
-        info = st.session_state.get("last_routing_info", {})
-        if info.get("heuristic_id"):
-            st.info(f"⚡ **Fast Path (Heuristic Match)**\n\nID: `{info['heuristic_id']}`")
-        elif info.get("llm_routed"):
-            st.info("🧠 **Slow Path (LLM Reasoning)**")
-        elif info.get("queued") or force_salience == "Force LOW (Queued)":
-            st.warning("⏳ **Queued Path**\n\nEvent is in the priority queue. Response will arrive via subscription.")
-        
-        # 2. Response & Feedback
-        c1, c2 = st.columns([2, 1])
-        
-        with c1:
-            st.success(f"**GLADyS Says:**\n\n{st.session_state.last_response_text}")
-            if "last_response_id" in st.session_state and st.session_state.last_response_id:
-                st.caption(f"Response ID: {st.session_state.last_response_id}")
-        
-        with c2:
-            st.write("**Feedback**")
-            f1, f2 = st.columns(2)
-            # Enable feedback only if we have a response
-            feedback_disabled = not st.session_state.get("last_response_id")
-            if f1.button("👍 Good", use_container_width=True, disabled=feedback_disabled):
-                send_feedback(st.session_state.last_event_id, st.session_state.last_response_id, True)
-            if f2.button("👎 Bad", use_container_width=True, disabled=feedback_disabled):
-                send_feedback(st.session_state.last_event_id, st.session_state.last_response_id, False)
-            
-            # Show prediction if available
-            pred_val = st.session_state.get("last_pred_success", 0)
-            if pred_val and not pd.isna(pred_val) and 0 <= pred_val <= 1:
-                st.progress(pred_val, text=f"Pred. Success: {pred_val:.2f}")
+            # Summary
+            parts = [f"**{sent}/{len(lines)}** event(s) sent"]
+            if immediate: parts.append(f"{immediate} immediate")
+            if queued: parts.append(f"{queued} queued")
+            st.success(" | ".join(parts))
 
 def send_feedback(event_id, response_id, positive):
     try:
@@ -894,8 +817,30 @@ def render_queue_and_responses():
 
     st.markdown("---")
 
+    # --- Latest Response (with feedback) ---
+    if st.session_state.response_history:
+        latest = st.session_state.response_history[0]
+        path_str = {1: "IMMEDIATE", 2: "QUEUED"}.get(latest.routing_path, "")
+        st.subheader(f"Latest Response ({path_str})")
+        event_text = getattr(latest, 'event_text', '')
+        if event_text:
+            st.caption(f"In response to: *{event_text[:100]}*")
+        st.success(f"**GLADyS Says:**\n\n{latest.response_text}")
+        c1, c2, c3 = st.columns([2, 1, 1])
+        with c1:
+            st.caption(f"Event: {latest.event_id[:12]}  |  Response: {getattr(latest, 'response_id', '')[:12]}")
+        has_response_id = bool(getattr(latest, 'response_id', ''))
+        with c2:
+            if st.button("Good", key="fb_good", disabled=not has_response_id, use_container_width=True):
+                send_feedback(latest.event_id, latest.response_id, True)
+        with c3:
+            if st.button("Bad", key="fb_bad", disabled=not has_response_id, use_container_width=True):
+                send_feedback(latest.event_id, latest.response_id, False)
+
+    st.markdown("---")
+
     # --- Response History ---
-    st.subheader("🛰️ Live Response Stream")
+    st.subheader("Response History")
 
     if not st.session_state.response_history:
         st.info("Waiting for responses...")
@@ -905,16 +850,23 @@ def render_queue_and_responses():
     for resp in st.session_state.response_history:
         latency = resp.response_timestamp_ms - resp.event_timestamp_ms if resp.event_timestamp_ms > 0 else 0
 
-        path_str = "Unknown"
-        if resp.routing_path == 1: path_str = "IMMEDIATE"
-        elif resp.routing_path == 2: path_str = "QUEUED"
+        # routing_path: 1=IMMEDIATE, 2=QUEUED (works for both proto enum and int)
+        rp = resp.routing_path
+        if rp == 1: path_str = "IMMEDIATE"
+        elif rp == 2: path_str = "QUEUED"
+        else: path_str = str(rp) if rp else "-"
+
+        event_text = getattr(resp, 'event_text', '')
+        event_col = event_text[:60] + ("..." if len(event_text) > 60 else "") if event_text else "-"
+        resp_text = resp.response_text or "(empty)"
+        resp_col = resp_text[:80] + ("..." if len(resp_text) > 80 else "")
 
         history_data.append({
             "Time": datetime.fromtimestamp(resp.response_timestamp_ms / 1000).strftime("%m-%d %H:%M:%S"),
-            "Event ID": resp.event_id[:8],
+            "Event": event_col,
+            "Response": resp_col,
             "Path": path_str,
             "Heuristic": resp.matched_heuristic_id[:8] if resp.matched_heuristic_id else "-",
-            "Response": resp.response_text,
             "Latency": f"{latency}ms"
         })
 

@@ -1,0 +1,23 @@
+[project]
+name = "gladys-dashboard"
+version = "0.1.0"
+description = "GLADyS Dashboard V2"
+dependencies = [
+    "fastapi",
+    "python-multipart",
+    "uvicorn",
+    "sse-starlette",
+    "jinja2",
+    "grpcio",
+    "grpcio-tools",
+    "psycopg2-binary",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "httpx"]
+
+[tool.setuptools]
+packages = ["backend"]
+
+[tool.uv]
+package = true

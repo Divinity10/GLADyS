@@ -1,0 +1,152 @@
+<div id="learning-tab" class="flex flex-col gap-4" x-data="{
+    fires: [],
+    loading: false,
+    outcomeFilter: 'all',
+    refreshInterval: null,
+    
+    async fetchFires() {
+        this.loading = true;
+        try {
+            const url = `/api/fires?limit=50${this.outcomeFilter !== 'all' ? '&outcome=' + this.outcomeFilter : ''}`;
+            const resp = await fetch(url);
+            const data = await resp.json();
+            this.fires = data.fires || [];
+        } catch (e) {
+            console.error('Failed to fetch fires:', e);
+        } finally {
+            this.loading = false;
+        }
+    },
+    
+    formatTime(dateStr) {
+        if (!dateStr) return '—';
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    
+    init() {
+        this.fetchFires();
+        this.refreshInterval = setInterval(() => this.fetchFires(), 30000);
+    },
+    
+    destroy() {
+        if (this.refreshInterval) clearInterval(this.refreshInterval);
+    }
+}" x-init="init()" @destroy="destroy()">
+
+    <!-- Filters & Stats -->
+    <div class="flex justify-between items-center bg-gray-800 p-2 border border-gray-700 rounded">
+        <div class="flex items-center gap-4">
+            <h2 class="text-xs font-bold text-secondary uppercase tracking-widest px-2">Flight Recorder</h2>
+            <div class="h-4 w-px bg-gray-700"></div>
+            <div class="flex items-center gap-3">
+                <span class="text-[10px] text-secondary uppercase font-bold leading-none">Outcome Filter</span>
+                <select x-model="outcomeFilter" @change="fetchFires()" class="input-dense bg-gray-900 text-[11px] h-7">
+                    <option value="all">All Fires</option>
+                    <option value="success">Success Only</option>
+                    <option value="failure">Failure Only</option>
+                    <option value="unknown">Unknown / Pending</option>
+                </select>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-[10px] text-secondary italic leading-none" x-text="loading ? 'Refreshing...' : 'Auto-refreshes every 30s'"></span>
+            <button @click="fetchFires()" class="btn px-2 py-0.5 text-[11px]" :disabled="loading">↻</button>
+        </div>
+    </div>
+
+    <!-- Fires Table -->
+    <div class="bg-gray-900 border border-gray-700 rounded overflow-hidden flex-1">
+        <table class="dense-table w-full">
+            <thead class="bg-gray-800 sticky top-0 z-10 shadow-sm">
+                <tr>
+                    <th class="w-24">Time</th>
+                    <th class="w-48">Heuristic</th>
+                    <th>Pattern Matched</th>
+                    <th class="w-24 text-center">Outcome</th>
+                    <th class="w-24 text-center">Source</th>
+                    <th class="w-20 text-center">Conf Δ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="f in fires" :key="f.id">
+                    <template x-data="{ expanded: false }">
+                        <tbody class="border-b border-gray-800 last:border-0">
+                            <tr @click="expanded = !expanded" class="cursor-pointer hover:bg-gray-800 transition-colors" :class="expanded ? 'bg-gray-800' : ''">
+                                <td class="text-secondary text-[11px]" x-text="formatTime(f.fired_at)"></td>
+                                <td class="font-bold text-[11px] truncate max-w-[12rem]" x-text="f.heuristic_name"></td>
+                                <td class="text-secondary truncate max-w-xl text-[11px]" x-text="f.condition_text"></td>
+                                <td class="text-center">
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
+                                        :class="{
+                                            'bg-green-900 text-green-300': f.outcome === 'success',
+                                            'bg-red-900 text-red-300': f.outcome === 'failure',
+                                            'bg-gray-700 text-gray-400': !f.outcome || f.outcome === 'unknown'
+                                        }"
+                                        x-text="f.outcome || 'PENDING'">
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="text-[10px] text-secondary" x-text="f.feedback_source || 'system'"></span>
+                                </td>
+                                <td class="text-center font-mono text-[11px]">
+                                    <span :class="f.outcome === 'success' ? 'text-green-400' : f.outcome === 'failure' ? 'text-red-400' : 'text-secondary'"
+                                          x-text="f.confidence.toFixed(2)">
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr x-show="expanded" class="bg-gray-800/50">
+                                <td colspan="6" class="p-4 border-t border-gray-700">
+                                    <div class="grid grid-cols-2 gap-8">
+                                        <div class="flex flex-col gap-3">
+                                            <div>
+                                                <h4 class="text-[10px] text-secondary uppercase font-bold mb-1">Triggering Event</h4>
+                                                <div class="bg-gray-900 p-2 rounded border border-gray-700 text-xs font-mono text-gray-300" x-text="f.event_id || 'ID not captured'"></div>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-[10px] text-secondary uppercase font-bold mb-1">Heuristic Definition</h4>
+                                                <div class="bg-gray-900 p-2 rounded border border-gray-700 text-xs italic text-secondary" x-text="f.condition_text"></div>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col gap-3">
+                                            <div>
+                                                <h4 class="text-[10px] text-secondary uppercase font-bold mb-1">Learning Metadata</h4>
+                                                <div class="grid grid-cols-2 gap-4 text-[11px]">
+                                                    <div class="flex justify-between border-b border-gray-800 py-1">
+                                                        <span class="text-secondary">Fire ID:</span>
+                                                        <span class="font-mono text-gray-400" x-text="f.id.split('-')[0] + '...'"></span>
+                                                    </div>
+                                                    <div class="flex justify-between border-b border-gray-800 py-1">
+                                                        <span class="text-secondary">Heuristic ID:</span>
+                                                        <span class="font-mono text-gray-400" x-text="f.heuristic_id.split('-')[0] + '...'"></span>
+                                                    </div>
+                                                    <div class="flex justify-between border-b border-gray-800 py-1">
+                                                        <span class="text-secondary">Fired At:</span>
+                                                        <span class="text-gray-400" x-text="new Date(f.fired_at).toLocaleString()"></span>
+                                                    </div>
+                                                    <div class="flex justify-between border-b border-gray-800 py-1">
+                                                        <span class="text-secondary">Outcome Source:</span>
+                                                        <span class="text-gray-400" x-text="f.feedback_source || 'Heuristic Prediction'"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2 flex justify-end">
+                                                <button class="btn btn-primary text-[10px] px-3">View Full Event Trace</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </template>
+                </template>
+                <tr x-show="fires.length === 0 && !loading">
+                    <td colspan="6" class="p-12 text-center text-secondary italic">No heuristic fires recorded in this period.</td>
+                </tr>
+                <tr x-show="loading && fires.length === 0">
+                    <td colspan="6" class="p-12 text-center text-secondary animate-pulse italic">Scanning flight recorder...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

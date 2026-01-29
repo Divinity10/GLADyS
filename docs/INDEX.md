@@ -81,6 +81,7 @@
 - **E2E Status**: [INTEGRATION_TEST_RESULTS.md](validation/INTEGRATION_TEST_RESULTS.md)
 - **LLM Quality**: [prediction_quality_report.md](validation/prediction_quality_report.md)
 - **Dictionary**: [GLOSSARY.md](design/GLOSSARY.md) (Definitions of Terms)
+- **Tech Debt**: [TECH_DEBT.md](TECH_DEBT.md) (Known shortcuts to revisit post-PoC)
 
 ---
 

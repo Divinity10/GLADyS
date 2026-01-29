@@ -105,6 +105,62 @@ Non-negotiable unless an ADR is superseded:
 4. **Defense in depth**: Multiple security layers (ADR-0008)
 5. **Polyglot by design**: Rust orchestrator, Python ML, C# executive (ADR-0001)
 
+## Developer Workflow
+
+Facts about how the team works. Do NOT push back on requests that contradict these without re-reading this section first.
+
+- **Dual environments**: Scott runs both Docker and local instances simultaneously. Environment switching in tools is essential, not a deployment concern.
+- **Dashboard purpose**: The Streamlit dashboard (`src/ui/dashboard.py`) is a dev/QA tool for troubleshooting and verifying the pipeline. It is not an end-user UI.
+- **Schema sync**: Local and Docker databases must stay in sync unless there's a documented reason to diverge (see Database Schema Management below).
+- **Testing workflow**: The core validation is the feedback loop — submit event, get response, give feedback, resubmit, verify heuristic fires instead of LLM. All tools should support this workflow.
+
+## Mode Prefixes
+
+The user may prefix messages with `!think`, `!plan`, `!do`, or `!review` to signal what kind of work they want. A hook (`.claude/hooks/mode_prefix.py`) injects mode-specific instructions automatically.
+
+| Prefix | Meaning |
+|--------|---------|
+| `!think` | Critical analysis only. No code. Explore tradeoffs, identify gaps. |
+| `!plan` | Design the approach. Break into steps. Get approval before implementing. |
+| `!do` | Execute. The user has decided. Implement efficiently. |
+| `!review` | Evaluate existing code/design. Be thorough, cite specifics. |
+| `!archive` | Archive memory file, carry forward active work, start fresh. |
+| (none) | Consider whether this needs discussion before implementation. |
+
+## Working Memory (claude_memory.md)
+
+This file is your scratchpad for preserving context across compactions and sessions. It is **not** committed to git.
+
+### Structure
+
+```
+## Work Stack        — Tasks in progress (stack, not queue — detours go on top)
+## Decisions         — One-liners: "Decided X because Y"
+## Discoveries       — Things that contradicted assumptions
+## Open Questions    — Unresolved items
+## Completed         — Finished work (brief — detail is in archive)
+```
+
+### Work Stack Rules
+
+- **Stack, not queue**: Most recent/active task on top. Detours push onto the stack; when done, pop back to the previous task.
+- **Each item needs**: Why (context), State (what's done/remaining), Key Decisions, Returns-to (if this is a detour).
+- **Don't store thinking text**: No stream-of-consciousness. Store decisions, state, and facts.
+
+### When to Update
+
+- After making a decision or completing a task
+- When discovering something that contradicts assumptions
+- When starting a detour (push new item onto Work Stack)
+- When finishing a detour (pop it, update the item you're returning to)
+
+### Archiving
+
+Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory.py` which:
+1. Moves current file to `docs/archive/claude-memory-YYYYMMDD-<description>.md`
+2. Creates fresh file with the standard template
+3. Carries forward: Work Stack, Decisions, Discoveries, Open Questions
+
 ## Documentation & Authority
 
 ### Authority Hierarchy (Most Recent Wins)

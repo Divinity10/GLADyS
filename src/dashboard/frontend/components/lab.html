@@ -1,0 +1,118 @@
+<div id="lab-tab" class="flex flex-col h-full gap-4">
+    <!-- Event Submission Bar -->
+    <div class="bg-gray-800 p-2 border border-gray-700 rounded sticky top-0 z-10">
+        <form hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
+              hx-on::after-request="if(event.detail.successful) { this.querySelector('[name=text]').value = ''; setTimeout(function() { htmx.ajax('GET', '/api/events/rows', {target: '#event-table-body', swap: 'innerHTML'}) }, 1500) }"
+              class="flex gap-2 items-center">
+            <select name="source" class="input-dense bg-gray-900 w-32">
+                <option value="minecraft">minecraft</option>
+                <option value="kitchen">kitchen</option>
+                <option value="smart_home">smart_home</option>
+                <option value="work">work</option>
+                <option value="health">health</option>
+                <option value="custom">custom...</option>
+            </select>
+            <input type="text" name="text" placeholder="Enter event text..." required class="input-dense bg-gray-900 flex-1">
+            <select name="salience_override" class="input-dense bg-gray-900 w-32">
+                <option value="">System (Auto)</option>
+                <option value="high">Force HIGH</option>
+                <option value="low">Force LOW</option>
+            </select>
+            <button type="submit" class="btn btn-primary px-4 py-1">Submit</button>
+        </form>
+        <div id="submit-status" class="text-[10px] mt-1"></div>
+    </div>
+
+    <!-- Unified Event Table -->
+    <div class="flex-1 overflow-auto border border-gray-700 rounded bg-gray-900">
+        <table class="dense-table">
+            <thead class="sticky top-0 z-10 bg-sidebar shadow-md">
+                <tr>
+                    <th class="w-32 align-bottom pb-1">
+                        Time <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
+                    </th>
+                    <th class="w-24 align-bottom pb-1">
+                        Source <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
+                    </th>
+                    <th class="align-bottom pb-1">
+                        Event <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
+                    </th>
+                    <th class="w-24 align-bottom pb-1">
+                        Status <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
+                    </th>
+                    <th class="w-32 align-bottom pb-1">
+                        Path <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
+                    </th>
+                    <th class="align-bottom pb-1">
+                        Response
+                    </th>
+                </tr>
+                <!-- Filter Row -->
+                <tr class="bg-gray-800 border-b border-gray-700">
+                    <td class="p-1">
+                        <div class="flex flex-col gap-1">
+                            <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="After...">
+                            <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="Before...">
+                        </div>
+                    </td>
+                    <td class="p-1">
+                        <div class="flex gap-1">
+                            <select class="input-dense text-[10px] w-12 px-0">
+                                <option value="contains">~</option>
+                                <option value="equals">=</option>
+                            </select>
+                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter...">
+                        </div>
+                    </td>
+                    <td class="p-1">
+                        <div class="flex gap-1">
+                            <select class="input-dense text-[10px] w-16 px-0">
+                                <option value="contains">Cont</option>
+                                <option value="starts">Start</option>
+                                <option value="ends">End</option>
+                            </select>
+                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event...">
+                        </div>
+                    </td>
+                    <td class="p-1">
+                        <div class="flex gap-1">
+                            <select class="input-dense text-[10px] w-12 px-0">
+                                <option value="equals">=</option>
+                                <option value="contains">~</option>
+                            </select>
+                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Status...">
+                        </div>
+                    </td>
+                    <td class="p-1">
+                        <div class="flex gap-1">
+                            <select class="input-dense text-[10px] w-12 px-0">
+                                <option value="contains">~</option>
+                                <option value="equals">=</option>
+                            </select>
+                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Path...">
+                        </div>
+                    </td>
+                    <td class="p-1">
+                        <div class="flex gap-1">
+                            <select class="input-dense text-[10px] w-16 px-0">
+                                <option value="contains">Cont</option>
+                                <option value="starts">Start</option>
+                                <option value="ends">End</option>
+                            </select>
+                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response...">
+                        </div>
+                    </td>
+                </tr>
+            </thead>
+            <tbody id="event-table-body" 
+                   hx-ext="sse" 
+                   sse-connect="/api/events/stream" 
+                   sse-swap="message" 
+                   hx-swap="afterbegin">
+                {% for event in initial_events %}
+                    {% include 'components/event_row.html' %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

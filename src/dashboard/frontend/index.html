@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLADyS Dashboard V2</title>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body class="bg-dark text-light font-mono overflow-hidden h-screen flex flex-col" x-data="appState()">
+    <!-- Metrics Strip -->
+    <header id="metrics-strip" 
+            hx-get="/api/metrics" 
+            hx-trigger="load, every 30s" 
+            hx-swap="innerHTML">
+        <div class="p-2 border-b border-gray-700 text-xs flex gap-4 justify-center w-full">
+            Loading metrics...
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden w-full" 
+         x-data="{ 
+             sidebarWidth: parseInt(localStorage.getItem('sidebarWidth')) || 260,
+             resizing: false,
+             startResize(e) {
+                 this.resizing = true;
+                 const startX = e.clientX;
+                 const startWidth = this.sidebarWidth;
+                 
+                 const moveHandler = (e) => {
+                     const diff = e.clientX - startX;
+                     this.sidebarWidth = Math.max(200, Math.min(600, startWidth + diff));
+                 };
+                 
+                 const upHandler = () => {
+                     this.resizing = false;
+                     localStorage.setItem('sidebarWidth', this.sidebarWidth);
+                     window.removeEventListener('mousemove', moveHandler);
+                     window.removeEventListener('mouseup', upHandler);
+                 };
+                 
+                 window.addEventListener('mousemove', moveHandler);
+                 window.addEventListener('mouseup', upHandler);
+             }
+         }">
+         
+        <!-- Resizable Sidebar -->
+        <aside id="sidebar" 
+               class="flex flex-col bg-sidebar"
+               :style="`width: ${sidebarWidth}px`"
+               hx-get="/api/services/health" 
+               hx-trigger="load, every 10s" 
+               hx-swap="innerHTML">
+            <div class="p-4">Loading sidebar...</div>
+        </aside>
+
+        <!-- Resize Handle -->
+        <div class="resize-handle" 
+             @mousedown.prevent="startResize" 
+             :class="{ 'resizing': resizing }"></div>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-dark">
+            <!-- Tab Bar -->
+            <nav class="flex border-b border-gray-700 bg-gray-900 text-xs">
+                <button @click="activeTab = 'lab'" :class="activeTab === 'lab' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Submit and monitor events">Lab</button>
+                <button @click="activeTab = 'knowledge'" :class="activeTab === 'knowledge' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Manage learned heuristics">Knowledge</button>
+                <button @click="activeTab = 'learning'" :class="activeTab === 'learning' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Heuristic fire history">Learning</button>
+                <button @click="activeTab = 'llm'" :class="activeTab === 'llm' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Ollama status and testing">LLM</button>
+                <button @click="activeTab = 'logs'" :class="activeTab === 'logs' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Service log viewer">Logs</button>
+                <div class="flex-1"></div>
+                <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Environment config and cache">Settings</button>
+            </nav>
+
+            <!-- Tab Content -->
+            <div class="flex-1 overflow-auto p-4">
+                <div x-show="activeTab === 'lab'" hx-get="/api/components/lab" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'knowledge'" hx-get="/api/components/knowledge" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'learning'" hx-get="/api/components/learning" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'llm'" hx-get="/api/components/llm" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'logs'" hx-get="/api/components/logs" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'settings'" hx-get="/api/components/settings" hx-trigger="load" hx-swap="innerHTML"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/app.js"></script>
+    <script src="/js/events.js"></script>
+</body>
+</html>
