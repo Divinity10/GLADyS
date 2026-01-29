@@ -104,10 +104,10 @@
                     </td>
                 </tr>
             </thead>
-            <tbody id="event-table-body" 
-                   hx-ext="sse" 
-                   sse-connect="/api/events/stream" 
-                   sse-swap="message" 
+            <tbody id="event-table-body"
+                   hx-ext="sse"
+                   sse-connect="/api/events/stream"
+                   sse-swap="message"
                    hx-swap="afterbegin">
                 {% for event in initial_events %}
                     {% include 'components/event_row.html' %}

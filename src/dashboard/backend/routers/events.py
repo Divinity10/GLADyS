@@ -76,15 +76,24 @@ def _make_event_dict(event_id: str, source: str, text: str,
     elif response_text:
         path = "HEURISTIC"
 
-    # Salience breakdown from JSONB
+    # Salience breakdown from JSONB — all 9 proto components
     salience_breakdown = {}
     if isinstance(salience, dict):
-        for key in ("novelty", "urgency", "threat", "relevance", "emotional_valence"):
+        for key in ("threat", "opportunity", "humor", "novelty", "goal_relevance",
+                     "social", "emotional", "actionability", "habituation"):
             if key in salience:
                 salience_breakdown[key] = f"{salience[key]:.2f}"
 
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
     time_rel = _format_relative_time(timestamp) if timestamp else "just now"
+
+    # Compute aggregate salience from breakdown if predicted_success not available
+    salience_score = "—"
+    if predicted_success is not None:
+        salience_score = f"{predicted_success:.2f}"
+    elif salience_breakdown:
+        vals = [float(v) for v in salience_breakdown.values()]
+        salience_score = f"{sum(vals) / len(vals):.2f}"
 
     return {
         "id": event_id,
@@ -93,11 +102,11 @@ def _make_event_dict(event_id: str, source: str, text: str,
         "status": status,
         "path": path,
         "response_text": response_text or "",
+        "response_id": response_id or "",
         "time_relative": time_rel,
         "time_absolute": time_abs,
-        "salience_score": f"{predicted_success:.2f}" if predicted_success else "—",
+        "salience_score": salience_score,
         "confidence": f"{prediction_confidence:.2f}" if prediction_confidence else "—",
-        "latencies": "",
         "salience_breakdown": salience_breakdown,
     }
 
