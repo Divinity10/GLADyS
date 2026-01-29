@@ -1,6 +1,6 @@
 # GLADyS System Design
 
-**Last updated**: 2026-01-27
+**Last updated**: 2026-01-29
 **Status**: Living document - reflects current implementation
 
 ## How to Use This Document
@@ -160,6 +160,25 @@ The central nervous system. Routes messages between Sensors, Salience, Executive
 ### PoC Deviations
 - **Queues**: Using in-memory `EventQueue` instead of persistent brokers (RabbitMQ/Kafka). Events lost on restart is acceptable.
 - **DAG**: Preprocessor DAG is linear/hardcoded rather than dynamic.
+
+### Timeout Handling
+
+Events expire after 30s (configurable) with a timeout response. Key design decisions:
+
+**Decided**: Timed-out events MUST be stored to the database (same as successful responses). Rationale: diagnostic visibility, analysis, and completeness of the event log. Without storage, timed-out events vanish — no audit trail, no ability to detect systemic timeout patterns.
+
+**Open design questions** (deferred — capture for future work):
+
+1. **Memory recall filtering**: Should timed-out events be excluded from RAG context retrieval? Including them could pollute LLM context with failed interactions. Excluding them loses information about what the system couldn't handle.
+
+2. **Bayesian learning treatment**: How should timeouts affect heuristic confidence? Options:
+   - Ignore (timeout is infrastructure failure, not a quality signal)
+   - Count as negative (system failed to respond — user experience was bad)
+   - Separate tracking (timeout_count alongside success/fire counts)
+
+3. **Heuristic scoring**: Should the salience gateway treat "previously timed out" events differently on resubmission? Could boost salience to avoid repeated timeouts, or could indicate the system is overloaded and should shed load.
+
+4. **Dashboard presentation**: Timed-out events should be visually distinct in the event table (already shown with status badge). Should they be filterable? Excluded from aggregate metrics?
 
 ### Open Questions
 - **Backpressure**: Handling event floods (e.g., combat logs) without dropping critical signals.

@@ -46,7 +46,7 @@
 | **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
 | **Code** | `scripts/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |   
-| **Code** | `scripts/_queue_client.py` | Queue management gRPC client for CLI. |
+| **Code** | `scripts/_orchestrator.py` | Orchestrator gRPC client — queue inspection and event publishing. |
 | **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
 | **Test** | `src/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
 ## 🎭 Executive & Personality
@@ -71,7 +71,8 @@
 | **Design** | [DESIGN.md#orchestrator-subsystem](design/DESIGN.md#orchestrator-subsystem) | **Current Implementation**: Orchestrator routing and plugin mgmt. |
 | **Impl** | `src/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
 | **Impl** | `src/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
-| **UI** | `src/ui/dashboard.py` | Streamlit dashboard (Laboratory, Event Log, Queue panel). |
+| **UI** | `src/dashboard/` | Dashboard V2 (FastAPI + htmx + Alpine.js). See [DASHBOARD_V2.md](design/DASHBOARD_V2.md). |
+| **UI (legacy)** | `src/ui/dashboard.py` | Streamlit dashboard (deprecated, replaced by V2). |
 
 ---
 

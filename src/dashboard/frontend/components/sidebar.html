@@ -1,67 +1,27 @@
-<div class="p-4 flex flex-col h-full">
-    <!-- Environment Section -->
-    <div class="mb-6">
-        <h2 class="text-xs font-bold text-secondary uppercase mb-2">Environment</h2>
-        <div class="flex gap-4">
-            <label class="flex items-center cursor-pointer">
-                <input type="radio" name="env" value="docker" x-model="environment" class="mr-2">
-                <span>Docker</span>
-            </label>
-            <label class="flex items-center cursor-pointer">
-                <input type="radio" name="env" value="local" x-model="environment" class="mr-2">
-                <span>Local</span>
-            </label>
-        </div>
+<!-- Service rows only — environment and controls are static in index.html -->
+<!-- All Services Row -->
+<div @click="selectService('all')"
+     :class="{ 'selected': selectedService === 'all' }"
+     class="service-row flex items-center justify-between p-2 rounded">
+    <span class="font-bold">All Services</span>
+    <div class="flex items-center">
+        <span class="service-dot dot-{{ all_status }}"></span>
+        <span class="text-secondary text-[10px] uppercase">{{ all_status }}</span>
     </div>
-
-    <!-- Services Section -->
-    <div class="mb-6">
-        <h2 class="text-xs font-bold text-secondary uppercase mb-2">Services</h2>
-        <div class="w-full text-xs">
-            <!-- All Services Row -->
-            <div @click="selectService('all')" 
-                 :class="{ 'selected': selectedService === 'all' }"
-                 class="service-row flex items-center justify-between p-2 rounded">
-                <span class="font-bold">All Services</span>
-                <div class="flex items-center">
-                    <span class="service-dot dot-{{ all_status }}"></span>
-                    <span class="text-secondary text-[10px] uppercase">{{ all_status }}</span>
-                </div>
-            </div>
-            
-            <!-- Individual Services -->
-            {% for service in services %}
-            <div @click="selectService('{{ service.name }}')" 
-                 :class="{ 'selected': selectedService === '{{ service.name }}' }"
-                 class="service-row flex items-center justify-between p-2 rounded">
-                <div class="flex flex-col">
-                    <span class="font-bold" x-text="'{{ service.name }}'">{{ service.name }}</span>
-                    <span class="text-[10px] text-secondary">{{ service.host }}:{{ service.port }}</span>
-                </div>
-                <div class="flex items-center">
-                    <span class="service-dot dot-{{ service.status }}"></span>
-                    <span class="text-secondary text-[10px] uppercase">{{ service.status }}</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- Controls Section (Moved up) -->
-    <div class="mb-6 border-t border-gray-700 pt-4">
-        <h2 class="text-xs font-bold text-secondary uppercase mb-2">Controls</h2>
-        <div class="flex flex-col gap-2">
-            <div class="text-[10px] text-secondary text-center mb-1">
-                Target: <span x-text="selectedService === 'all' ? 'All Services' : selectedService" class="font-bold text-white"></span>
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-                <button @click="startService()" class="btn text-[10px]">Start</button>
-                <button @click="restartService()" class="btn text-[10px]">Restart</button>
-                <button @click="stopService()" class="btn text-[10px] text-red-300 hover:text-red-100">Stop</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Spacer for the rest of the sidebar -->
-    <div class="flex-1"></div>
 </div>
+
+<!-- Individual Services -->
+{% for service in services %}
+<div @click="selectService('{{ service.name }}')"
+     :class="{ 'selected': selectedService === '{{ service.name }}' }"
+     class="service-row flex items-center justify-between p-2 rounded">
+    <div class="flex flex-col">
+        <span class="font-bold" x-text="'{{ service.name }}'">{{ service.name }}</span>
+        <span class="text-[10px] text-secondary">{{ service.host }}:{{ service.port }}</span>
+    </div>
+    <div class="flex items-center">
+        <span class="service-dot dot-{{ service.status }}"></span>
+        <span class="text-secondary text-[10px] uppercase">{{ service.status }}</span>
+    </div>
+</div>
+{% endfor %}

@@ -66,6 +66,8 @@ Both `local.py` and `docker.py` support:
 | `_docker_backend.py` | Docker Compose integration |
 | `_cache_client.py` | gRPC client for cache management |
 | `_health_client.py` | gRPC client for health checks |
+| `_db.py` | Centralized DB queries (events, heuristics, fires, metrics) |
+| `_orchestrator.py` | Orchestrator gRPC client (queue, events) |
 | `_gladys.py` | Shared config (ports, utilities) |
 | `verify_env.py` | Environment verification |
 | `verify_local.py` | Local setup verification |

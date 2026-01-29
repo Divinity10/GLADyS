@@ -2,7 +2,7 @@
     <!-- Event Submission Bar -->
     <div class="bg-gray-800 p-2 border border-gray-700 rounded sticky top-0 z-10">
         <form hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
-              hx-on::after-request="if(event.detail.successful) { this.querySelector('[name=text]').value = ''; setTimeout(function() { htmx.ajax('GET', '/api/events/rows', {target: '#event-table-body', swap: 'innerHTML'}) }, 1500) }"
+              hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.querySelector('[name=text]').value=''; if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
               class="flex gap-2 items-center">
             <select name="source" class="input-dense bg-gray-900 w-32">
                 <option value="minecraft">minecraft</option>
@@ -19,8 +19,36 @@
                 <option value="low">Force LOW</option>
             </select>
             <button type="submit" class="btn btn-primary px-4 py-1">Submit</button>
+            <button type="button" onclick="document.getElementById('batch-file').click()"
+                    class="btn px-4 py-1" title="Load events from a JSON file">Load JSON</button>
+            <input type="file" id="batch-file" accept=".json" class="hidden"
+                   onchange="uploadBatchFile(this)" style="display:none">
         </form>
         <div id="submit-status" class="text-[10px] mt-1"></div>
+    </div>
+
+    <!-- Queue Panel -->
+    <div id="queue-panel" class="bg-gray-800 border border-gray-700 rounded overflow-hidden"
+         style="display: none;">
+        <div class="flex justify-between items-center px-2 py-1 border-b border-gray-700 cursor-pointer"
+             onclick="toggleQueuePanel()">
+            <span class="text-xs font-bold text-secondary uppercase">Queue (<span id="queue-count">0</span>)</span>
+            <span id="queue-toggle" class="text-secondary text-xs">&#x25BC;</span>
+        </div>
+        <div id="queue-body" class="max-h-64 overflow-auto">
+            <table class="dense-table">
+                <thead class="sticky top-0 bg-sidebar">
+                    <tr>
+                        <th class="w-32">Event ID</th>
+                        <th class="w-24">Source</th>
+                        <th>Text</th>
+                        <th class="w-24">Salience</th>
+                        <th class="w-24">Age</th>
+                    </tr>
+                </thead>
+                <tbody id="queue-table-body"></tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Unified Event Table -->
@@ -114,5 +142,21 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Load More / Clear -->
+    <div class="flex justify-center gap-4 p-2">
+        <button id="load-more-btn"
+                hx-get="/api/events/rows?offset=25&limit=25"
+                hx-target="#event-table-body"
+                hx-swap="beforeend"
+                hx-on::after-request="this.setAttribute('hx-get',
+                    '/api/events/rows?offset=' + (parseInt(this.dataset.offset || 25) + 25) + '&limit=25');
+                    this.dataset.offset = parseInt(this.dataset.offset || 25) + 25;
+                    htmx.process(this);"
+                data-offset="25"
+                class="btn text-xs text-secondary">Load more&hellip;</button>
+        <button onclick="clearAllEvents()"
+                class="btn text-xs text-red-400 hover:text-red-200">Clear all</button>
     </div>
 </div>

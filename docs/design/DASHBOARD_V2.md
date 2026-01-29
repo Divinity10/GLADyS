@@ -122,7 +122,12 @@ Services displayed:
 - LLM (Ollama `/api/tags` + model name from config)
 - Subscription stream (SSE connection status)
 
-**Service controls**: Start/Stop/Restart buttons. Scoped to a selected service or "all." Stop-all requires confirmation.
+**Service controls**: Start/Stop/Restart buttons. Scoped to a selected service or "all." Stop-all and restart-all require confirmation. Buttons disable with `cursor-wait` during action. Status message (e.g., "Restarting all services...") shown below buttons, clears on completion or shows error for 8s on failure.
+
+**Sidebar architecture**: The sidebar is split into static and dynamic zones to prevent htmx from destroying Alpine.js state:
+- **Static**: Environment switcher, Controls section (buttons + status message) — rendered in `index.html`
+- **Dynamic**: Service list — `#sidebar` div swapped via `hx-get="/api/services/health"` every 10s
+- **Why**: htmx `innerHTML` swap replaces all child elements, destroying Alpine reactive state (`serviceActionPending`, `serviceStatusMsg`). By keeping controls outside the swap target, button state survives health polls.
 
 ### Metrics strip (always visible, top)
 
@@ -218,7 +223,14 @@ Level 2 expansion (or detail pane):
 - Time: relative range (last 5m, 15m, 1h, 24h, all)
 - Filters persist across tab switches (stored in URL params or localStorage)
 
-**Pagination**: Scroll-based with "Load more" button. Load 25-50 events at a time. Configurable in UI settings.
+**Pagination**: Scroll-based with "Load more" button. Load 50 events at a time.
+
+**Event deletion**:
+- **Per-event**: Delete button in expanded drill-down row. Confirms before deleting.
+- **Clear all**: "Clear all" button below event table. Confirms before archiving.
+- **Mechanism**: Soft delete (`archived = true`) — events remain in DB but are excluded from queries via `WHERE archived = false`.
+
+**Feedback indicators**: Good/Bad buttons disable during request (`hx-disabled-elt`) with "Sending..." indicator text.
 
 ### Tab: Knowledge
 
@@ -410,7 +422,11 @@ The FastAPI backend bridges HTTP/SSE to gRPC. These are the endpoints the fronte
 | POST | `/api/events/batch` | `OrchestratorService.PublishEvents` | Batch from JSON |
 | GET | `/api/events` | DB query on `episodic_events` | Historical events with pagination |
 | GET | `/api/events/stream` | SSE | Live event lifecycle updates |
-| GET | `/api/queue` | `OrchestratorService.ListQueuedEvents` | Current queue contents |
+| DELETE | `/api/events/{id}` | DB soft delete (archived=true) | Archive single event |
+| DELETE | `/api/events` | DB soft delete (archived=true) | Archive all events |
+| GET | `/api/events/rows` | DB query | Event table rows (htmx partial) |
+| GET | `/api/queue` | `OrchestratorService.ListQueuedEvents` | Current queue contents (JSON) |
+| GET | `/api/queue/rows` | `OrchestratorService.ListQueuedEvents` | Queue rows (htmx partial) |
 | GET | `/api/queue/stats` | `OrchestratorService.GetQueueStats` | Queue statistics |
 
 ### Responses
@@ -516,9 +532,11 @@ src/dashboard/
 │   │   ├── events.js        # SSE handling, event table logic
 │   │   └── utils.js         # Timestamp formatting, filters
 │   └── components/
-│       ├── sidebar.html     # Sidebar partial (htmx)
+│       ├── sidebar.html     # Service rows only (htmx partial)
 │       ├── metrics.html     # Metrics strip partial
 │       ├── lab.html         # Lab tab content
+│       ├── event_row.html   # Single event row + drill-down (reusable)
+│       ├── queue_row.html   # Queue panel row
 │       ├── knowledge.html   # Knowledge tab content
 │       ├── learning.html    # Learning tab content
 │       ├── llm.html         # LLM tab content
@@ -543,7 +561,7 @@ The backend reuses existing Python gRPC client patterns from the V1 dashboard an
 | `dashboard.py` `fetch_service_logs()` | `routers/logs.py` — log retrieval |
 | `dashboard.py` `run_service_command()` | `routers/services.py` — service management |
 | `dashboard.py` `get_llm_config()` | `routers/llm.py` — Ollama config |
-| `scripts/_queue_client.py` | `routers/events.py` — queue listing |
+| `scripts/_orchestrator.py` | `routers/events.py` — queue listing, event publishing |
 | `scripts/_cache_client.py` | `routers/cache.py` — cache management |
 | `scripts/_health_client.py` | `routers/services.py` — health checks |
 
@@ -566,3 +584,19 @@ Backend (Python):
 Frontend (CDN, no npm):
 - htmx (CDN link)
 - Alpine.js (CDN link)
+
+## Deferred: Event Lifecycle Stream
+
+**What**: Add a `SubscribeEventLifecycle` RPC to the orchestrator proto that streams state transitions (queued → processing → responded) for all events.
+
+**Why it's needed**: The current `SubscribeResponses` RPC only fires after the executive responds. The `EventResponse` proto also lacks `source` and `original_text` fields. This means:
+1. Events don't appear in the Lab table until after the full pipeline completes
+2. SSE-pushed rows arrive with empty event text and source columns
+
+**Current workarounds** (implemented 2026-01-29):
+- **DB enrichment with retry**: SSE handler looks up each event in the DB by ID to fill in source, text, salience, and prediction scores. Retries with backoff (4 attempts, 250ms-1s) to handle the race condition where `SubscribeResponses` broadcasts before `store_callback` commits.
+- External events (sensors, batch) still only appear on response — no queued/processing visibility without lifecycle stream.
+
+**When to implement**: Sensors stage. When external sensors start submitting events, the orchestrator proto will be changing anyway (sensor registration, metadata). Adding lifecycle streaming at that point is incremental. The pipeline should also be more stable by then, so the lifecycle states won't change under us.
+
+**Scope**: Proto definition, Rust orchestrator emit points, dashboard SSE consumer update. Runtime cost is negligible (one more gRPC stream).

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -10,6 +11,7 @@ import grpc
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
@@ -19,6 +21,8 @@ import _db
 if PROTOS_AVAILABLE:
     from gladys_orchestrator.generated import (
         common_pb2,
+        executive_pb2,
+        executive_pb2_grpc,
         orchestrator_pb2,
         orchestrator_pb2_grpc,
     )
@@ -27,6 +31,12 @@ router = APIRouter(prefix="/api")
 
 FRONTEND_DIR = PROJECT_ROOT / "src" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
+
+
+class BatchEvent(BaseModel):
+    source: str = "batch"
+    text: str
+    id: str | None = None
 
 
 def _format_relative_time(ts) -> str:
@@ -142,61 +152,79 @@ async def submit_event(request: Request):
     if salience:
         event.salience.CopyFrom(salience)
 
-    try:
-        def event_gen():
-            yield event
+    # Fire gRPC in background — PublishEvents blocks until orchestrator
+    # finishes processing (includes LLM call), so we can't wait for the ack.
+    def _publish():
+        try:
+            def event_gen():
+                yield event
+            for _ack in stub.PublishEvents(event_gen()):
+                break
+        except grpc.RpcError:
+            pass
 
-        ack = None
-        for response in stub.PublishEvents(event_gen()):
-            ack = response
-            break
+    threading.Thread(target=_publish, daemon=True).start()
 
-        if ack:
-            status = "queued" if ack.queued else "immediate"
-            return HTMLResponse(f'<span class="text-green-400">Sent ({status}, salience: {ack.salience_score:.2f})</span>')
-        return HTMLResponse(f'<span class="text-green-400">Sent (id: {event_id[:8]})</span>')
-
-    except grpc.RpcError as e:
-        return HTMLResponse(f'<span class="text-red-400">gRPC error: {e.code().name}</span>', status_code=502)
+    # Return status with full event_id for client-side tracking
+    return HTMLResponse(
+        f'<span class="text-green-400" data-event-id="{event_id}" '
+        f'data-source="{source}" data-text="{text[:60]}">Sent (id: {event_id[:8]})</span>'
+    )
 
 
 @router.post("/events/batch")
 async def submit_batch(request: Request):
-    """Submit a batch of events from JSON body."""
+    """Submit a batch of events from JSON body.
+
+    Fires all events in a background thread and returns immediately.
+    SSE stream delivers rows as responses arrive.
+    """
     body = await request.json()
     if not isinstance(body, list):
         return JSONResponse({"error": "Body must be a JSON array of events"}, status_code=400)
+
+    if len(body) > 50:
+        return JSONResponse({"error": "Maximum 50 events per batch"}, status_code=400)
+
+    # Validate each event with Pydantic
+    try:
+        validated = [BatchEvent(**item) for item in body]
+    except Exception as e:
+        return JSONResponse({"error": f"Validation error: {e}"}, status_code=400)
 
     stub = env.orchestrator_stub()
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
 
-    results = []
-    for item in body:
-        event_id = item.get("id", str(uuid.uuid4()))
-        event = common_pb2.Event(
+    # Assign IDs upfront so we can report them
+    event_ids = []
+    events = []
+    for item in validated:
+        event_id = item.id or str(uuid.uuid4())
+        event_ids.append(event_id)
+        events.append(common_pb2.Event(
             id=event_id,
-            source=item.get("source", "batch"),
-            raw_text=item.get("text", ""),
-        )
+            source=item.source,
+            raw_text=item.text,
+        ))
 
-        try:
-            def gen():
-                yield event
+    # Fire all in background — each PublishEvents blocks until LLM finishes
+    def _publish_all():
+        for event in events:
+            try:
+                def gen():
+                    yield event
+                for _ack in stub.PublishEvents(gen()):
+                    break
+            except grpc.RpcError:
+                pass
 
-            for ack in stub.PublishEvents(gen()):
-                results.append({
-                    "event_id": ack.event_id,
-                    "status": "queued" if ack.queued else "immediate",
-                })
-                break
-        except grpc.RpcError as e:
-            results.append({"event_id": event_id, "error": e.code().name})
+    threading.Thread(target=_publish_all, daemon=True).start()
 
-    return JSONResponse({"results": results, "total": len(results)})
+    return JSONResponse({"accepted": len(events), "event_ids": event_ids})
 
 
-def _fetch_events(limit: int = 50, offset: int = 0,
+def _fetch_events(limit: int = 25, offset: int = 0,
                    source: str = None) -> list[dict]:
     """Fetch events from DB and convert to template-ready dicts."""
     events = []
@@ -223,7 +251,7 @@ def _fetch_events(limit: int = 50, offset: int = 0,
 
 
 @router.get("/events")
-async def list_events(request: Request, limit: int = 50, offset: int = 0,
+async def list_events(request: Request, limit: int = 25, offset: int = 0,
                       source: Optional[str] = None):
     """List historical events — returns full lab tab."""
     events = _fetch_events(limit=limit, offset=offset, source=source)
@@ -234,7 +262,7 @@ async def list_events(request: Request, limit: int = 50, offset: int = 0,
 
 
 @router.get("/events/rows")
-async def list_event_rows(request: Request, limit: int = 50, offset: int = 0,
+async def list_event_rows(request: Request, limit: int = 25, offset: int = 0,
                           source: Optional[str] = None):
     """Return just the event table rows (for htmx partial swap)."""
     events = _fetch_events(limit=limit, offset=offset, source=source)
@@ -268,6 +296,28 @@ async def get_queue():
         return JSONResponse({"error": f"gRPC error: {e.code().name}"}, status_code=502)
 
 
+@router.get("/queue/rows")
+async def get_queue_rows(request: Request):
+    """Queue contents as HTML rows for polling."""
+    stub = env.orchestrator_stub()
+    if not stub:
+        return HTMLResponse("")
+    try:
+        resp = stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
+        html = ""
+        for qi in resp.events:
+            html += templates.get_template("components/queue_row.html").render(item={
+                "event_id": qi.event_id,
+                "source": qi.source,
+                "salience": qi.salience,
+                "age_ms": qi.age_ms,
+                "raw_text": qi.raw_text,
+            })
+        return HTMLResponse(html)
+    except grpc.RpcError:
+        return HTMLResponse("")
+
+
 @router.get("/events/stream")
 async def event_stream(request: Request):
     """SSE stream of event lifecycle updates via orchestrator subscription."""
@@ -291,12 +341,42 @@ async def event_stream(request: Request):
             def _subscribe():
                 try:
                     for resp in stub.SubscribeResponses(req):
-                        event_data = _make_event_dict(
-                            event_id=resp.event_id,
-                            source=resp.source if hasattr(resp, "source") else "",
-                            text=resp.original_text if hasattr(resp, "original_text") else "",
-                            response_text=resp.response_text if hasattr(resp, "response_text") else "",
-                        )
+                        # Enrich from DB — EventResponse proto lacks source/text/salience.
+                        # Retry with backoff because store_callback may not have
+                        # committed yet when the broadcast arrives (race condition).
+                        import time as _time
+                        event_id = resp.event_id
+                        row = None
+                        for _attempt in range(4):
+                            try:
+                                row = _db.get_event(env.get_db_dsn(), event_id)
+                            except Exception:
+                                row = None
+                            if row:
+                                break
+                            _time.sleep(0.25 * (_attempt + 1))
+
+                        if row:
+                            salience_data = row["salience"] if isinstance(row["salience"], dict) else {}
+                            event_data = _make_event_dict(
+                                event_id=str(row["id"]),
+                                source=row["source"] or "",
+                                text=row["raw_text"] or "",
+                                timestamp=row["timestamp"],
+                                salience=salience_data,
+                                response_text=resp.response_text if hasattr(resp, "response_text") else (row["response_text"] or ""),
+                                response_id=row["response_id"] or "",
+                                predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
+                                prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
+                            )
+                        else:
+                            event_data = _make_event_dict(
+                                event_id=event_id,
+                                source="",
+                                text="",
+                                response_text=resp.response_text if hasattr(resp, "response_text") else "",
+                            )
+
                         asyncio.run_coroutine_threadsafe(
                             response_queue.put(event_data), loop
                         )
@@ -333,6 +413,28 @@ async def response_stream(request: Request):
     return await event_stream(request)
 
 
+@router.delete("/events/{event_id}")
+async def delete_event(event_id: str):
+    """Archive a single event."""
+    try:
+        found = _db.delete_event(env.get_db_dsn(), event_id)
+        if not found:
+            return JSONResponse({"error": "Event not found"}, status_code=404)
+        return JSONResponse({"deleted": event_id})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.delete("/events")
+async def delete_all_events():
+    """Archive all events."""
+    try:
+        count = _db.delete_all_events(env.get_db_dsn())
+        return JSONResponse({"deleted": count})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @router.post("/feedback")
 async def submit_feedback(request: Request):
     """Submit feedback on a response."""
@@ -354,6 +456,7 @@ async def submit_feedback(request: Request):
             event_id=event_id,
             positive=positive,
         ))
-        return JSONResponse({"success": True})
+        label = "👍 Saved" if positive else "👎 Saved"
+        return HTMLResponse(f'<span class="text-green-400 text-[10px]">{label}</span>')
     except grpc.RpcError as e:
-        return JSONResponse({"error": f"gRPC error: {e.code().name}"}, status_code=502)
+        return HTMLResponse(f'<span class="text-red-400 text-[10px]">Error: {e.code().name}</span>', status_code=502)

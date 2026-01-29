@@ -1,0 +1,7 @@
+[
+  {"source": "minecraft", "text": "Player XYZ built a redstone contraption near the village"},
+  {"source": "minecraft", "text": "Player ABC fell from a high place"},
+  {"source": "kitchen", "text": "Oven preheated to 375F and timer set for 25 minutes"},
+  {"source": "smart_home", "text": "Motion detected in backyard at 11:42 PM"},
+  {"source": "work", "text": "Pull request #847 merged into main branch by scott"}
+]

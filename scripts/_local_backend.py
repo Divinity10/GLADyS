@@ -451,7 +451,7 @@ class LocalBackend(ServiceBackend):
             print("Warning: Using system python fallback for queue command")
             python_exe = Path("python")
 
-        cmd = [str(python_exe), str(ROOT / "scripts" / "_queue_client.py"), "--address", address] + args
+        cmd = [str(python_exe), str(ROOT / "scripts" / "_orchestrator.py"), "--address", address] + args
         return subprocess.run(cmd).returncode
 
     def queue_stats(self) -> int:

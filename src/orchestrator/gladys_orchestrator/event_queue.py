@@ -301,20 +301,30 @@ class EventQueue:
                             f"{now_ms - queued.enqueue_time_ms}ms"
                         )
 
-                        # Broadcast timeout/error response
+                        # Build timeout response
+                        timeout_response = {
+                            "event_id": event_id,
+                            "response_id": "",
+                            "response_text": "(Request timed out)",
+                            "predicted_success": 0.0,
+                            "prediction_confidence": 0.0,
+                            "routing_path": "TIMEOUT",
+                            "matched_heuristic_id": queued.matched_heuristic_id,
+                            "event_source": getattr(queued.event, "source", ""),
+                            "event_timestamp_ms": queued.enqueue_time_ms,
+                            "response_timestamp_ms": int(time.time() * 1000),
+                        }
+
+                        # Store timed-out event to DB for diagnostics
+                        if self._store_callback:
+                            try:
+                                await self._store_callback(queued.event, timeout_response)
+                            except Exception as store_err:
+                                logger.warning(f"Failed to store timed-out event {event_id}: {store_err}")
+
+                        # Broadcast timeout response to subscribers
                         if self._broadcast_callback:
-                            await self._broadcast_callback({
-                                "event_id": event_id,
-                                "response_id": "",
-                                "response_text": "(Request timed out)",
-                                "predicted_success": 0.0,
-                                "prediction_confidence": 0.0,
-                                "routing_path": "TIMEOUT",
-                                "matched_heuristic_id": queued.matched_heuristic_id,
-                                "event_source": getattr(queued.event, "source", ""),
-                                "event_timestamp_ms": queued.enqueue_time_ms,
-                                "response_timestamp_ms": int(time.time() * 1000),
-                            })
+                            await self._broadcast_callback(timeout_response)
 
             except asyncio.CancelledError:
                 break

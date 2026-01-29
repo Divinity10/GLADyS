@@ -70,6 +70,24 @@ def list_events(dsn: str, *, limit: int = 50, offset: int = 0,
         conn.close()
 
 
+def get_event(dsn: str, event_id: str) -> dict | None:
+    """Fetch a single event by ID. Returns None if not found."""
+    conn = _connect(dsn)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, timestamp, source, raw_text,
+                   salience, response_text, response_id,
+                   predicted_success, prediction_confidence
+            FROM episodic_events
+            WHERE id = %s
+        """, [event_id])
+        row = cur.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
 def count_events(dsn: str, *, source: str = None) -> int:
     """Count non-archived events, optionally filtered by source."""
     conn = _connect(dsn)
@@ -82,6 +100,33 @@ def count_events(dsn: str, *, source: str = None) -> int:
             params.append(source)
         cur.execute(query, params)
         return cur.fetchone()["cnt"]
+    finally:
+        conn.close()
+
+
+def delete_event(dsn: str, event_id: str) -> bool:
+    """Archive a single event by ID. Returns True if found."""
+    conn = _connect(dsn)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE episodic_events SET archived = true WHERE id = %s AND archived = false",
+            [event_id],
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_all_events(dsn: str) -> int:
+    """Archive all non-archived events. Returns count archived."""
+    conn = _connect(dsn)
+    try:
+        cur = conn.cursor()
+        cur.execute("UPDATE episodic_events SET archived = true WHERE archived = false")
+        conn.commit()
+        return cur.rowcount
     finally:
         conn.close()
 

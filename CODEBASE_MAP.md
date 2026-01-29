@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-01-27 (updated: EventQueue replaces MomentAccumulator)
+**Last verified**: 2026-01-29 (updated: Dashboard V2 complete, event deletion, sidebar architecture)
 
 ---
 
@@ -60,7 +60,7 @@
 | MemoryStorage | 50051 | 50061 | `MemoryStorage` | Python |
 | SalienceGateway | 50052 | 50062 | `SalienceGateway` | Rust |
 | Executive | 50053 | 50063 | `ExecutiveService` | Python (stub) |
-| Dashboard (UI) | 8501 | 8501 | - | Python (Streamlit) |
+| Dashboard (UI) | 8502 | 8502 | - | Python (FastAPI/htmx) |
 | PostgreSQL | 5432 | 5433 | - | - |
 
 **IMPORTANT**:
@@ -226,7 +226,7 @@ All event responses flow through the Orchestrator — no component can push resp
 | **Memory Python** | Python asyncio | Single via `asyncio.run()` | `grpc.aio` (async) | Single-threaded |
 | **Memory Rust** | Tokio | Multi-threaded Tokio runtime | Tonic (async) | Tokio work-stealing |
 | **Executive** | Python asyncio | Single via `asyncio.run()` | `grpc.aio` (async) | Single-threaded |
-| **Dashboard** | Streamlit | None (sync) | `grpc` (sync) | Main + background subscription thread |
+| **Dashboard** | FastAPI (uvicorn) | asyncio | REST/SSE | Single-threaded + background gRPC thread for SSE |
 
 ### Orchestrator Concurrency
 
@@ -252,35 +252,32 @@ All event responses flow through the Orchestrator — no component can push resp
 
 **gRPC Server**: Uses `ThreadPoolExecutor(max_workers=config.max_workers)` but all handlers are `async def` running on the asyncio loop.
 
-### Dashboard Concurrency (PROBLEMATIC)
+### Dashboard Concurrency (V2 — FastAPI)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Streamlit Process                         │
+│                    FastAPI (uvicorn)                          │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ Main Thread (Streamlit)                                 ││
-│  │ - Reruns entire script on every user interaction        ││
-│  │ - Uses SYNC grpc (blocking calls)                       ││
-│  │ - Creates new gRPC channel per stub call                ││
-│  │ - Channels NEVER closed (resource leak)                 ││
+│  │ asyncio Event Loop                                      ││
+│  │ - REST endpoints (sync gRPC via env.py stubs)           ││
+│  │ - SSE streams (EventSourceResponse)                     ││
+│  │ - Jinja2 template rendering for htmx partials           ││
 │  └─────────────────────────────────────────────────────────┘│
 │                                                              │
 │  ┌─────────────────────────────────────────────────────────┐│
-│  │ Background Thread (response_subscriber_thread)          ││
-│  │ - Started at module level (line 163-171)                ││
-│  │ - Daemon thread (dies with process)                     ││
-│  │ - Uses thread-safe queue.Queue for communication        ││
-│  │ - CANNOT be restarted if environment changes            ││
-│  │ - Errors print to console, not visible in UI            ││
+│  │ Background Threads                                      ││
+│  │ - PublishEvents gRPC (fire-and-forget, daemon)          ││
+│  │ - SubscribeResponses gRPC (SSE feeder, per-client)      ││
+│  │ - SSE retry loop for DB enrichment (race condition fix) ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Key problems**:
-1. Sync gRPC in main thread blocks UI during calls
-2. Background thread started once, can't recover from env switch
-3. No mechanism to stop/restart subscription thread
-4. gRPC channels leaked on every call
+**Key design choices**:
+1. Sync gRPC stubs wrapped in `run_in_executor` or background threads
+2. SSE feeder thread per client, communicates via `asyncio.Queue`
+3. DB enrichment retries with backoff (store_callback race condition)
+4. htmx sidebar polls every 10s; controls are static (outside swap target) to preserve Alpine state
 
 ### Rust Memory (Tokio)
 
@@ -306,8 +303,7 @@ Uses Tokio's multi-threaded work-stealing runtime. `Arc<RwLock<>>` ensures threa
 |--------|--------|----------|
 | Orchestrator (async) | Memory Python (async) | Clean - both async |
 | Orchestrator (async) | Memory Rust (async) | Clean - both async |
-| Dashboard (sync) | Orchestrator (async) | **MISMATCH** - sync client calling async server |
-| Dashboard thread (sync) | Orchestrator (async) | Sync streaming over gRPC |
+| Dashboard (FastAPI async) | Orchestrator (async) | Sync gRPC in background threads |
 
 ### Message Queues
 
@@ -315,7 +311,7 @@ Uses Tokio's multi-threaded work-stealing runtime. `Arc<RwLock<>>` ensures threa
 |-------|------|----------|---------|
 | `asyncio.Queue` | In-memory | `router.py` Subscriber.queue | Event delivery to subscribers |
 | `asyncio.Queue` | In-memory | `router.py` ResponseSubscriber.queue | Response delivery to subscribers |
-| `queue.Queue` | Thread-safe | `dashboard.py` session_state.response_queue | Background thread → main thread |
+| `asyncio.Queue` | In-memory | `events.py` response_queue | SSE gRPC thread → async SSE generator |
 
 No external message queues (Redis, RabbitMQ, etc.) are used. All queues are in-process.
 
@@ -325,9 +321,7 @@ No external message queues (Redis, RabbitMQ, etc.) are used. All queues are in-p
 |-------|----------|----------|-------------|
 | Fire-and-forget | `router.py:115` | HIGH | `asyncio.create_task()` without error callback |
 | Race condition | `outcome_watcher.py` | HIGH | `_pending` list modified without lock |
-| Channel leak | `dashboard.py:77-95` | HIGH | gRPC channels never closed |
-| Thread lifecycle | `dashboard.py:163-171` | HIGH | Can't restart subscription thread |
-| Sync/async mismatch | `dashboard.py` | MEDIUM | Sync gRPC blocks Streamlit main thread |
+| SSE race condition | `events.py:341-357` | LOW | Mitigated with retry+backoff; store_callback may not commit before broadcast |
 
 ---
 
@@ -386,6 +380,11 @@ GLADys/
 │   ├── executive/              # ExecutiveService stub (port 50053)
 │   │   └── gladys_executive/
 │   │
+│   ├── dashboard/              # Dashboard V2 (FastAPI + htmx + Alpine.js)
+│   │   ├── backend/            # FastAPI routers, env management
+│   │   ├── frontend/           # HTML/CSS/JS, Jinja2 components
+│   │   └── tests/              # API tests (44 tests)
+│   │
 │   └── integration/            # Integration tests + docker-compose.yml
 │
 ├── scripts/
@@ -397,6 +396,7 @@ GLADys/
 │   ├── _docker_backend.py      # Docker service management
 │   ├── _cache_client.py        # gRPC client for cache management
 │   ├── _health_client.py       # gRPC client for health checks
+│   ├── _db.py                  # Centralized DB queries (events, heuristics, fires, metrics)
 │   ├── _sync_check.py          # Proto/migration sync verification
 │   └── _gladys.py              # Shared config (ports, utils)
 │
@@ -431,6 +431,11 @@ GLADys/
 | raw_text | TEXT | Natural language description |
 | embedding | vector(384) | For similarity search |
 | salience | JSONB | Computed salience vector |
+| response_text | TEXT | Executive/heuristic response |
+| response_id | TEXT | Links to executive response |
+| predicted_success | FLOAT | Success prediction score |
+| prediction_confidence | FLOAT | Confidence in prediction |
+| archived | BOOLEAN | Soft delete flag (default false) |
 
 ### `heuristic_fires` (Flight Recorder)
 | Column | Type | Purpose |
@@ -518,27 +523,31 @@ Watches for "outcomes" after heuristic fires to provide implicit feedback. When 
 
 ## Dashboard (UI)
 
-**Location**: `src/ui/dashboard.py` (1070 lines - refactoring planned)
-**Framework**: Streamlit
-**Port**: 8501
+**Location**: `src/dashboard/`
+**Framework**: FastAPI + htmx + Alpine.js
+**Port**: 8502
+**Design doc**: `docs/design/DASHBOARD_V2.md`
 
-The dashboard provides a dev/debug interface for GLADyS with tabs for event simulation, memory inspection, cache management, and service controls.
+The dashboard provides a dev/debug interface for GLADyS with tabs for event simulation (Lab), heuristic management (Knowledge), fire history (Learning), LLM testing (LLM), log viewing (Logs), and configuration (Settings). Uses Server-Sent Events (SSE) for real-time event updates.
 
-### Known Issues (to be fixed)
+### Architecture
+- **Backend**: FastAPI (Python) serving REST APIs, SSE streams, and Jinja2 htmx partials
+- **Frontend**: Vanilla HTML/CSS/JS with htmx (async updates) and Alpine.js (client-side reactivity). No build step.
+- **DB access**: Centralized in `scripts/_db.py` — routers are thin HTTP wrappers
+- **Management**: `tools/dashboard/dashboard.py` handles start/stop/restart
 
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| gRPC channel leak | HIGH | Channels created in `get_*_stub()` are never closed |
-| Silent thread errors | HIGH | Background thread errors print to console, not visible in UI |
-| Thread lifecycle | HIGH | Subscription thread started at module level, can't recover from env changes |
-| Bare except clauses | MEDIUM | Several places swallow all exceptions silently |
-
-### Planned Refactoring
-
-See `docs/design/REFACTORING_PLAN.md` Phase 1 for modularization plan:
-- Extract `components/grpc_clients.py` for channel lifecycle management
-- Extract `components/service_controls.py` for start/stop logic
-- Extract tab-specific components (event_lab, memory_console, etc.)
+### Key Files
+| File | Purpose |
+|------|---------|
+| `backend/env.py` | Environment singleton, gRPC channel management |
+| `backend/routers/events.py` | Event CRUD, batch submit, SSE stream, feedback, delete |
+| `backend/routers/services.py` | Health checks, start/stop/restart |
+| `frontend/index.html` | Layout shell with static sidebar (env, controls) + htmx service list |
+| `frontend/components/sidebar.html` | Service rows only (htmx partial) |
+| `frontend/components/event_row.html` | Event row + drill-down with feedback + delete |
+| `frontend/js/app.js` | Alpine state, service actions with status messaging |
+| `frontend/js/events.js` | SSE handling, deleteEvent, clearAllEvents, queue polling |
+| `scripts/_db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
 
 ---
 

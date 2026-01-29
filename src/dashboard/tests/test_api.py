@@ -292,6 +292,89 @@ class TestLLM:
         assert "model" in data
 
 
+# ─── Events (submit, batch, queue) ────────────────────────────────────
+
+
+class TestEvents:
+    def test_submit_event_no_stub(self, client):
+        """Submit without orchestrator returns 503."""
+        resp = client.post("/api/events",
+                           data={"source": "minecraft", "text": "test event"})
+        assert resp.status_code == 503
+
+    def test_submit_event_empty_text(self, client):
+        resp = client.post("/api/events", data={"source": "minecraft", "text": ""})
+        assert resp.status_code == 400
+        assert "required" in resp.text.lower()
+
+    def test_batch_not_list(self, client):
+        resp = client.post("/api/events/batch",
+                           json={"source": "test", "text": "hello"})
+        assert resp.status_code == 400
+        assert "array" in resp.json()["error"].lower()
+
+    def test_batch_exceeds_cap(self, client):
+        events = [{"source": "test", "text": f"event {i}"} for i in range(51)]
+        resp = client.post("/api/events/batch", json=events)
+        assert resp.status_code == 400
+        assert "50" in resp.json()["error"]
+
+    def test_batch_missing_text(self, client):
+        resp = client.post("/api/events/batch",
+                           json=[{"source": "test"}])
+        assert resp.status_code == 400
+        assert "validation" in resp.json()["error"].lower()
+
+    def test_batch_no_stub(self, client):
+        """Valid batch but no orchestrator returns 503."""
+        resp = client.post("/api/events/batch",
+                           json=[{"source": "test", "text": "hello"}])
+        assert resp.status_code == 503
+
+    def test_queue_no_stub(self, client):
+        resp = client.get("/api/queue")
+        assert resp.status_code == 503
+
+    def test_queue_rows_no_stub(self, client):
+        """Queue rows gracefully returns empty HTML when no stub."""
+        resp = client.get("/api/queue/rows")
+        assert resp.status_code == 200
+        assert resp.text == ""
+
+    def test_event_list_db_error(self, client):
+        """Event list with DB error should still return 200 with template."""
+        mock_db.list_events.side_effect = Exception("connection refused")
+        resp = client.get("/api/events")
+        assert resp.status_code == 200
+        # Should render the lab template even with empty events
+        assert "lab-tab" in resp.text
+        mock_db.list_events.side_effect = None
+
+    def test_event_rows_shape(self, client):
+        """Event rows endpoint returns HTML."""
+        mock_db.list_events.return_value = []
+        resp = client.get("/api/events/rows?limit=10&offset=0")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/html")
+
+    def test_delete_event(self, client):
+        mock_db.delete_event.return_value = True
+        resp = client.delete("/api/events/abc-123")
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] == "abc-123"
+
+    def test_delete_event_not_found(self, client):
+        mock_db.delete_event.return_value = False
+        resp = client.delete("/api/events/nonexistent")
+        assert resp.status_code == 404
+
+    def test_delete_all_events(self, client):
+        mock_db.delete_all_events.return_value = 15
+        resp = client.delete("/api/events")
+        assert resp.status_code == 200
+        assert resp.json()["deleted"] == 15
+
+
 # ─── Component routes (template rendering) ───────────────────────────────
 
 

@@ -5,6 +5,7 @@ function appState() {
         selectedService: 'all',
         serviceActionPending: false,
         serviceAction: '',
+        serviceStatusMsg: '',
 
         init() {
             this.$watch('activeTab', (val) => localStorage.setItem('activeTab', val));
@@ -36,8 +37,12 @@ function appState() {
 
         async _doServiceAction(action) {
             const name = this.selectedService;
+            const label = name === 'all' ? 'all services' : name;
             this.serviceActionPending = true;
             this.serviceAction = action;
+            this.serviceStatusMsg = action === 'start' ? `Starting ${label}...`
+                : action === 'stop' ? `Stopping ${label}...`
+                : `Restarting ${label}...`;
 
             // Fire the action (don't await — it blocks until service is up/down)
             const actionPromise = fetch(`/api/services/${name}/${action}`, { method: 'POST' })
@@ -51,14 +56,18 @@ function appState() {
 
             // Wait for the action to actually finish
             const data = await actionPromise;
-            if (!data.success) {
-                console.error(`${action} failed:`, data.output);
-            }
 
             // Stop polling, do one final refresh
             clearInterval(pollInterval);
             htmx.trigger('#sidebar', 'load');
             await new Promise(r => setTimeout(r, 500));
+
+            if (!data.success) {
+                this.serviceStatusMsg = `${action} failed: ${data.output || 'unknown error'}`;
+                setTimeout(() => { this.serviceStatusMsg = ''; }, 8000);
+            } else {
+                this.serviceStatusMsg = '';
+            }
             this.serviceActionPending = false;
             this.serviceAction = '';
         },
@@ -76,8 +85,7 @@ function appState() {
         async restartService() {
             const name = this.selectedService;
             if (name === 'all' && !confirm('Are you sure you want to restart ALL services?')) return;
-            await fetch(`/api/services/${name}/restart`, { method: 'POST' });
-            htmx.trigger('#sidebar', 'load');
+            await this._doServiceAction('restart');
         },
 
         // Column Resizing

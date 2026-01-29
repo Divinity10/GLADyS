@@ -42,16 +42,27 @@
                 <h4 class="text-xs font-bold text-secondary uppercase mb-2">Response</h4>
                 <p class="mb-4 text-sm text-white select-text">{{ event.response_text or 'No response yet' }}</p>
 
-                {% if event.status == 'responded' %}
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
+                    {% if event.status == 'responded' %}
                     <button hx-post="/api/feedback"
                             hx-vals='{"event_id": "{{ event.id }}", "feedback": "good"}'
+                            hx-target="#feedback-status-{{ event.id }}"
+                            hx-swap="innerHTML"
+                            hx-disabled-elt="this"
+                            hx-indicator="#feedback-status-{{ event.id }}"
                             class="btn text-green-400">👍 Good</button>
                     <button hx-post="/api/feedback"
                             hx-vals='{"event_id": "{{ event.id }}", "feedback": "bad"}'
+                            hx-target="#feedback-status-{{ event.id }}"
+                            hx-swap="innerHTML"
+                            hx-disabled-elt="this"
+                            hx-indicator="#feedback-status-{{ event.id }}"
                             class="btn text-red-400">👎 Bad</button>
+                    {% endif %}
+                    <button onclick="if(confirm('Delete this event?')) deleteEvent('{{ event.id }}')"
+                            class="btn text-[10px] text-gray-400 hover:text-red-300 ml-auto">Delete</button>
+                    <span id="feedback-status-{{ event.id }}" class="text-[10px]"><span class="htmx-indicator text-secondary">Sending...</span></span>
                 </div>
-                {% endif %}
             </div>
         </div>
 

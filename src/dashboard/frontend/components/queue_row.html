@@ -1,0 +1,7 @@
+<tr class="border-b border-gray-800 text-[11px]">
+    <td class="font-mono truncate">{{ item.event_id[:12] }}&hellip;</td>
+    <td><span class="px-1 bg-gray-700 rounded">{{ item.source }}</span></td>
+    <td class="truncate max-w-xs" title="{{ item.raw_text }}">{{ item.raw_text or '(no text)' }}</td>
+    <td>{{ "%.2f"|format(item.salience) }}</td>
+    <td class="text-secondary">{{ item.age_ms }}ms</td>
+</tr>

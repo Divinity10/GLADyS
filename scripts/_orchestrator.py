@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-"""gRPC client for Orchestrator event queue stats.
+"""gRPC client for the Orchestrator service — queue inspection and event publishing.
 
-Usage:
-    python _queue_client.py --address localhost:50050 stats
-    python _queue_client.py --address localhost:50050 list
-    python _queue_client.py --address localhost:50050 watch
+Usage (CLI):
+    python _orchestrator.py --address localhost:50050 stats
+    python _orchestrator.py --address localhost:50050 list
+    python _orchestrator.py --address localhost:50050 watch
+
+Library:
+    from _orchestrator import get_stub, publish_event, load_fixture
 """
 import sys
 import argparse
@@ -18,8 +21,10 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.append(str(ROOT / "src" / "orchestrator"))
 
+import json
+
 import grpc
-from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
+from gladys_orchestrator.generated import common_pb2, orchestrator_pb2, orchestrator_pb2_grpc
 
 
 def get_stub(address: str) -> orchestrator_pb2_grpc.OrchestratorServiceStub:
@@ -134,6 +139,62 @@ def cmd_watch(args) -> int:
     except KeyboardInterrupt:
         print(f"\n[{_timestamp()}] Watch stopped.")
         return 0
+
+
+## Library functions — used by dashboard routers and CLI
+
+
+def publish_event(stub, event_id: str, source: str, text: str,
+                  salience=None) -> dict:
+    """Publish a single event to the orchestrator. Blocks until processed.
+
+    Returns dict with event_id and either status or error.
+    """
+    event = common_pb2.Event(id=event_id, source=source, raw_text=text)
+    if salience is not None:
+        event.salience.CopyFrom(salience)
+
+    try:
+        def gen():
+            yield event
+        for ack in stub.PublishEvents(gen()):
+            return {
+                "event_id": ack.event_id,
+                "status": "queued" if ack.queued else "immediate",
+            }
+            break
+        return {"event_id": event_id, "error": "no_ack"}
+    except grpc.RpcError as e:
+        return {"event_id": event_id, "error": e.code().name}
+
+
+def load_fixture(stub, json_path: str) -> list[dict]:
+    """Load events from a JSON file and publish them sequentially.
+
+    JSON format: [{"source": "...", "text": "...", "id": "..."(optional)}, ...]
+    Returns list of result dicts from publish_event.
+    """
+    with open(json_path) as f:
+        events = json.load(f)
+
+    if not isinstance(events, list):
+        raise ValueError("Fixture file must contain a JSON array")
+
+    results = []
+    for item in events:
+        event_id = item.get("id", str(uuid.uuid4()))
+        result = publish_event(
+            stub,
+            event_id=event_id,
+            source=item.get("source", "fixture"),
+            text=item.get("text", ""),
+        )
+        results.append(result)
+
+    return results
+
+
+## CLI entry point
 
 
 def main():

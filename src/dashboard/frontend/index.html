@@ -50,13 +50,58 @@
          }">
          
         <!-- Resizable Sidebar -->
-        <aside id="sidebar" 
-               class="flex flex-col bg-sidebar"
-               :style="`width: ${sidebarWidth}px`"
-               hx-get="/api/services/health" 
-               hx-trigger="load, every 10s" 
-               hx-swap="innerHTML">
-            <div class="p-4">Loading sidebar...</div>
+        <aside class="flex flex-col bg-sidebar"
+               :style="`width: ${sidebarWidth}px`">
+            <div class="p-4 flex flex-col h-full">
+                <!-- Environment (static) -->
+                <div class="mb-6">
+                    <h2 class="text-xs font-bold text-secondary uppercase mb-2">Environment</h2>
+                    <div class="flex gap-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="env" value="docker" x-model="environment" class="mr-2">
+                            <span>Docker</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="env" value="local" x-model="environment" class="mr-2">
+                            <span>Local</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Service list (htmx-swapped) -->
+                <div class="mb-6">
+                    <h2 class="text-xs font-bold text-secondary uppercase mb-2">Services</h2>
+                    <div id="sidebar"
+                         hx-get="/api/services/health"
+                         hx-trigger="load, every 10s"
+                         hx-swap="innerHTML"
+                         class="w-full text-xs">
+                        <div class="text-secondary text-[10px]">Loading...</div>
+                    </div>
+                </div>
+                <!-- Controls (static — not destroyed by htmx polls) -->
+                <div class="mb-6 border-t border-gray-700 pt-4">
+                    <h2 class="text-xs font-bold text-secondary uppercase mb-2">Controls</h2>
+                    <div class="flex flex-col gap-2">
+                        <div class="text-[10px] text-secondary text-center mb-1">
+                            Target: <span x-text="selectedService === 'all' ? 'All Services' : selectedService" class="font-bold text-white"></span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button @click="startService()" :disabled="serviceActionPending"
+                                    :class="serviceActionPending ? 'opacity-50 cursor-wait' : ''"
+                                    class="btn text-[10px]">Start</button>
+                            <button @click="restartService()" :disabled="serviceActionPending"
+                                    :class="serviceActionPending ? 'opacity-50 cursor-wait' : ''"
+                                    class="btn text-[10px]">Restart</button>
+                            <button @click="stopService()" :disabled="serviceActionPending"
+                                    :class="serviceActionPending ? 'opacity-50 cursor-wait' : ''"
+                                    class="btn text-[10px] text-red-300 hover:text-red-100">Stop</button>
+                        </div>
+                        <div x-show="serviceStatusMsg" x-text="serviceStatusMsg"
+                             class="text-[10px] text-center text-yellow-300 mt-1"></div>
+                    </div>
+                </div>
+                <div class="flex-1"></div>
+            </div>
         </aside>
 
         <!-- Resize Handle -->

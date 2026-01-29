@@ -43,7 +43,7 @@
 ### Debugging & Investigation
 | I want to... | See |
 |--------------|-----|
-| See events and heuristics visually | [Lab Bench UI](../src/ui/README.md) |
+| See events and heuristics visually | [Lab Bench UI](../src/dashboard/README.md) |
 | Query the database directly | `python scripts/docker.py psql` |
 | Understand why confidence changed | [learning.md §20](design/questions/learning.md) |
 | Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |

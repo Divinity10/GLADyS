@@ -212,16 +212,17 @@ docker compose ps       # Check status
 docker compose logs -f  # Follow logs
 ```
 
-### Running the Evaluation Lab Bench
+### Running the Dashboard
 
-The Lab Bench is a Streamlit dashboard for real-time testing of the learning loop.
+The Dashboard (V2) is a dev tool for real-time testing of the learning loop, service management, and system inspection. Built with FastAPI + htmx + Alpine.js.
 
 ```bash
-cd src/ui
-uv run streamlit run dashboard.py
+python tools/dashboard/dashboard.py start
 ```
 
-See the [Lab Bench User Guide](../src/ui/USER_GUIDE.md) for details on event simulation, memory probing, and salience overrides.
+This starts the dashboard on http://localhost:8502. See [DASHBOARD_V2.md](design/DASHBOARD_V2.md) for full details.
+
+Tabs: Lab (submit events, view responses), Knowledge (heuristics, memory probe, cache), Learning (fire history), LLM (Ollama management), Logs (service logs), Settings (config).
 
 ### Development workflow
 
@@ -344,6 +345,7 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 | Memory subsystem | [src/memory/](../src/memory/) |
 | Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
 | Executive stub | [src/executive/](../src/executive/) |
+| Dashboard (V2) | [src/dashboard/](../src/dashboard/) |
 | Integration tests | [src/integration/](../src/integration/) |
 | gRPC contracts | [proto/](../proto/) |
 | Makefile targets | `make help` |
