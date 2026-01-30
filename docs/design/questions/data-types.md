@@ -45,6 +45,15 @@ The threshold event has clear salience. The raw readings are just noise for most
 - "What was the temperature trend over the last hour?" (needs history)
 - "Is the AC cycling too frequently?" (needs fine-grained data)
 
+#### Data Structure Readiness
+
+**Question**: Do we have the right data structures? When is the right time to define them?
+
+The current schema (`episodic_events`, `heuristics`, `heuristic_fires`) emerged from PoC needs. As sensors, actuators, and multi-user support arrive, the schema will need to evolve. Key tensions:
+- Define early → risk premature abstraction
+- Define late → risk expensive migrations
+- Current pragmatic approach: add columns as needed, defer new tables until a concrete use case requires them
+
 #### Related ADRs
 
 - **ADR-0009**: Compaction policy - continuous data might compact differently

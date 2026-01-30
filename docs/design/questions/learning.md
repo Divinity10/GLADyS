@@ -65,6 +65,8 @@ To prove this architecture is achievable, we need:
 3. **Negative outcomes**: How to detect "that was wrong" without explicit feedback?
 4. **Heuristic extraction**: What pattern format makes sense for automated creation?
 5. **Exploration vs exploitation**: Should system occasionally ignore heuristics to learn?
+6. **LLM agreement value**: Is there value in the LLM agreeing with a heuristic? If a heuristic fires and the LLM independently reaches the same conclusion, does that signal anything useful (e.g., boost confidence faster)?
+7. **Implicit requests**: Are ALL heuristics implicit requests? A heuristic matching an event implies the user wants something done — is there a meaningful distinction between "heuristic fire" and "implicit user request"?
 
 #### Next Steps
 
