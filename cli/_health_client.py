@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 
 # Add paths for generated protos
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "orchestrator"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "memory" / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "services" / "orchestrator"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "services" / "memory"))
 
 import grpc
 

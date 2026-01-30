@@ -19,7 +19,7 @@ from pathlib import Path
 
 # Add orchestrator to sys.path to find generated protos
 ROOT = Path(__file__).parent.parent
-sys.path.append(str(ROOT / "src" / "orchestrator"))
+sys.path.append(str(ROOT / "src" / "services" / "orchestrator"))
 
 import json
 

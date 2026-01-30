@@ -6,7 +6,7 @@ from pathlib import Path
 
 # Add memory-python to sys.path to find generated protos
 ROOT = Path(__file__).parent.parent
-sys.path.append(str(ROOT / "src" / "memory" / "python"))
+sys.path.append(str(ROOT / "src" / "services" / "memory"))
 
 import grpc
 from gladys_memory import memory_pb2, memory_pb2_grpc
