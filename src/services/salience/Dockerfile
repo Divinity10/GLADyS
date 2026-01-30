@@ -16,8 +16,8 @@ WORKDIR /app
 COPY proto ./proto
 
 # Copy Rust project from src/memory/rust/
-COPY src/memory/rust/Cargo.toml src/memory/rust/Cargo.lock* ./
-COPY src/memory/rust/build.rs ./
+COPY src/services/salience/Cargo.toml src/services/salience/Cargo.lock* ./
+COPY src/services/salience/build.rs ./
 
 # Create dummy source to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
@@ -27,7 +27,7 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs && echo "" > src/lib.rs
 RUN cargo build --release && rm -rf src target/release/deps/gladys* target/release/memory-fast-path
 
 # Copy actual source code
-COPY src/memory/rust/src ./src
+COPY src/services/salience/src ./src
 
 # Build the real binary (touch source to ensure Cargo sees it as changed)
 RUN touch src/main.rs src/lib.rs && cargo build --release

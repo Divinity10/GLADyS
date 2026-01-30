@@ -71,7 +71,7 @@ class SkillRegistry:
 
     Usage:
         registry = SkillRegistry()
-        registry.load_from_directory(Path("plugins/skills"))
+        registry.load_from_directory(Path("packs/skills"))
 
         # Find skills that can check player status
         matches = registry.query_capability("check_player_status")
@@ -87,7 +87,7 @@ class SkillRegistry:
         Load all skill manifests from a directory.
 
         Args:
-            skills_dir: Path to skills directory (e.g., plugins/skills)
+            skills_dir: Path to skills directory (e.g., packs/skills)
 
         Returns:
             Number of skills loaded

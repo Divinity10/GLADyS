@@ -2,7 +2,7 @@
 """Proto Generation Script - Regenerate all gRPC stubs from shared proto directory.
 
 Usage:
-    python scripts/proto_gen.py [--check]
+    python cli/proto_gen.py [--check]
 
 This script:
 1. Regenerates Python stubs from proto/*.proto
@@ -27,12 +27,12 @@ PROTO_DIR = ROOT / "proto"
 STUB_CONFIGS = [
     {
         "name": "memory-python",
-        "output_dir": ROOT / "src" / "memory" / "python" / "gladys_memory",
+        "output_dir": ROOT / "src" / "services" / "memory" / "gladys_memory",
         "protos": ["types.proto", "memory.proto"],
     },
     {
         "name": "orchestrator",
-        "output_dir": ROOT / "src" / "orchestrator" / "gladys_orchestrator" / "generated",
+        "output_dir": ROOT / "src" / "services" / "orchestrator" / "gladys_orchestrator" / "generated",
         "protos": ["types.proto", "common.proto", "memory.proto", "orchestrator.proto", "executive.proto"],
     },
 ]
@@ -41,10 +41,10 @@ STUB_CONFIGS = [
 def find_python_with_grpc() -> str:
     """Find Python with grpc_tools installed."""
     venvs = [
-        ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe",
-        ROOT / "src" / "memory" / "python" / ".venv" / "bin" / "python",
-        ROOT / "src" / "orchestrator" / ".venv" / "Scripts" / "python.exe",
-        ROOT / "src" / "orchestrator" / ".venv" / "bin" / "python",
+        ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe",
+        ROOT / "src" / "services" / "memory" / ".venv" / "bin" / "python",
+        ROOT / "src" / "services" / "orchestrator" / ".venv" / "Scripts" / "python.exe",
+        ROOT / "src" / "services" / "orchestrator" / ".venv" / "bin" / "python",
     ]
     for python in venvs:
         if python.exists():
@@ -99,7 +99,7 @@ def verify_syntax(file_path: Path) -> bool:
 
 def check_rust_builds() -> bool:
     """Verify Rust code compiles with current proto."""
-    rust_dir = ROOT / "src" / "memory" / "rust"
+    rust_dir = ROOT / "src" / "services" / "salience"
     print("\n[Rust Proto Check]")
     if not rust_dir.exists():
         print("  SKIP: Rust directory not found")

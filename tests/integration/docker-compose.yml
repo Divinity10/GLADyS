@@ -41,7 +41,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - ../memory/migrations:/docker-entrypoint-initdb.d:ro
+      - ../../src/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gladys"]
       interval: 5s
@@ -51,7 +51,7 @@ services:
   memory-python:
     build:
       context: ../..
-      dockerfile: src/memory/python/Dockerfile
+      dockerfile: src/services/memory/Dockerfile
     container_name: gladys-integration-memory-python
     environment:
       STORAGE_HOST: postgres
@@ -63,7 +63,7 @@ services:
       - "50061:50051"  # Host 50061 -> Container 50051 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
-      - ../memory/python/gladys_memory:/app/gladys_memory:ro
+      - ../../src/services/memory/gladys_memory:/app/gladys_memory:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -77,7 +77,7 @@ services:
   memory-rust:
     build:
       context: ../..
-      dockerfile: src/memory/rust/Dockerfile
+      dockerfile: src/services/salience/Dockerfile
     container_name: gladys-integration-memory-rust
     environment:
       RUST_LOG: info
@@ -98,7 +98,7 @@ services:
   orchestrator:
     build:
       context: ../..
-      dockerfile: src/orchestrator/Dockerfile
+      dockerfile: src/services/orchestrator/Dockerfile
     container_name: gladys-integration-orchestrator
     environment:
       # Switch between Python (50051) and Rust (50052) here:
@@ -113,7 +113,7 @@ services:
       - "50060:50050"  # Host 50060 -> Container 50050 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
-      - ../orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
+      - ../../src/services/orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
     depends_on:
       memory-rust:
         condition: service_healthy
@@ -135,7 +135,7 @@ services:
   executive-stub:
     build:
       context: ../..
-      dockerfile: src/executive/Dockerfile
+      dockerfile: src/services/executive/Dockerfile
     container_name: gladys-integration-executive-stub
     environment:
       # Memory service address for storing learned heuristics

@@ -18,7 +18,7 @@ services:
       - "5433:5432"
     volumes:
       - gladys_pgdata:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d:ro
+      - ../../db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gladys"]
       interval: 5s
@@ -28,7 +28,7 @@ services:
   python-storage:
     build:
       context: ../..
-      dockerfile: src/memory/python/Dockerfile
+      dockerfile: src/services/memory/Dockerfile
     container_name: gladys-memory-storage
     environment:
       STORAGE_HOST: postgres
@@ -45,7 +45,7 @@ services:
   rust-fast-path:
     build:
       context: ../..
-      dockerfile: src/memory/rust/Dockerfile
+      dockerfile: src/services/salience/Dockerfile
     container_name: gladys-memory-fast-path
     environment:
       STORAGE_ADDRESS: http://python-storage:50051

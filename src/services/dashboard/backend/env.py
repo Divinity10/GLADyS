@@ -12,12 +12,12 @@ from typing import Optional
 
 import grpc
 
-# Project root: src/dashboard/backend/env.py -> project root
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# Project root: src/services/dashboard/backend/env.py -> project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
-# Add proto stub paths (same pattern as V1 dashboard)
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "memory" / "python"))
+# Add proto stub paths
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
 
 # Import proto stubs
 try:
@@ -37,7 +37,7 @@ except ImportError:
     PROTOS_AVAILABLE = False
 
 # Also make scripts importable
-sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "cli"))
 
 
 @dataclass

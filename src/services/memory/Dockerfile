@@ -16,11 +16,11 @@ WORKDIR /app
 RUN pip install uv
 
 # Copy gladys-common first (dependency)
-COPY src/common/pyproject.toml ./common/pyproject.toml
-COPY src/common/gladys_common ./common/gladys_common
+COPY src/lib/gladys_common/pyproject.toml ./common/pyproject.toml
+COPY src/lib/gladys_common/gladys_common ./common/gladys_common
 
-# Copy memory-python dependency files
-COPY src/memory/python/pyproject.toml ./
+# Copy memory dependency files
+COPY src/services/memory/pyproject.toml ./
 
 # Remove uv.sources (local dev paths don't apply in Docker) and fix path
 # Then install gladys-common and memory-python
@@ -30,7 +30,7 @@ RUN sed -i '/\[tool.uv.sources\]/,/^$/d' pyproject.toml && \
     uv pip install --system -e .
 
 # Copy source code
-COPY src/memory/python/gladys_memory ./gladys_memory
+COPY src/services/memory/gladys_memory ./gladys_memory
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

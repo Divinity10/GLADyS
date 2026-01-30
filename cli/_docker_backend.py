@@ -14,7 +14,7 @@ class DockerBackend(ServiceBackend):
     """Docker-specific service operations."""
 
     def __init__(self, compose_file: Optional[Path] = None):
-        self.compose_file = compose_file or (ROOT / "src" / "integration" / "docker-compose.yml")
+        self.compose_file = compose_file or (ROOT / "tests" / "integration" / "docker-compose.yml")
         self.containers = {
             "memory-python": "gladys-integration-memory-python",
             "memory-rust": "gladys-integration-memory-rust",
@@ -160,15 +160,15 @@ class DockerBackend(ServiceBackend):
             return {"status": "UNKNOWN", "error": "Service not running"}
 
         # Use the health client script
-        python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
-            python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "bin" / "python"
+            python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "bin" / "python"
         if not python_exe.exists():
             print("Warning: Using system python fallback for health check")
             python_exe = Path("python")
 
         address = f"localhost:{port}"
-        args = [str(python_exe), str(ROOT / "scripts" / "_health_client.py"), "--address", address]
+        args = [str(python_exe), str(ROOT / "cli" / "_health_client.py"), "--address", address]
         if detailed:
             args.append("--detailed")
 
@@ -213,7 +213,7 @@ class DockerBackend(ServiceBackend):
 
     def run_migration(self, file_filter: Optional[str] = None) -> int:
         # Reuse existing migration logic concept but simplified
-        migrations_dir = ROOT / "src" / "memory" / "migrations"
+        migrations_dir = ROOT / "src" / "db" / "migrations"
         files = sorted(migrations_dir.glob("*.sql"))
         
         if file_filter:
@@ -247,7 +247,7 @@ class DockerBackend(ServiceBackend):
         return self.run_sql(sql)
 
     def run_test(self, test_file: Optional[str] = None) -> int:
-        test_dir = ROOT / "src" / "integration"
+        test_dir = ROOT / "tests" / "integration"
         env = {**os.environ, **get_test_env(DOCKER_PORTS)}
         
         cmd = ["uv", "run"]
@@ -262,12 +262,12 @@ class DockerBackend(ServiceBackend):
     def _run_cache_cmd(self, args: List[str]) -> int:
         address = f"localhost:{DOCKER_PORTS.memory_rust}"
         # We run it using the venv from memory-python which has grpcio
-        python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             print("Warning: Using system python fallback for cache command")
             python_exe = "python" # Fallback
             
-        cmd = [str(python_exe), str(ROOT / "scripts" / "_cache_client.py"), "--address", address] + args
+        cmd = [str(python_exe), str(ROOT / "cli" / "_cache_client.py"), "--address", address] + args
         return subprocess.run(cmd).returncode
 
     def cache_stats(self) -> int:
@@ -286,15 +286,15 @@ class DockerBackend(ServiceBackend):
         """Run a queue client command against orchestrator."""
         address = f"localhost:{DOCKER_PORTS.orchestrator}"
         # Use orchestrator venv
-        python_exe = ROOT / "src" / "orchestrator" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "orchestrator" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             # Fallback to memory-python venv
-            python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+            python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             print("Warning: Using system python fallback for queue command")
             python_exe = Path("python")
 
-        cmd = [str(python_exe), str(ROOT / "scripts" / "_orchestrator.py"), "--address", address] + args
+        cmd = [str(python_exe), str(ROOT / "cli" / "_orchestrator.py"), "--address", address] + args
         return subprocess.run(cmd).returncode
 
     def queue_stats(self) -> int:

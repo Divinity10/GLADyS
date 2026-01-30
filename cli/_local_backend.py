@@ -16,19 +16,19 @@ from _service_base import ServiceBackend
 # All Python services use standardized `python -m <package> start` pattern
 SERVICE_CONFIGS = {
     "memory-python": {
-        "cwd": ROOT / "src" / "memory" / "python",
+        "cwd": ROOT / "src" / "services" / "memory",
         "cmd": ["uv", "run", "python", "-m", "gladys_memory", "start"],
         "env": {},
         "depends_on": [],
     },
     "memory-rust": {
-        "cwd": ROOT / "src" / "memory" / "rust",
+        "cwd": ROOT / "src" / "services" / "salience",
         "cmd": ["cargo", "run", "--release"],
         "env": {"STORAGE_ADDRESS": f"http://localhost:{LOCAL_PORTS.memory_python}"},
         "depends_on": ["memory-python"],
     },
     "orchestrator": {
-        "cwd": ROOT / "src" / "orchestrator",
+        "cwd": ROOT / "src" / "services" / "orchestrator",
         "cmd": ["uv", "run", "python", "-m", "gladys_orchestrator", "start"],
         "env": {
             # OutcomeWatcher patterns for implicit feedback (Phase 2)
@@ -37,7 +37,7 @@ SERVICE_CONFIGS = {
         "depends_on": [],
     },
     "executive-stub": {
-        "cwd": ROOT / "src" / "executive",
+        "cwd": ROOT / "src" / "services" / "executive",
         "cmd": ["uv", "run", "python", "-m", "gladys_executive", "start"],
         "env": {},
         "depends_on": [],
@@ -265,15 +265,15 @@ class LocalBackend(ServiceBackend):
             return {"status": "UNKNOWN", "error": "Service not running"}
 
         # Use the health client script
-        python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
-            python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "bin" / "python"
+            python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "bin" / "python"
         if not python_exe.exists():
             print("Warning: Using system python fallback for health check")
             python_exe = Path("python")
 
         address = f"localhost:{port}"
-        args = [str(python_exe), str(ROOT / "scripts" / "_health_client.py"), "--address", address]
+        args = [str(python_exe), str(ROOT / "cli" / "_health_client.py"), "--address", address]
         if detailed:
             args.append("--detailed")
 
@@ -348,7 +348,7 @@ class LocalBackend(ServiceBackend):
 
     def run_migration(self, file_filter: Optional[str] = None) -> int:
         """Run database migrations."""
-        migrations_dir = ROOT / "src" / "memory" / "migrations"
+        migrations_dir = ROOT / "src" / "db" / "migrations"
 
         if not migrations_dir.exists():
             print(f"Migrations directory not found: {migrations_dir}")
@@ -405,7 +405,7 @@ class LocalBackend(ServiceBackend):
 
     def run_test(self, test_file: Optional[str] = None) -> int:
         """Run integration tests."""
-        test_dir = ROOT / "src" / "integration"
+        test_dir = ROOT / "tests" / "integration"
         env = {**os.environ, **get_test_env(LOCAL_PORTS)}
 
         if test_file:
@@ -419,12 +419,12 @@ class LocalBackend(ServiceBackend):
     def _run_cache_cmd(self, args: List[str]) -> int:
         address = f"localhost:{LOCAL_PORTS.memory_rust}"
         # We run it using the venv from memory-python which has grpcio
-        python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             print("Warning: Using system python fallback for cache command")
             python_exe = "python" # Fallback
             
-        cmd = [str(python_exe), str(ROOT / "scripts" / "_cache_client.py"), "--address", address] + args
+        cmd = [str(python_exe), str(ROOT / "cli" / "_cache_client.py"), "--address", address] + args
         return subprocess.run(cmd).returncode
 
     def cache_stats(self) -> int:
@@ -443,15 +443,15 @@ class LocalBackend(ServiceBackend):
         """Run a queue client command against orchestrator."""
         address = f"localhost:{LOCAL_PORTS.orchestrator}"
         # Use the orchestrator venv which has grpcio
-        python_exe = ROOT / "src" / "orchestrator" / ".venv" / "Scripts" / "python.exe"
+        python_exe = ROOT / "src" / "services" / "orchestrator" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             # Fallback to memory-python venv
-            python_exe = ROOT / "src" / "memory" / "python" / ".venv" / "Scripts" / "python.exe"
+            python_exe = ROOT / "src" / "services" / "memory" / ".venv" / "Scripts" / "python.exe"
         if not python_exe.exists():
             print("Warning: Using system python fallback for queue command")
             python_exe = Path("python")
 
-        cmd = [str(python_exe), str(ROOT / "scripts" / "_orchestrator.py"), "--address", address] + args
+        cmd = [str(python_exe), str(ROOT / "cli" / "_orchestrator.py"), "--address", address] + args
         return subprocess.run(cmd).returncode
 
     def queue_stats(self) -> int:

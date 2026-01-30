@@ -71,7 +71,7 @@ def check_proto_sync() -> Tuple[List[SyncIssue], List[str]]:
             issues.append(SyncIssue(
                 "proto", "error",
                 f"{name}: Missing from orchestrator/proto",
-                action="Run: python scripts/proto_sync.py"
+                action="Run: python cli/proto_gen.py"
             ))
         elif mem_hash != orch_hash:
             issues.append(SyncIssue(
@@ -79,7 +79,7 @@ def check_proto_sync() -> Tuple[List[SyncIssue], List[str]]:
                 f"{name}: OUT OF SYNC\n"
                 f"     - memory/proto: {mem_hash}\n"
                 f"     - orchestrator/proto: {orch_hash} (stale)",
-                action="Run: python scripts/proto_sync.py"
+                action="Run: python cli/proto_gen.py"
             ))
         else:
             successes.append(f"{name}: in sync ({mem_hash})")
@@ -132,7 +132,7 @@ def check_stub_freshness() -> Tuple[List[SyncIssue], List[str]]:
                 issues.append(SyncIssue(
                     "stub", "warning",
                     f"{service}: {base_name}{suffix} may be stale (proto newer than stub)",
-                    action="Run: python scripts/proto_sync.py"
+                    action="Run: python cli/proto_gen.py"
                 ))
             else:
                 successes.append(f"{service}/{base_name}{suffix}: up to date")
@@ -211,7 +211,7 @@ def check_migrations(local_port: int = LOCAL_PORTS.db, docker_port: int = DOCKER
             issues.append(SyncIssue(
                 "migration", "warning",
                 f"Local DB: Only {local_tables}/3 core tables present",
-                action="Run: python scripts/local.py migrate"
+                action="Run: python cli/local.py migrate"
             ))
     else:
         issues.append(SyncIssue(
@@ -228,7 +228,7 @@ def check_migrations(local_port: int = LOCAL_PORTS.db, docker_port: int = DOCKER
             issues.append(SyncIssue(
                 "migration", "warning",
                 f"Docker DB: Only {docker_tables}/3 core tables present",
-                action="Run: python scripts/docker.py migrate"
+                action="Run: python cli/docker.py migrate"
             ))
     else:
         # Docker DB not running is not necessarily an error

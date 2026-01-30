@@ -2,10 +2,10 @@
 """Verify GLADyS development environment is working.
 
 Usage:
-    python scripts/verify_env.py              # Check status and exit
-    python scripts/verify_env.py --wait       # Wait for services to become healthy (default 120s)
-    python scripts/verify_env.py --wait 180   # Wait up to 180 seconds
-    python scripts/verify_env.py --quick      # Skip gRPC checks (fast)
+    python cli/verify_env.py              # Check status and exit
+    python cli/verify_env.py --wait       # Wait for services to become healthy (default 120s)
+    python cli/verify_env.py --wait 180   # Wait up to 180 seconds
+    python cli/verify_env.py --quick      # Skip gRPC checks (fast)
 
 This script checks:
 1. Docker daemon is running
@@ -231,7 +231,7 @@ def main() -> int:
             print(f"\n{BLUE}Starting containers...{RESET}")
             subprocess.run(
                 ["docker", "compose", "up", "-d"],
-                cwd="src/integration",
+                cwd="tests/integration",
                 capture_output=True,
             )
             time.sleep(2)
@@ -242,7 +242,7 @@ def main() -> int:
             all_ok = True
         else:
             print(f"\n  {YELLOW}Containers not running. To start and wait:{RESET}")
-            print(f"  {YELLOW}  python scripts/verify_env.py --wait{RESET}")
+            print(f"  {YELLOW}  python cli/verify_env.py --wait{RESET}")
             print(f"  {YELLOW}Or manually: make up && sleep 60{RESET}")
             return 1
 
@@ -260,7 +260,7 @@ def main() -> int:
                     grpc_ok = False
 
             if not grpc_ok:
-                print(f"\n  {YELLOW}Check container logs: docker compose -f src/integration/docker-compose.yml logs{RESET}")
+                print(f"\n  {YELLOW}Check container logs: docker compose -f tests/integration/docker-compose.yml logs{RESET}")
                 return 1
         except ImportError:
             print(f"  {YELLOW}SKIP{RESET}: grpc module not installed")

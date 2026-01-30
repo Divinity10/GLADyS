@@ -2,7 +2,7 @@
 """Verify local development environment (no Docker).
 
 Usage:
-    python scripts/verify_local.py
+    python cli/verify_local.py
 
 Checks:
 1. PostgreSQL is accessible on localhost:5432
@@ -101,7 +101,7 @@ def check_tables() -> bool:
 
     if missing:
         print(f"  {RED}FAIL{RESET}: Missing tables: {', '.join(missing)}")
-        print(f"  {YELLOW}Run migration: psql -U gladys -d gladys -f src/memory/migrations/001_initial_schema.sql{RESET}")
+        print(f"  {YELLOW}Run migration: psql -U gladys -d gladys -f src/db/migrations/001_initial_schema.sql{RESET}")
         return False
 
     print(f"  {GREEN}OK{RESET}: All {len(REQUIRED_TABLES)} tables exist")
@@ -157,10 +157,10 @@ def main() -> int:
     print(f"\n{BLUE}{'=' * 50}{RESET}")
     print(f"{GREEN}Local environment OK{RESET}")
     print(f"\n{BLUE}To start services:{RESET}")
-    print("  python scripts/local.py start all")
+    print("  python cli/local.py start all")
     print(f"\n{BLUE}Or start individual services:{RESET}")
-    print("  python scripts/local.py start memory-python")
-    print("  python scripts/local.py start orchestrator")
+    print("  python cli/local.py start memory-python")
+    print("  python cli/local.py start orchestrator")
     return 0
 
 

@@ -51,7 +51,7 @@ RUN for f in gladys_memory/generated/*_pb2*.py; do \
     done
 
 # Copy the executive package (context is project root)
-COPY src/executive/gladys_executive/ /app/gladys_executive/
+COPY src/services/executive/gladys_executive/ /app/gladys_executive/
 
 # Create __init__.py if missing
 RUN touch /app/gladys_executive/__init__.py

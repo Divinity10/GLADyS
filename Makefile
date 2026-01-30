@@ -28,38 +28,38 @@ help:
 
 # Verify local environment (PostgreSQL, no Docker)
 verify-local:
-	python scripts/verify_local.py
+	python cli/verify_local.py
 
 # Verify Docker environment
 verify:
-	python scripts/verify_env.py
+	python cli/verify_env.py
 
 # Regenerate proto stubs
 proto:
-	python scripts/proto_sync.py
+	python cli/proto_gen.py
 
 # Run tests (requires Docker for integration tests)
 test:
-	cd src/memory/python && python -m pytest tests/ -v
+	cd src/services/memory && python -m pytest tests/ -v
 
 # Docker operations
 up:
-	cd src/integration && docker compose up -d
+	cd tests/integration && docker compose up -d
 
 down:
-	cd src/integration && docker compose down
+	cd tests/integration && docker compose down
 
 restart:
-	cd src/integration && docker compose restart
+	cd tests/integration && docker compose restart
 
 # Rebuild ONLY the Rust container (Python uses volume mounts, doesn't need rebuild)
 rust-rebuild:
-	cd src/integration && docker compose up -d --build --force-recreate memory-rust
+	cd tests/integration && docker compose up -d --build --force-recreate memory-rust
 
 # Rebuild Executive container (required after proto changes or Dockerfile changes)
 exec-rebuild:
-	cd src/integration && docker compose up -d --build --force-recreate executive-stub
+	cd tests/integration && docker compose up -d --build --force-recreate executive-stub
 
 # Run benchmark
 benchmark:
-	cd src/orchestrator && uv run python ../integration/benchmark_salience.py
+	cd src/services/orchestrator && uv run python ../../tests/integration/benchmark_salience.py

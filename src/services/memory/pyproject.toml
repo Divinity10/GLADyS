@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-gladys-common = { path = "../../common", editable = true }
+gladys-common = { path = "../../lib/gladys_common", editable = true }
 
 [project.optional-dependencies]
 dev = [

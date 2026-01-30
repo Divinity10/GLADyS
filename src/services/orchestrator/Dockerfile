@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy gladys-common first (dependency)
-COPY src/common/pyproject.toml ./common/pyproject.toml
-COPY src/common/gladys_common ./common/gladys_common
+COPY src/lib/gladys_common/pyproject.toml ./common/pyproject.toml
+COPY src/lib/gladys_common/gladys_common ./common/gladys_common
 
 # Copy dependency files first (better caching)
-COPY src/orchestrator/pyproject.toml .
+COPY src/services/orchestrator/pyproject.toml .
 
 # Remove uv.sources (local dev paths don't apply in Docker)
 # Update gladys-common path and install
@@ -32,7 +32,7 @@ RUN python -m grpc_tools.protoc \
     proto/*.proto || true
 
 # Copy application code
-COPY src/orchestrator/gladys_orchestrator/ gladys_orchestrator/
+COPY src/services/orchestrator/gladys_orchestrator/ gladys_orchestrator/
 
 # Create non-root user
 RUN useradd -m gladys && chown -R gladys:gladys /app
