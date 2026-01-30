@@ -20,7 +20,7 @@ import pytest
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = DASHBOARD_DIR.parent.parent
 sys.path.insert(0, str(DASHBOARD_DIR))
-sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+sys.path.insert(0, str(PROJECT_ROOT / "cli"))
 
 # Mock _db before importing the app (fires/events routers import it at module level)
 mock_db = MagicMock()

@@ -21,7 +21,7 @@ from _gladys import is_port_open
 
 router = APIRouter(prefix="/api/services")
 
-FRONTEND_DIR = PROJECT_ROOT / "src" / "dashboard" / "frontend"
+FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
 
 # Map dashboard service names to backend service names
