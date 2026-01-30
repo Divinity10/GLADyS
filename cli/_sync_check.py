@@ -42,8 +42,8 @@ def check_proto_sync() -> Tuple[List[SyncIssue], List[str]]:
     successes = []
 
     # Canonical source is memory/proto
-    memory_proto = ROOT / "src" / "memory" / "proto"
-    orchestrator_proto = ROOT / "src" / "orchestrator" / "proto"
+    memory_proto = ROOT / "src" / "services" / "memory" / "proto"
+    orchestrator_proto = ROOT / "src" / "services" / "orchestrator" / "proto"
 
     if not memory_proto.exists():
         issues.append(SyncIssue(
@@ -97,12 +97,12 @@ def check_stub_freshness() -> Tuple[List[SyncIssue], List[str]]:
     successes = []
 
     # Check memory-python stubs
-    memory_proto = ROOT / "src" / "memory" / "proto"
-    memory_stubs = ROOT / "src" / "memory" / "python" / "gladys_memory"
+    memory_proto = ROOT / "src" / "services" / "memory" / "proto"
+    memory_stubs = ROOT / "src" / "services" / "memory" / "gladys_memory"
 
     # Check orchestrator stubs
-    orch_proto = ROOT / "src" / "orchestrator" / "proto"
-    orch_stubs = ROOT / "src" / "orchestrator" / "gladys_orchestrator" / "generated"
+    orch_proto = ROOT / "src" / "services" / "orchestrator" / "proto"
+    orch_stubs = ROOT / "src" / "services" / "orchestrator" / "gladys_orchestrator" / "generated"
 
     stub_locations = [
         ("memory-python", memory_proto, memory_stubs, "_pb2.py"),
@@ -184,7 +184,7 @@ def count_migrations_in_db(port: int) -> Optional[int]:
 
 def count_migration_files() -> int:
     """Count migration .sql files."""
-    migrations_dir = ROOT / "src" / "memory" / "migrations"
+    migrations_dir = ROOT / "src" / "services" / "memory" / "migrations"
     if not migrations_dir.exists():
         return 0
     return len(list(f for f in migrations_dir.glob("*.sql") if not f.name.endswith(".bak")))

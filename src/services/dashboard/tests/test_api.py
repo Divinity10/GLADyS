@@ -16,15 +16,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Ensure backend package and scripts are importable
+# Ensure backend package, gladys_client, fun_api, and CLI are importable
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = DASHBOARD_DIR.parent.parent
 sys.path.insert(0, str(DASHBOARD_DIR))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "lib" / "gladys_client"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services"))
 sys.path.insert(0, str(PROJECT_ROOT / "cli"))
 
-# Mock _db before importing the app (fires/events routers import it at module level)
+# Mock gladys_client.db before importing the app (routers import it at module level)
 mock_db = MagicMock()
-sys.modules["_db"] = mock_db
+sys.modules["gladys_client.db"] = mock_db
 
 # Mock proto stubs so imports don't fail
 mock_protos = MagicMock()
@@ -105,7 +107,7 @@ class TestLogs:
 
         try:
             service_name = log_path.stem
-            with patch("backend.routers.logs.LOG_DIR", log_path.parent):
+            with patch("fun_api.routers.logs.LOG_DIR", log_path.parent):
                 resp = client.get(f"/api/logs/{service_name}?tail=2")
             assert resp.status_code == 200
             data = resp.json()
@@ -124,7 +126,7 @@ class TestLogs:
             log_path = Path(f.name)
 
         try:
-            with patch("backend.routers.logs.LOG_DIR", log_path.parent):
+            with patch("fun_api.routers.logs.LOG_DIR", log_path.parent):
                 data = client.get(f"/api/logs/{log_path.stem}").json()
             assert "lines" in data
             assert "service" in data
@@ -231,7 +233,7 @@ class TestFires:
 class TestLLM:
     def test_status_not_configured(self, client):
         """No OLLAMA_URL → not_configured."""
-        with patch("backend.routers.llm._get_ollama_config",
+        with patch("fun_api.routers.llm._get_ollama_config",
                     return_value={"endpoint": None, "url": "", "model": ""}):
             resp = client.get("/api/llm/status")
         assert resp.status_code == 200
@@ -241,10 +243,10 @@ class TestLLM:
 
     def test_status_connected_shape(self, client):
         """Frontend expects: status, url, model, available_models, loaded_models."""
-        with patch("backend.routers.llm._get_ollama_config",
+        with patch("fun_api.routers.llm._get_ollama_config",
                     return_value={"endpoint": "local", "url": "http://localhost:11434",
                                   "model": "qwen2.5:3b"}):
-            with patch("backend.routers.llm._ollama_request") as mock_req:
+            with patch("fun_api.routers.llm._ollama_request") as mock_req:
                 # First call: /api/tags
                 mock_req.side_effect = [
                     (200, {"models": [{"name": "qwen2.5:3b"}, {"name": "llama3:8b"}]}),
@@ -264,10 +266,10 @@ class TestLLM:
 
     def test_test_prompt_shape(self, client):
         """Frontend expects: response, total_duration_ms."""
-        with patch("backend.routers.llm._get_ollama_config",
+        with patch("fun_api.routers.llm._get_ollama_config",
                     return_value={"endpoint": None, "url": "http://localhost:11434",
                                   "model": "qwen2.5:3b"}):
-            with patch("backend.routers.llm._ollama_request",
+            with patch("fun_api.routers.llm._ollama_request",
                         return_value=(200, {"response": "Hello!", "total_duration": 500_000_000})):
                 resp = client.post("/api/llm/test",
                                    json={"prompt": "Say hi"})
@@ -280,10 +282,10 @@ class TestLLM:
 
     def test_warm_shape(self, client):
         """Frontend expects: success, model."""
-        with patch("backend.routers.llm._get_ollama_config",
+        with patch("fun_api.routers.llm._get_ollama_config",
                     return_value={"endpoint": None, "url": "http://localhost:11434",
                                   "model": "qwen2.5:3b"}):
-            with patch("backend.routers.llm._ollama_request",
+            with patch("fun_api.routers.llm._ollama_request",
                         return_value=(200, {})):
                 resp = client.post("/api/llm/warm")
         assert resp.status_code == 200

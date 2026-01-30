@@ -1,4 +1,4 @@
-"""Events router — submit, list, queue, SSE streams."""
+"""Events router — submit, list, SSE streams, feedback (HTMX/HTML endpoints)."""
 
 import asyncio
 import json
@@ -9,14 +9,13 @@ from typing import Optional
 
 import grpc
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
 
-import _db
+from gladys_client import db as _db
 
 if PROTOS_AVAILABLE:
     from gladys_orchestrator.generated import (
@@ -31,12 +30,6 @@ router = APIRouter(prefix="/api")
 
 FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
-
-
-class BatchEvent(BaseModel):
-    source: str = "batch"
-    text: str
-    id: str | None = None
 
 
 def _format_relative_time(ts) -> str:
@@ -63,15 +56,9 @@ def _make_event_dict(event_id: str, source: str, text: str,
                      response_text: str = "", response_id: str = "",
                      predicted_success: float = None,
                      prediction_confidence: float = None) -> dict:
-    """Build an event dict matching the event_row.html template.
-
-    DB schema (episodic_events):
-      id, timestamp, source, raw_text, salience (JSONB),
-      response_text, response_id, predicted_success, prediction_confidence
-    """
+    """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
-    # Determine status from available data
     if response_text:
         status = "responded"
     elif response_id:
@@ -79,14 +66,12 @@ def _make_event_dict(event_id: str, source: str, text: str,
     else:
         status = "queued"
 
-    # Path: how the event was routed
     path = ""
     if response_id:
         path = "EXECUTIVE"
     elif response_text:
         path = "HEURISTIC"
 
-    # Salience breakdown from JSONB — all 9 proto components
     salience_breakdown = {}
     if isinstance(salience, dict):
         for key in ("threat", "opportunity", "humor", "novelty", "goal_relevance",
@@ -97,8 +82,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
     time_rel = _format_relative_time(timestamp) if timestamp else "just now"
 
-    # Compute aggregate salience from breakdown if predicted_success not available
-    salience_score = "—"
+    salience_score = "\u2014"
     if predicted_success is not None:
         salience_score = f"{predicted_success:.2f}"
     elif salience_breakdown:
@@ -116,9 +100,35 @@ def _make_event_dict(event_id: str, source: str, text: str,
         "time_relative": time_rel,
         "time_absolute": time_abs,
         "salience_score": salience_score,
-        "confidence": f"{prediction_confidence:.2f}" if prediction_confidence else "—",
+        "confidence": f"{prediction_confidence:.2f}" if prediction_confidence else "\u2014",
         "salience_breakdown": salience_breakdown,
     }
+
+
+def _fetch_events(limit: int = 25, offset: int = 0,
+                   source: str = None) -> list[dict]:
+    """Fetch events from DB and convert to template-ready dicts."""
+    events = []
+    try:
+        rows = _db.list_events(env.get_db_dsn(), limit=limit, offset=offset,
+                               source=source)
+        for row in rows:
+            salience_data = row["salience"] if isinstance(row["salience"], dict) else {}
+            events.append(_make_event_dict(
+                event_id=str(row["id"]),
+                source=row["source"] or "",
+                text=row["raw_text"] or "",
+                timestamp=row["timestamp"],
+                salience=salience_data,
+                response_text=row["response_text"] or "",
+                response_id=row["response_id"] or "",
+                predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
+                prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
+            ))
+    except Exception as e:
+        import sys
+        print(f"Event list query error: {e}", file=sys.stderr)
+    return events
 
 
 @router.post("/events")
@@ -152,8 +162,6 @@ async def submit_event(request: Request):
     if salience:
         event.salience.CopyFrom(salience)
 
-    # Fire gRPC in background — PublishEvents blocks until orchestrator
-    # finishes processing (includes LLM call), so we can't wait for the ack.
     def _publish():
         try:
             def event_gen():
@@ -165,89 +173,10 @@ async def submit_event(request: Request):
 
     threading.Thread(target=_publish, daemon=True).start()
 
-    # Return status with full event_id for client-side tracking
     return HTMLResponse(
         f'<span class="text-green-400" data-event-id="{event_id}" '
         f'data-source="{source}" data-text="{text[:60]}">Sent (id: {event_id[:8]})</span>'
     )
-
-
-@router.post("/events/batch")
-async def submit_batch(request: Request):
-    """Submit a batch of events from JSON body.
-
-    Fires all events in a background thread and returns immediately.
-    SSE stream delivers rows as responses arrive.
-    """
-    body = await request.json()
-    if not isinstance(body, list):
-        return JSONResponse({"error": "Body must be a JSON array of events"}, status_code=400)
-
-    if len(body) > 50:
-        return JSONResponse({"error": "Maximum 50 events per batch"}, status_code=400)
-
-    # Validate each event with Pydantic
-    try:
-        validated = [BatchEvent(**item) for item in body]
-    except Exception as e:
-        return JSONResponse({"error": f"Validation error: {e}"}, status_code=400)
-
-    stub = env.orchestrator_stub()
-    if not stub:
-        return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
-
-    # Assign IDs upfront so we can report them
-    event_ids = []
-    events = []
-    for item in validated:
-        event_id = item.id or str(uuid.uuid4())
-        event_ids.append(event_id)
-        events.append(common_pb2.Event(
-            id=event_id,
-            source=item.source,
-            raw_text=item.text,
-        ))
-
-    # Fire all in background — each PublishEvents blocks until LLM finishes
-    def _publish_all():
-        for event in events:
-            try:
-                def gen():
-                    yield event
-                for _ack in stub.PublishEvents(gen()):
-                    break
-            except grpc.RpcError:
-                pass
-
-    threading.Thread(target=_publish_all, daemon=True).start()
-
-    return JSONResponse({"accepted": len(events), "event_ids": event_ids})
-
-
-def _fetch_events(limit: int = 25, offset: int = 0,
-                   source: str = None) -> list[dict]:
-    """Fetch events from DB and convert to template-ready dicts."""
-    events = []
-    try:
-        rows = _db.list_events(env.get_db_dsn(), limit=limit, offset=offset,
-                               source=source)
-        for row in rows:
-            salience_data = row["salience"] if isinstance(row["salience"], dict) else {}
-            events.append(_make_event_dict(
-                event_id=str(row["id"]),
-                source=row["source"] or "",
-                text=row["raw_text"] or "",
-                timestamp=row["timestamp"],
-                salience=salience_data,
-                response_text=row["response_text"] or "",
-                response_id=row["response_id"] or "",
-                predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
-                prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
-            ))
-    except Exception as e:
-        import sys
-        print(f"Event list query error: {e}", file=sys.stderr)
-    return events
 
 
 @router.get("/events")
@@ -270,30 +199,6 @@ async def list_event_rows(request: Request, limit: int = 25, offset: int = 0,
     for event in events:
         html += templates.get_template("components/event_row.html").render(event=event)
     return HTMLResponse(html)
-
-
-@router.get("/queue")
-async def get_queue():
-    """Get current queue contents from orchestrator."""
-    stub = env.orchestrator_stub()
-    if not stub:
-        return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
-
-    try:
-        resp = stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
-        items = []
-        for qi in resp.events:
-            items.append({
-                "event_id": qi.event_id,
-                "source": qi.source,
-                "salience": qi.salience,
-                "age_ms": qi.age_ms,
-                "matched_heuristic_id": qi.matched_heuristic_id,
-                "raw_text": qi.raw_text,
-            })
-        return JSONResponse({"events": items, "count": len(items)})
-    except grpc.RpcError as e:
-        return JSONResponse({"error": f"gRPC error: {e.code().name}"}, status_code=502)
 
 
 @router.get("/queue/rows")
@@ -341,9 +246,6 @@ async def event_stream(request: Request):
             def _subscribe():
                 try:
                     for resp in stub.SubscribeResponses(req):
-                        # Enrich from DB — EventResponse proto lacks source/text/salience.
-                        # Retry with backoff because store_callback may not have
-                        # committed yet when the broadcast arrives (race condition).
                         import time as _time
                         event_id = resp.event_id
                         row = None
@@ -413,28 +315,6 @@ async def response_stream(request: Request):
     return await event_stream(request)
 
 
-@router.delete("/events/{event_id}")
-async def delete_event(event_id: str):
-    """Archive a single event."""
-    try:
-        found = _db.delete_event(env.get_db_dsn(), event_id)
-        if not found:
-            return JSONResponse({"error": "Event not found"}, status_code=404)
-        return JSONResponse({"deleted": event_id})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-@router.delete("/events")
-async def delete_all_events():
-    """Archive all events."""
-    try:
-        count = _db.delete_all_events(env.get_db_dsn())
-        return JSONResponse({"deleted": count})
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
 @router.post("/feedback")
 async def submit_feedback(request: Request):
     """Submit feedback on a response."""
@@ -444,10 +324,12 @@ async def submit_feedback(request: Request):
     feedback = body.get("feedback", "")
 
     if not event_id:
+        from fastapi.responses import JSONResponse
         return JSONResponse({"error": "event_id required"}, status_code=400)
 
     stub = env.executive_stub()
     if not stub:
+        from fastapi.responses import JSONResponse
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
 
     try:
@@ -456,7 +338,7 @@ async def submit_feedback(request: Request):
             event_id=event_id,
             positive=positive,
         ))
-        label = "👍 Saved" if positive else "👎 Saved"
+        label = "\U0001f44d Saved" if positive else "\U0001f44e Saved"
         return HTMLResponse(f'<span class="text-green-400 text-[10px]">{label}</span>')
     except grpc.RpcError as e:
         return HTMLResponse(f'<span class="text-red-400 text-[10px]">Error: {e.code().name}</span>', status_code=502)

@@ -25,7 +25,7 @@ import grpc
 from google.protobuf import struct_pb2, timestamp_pb2
 
 # Add orchestrator to path for proto imports
-sys.path.insert(0, str(Path(__file__).parents[3] / "src" / "orchestrator"))
+sys.path.insert(0, str(Path(__file__).parents[3] / "src" / "services" / "orchestrator"))
 
 from gladys_orchestrator.generated import (
     common_pb2,

@@ -11,7 +11,7 @@ from pathlib import Path
 PORT = 8502
 # Resolve root from tools/dashboard/run.py -> ../../
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DASHBOARD_DIR = PROJECT_ROOT / "src" / "dashboard"
+DASHBOARD_DIR = PROJECT_ROOT / "src" / "services" / "dashboard"
 CMD = [
     "uv", "run",
     "uvicorn", "backend.main:app",

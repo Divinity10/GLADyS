@@ -1,4 +1,4 @@
-"""Tests for _orchestrator.py library functions (publish_event, load_fixture)."""
+"""Tests for gladys_client.orchestrator library functions (publish_event, load_fixture)."""
 
 import json
 import sys
@@ -8,12 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-# Add scripts and orchestrator to path
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "src" / "orchestrator"))
-
-# Mock gRPC protos before import
+# Mock gRPC protos before any imports that use them
 mock_protos = MagicMock()
 sys.modules.setdefault("grpc", MagicMock())
 sys.modules.setdefault("gladys_orchestrator", mock_protos)
@@ -22,7 +17,11 @@ sys.modules.setdefault("gladys_orchestrator.generated.common_pb2", mock_protos.g
 sys.modules.setdefault("gladys_orchestrator.generated.orchestrator_pb2", mock_protos.generated.orchestrator_pb2)
 sys.modules.setdefault("gladys_orchestrator.generated.orchestrator_pb2_grpc", mock_protos.generated.orchestrator_pb2_grpc)
 
-import _orchestrator
+# Add gladys_client to path (after mocks so proto imports resolve to mocks)
+ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT / "src" / "lib" / "gladys_client"))
+
+from gladys_client import orchestrator as _orchestrator
 
 
 class TestPublishEvent:

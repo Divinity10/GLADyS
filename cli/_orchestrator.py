@@ -7,7 +7,7 @@ Usage (CLI):
     python _orchestrator.py --address localhost:50050 watch
 
 Library:
-    from _orchestrator import get_stub, publish_event, load_fixture
+    from gladys_client.orchestrator import get_stub, publish_event, load_fixture
 """
 import sys
 import argparse
@@ -17,19 +17,16 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-# Add orchestrator to sys.path to find generated protos
+# Add gladys_client to sys.path
 ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT / "src" / "lib" / "gladys_client"))
+
+# Re-export library functions
+from gladys_client.orchestrator import get_stub, publish_event, load_fixture
+
+# Proto types needed by CLI commands
 sys.path.append(str(ROOT / "src" / "services" / "orchestrator"))
-
-import json
-
-import grpc
-from gladys_orchestrator.generated import common_pb2, orchestrator_pb2, orchestrator_pb2_grpc
-
-
-def get_stub(address: str) -> orchestrator_pb2_grpc.OrchestratorServiceStub:
-    channel = grpc.insecure_channel(address)
-    return orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
+from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
 
 
 def cmd_stats(args) -> int:
@@ -42,8 +39,8 @@ def cmd_stats(args) -> int:
         print(f"  Total Processed: {response.total_processed}")
         print(f"  Total Timed Out: {response.total_timed_out}")
         return 0
-    except grpc.RpcError as e:
-        print(f"Error: {e.details() if hasattr(e, 'details') else e}")
+    except Exception as e:
+        print(f"Error: {e}")
         return 1
 
 
@@ -63,7 +60,6 @@ def cmd_list(args) -> int:
         else:
             print(f"Queued events ({response.total_count}):\n")
 
-        # Header
         print(f"{'Event ID':<40} {'Source':<15} {'Salience':>8} {'Age (ms)':>10} {'Heuristic'}")
         print("-" * 95)
 
@@ -72,8 +68,8 @@ def cmd_list(args) -> int:
             print(f"{ev.event_id:<40} {ev.source:<15} {ev.salience:>8.2f} {ev.age_ms:>10} {heuristic_str}")
 
         return 0
-    except grpc.RpcError as e:
-        print(f"Error: {e.details() if hasattr(e, 'details') else e}")
+    except Exception as e:
+        print(f"Error: {e}")
         return 1
 
 
@@ -83,7 +79,6 @@ def cmd_watch(args) -> int:
     poll_interval = args.interval
     stub = get_stub(address)
 
-    # Track known event IDs to detect additions/removals
     known_ids: set[str] = set()
 
     def _timestamp():
@@ -100,13 +95,10 @@ def cmd_watch(args) -> int:
             for resp in stub.SubscribeResponses(req):
                 path = {1: "IMMEDIATE", 2: "QUEUED"}.get(resp.routing_path, "?")
                 text_preview = resp.response_text[:60].replace("\n", " ") if resp.response_text else "(empty)"
-                print(f"  [{_timestamp()}] ✅ RESPONSE  {resp.event_id[:12]}  path={path}  {text_preview}")
-        except grpc.RpcError:
-            pass  # channel closed on exit
-        except Exception as e:
-            print(f"  [watch] subscription error: {e}")
+                print(f"  [{_timestamp()}] \u2705 RESPONSE  {resp.event_id[:12]}  path={path}  {text_preview}")
+        except Exception:
+            pass
 
-    # Start response listener in background
     listener = threading.Thread(target=_response_listener, daemon=True)
     listener.start()
 
@@ -118,80 +110,25 @@ def cmd_watch(args) -> int:
                 resp = stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=0))
                 current_ids = {ev.event_id for ev in resp.events}
 
-                # Detect new events
                 added = current_ids - known_ids
                 for ev in resp.events:
                     if ev.event_id in added:
-                        print(f"  [{_timestamp()}] ➕ QUEUED    {ev.event_id[:12]}  src={ev.source}  sal={ev.salience:.2f}")
+                        print(f"  [{_timestamp()}] \u2795 QUEUED    {ev.event_id[:12]}  src={ev.source}  sal={ev.salience:.2f}")
 
-                # Detect removed events (processed or timed out)
                 removed = known_ids - current_ids
                 for eid in removed:
-                    print(f"  [{_timestamp()}] ➖ REMOVED   {eid[:12]}")
+                    print(f"  [{_timestamp()}] \u2796 REMOVED   {eid[:12]}")
 
                 known_ids = current_ids
 
-            except grpc.RpcError as e:
-                print(f"  [{_timestamp()}] ⚠️  poll error: {e.details() if hasattr(e, 'details') else e}")
+            except Exception as e:
+                print(f"  [{_timestamp()}] \u26a0\ufe0f  poll error: {e}")
 
             time.sleep(poll_interval)
 
     except KeyboardInterrupt:
         print(f"\n[{_timestamp()}] Watch stopped.")
         return 0
-
-
-## Library functions — used by dashboard routers and CLI
-
-
-def publish_event(stub, event_id: str, source: str, text: str,
-                  salience=None) -> dict:
-    """Publish a single event to the orchestrator. Blocks until processed.
-
-    Returns dict with event_id and either status or error.
-    """
-    event = common_pb2.Event(id=event_id, source=source, raw_text=text)
-    if salience is not None:
-        event.salience.CopyFrom(salience)
-
-    try:
-        def gen():
-            yield event
-        for ack in stub.PublishEvents(gen()):
-            return {
-                "event_id": ack.event_id,
-                "status": "queued" if ack.queued else "immediate",
-            }
-            break
-        return {"event_id": event_id, "error": "no_ack"}
-    except grpc.RpcError as e:
-        return {"event_id": event_id, "error": e.code().name}
-
-
-def load_fixture(stub, json_path: str) -> list[dict]:
-    """Load events from a JSON file and publish them sequentially.
-
-    JSON format: [{"source": "...", "text": "...", "id": "..."(optional)}, ...]
-    Returns list of result dicts from publish_event.
-    """
-    with open(json_path) as f:
-        events = json.load(f)
-
-    if not isinstance(events, list):
-        raise ValueError("Fixture file must contain a JSON array")
-
-    results = []
-    for item in events:
-        event_id = item.get("id", str(uuid.uuid4()))
-        result = publish_event(
-            stub,
-            event_id=event_id,
-            source=item.get("source", "fixture"),
-            text=item.get("text", ""),
-        )
-        results.append(result)
-
-    return results
 
 
 ## CLI entry point

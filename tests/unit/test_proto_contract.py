@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 # Project root
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent.parent
 
 
 class TestProtoConsistency:
@@ -23,8 +23,8 @@ class TestProtoConsistency:
 
     def test_memory_proto_sync(self):
         """Memory proto should be identical in memory and orchestrator modules."""
-        memory_proto = ROOT / "src" / "memory" / "proto" / "memory.proto"
-        orchestrator_proto = ROOT / "src" / "orchestrator" / "proto" / "memory.proto"
+        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
+        orchestrator_proto = ROOT / "src" / "services" / "orchestrator" / "proto" / "memory.proto"
 
         assert memory_proto.exists(), "Memory module proto not found"
         assert orchestrator_proto.exists(), "Orchestrator module proto not found"
@@ -43,7 +43,7 @@ class TestProtoConsistency:
 
     def test_memory_proto_hash(self):
         """Memory proto hash should match expected structure."""
-        memory_proto = ROOT / "src" / "memory" / "proto" / "memory.proto"
+        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
 
         if not memory_proto.exists():
             pytest.skip("Memory proto not found")
@@ -72,7 +72,7 @@ class TestProtoConsistency:
 
     def test_memory_proto_cbr_schema(self):
         """Memory proto should use CBR schema (not old condition_json)."""
-        memory_proto = ROOT / "src" / "memory" / "proto" / "memory.proto"
+        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
 
         if not memory_proto.exists():
             pytest.skip("Memory proto not found")
@@ -95,7 +95,7 @@ class TestGeneratedStubs:
 
     def test_memory_stubs_exist(self):
         """Memory Python stubs should exist."""
-        stubs_dir = ROOT / "src" / "memory" / "python" / "gladys_memory"
+        stubs_dir = ROOT / "src" / "services" / "memory" / "gladys_memory"
 
         pb2 = stubs_dir / "memory_pb2.py"
         pb2_grpc = stubs_dir / "memory_pb2_grpc.py"
@@ -106,7 +106,7 @@ class TestGeneratedStubs:
     def test_memory_stubs_import(self):
         """Memory Python stubs should be importable."""
         import sys
-        stubs_dir = ROOT / "src" / "memory" / "python"
+        stubs_dir = ROOT / "src" / "services" / "memory"
 
         if str(stubs_dir) not in sys.path:
             sys.path.insert(0, str(stubs_dir))
@@ -129,7 +129,7 @@ class TestGeneratedStubs:
 
     def test_memory_stubs_relative_imports(self):
         """Memory gRPC stub should use relative imports."""
-        grpc_stub = ROOT / "src" / "memory" / "python" / "gladys_memory" / "memory_pb2_grpc.py"
+        grpc_stub = ROOT / "src" / "services" / "memory" / "gladys_memory" / "memory_pb2_grpc.py"
 
         if not grpc_stub.exists():
             pytest.skip("gRPC stub not found")
@@ -154,7 +154,7 @@ class TestOrchestratorStubs:
 
     def test_orchestrator_stubs_exist(self):
         """Orchestrator Python stubs should exist."""
-        stubs_dir = ROOT / "src" / "orchestrator" / "gladys_orchestrator" / "generated"
+        stubs_dir = ROOT / "src" / "services" / "orchestrator" / "gladys_orchestrator" / "generated"
 
         required_stubs = [
             "common_pb2.py",

@@ -31,9 +31,9 @@ import grpc
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "memory" / "python"))
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "executive"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "executive"))
 
 try:
     from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
