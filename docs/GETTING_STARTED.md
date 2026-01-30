@@ -25,14 +25,23 @@ You're a contributor. Here's how to get productive.
 ## Prerequisites (Everyone)
 
 - **Git**: You have this if you're reading this
-- **Docker Desktop**: [Install here](https://www.docker.com/products/docker-desktop/) - runs dependencies without local installs
+- **Python 3.11+**: Required for all services
+- **[uv](https://docs.astral.sh/uv/)**: Python package manager
+- **Docker Desktop** (optional): [Install here](https://www.docker.com/products/docker-desktop/) - for integration tests
+
+## Quick Start
+
+```bash
+make setup    # Installs all Python deps across all services
+make test     # Run unit tests
+```
 
 ## Choose Your Path
 
 | Your Setup | Use This |
 |------------|----------|
-| **Docker only** (recommended for most) | `python scripts/docker.py` |
-| **Rust + PostgreSQL installed** | `python scripts/local.py` |
+| **Docker only** (recommended for most) | `python cli/docker.py` |
+| **Local + PostgreSQL** | `python cli/local.py` |
 
 **Don't have Rust?** That's fine - Docker mode includes everything.
 
@@ -77,23 +86,19 @@ make up   # Starts everything including Memory
 
 **Local setup (for isolated development):**
 ```bash
-cd src/memory
-docker compose up -d postgres    # Just the database
-cd python && uv sync             # Python dependencies
-cd ../rust && cargo build        # Rust dependencies
+cd src/services/memory
+uv sync                          # Python dependencies
 ```
 
 **Run tests:**
 ```bash
-cd src/memory/python && uv run pytest
-cd src/memory/rust && cargo test
+cd src/services/memory && uv run pytest
 ```
 
 **Key files:**
-- [src/memory/python/gladys_memory/grpc_server.py](../src/memory/python/gladys_memory/grpc_server.py) - Python gRPC server
-- [src/memory/rust/src/server.rs](../src/memory/rust/src/server.rs) - Rust fast path
+- [src/services/memory/gladys_memory/grpc_server.py](../src/services/memory/gladys_memory/grpc_server.py) - Python gRPC server
 - [proto/memory.proto](../proto/memory.proto) - API contract
-- [src/memory/python/gladys_memory/config.py](../src/memory/python/gladys_memory/config.py) - Configuration
+- [src/services/memory/gladys_memory/config.py](../src/services/memory/gladys_memory/config.py) - Configuration
 
 ---
 
@@ -110,25 +115,25 @@ make up   # Starts everything including Orchestrator
 **Local setup (for isolated development):**
 ```bash
 # Start Memory first (dependency)
-python scripts/local.py start memory
+python cli/local.py start memory
 
 # Or start everything
-python scripts/local.py start all
+python cli/local.py start all
 ```
 
 **You need:** Python 3.11+, uv
 
 **Run tests:**
 ```bash
-cd src/orchestrator && uv run pytest
+cd src/services/orchestrator && uv run pytest
 ```
 
 **Key files:**
-- [src/orchestrator/gladys_orchestrator/router.py](../src/orchestrator/gladys_orchestrator/router.py) - Event routing logic
-- [src/orchestrator/gladys_orchestrator/server.py](../src/orchestrator/gladys_orchestrator/server.py) - gRPC server
+- [src/services/orchestrator/gladys_orchestrator/router.py](../src/services/orchestrator/gladys_orchestrator/router.py) - Event routing logic
+- [src/services/orchestrator/gladys_orchestrator/server.py](../src/services/orchestrator/gladys_orchestrator/server.py) - gRPC server
 - [proto/orchestrator.proto](../proto/orchestrator.proto) - API contract
-- [scripts/local.py](../scripts/local.py) - Local service management
-- [scripts/docker.py](../scripts/docker.py) - Docker service management
+- [cli/local.py](../cli/local.py) - Local service management
+- [cli/docker.py](../cli/docker.py) - Docker service management
 
 **Key ADRs:**
 - [ADR-0001](adr/ADR-0001-Architecture-and-Component-Design.md) - Overall architecture
@@ -140,7 +145,7 @@ cd src/orchestrator && uv run pytest
 
 User-facing decision layer. Production will be C#/.NET, but we have a Python stub for PoC.
 
-**Current state:** Python stub exists at `src/executive/stub_server.py`
+**Current state:** Python stub exists at `src/services/executive/gladys_executive/server.py`
 
 **Local setup (using the stub):**
 ```bash
@@ -153,7 +158,7 @@ make up   # Starts all services including executive-stub
 - `ProvideFeedback` RPC - pattern extraction for heuristic formation
 
 **Key files:**
-- [src/executive/gladys_executive/server.py](../src/executive/gladys_executive/server.py) - Python stub implementation
+- [src/services/executive/gladys_executive/server.py](../src/services/executive/gladys_executive/server.py) - Python stub implementation
 - [proto/executive.proto](../proto/executive.proto) - API contract
 
 **Key ADRs:**
@@ -206,7 +211,7 @@ make benchmark   # Run performance benchmark
 Or manually:
 
 ```bash
-cd src/integration
+cd tests/integration
 docker compose up -d    # Starts all 5 services
 docker compose ps       # Check status
 docker compose logs -f  # Follow logs
@@ -240,14 +245,14 @@ make rust-rebuild   # Rebuild only the Rust container
 
 ```bash
 docker ps                        # All running containers
-docker compose -f src/integration/docker-compose.yml ps   # GLADyS services
+docker compose -f tests/integration/docker-compose.yml ps   # GLADyS services
 ```
 
 ### Viewing logs
 
 ```bash
-docker compose -f src/integration/docker-compose.yml logs -f           # All services
-docker compose -f src/integration/docker-compose.yml logs memory-python  # Specific service
+docker compose -f tests/integration/docker-compose.yml logs -f           # All services
+docker compose -f tests/integration/docker-compose.yml logs memory-python  # Specific service
 ```
 
 ### Regenerating proto stubs
@@ -255,7 +260,7 @@ docker compose -f src/integration/docker-compose.yml logs memory-python  # Speci
 After modifying `.proto` files in `proto/`:
 
 ```bash
-python scripts/proto_gen.py   # Regenerates all Python stubs
+python cli/proto_gen.py   # Regenerates all Python stubs
 ```
 
 This script:
@@ -270,12 +275,12 @@ For service ports, see **[CODEBASE_MAP.md](../CODEBASE_MAP.md#service-ports)**.
 Quick start:
 ```bash
 # Docker (recommended - no Rust required)
-python scripts/docker.py start all
-python scripts/docker.py status
+python cli/docker.py start all
+python cli/docker.py status
 
-# Local (requires Rust + PostgreSQL)
-python scripts/local.py start all
-python scripts/local.py status
+# Local (requires PostgreSQL)
+python cli/local.py start all
+python cli/local.py status
 ```
 
 ### Connecting to running services
@@ -342,14 +347,15 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 | Architecture decisions | [docs/adr/](adr/) |
 | Open design questions | [docs/design/questions/](design/questions/README.md) |
 | Service ports & layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
-| Memory subsystem | [src/memory/](../src/memory/) |
-| Orchestrator subsystem | [src/orchestrator/](../src/orchestrator/) |
-| Executive stub | [src/executive/](../src/executive/) |
-| Dashboard (V2) | [src/dashboard/](../src/dashboard/) |
-| Integration tests | [src/integration/](../src/integration/) |
+| Memory subsystem | [src/services/memory/](../src/services/memory/) |
+| Orchestrator subsystem | [src/services/orchestrator/](../src/services/orchestrator/) |
+| Executive stub | [src/services/executive/](../src/services/executive/) |
+| Dashboard (V2) | [src/services/dashboard/](../src/services/dashboard/) |
+| Integration tests | [tests/integration/](../tests/integration/) |
+| CLI tools | [cli/](../cli/) |
 | gRPC contracts | [proto/](../proto/) |
 | Makefile targets | `make help` |
-| Proto generation script | [scripts/proto_gen.py](../scripts/proto_gen.py) |
+| Proto generation script | [cli/proto_gen.py](../cli/proto_gen.py) |
 
 ## Getting Help
 

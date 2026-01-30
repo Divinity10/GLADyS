@@ -1,7 +1,7 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
-.PHONY: proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
+.PHONY: setup proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
 
 # Default target
 help:
@@ -10,6 +10,7 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Local Development (preferred):"
+	@echo "  setup         Install all Python deps across all services"
 	@echo "  verify-local  Check local environment (PostgreSQL, pgvector, tables)"
 	@echo ""
 	@echo "Docker Development:"
@@ -26,6 +27,10 @@ help:
 	@echo "  benchmark     Run salience benchmark"
 	@echo "  help          Show this help"
 
+# Install all Python dependencies across all services
+setup:
+	python cli/setup_dev.py
+
 # Verify local environment (PostgreSQL, no Docker)
 verify-local:
 	python cli/verify_local.py
@@ -38,9 +43,12 @@ verify:
 proto:
 	python cli/proto_gen.py
 
-# Run tests (requires Docker for integration tests)
+# Run unit tests across all services
 test:
-	cd src/services/memory && python -m pytest tests/ -v
+	cd src/services/memory && uv run pytest tests/ -v
+	cd src/services/orchestrator && uv run pytest tests/ -v
+	cd src/services/dashboard && uv run pytest tests/ -v
+	cd tests/unit && python -m pytest -v
 
 # Docker operations
 up:
