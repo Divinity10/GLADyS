@@ -12,7 +12,7 @@ The decision-making component of GLADyS. Receives filtered, processed informatio
 See: ADR-0001, ADR-0010
 
 ### Orchestrator
-The Rust-based core that manages plugin lifecycle, message routing, and system coordination. The "nervous system" that connects components but doesn't make decisions.
+The core that manages event routing, scheduling, and system coordination. The "nervous system" that connects components but doesn't make decisions.
 
 See: ADR-0001
 
@@ -209,6 +209,19 @@ Hard limits on actuator parameters that cannot be bypassed, even by the Executiv
 **Example:** Thermostat min 55°F (prevent pipe freeze), max 85°F (prevent heat exhaustion)
 
 See: ADR-0011
+
+---
+
+## Technology
+
+### SSE (Server-Sent Events)
+A web standard for pushing real-time updates from server to client over HTTP. Unlike WebSockets, SSE is one-directional (server → client only) and works over standard HTTP connections. GLADyS uses SSE in the Dashboard to stream live event updates and responses without polling.
+
+### FUN (Functional Unified Nexus)
+The REST API gateway for external access to GLADyS subsystems. Used by the Dashboard, CLI tools, tests, and future integrations. The Dashboard is one consumer of the FUN API, not the API itself. *The 'U' is for 'U Monster.'*
+
+### gRPC
+Google's high-performance RPC framework using Protocol Buffers (protobuf) for typed message serialization. GLADyS uses gRPC for all service-to-service communication. Proto definitions live in `proto/` and are the source of truth for service contracts.
 
 ---
 
