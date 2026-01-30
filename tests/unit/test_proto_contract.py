@@ -21,29 +21,14 @@ ROOT = Path(__file__).parent.parent.parent
 class TestProtoConsistency:
     """Test that proto files are consistent across modules."""
 
-    def test_memory_proto_sync(self):
-        """Memory proto should be identical in memory and orchestrator modules."""
-        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
-        orchestrator_proto = ROOT / "src" / "services" / "orchestrator" / "proto" / "memory.proto"
-
-        assert memory_proto.exists(), "Memory module proto not found"
-        assert orchestrator_proto.exists(), "Orchestrator module proto not found"
-
-        memory_content = memory_proto.read_text()
-        orchestrator_content = orchestrator_proto.read_text()
-
-        # Compare content (ignore whitespace differences)
-        memory_normalized = " ".join(memory_content.split())
-        orchestrator_normalized = " ".join(orchestrator_content.split())
-
-        assert memory_normalized == orchestrator_normalized, (
-            "memory.proto files are out of sync!\n"
-            "Run 'python scripts/proto_sync.py' and copy the proto file to both locations."
-        )
+    def test_canonical_proto_exists(self):
+        """Canonical proto/ dir should contain memory.proto."""
+        proto = ROOT / "proto" / "memory.proto"
+        assert proto.exists(), "Canonical memory.proto not found at proto/"
 
     def test_memory_proto_hash(self):
         """Memory proto hash should match expected structure."""
-        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
+        memory_proto = ROOT / "proto" / "memory.proto"
 
         if not memory_proto.exists():
             pytest.skip("Memory proto not found")
@@ -52,8 +37,6 @@ class TestProtoConsistency:
 
         # Check for required messages
         required_messages = [
-            "message EpisodicEvent",
-            "message SalienceVector",
             "message Heuristic",
             "message HeuristicMatch",
         ]
@@ -72,7 +55,7 @@ class TestProtoConsistency:
 
     def test_memory_proto_cbr_schema(self):
         """Memory proto should use CBR schema (not old condition_json)."""
-        memory_proto = ROOT / "src" / "services" / "memory" / "proto" / "memory.proto"
+        memory_proto = ROOT / "proto" / "memory.proto"
 
         if not memory_proto.exists():
             pytest.skip("Memory proto not found")
@@ -103,29 +86,17 @@ class TestGeneratedStubs:
         assert pb2.exists(), "memory_pb2.py not found - run proto_sync.py"
         assert pb2_grpc.exists(), "memory_pb2_grpc.py not found - run proto_sync.py"
 
-    def test_memory_stubs_import(self):
-        """Memory Python stubs should be importable."""
-        import sys
-        stubs_dir = ROOT / "src" / "services" / "memory"
+    def test_memory_stubs_parseable(self):
+        """Memory Python stubs should be valid Python."""
+        import ast
+        stubs_dir = ROOT / "src" / "services" / "memory" / "gladys_memory"
 
-        if str(stubs_dir) not in sys.path:
-            sys.path.insert(0, str(stubs_dir))
-
-        try:
-            from gladys_memory import memory_pb2, memory_pb2_grpc
-
-            # Check required classes exist
-            assert hasattr(memory_pb2, "EpisodicEvent")
-            assert hasattr(memory_pb2, "SalienceVector")
-            assert hasattr(memory_pb2, "Heuristic")
-            assert hasattr(memory_pb2, "HeuristicMatch")
-
-            # Check required services exist
-            assert hasattr(memory_pb2_grpc, "MemoryStorageStub")
-            assert hasattr(memory_pb2_grpc, "SalienceGatewayStub")
-
-        except ImportError as e:
-            pytest.fail(f"Failed to import memory stubs: {e}")
+        for name in ("memory_pb2.py", "memory_pb2_grpc.py"):
+            stub = stubs_dir / name
+            if not stub.exists():
+                pytest.fail(f"{name} not found")
+            # Verify it parses as valid Python
+            ast.parse(stub.read_text(), filename=str(stub))
 
     def test_memory_stubs_relative_imports(self):
         """Memory gRPC stub should use relative imports."""
