@@ -4,10 +4,13 @@
 **Status**: Living document - reflects current implementation
 
 ## How to Use This Document
-- Each section covers one subsystem
+- Each section covers one subsystem's **current implementation state**
 - "Current Implementation" = what's actually built
 - "PoC Deviations" = where we cut corners from ADRs
 - "Open Questions" = unresolved issues
+- For **architectural decisions**: [ARCHITECTURE.md](ARCHITECTURE.md)
+- For **interface contracts**: [INTERFACES.md](INTERFACES.md)
+- For **PoC phases and success criteria**: [POC_LIFECYCLE.md](POC_LIFECYCLE.md)
 - For session-specific decisions, see claude_memory.md
 - For conceptual overview and onboarding, see [SUBSYSTEM_OVERVIEW.md](SUBSYSTEM_OVERVIEW.md)
 
@@ -46,15 +49,9 @@
 
 ---
 
-## What the PoC Must Prove
+## PoC Validation
 
-| Feature | Requirement | Status |
-|---------|-------------|--------|
-| Heuristic creation | Explicit feedback → new heuristic stored | ⚠️ Needs validation |
-| Heuristic matching | Similar event → heuristic fires | ✅ Proven |
-| Heuristic confidence | Bayesian updates from feedback | ✅ Proven |
-| Cross-domain query | Multi-hop reasoning works | ✅ Proven |
-| Proactive action | Real sensor → system responds | 🔴 No real sensor yet |
+PoC phases, success criteria, and abort signals are defined in [POC_LIFECYCLE.md](POC_LIFECYCLE.md).
 
 ---
 

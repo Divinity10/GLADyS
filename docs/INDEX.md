@@ -5,6 +5,25 @@
 
 ---
 
+## Where Does New Information Go?
+
+| I want to record... | Put it in |
+|---------------------|-----------|
+| An architectural decision (why we chose X) | [ARCHITECTURE.md](design/ARCHITECTURE.md) |
+| An interface contract or data structure | [INTERFACES.md](design/INTERFACES.md) |
+| Current implementation state of a subsystem | [DESIGN.md](design/DESIGN.md) |
+| PoC scope, success criteria, abort signals | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) |
+| A permanent, immutable decision | `docs/adr/` (new ADR) |
+| An open question or debate | `docs/design/questions/` |
+| A term definition | [GLOSSARY.md](design/GLOSSARY.md) |
+| Service topology, ports, data ownership | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
+| Setup/run instructions, dev environment | [GETTING_STARTED.md](GETTING_STARTED.md) |
+| Known shortcuts to fix post-PoC | [TECH_DEBT.md](TECH_DEBT.md) |
+
+If none of these fit, create a new doc — and add it to this table and the index below.
+
+---
+
 ## 🧠 Intelligence & Learning
 *Keywords: Bayesian, Confidence, Feedback, Training, EWMA, Adaptation*
 
@@ -37,6 +56,16 @@
 | **Design** | [DESIGN.md#memory-subsystem](design/DESIGN.md#memory-subsystem) | **Current Implementation**: Postgres + pgvector, Python storage. |
 | **Debate** | [Q&A](design/questions/memory.md) | Discussions on embedding strategies. |
 | **Impl** | `src/memory/python/gladys_memory/storage.py` | Storage implementation (Code). |
+
+## 🏗️ Architecture & Design
+*Keywords: Subsystems, API, Plugins, Packs, Interfaces, PoC, Lifecycle*
+
+| Type | File | Purpose |
+| :--- | :--- | :--- |
+| **Decisions** | [ARCHITECTURE.md](design/ARCHITECTURE.md) | **10 architectural decisions**: subsystem taxonomy, API tiers, plugin ecosystem, async dispatch, learning module. |
+| **Interfaces** | [INTERFACES.md](design/INTERFACES.md) | **Plugin contracts**: BasePlugin, Sensor/Actuator/Skill interfaces, OutcomeEvaluation, pack manifest, directory structure. |
+| **Roadmap** | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) | **PoC phases**: what each phase proves, success criteria, abort signals, deferred items. |
+| **State** | [DESIGN.md](design/DESIGN.md) | **Current implementation**: per-subsystem status, PoC deviations, open questions. |
 
 ## 🛠️ Infrastructure & Ops
 *Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
