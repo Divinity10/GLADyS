@@ -11,7 +11,7 @@ from backend.routers import cache, config, events, fires, heuristics, llm, logs,
 app = FastAPI(title="GLADyS Dashboard V2")
 
 # Setup templates and static files
-FRONTEND_DIR = PROJECT_ROOT / "src" / "dashboard" / "frontend"
+FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
 app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
 app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
