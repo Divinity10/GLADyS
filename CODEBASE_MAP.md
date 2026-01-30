@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-01-29 (updated: Dashboard V2 complete, event deletion, sidebar architecture)
+**Last verified**: 2026-01-30 (updated: directory restructure complete)
 
 ---
 
@@ -67,14 +67,14 @@
 - **Docker Internal Ports**: Inside the Docker network, services communicate on their standard "Local Port" (e.g., Orchestrator talks to Memory at `memory-python:50051`). The "Docker Host Port" is only for external access (localhost).
 - `MemoryStorage` (50051) handles: storing events, storing heuristics, embeddings, DB queries
 - `SalienceGateway` (50052) handles: EvaluateSalience, cache management (stats/flush/evict/list)
-- These are DIFFERENT services on DIFFERENT ports despite both being in `src/memory/`
+- These are DIFFERENT services on DIFFERENT ports despite both being in `src/services/`
 
 ---
 
 ## Proto Services and Implementations
 
 ### `MemoryStorage` Service (memory.proto)
-**Implemented by**: `src/memory/python/gladys_memory/grpc_server.py`
+**Implemented by**: `src/services/memory/gladys_memory/grpc_server.py`
 **Port**: 50051 (local) / 50061 (docker)
 
 | RPC | Purpose |
@@ -89,7 +89,7 @@
 | `GetHealthDetails` | Detailed health with uptime, db status, etc. |
 
 ### `SalienceGateway` Service (memory.proto)
-**Implemented by**: `src/memory/rust/src/server.rs`
+**Implemented by**: `src/services/salience/src/server.rs`
 **Port**: 50052 (local) / 50062 (docker)
 
 | RPC | Purpose |
@@ -103,7 +103,7 @@
 | `GetHealthDetails` | Detailed health with uptime, cache stats |
 
 ### `OrchestratorService` (orchestrator.proto)
-**Implemented by**: `src/orchestrator/gladys_orchestrator/server.py`
+**Implemented by**: `src/services/orchestrator/gladys_orchestrator/server.py`
 **Port**: 50050 (local) / 50060 (docker)
 
 | RPC | Purpose |
@@ -113,7 +113,7 @@
 | `GetHealthDetails` | Detailed health with uptime, connected services |
 
 ### `ExecutiveService` (executive.proto)
-**Implemented by**: `src/executive/gladys_executive/server.py`
+**Implemented by**: `src/services/executive/gladys_executive/server.py`
 **Port**: 50053 (local) / 50063 (docker)
 
 | RPC | Purpose |
@@ -359,35 +359,36 @@ GLADys/
 │   └── executive.proto         # ExecutiveService
 │
 ├── src/
-│   ├── common/                 # SHARED PYTHON UTILITIES
-│   │   └── gladys_common/
-│   │       ├── __init__.py
-│   │       └── logging.py      # Structured logging (structlog)
+│   ├── lib/
+│   │   └── gladys_common/      # SHARED PYTHON UTILITIES
+│   │       └── gladys_common/
+│   │           ├── __init__.py
+│   │           └── logging.py  # Structured logging (structlog)
 │   │
-│   ├── memory/
-│   │   ├── python/             # MemoryStorage service (port 50051)
+│   ├── services/
+│   │   ├── memory/             # MemoryStorage service (port 50051)
 │   │   │   └── gladys_memory/
-│   │   │       └── generated/  # Generated stubs from proto/
-│   │   ├── rust/               # SalienceGateway service (port 50052)
+│   │   │
+│   │   ├── salience/           # SalienceGateway service (Rust, port 50052)
 │   │   │   └── src/
 │   │   │       └── logging.rs  # Structured logging (tracing)
-│   │   └── migrations/         # PostgreSQL schema (shared)
+│   │   │
+│   │   ├── orchestrator/       # OrchestratorService (port 50050)
+│   │   │   └── gladys_orchestrator/
+│   │   │       └── generated/  # Generated stubs from proto/
+│   │   │
+│   │   ├── executive/          # ExecutiveService stub (port 50053)
+│   │   │   └── gladys_executive/
+│   │   │
+│   │   └── dashboard/          # Dashboard V2 (FastAPI + htmx + Alpine.js)
+│   │       ├── backend/        # FastAPI routers, env management
+│   │       ├── frontend/       # HTML/CSS/JS, Jinja2 components
+│   │       └── tests/          # API tests (44 tests)
 │   │
-│   ├── orchestrator/           # OrchestratorService (port 50050)
-│   │   └── gladys_orchestrator/
-│   │       └── generated/      # Generated stubs from proto/
-│   │
-│   ├── executive/              # ExecutiveService stub (port 50053)
-│   │   └── gladys_executive/
-│   │
-│   ├── dashboard/              # Dashboard V2 (FastAPI + htmx + Alpine.js)
-│   │   ├── backend/            # FastAPI routers, env management
-│   │   ├── frontend/           # HTML/CSS/JS, Jinja2 components
-│   │   └── tests/              # API tests (44 tests)
-│   │
-│   └── integration/            # Integration tests + docker-compose.yml
+│   └── db/
+│       └── migrations/         # PostgreSQL schema (shared, not memory-owned)
 │
-├── scripts/
+├── cli/                        # Service management scripts (formerly scripts/)
 │   ├── local.py                # Manage local services
 │   ├── docker.py               # Manage Docker services
 │   ├── proto_gen.py            # Generate proto stubs for all services
@@ -399,6 +400,16 @@ GLADys/
 │   ├── _db.py                  # Centralized DB queries (events, heuristics, fires, metrics)
 │   ├── _sync_check.py          # Proto/migration sync verification
 │   └── _gladys.py              # Shared config (ports, utils)
+│
+├── packs/                      # Plugin packs (formerly plugins/)
+│   ├── sensors/                # Sensor packs
+│   ├── skills/                 # Skill packs
+│   ├── personalities/          # Personality packs
+│   └── outputs/                # Output/actuator packs
+│
+├── tests/
+│   ├── unit/                   # Unit tests
+│   └── integration/            # Integration tests + docker-compose.yml
 │
 └── docs/
     ├── adr/                    # Architecture Decision Records
@@ -484,7 +495,7 @@ Local services automatically get `LOG_FILE` set with `LOG_FILE_LEVEL=DEBUG` for 
 | Service | Module | Framework |
 |---------|--------|-----------|
 | Python services | `gladys_common.logging` | structlog |
-| Rust services | `src/memory/rust/src/logging.rs` | tracing |
+| Rust services | `src/services/salience/src/logging.rs` | tracing |
 
 See `docs/design/LOGGING_STANDARD.md` for full specification.
 
@@ -492,7 +503,7 @@ See `docs/design/LOGGING_STANDARD.md` for full specification.
 
 ## OutcomeWatcher (Implicit Feedback)
 
-**Location**: `src/orchestrator/gladys_orchestrator/outcome_watcher.py`
+**Location**: `src/services/orchestrator/gladys_orchestrator/outcome_watcher.py`
 **Integrated in**: `router.py`
 
 Watches for "outcomes" after heuristic fires to provide implicit feedback. When a heuristic fires and a subsequent event matches the expected outcome pattern, positive feedback is automatically sent.
@@ -523,7 +534,7 @@ Watches for "outcomes" after heuristic fires to provide implicit feedback. When 
 
 ## Dashboard (UI)
 
-**Location**: `src/dashboard/`
+**Location**: `src/services/dashboard/`
 **Framework**: FastAPI + htmx + Alpine.js
 **Port**: 8502
 **Design doc**: `docs/design/DASHBOARD_V2.md`
@@ -533,7 +544,7 @@ The dashboard provides a dev/debug interface for GLADyS with tabs for event simu
 ### Architecture
 - **Backend**: FastAPI (Python) serving REST APIs, SSE streams, and Jinja2 htmx partials
 - **Frontend**: Vanilla HTML/CSS/JS with htmx (async updates) and Alpine.js (client-side reactivity). No build step.
-- **DB access**: Centralized in `scripts/_db.py` — routers are thin HTTP wrappers
+- **DB access**: Centralized in `cli/_db.py` — routers are thin HTTP wrappers
 - **Management**: `tools/dashboard/dashboard.py` handles start/stop/restart
 
 ### Key Files
@@ -547,7 +558,7 @@ The dashboard provides a dev/debug interface for GLADyS with tabs for event simu
 | `frontend/components/event_row.html` | Event row + drill-down with feedback + delete |
 | `frontend/js/app.js` | Alpine state, service actions with status messaging |
 | `frontend/js/events.js` | SSE handling, deleteEvent, clearAllEvents, queue polling |
-| `scripts/_db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
+| `cli/_db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
 
 ---
 
@@ -569,8 +580,8 @@ Any Python service using `gladys_common` (via `from gladys_common import ...`) M
 2. **Copy gladys_common in Dockerfile**:
    ```dockerfile
    # Copy gladys-common first (dependency)
-   COPY src/common/pyproject.toml ./common/pyproject.toml
-   COPY src/common/gladys_common ./common/gladys_common
+   COPY src/lib/gladys_common/pyproject.toml ./common/pyproject.toml
+   COPY src/lib/gladys_common/gladys_common ./common/gladys_common
    ```
 
 3. **Strip uv.sources and fix path** before installing:
@@ -582,14 +593,14 @@ Any Python service using `gladys_common` (via `from gladys_common import ...`) M
    ```
 
 **Services currently using gladys_common**:
-- `src/orchestrator/` (router.py, __main__.py)
-- `src/memory/python/` (grpc_server.py)
+- `src/services/orchestrator/` (router.py, __main__.py)
+- `src/services/memory/` (grpc_server.py)
 
 ### 2. Local Path Dependencies in pyproject.toml
 
 Files with `[tool.uv.sources]` sections that specify local paths:
-- `src/orchestrator/pyproject.toml` → `gladys-common = { path = "../common" }`
-- `src/memory/python/pyproject.toml` → `gladys-common = { path = "../../common" }`
+- `src/services/orchestrator/pyproject.toml` → `gladys-common = { path = "../common" }`
+- `src/services/memory/pyproject.toml` → `gladys-common = { path = "../../common" }`
 
 These paths work locally but NOT in Docker unless handled as shown above.
 
@@ -604,13 +615,13 @@ Some packages may not install all their transitive dependencies correctly. Known
 After modifying Dockerfiles or dependencies:
 ```bash
 # Rebuild with no cache to catch issues
-python scripts/docker.py build <service> --no-cache
+python cli/docker.py build <service> --no-cache
 
 # Check packages in container
 docker run --rm --entrypoint pip <image> freeze | grep <package>
 
 # Run tests
-python scripts/docker.py test
+python cli/docker.py test
 ```
 
 ### 5. Proto Files and Build Contexts
@@ -619,10 +630,10 @@ Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT buil
 
 | Service | Dockerfile | Build Context | Proto Access |
 |---------|------------|---------------|--------------|
-| memory-python | `src/memory/python/Dockerfile` | `src/memory/python/` | Uses pre-committed stubs |
-| memory-rust | `src/memory/rust/Dockerfile` | `src/memory/` | Needs `proto/` in context |
-| orchestrator | `src/orchestrator/Dockerfile` | `src/orchestrator/` | Needs `proto/` in context |
-| executive | `src/executive/Dockerfile` | `src/` | Uses `orchestrator/proto/` path |
+| memory-python | `src/services/memory/Dockerfile` | Project root | Uses pre-committed stubs |
+| memory-rust | `src/services/salience/Dockerfile` | Project root | Needs `proto/` in context |
+| orchestrator | `src/services/orchestrator/Dockerfile` | Project root | Needs `proto/` in context |
+| executive | `src/services/executive/Dockerfile` | Project root | Needs `proto/` in context |
 
 **Proto change problems:**
 - Health RPCs return `UNIMPLEMENTED` → Docker image has old proto stubs
@@ -630,8 +641,8 @@ Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT buil
 
 **Solution:**
 ```bash
-docker compose -f src/integration/docker-compose.yml build --no-cache memory-rust
-python scripts/docker.py restart memory-rust
+docker compose -f tests/integration/docker-compose.yml build --no-cache memory-rust
+python cli/docker.py restart memory-rust
 ```
 
 ### 6. Python Services with Volume Mounts
@@ -653,15 +664,15 @@ Python code changes are picked up WITHOUT rebuild. But:
 **CRITICAL**: Local and Docker databases must stay in sync unless you have a specific reason to diverge.
 
 ### How It Works
-- Migrations live in `src/memory/migrations/` (numbered .sql files)
-- Both `scripts/local.py start` and `scripts/docker.py start` run migrations automatically
+- Migrations live in `src/db/migrations/` (numbered .sql files)
+- Both `cli/local.py start` and `cli/docker.py start` run migrations automatically
 - Use `--no-migrate` only if you intentionally need different schemas
 
 ### When Adding/Modifying Schema
-1. Create migration in `src/memory/migrations/` with next number (e.g., `009_new_feature.sql`)
+1. Create migration in `src/db/migrations/` with next number (e.g., `009_new_feature.sql`)
 2. Use `IF NOT EXISTS` / `IF EXISTS` for idempotency
-3. Run `python scripts/local.py migrate` to apply locally
-4. Run `python scripts/docker.py migrate` to apply to Docker
+3. Run `python cli/local.py migrate` to apply locally
+4. Run `python cli/docker.py migrate` to apply to Docker
 5. **Both environments must have the same schema** — if you skip one, document why in claude_memory.md
 
 ### Red Flags
@@ -677,7 +688,7 @@ Python code changes are picked up WITHOUT rebuild. But:
 2. **Assuming keyword matching**: Heuristics use embedding similarity, not word overlap
 3. **source vs origin**: `source` is the event sensor, `origin` is how the heuristic was created
 4. **source_filter misuse**: Filters by condition_text PREFIX (e.g., "minecraft:..."), NOT by event.source
-5. **Stale stubs**: After editing `proto/*.proto`, run `python scripts/proto_gen.py` to regenerate
+5. **Stale stubs**: After editing `proto/*.proto`, run `python cli/proto_gen.py` to regenerate
 6. **Docker ports**: Add 10 to local ports (50051 → 50061)
 7. **Missing trace IDs**: Always extract/propagate `x-gladys-trace-id` from gRPC metadata
 8. **Fire-and-forget tasks**: `asyncio.create_task()` without error handling silently drops exceptions
@@ -704,13 +715,13 @@ Python code changes are picked up WITHOUT rebuild. But:
 
 2. **Check LLM configuration**:
    ```bash
-   python scripts/local.py status
+   python cli/local.py status
    ```
    Look for the `ollama` line - it should show `[OK] running` with your model name.
 
 3. **Verify named endpoint resolution**: The Executive uses named endpoints. If you changed `.env` to use `OLLAMA_ENDPOINT=local`, the Executive MUST be restarted to pick up the change:
    ```bash
-   python scripts/local.py restart executive-stub
+   python cli/local.py restart executive-stub
    ```
 
 **Root causes** (in order of likelihood):
@@ -738,13 +749,13 @@ python -m gladys_executive start  # instead of via local.py
 
 **"column does not exist"**: Migration not applied. Run:
 ```bash
-python scripts/local.py migrate
+python cli/local.py migrate
 ```
 
 **Different behavior local vs Docker**: Schema drift. Ensure both use same migrations:
 ```bash
-python scripts/local.py migrate
-python scripts/docker.py migrate
+python cli/local.py migrate
+python cli/docker.py migrate
 ```
 
 ---
@@ -753,28 +764,28 @@ python scripts/docker.py migrate
 
 ```bash
 # Start all services locally
-python scripts/local.py start all
+python cli/local.py start all
 
 # Check status (process-level)
-python scripts/local.py status
+python cli/local.py status
 
 # Check health (gRPC-level)
-python scripts/local.py health
-python scripts/local.py health -d    # detailed with uptime/metrics
+python cli/local.py health
+python cli/local.py health -d    # detailed with uptime/metrics
 
 # Regenerate proto stubs after editing proto/
-python scripts/proto_gen.py
+python cli/proto_gen.py
 
 # Cache management
-python scripts/local.py cache stats
-python scripts/local.py cache list
-python scripts/local.py cache flush
+python cli/local.py cache stats
+python cli/local.py cache list
+python cli/local.py cache flush
 
 # Run integration tests
-cd src/integration && uv run pytest -v
+cd tests/integration && uv run pytest -v
 
 # Database query
-python scripts/local.py query "SELECT * FROM heuristics LIMIT 5"
+python cli/local.py query "SELECT * FROM heuristics LIMIT 5"
 ```
 
 ---
@@ -783,9 +794,9 @@ python scripts/local.py query "SELECT * FROM heuristics LIMIT 5"
 
 - `docs/INDEX.md` - Documentation map (find docs by concept)
 - `docs/design/DESIGN.md` - Living design doc (current implementation)
-- `src/memory/README.md` - Memory subsystem details
-- `src/orchestrator/README.md` - Event routing details
-- `src/executive/README.md` - LLM integration details
+- `src/services/memory/README.md` - Memory subsystem details
+- `src/services/orchestrator/README.md` - Event routing details
+- `src/services/executive/README.md` - LLM integration details
 - `docs/adr/` - Architecture decisions
 - `docs/design/questions/` - Active design discussions
 - `docs/design/LOGGING_STANDARD.md` - Logging and observability specification

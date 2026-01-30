@@ -43,8 +43,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0013](adr/ADR-0013-Salience-Subsystem.md) | Salience vector definitions, Attention budget. |
 | **Truth** | [ADR-0001](adr/ADR-0001-GLADyS-Architecture.md) | High-level "Fast Path" (Rust) architecture. |
 | **Design** | [DESIGN.md#salience-subsystem](design/DESIGN.md#salience-subsystem) | **Current Implementation**: Rust Gateway, Heuristic matching. |
-| **Impl** | `src/memory/rust/src/server.rs` | **SalienceGateway** implementation (Code). |
-| **Proto** | `src/memory/proto/memory.proto` | Salience vector wire format. |
+| **Impl** | `src/services/salience/src/server.rs` | **SalienceGateway** implementation (Code). |
+| **Proto** | `proto/memory.proto` | Salience vector wire format. |
 
 ## 💾 Memory & Knowledge
 *Keywords: Embeddings, Vector Search, Semantic, Episodic, Heuristics*
@@ -55,7 +55,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0009](adr/ADR-0009-Memory-Contracts-and-Compaction-Policy.md) | Compaction rules (Episodic -> Semantic). |
 | **Design** | [DESIGN.md#memory-subsystem](design/DESIGN.md#memory-subsystem) | **Current Implementation**: Postgres + pgvector, Python storage. |
 | **Debate** | [Q&A](design/questions/memory.md) | Discussions on embedding strategies. |
-| **Impl** | `src/memory/python/gladys_memory/storage.py` | Storage implementation (Code). |
+| **Impl** | `src/services/memory/gladys_memory/storage.py` | Storage implementation (Code). |
 
 ## 🏗️ Architecture & Design
 *Keywords: Subsystems, API, Plugins, Packs, Interfaces, PoC, Lifecycle*
@@ -74,10 +74,10 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | :--- | :--- | :--- |
 | **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
-| **Code** | `scripts/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |   
-| **Code** | `scripts/_orchestrator.py` | Orchestrator gRPC client — queue inspection and event publishing. |
+| **Code** | `cli/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |
+| **Code** | `cli/_orchestrator.py` | Orchestrator gRPC client — queue inspection and event publishing. |
 | **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
-| **Test** | `src/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
+| **Test** | `tests/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
 ## 🎭 Executive & Personality
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
 
@@ -86,7 +86,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0014](adr/ADR-0014-Executive-Decision-Loop.md) | The OODA decision loop specification. |
 | **Truth** | [ADR-0015](adr/ADR-0015-Personality-Subsystem.md) | Personality traits and response styles. |
 | **Design** | [DESIGN.md#executive-subsystem](design/DESIGN.md#executive-subsystem) | **Current Implementation**: Python stub, Ollama integration. |
-| **Impl** | `src/executive/gladys_executive/stub_server.py` | Executive gRPC server (TD learning, heuristic writes). |
+| **Impl** | `src/services/executive/gladys_executive/stub_server.py` | Executive gRPC server (TD learning, heuristic writes). |
 | **Config** | [Templates](design/PERSONALITY_TEMPLATES.md) | Specific personality configurations (Murderbot, Butler). |
 
 ## 🔌 Plugins & World
@@ -98,9 +98,9 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) | Actuator safety bounds and permissions. |
 | **Truth** | [ADR-0012](adr/ADR-0012-Audit-Logging.md) | Immutable audit logging requirements. |
 | **Design** | [DESIGN.md#orchestrator-subsystem](design/DESIGN.md#orchestrator-subsystem) | **Current Implementation**: Orchestrator routing and plugin mgmt. |
-| **Impl** | `src/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
-| **Impl** | `src/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
-| **UI** | `src/dashboard/` | Dashboard V2 (FastAPI + htmx + Alpine.js). See [DASHBOARD_V2.md](design/DASHBOARD_V2.md). |
+| **Impl** | `src/services/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
+| **Impl** | `src/services/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
+| **UI** | `src/services/dashboard/` | Dashboard V2 (FastAPI + htmx + Alpine.js). See [DASHBOARD_V2.md](design/DASHBOARD_V2.md). |
 | **UI (legacy)** | `src/ui/dashboard.py` | Streamlit dashboard (deprecated, replaced by V2). |
 
 ---
