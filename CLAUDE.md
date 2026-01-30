@@ -77,9 +77,20 @@ A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use
 
 ### Commits
 
-Format: `type(scope): message`
+Title line: `type(scope): message`
 
 Types: `doc`, `feat`, `fix`, `refactor`, `test`, `chore`
+
+Body (optional, after blank line): bulleted list only. Each bullet is a subject with detail. Sub-items allowed. No prose paragraphs.
+
+```
+feat(dev): add make setup and fix GETTING_STARTED.md paths
+
+- cli/setup_dev.py: installs all Python deps via uv sync --all-extras
+  in dependency order, checks prerequisites, generates proto stubs
+- Makefile: add setup target, fix test target to run across all services
+- GETTING_STARTED.md: fix all stale paths (scripts/ → cli/, etc)
+```
 
 **Do NOT include `Co-Authored-By: Claude` or any AI attribution.** Commits represent the project owners' decisions.
 
