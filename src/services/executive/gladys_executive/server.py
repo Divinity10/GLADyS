@@ -177,6 +177,31 @@ class MemoryClient:
             logger.warning(f"Memory StoreHeuristic failed: {e}")
             return False, str(e)
 
+    async def query_matching_heuristics(
+        self,
+        event_text: str,
+        min_confidence: float = 0.0,
+        limit: int = 5,
+    ) -> list[tuple[str, float]]:
+        """Query heuristics by semantic similarity. Returns list of (heuristic_id, similarity)."""
+        if not self._available or not self._stub:
+            return []
+
+        try:
+            request = memory_pb2.QueryMatchingHeuristicsRequest(
+                event_text=event_text,
+                min_confidence=min_confidence,
+                limit=limit,
+            )
+            response = await self._stub.QueryMatchingHeuristics(request)
+            return [
+                (match.heuristic.id, match.similarity)
+                for match in response.matches
+            ]
+        except Exception as e:
+            logger.warning(f"QueryMatchingHeuristics failed: {e}")
+            return []
+
     async def update_heuristic_confidence(
         self,
         heuristic_id: str,
@@ -351,6 +376,31 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self.heuristic_store = heuristic_store or HeuristicStore()
         self.reasoning_traces: dict[str, ReasoningTrace] = {}
         self._started_at = time.time()
+
+    @staticmethod
+    def _check_heuristic_quality(condition: str, action: dict) -> str | None:
+        """Validate heuristic quality. Returns error message or None if valid."""
+        word_count = len(condition.split())
+        if word_count < 10:
+            return f"Condition too short ({word_count} words, minimum 10)"
+        if word_count > 50:
+            return f"Condition too long ({word_count} words, maximum 50)"
+
+        if not isinstance(action, dict):
+            return "Action must be a JSON object"
+        if "type" not in action:
+            return "Action missing required field 'type'"
+        if action.get("type") not in ("suggest", "remind", "warn"):
+            return f"Action type must be suggest/remind/warn, got '{action.get('type')}'"
+        if "message" not in action:
+            return "Action missing required field 'message'"
+        msg_words = len(action["message"].split())
+        if msg_words < 10:
+            return f"Action message too short ({msg_words} words, minimum 10)"
+        if msg_words > 50:
+            return f"Action message too long ({msg_words} words, maximum 50)"
+
+        return None
 
     def _cleanup_old_traces(self) -> int:
         old_ids = [
@@ -541,6 +591,31 @@ Consider this suggestion in your response.
                 accepted=True,
                 error_message=f"Pattern parsing failed: {e}",
             )
+
+        # Quality gate: validate before storing
+        gate_error = self._check_heuristic_quality(condition, action)
+        if gate_error:
+            logger.warning(f"QUALITY_GATE: Rejected heuristic: {gate_error}")
+            return executive_pb2.ProvideFeedbackResponse(
+                accepted=True,
+                error_message=f"Quality gate: {gate_error}",
+            )
+
+        # Dedup check: reject near-duplicates (similarity > 0.9)
+        if self.memory_client:
+            matches = await self.memory_client.query_matching_heuristics(
+                event_text=condition, min_confidence=0.0, limit=1,
+            )
+            for heuristic_id, similarity in matches:
+                if similarity > 0.9:
+                    logger.warning(
+                        f"QUALITY_GATE: Near-duplicate detected: "
+                        f"similarity={similarity:.3f} to heuristic={heuristic_id}"
+                    )
+                    return executive_pb2.ProvideFeedbackResponse(
+                        accepted=True,
+                        error_message=f"Near-duplicate of existing heuristic (similarity={similarity:.2f})",
+                    )
 
         if trace.matched_heuristic_id and self.memory_client:
             await self.memory_client.update_heuristic_confidence(
