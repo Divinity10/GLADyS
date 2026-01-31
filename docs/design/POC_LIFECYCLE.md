@@ -57,7 +57,7 @@ Can we build the individual subsystems and get them communicating?
 - Python is adequate for all services at PoC scale; no evidence C#/Rust rewrites are needed yet
 - Current codebase structure doesn't match the architecture we've decided on — directory restructure needed before building more
 - Integration gaps exist in the feedback pipeline (GetHeuristic RPC missing, feedback_source not propagated through gRPC)
-- Orchestrator processes one event at a time (`event_queue.py:177-198`); executive handles one per RPC call (`stub_server.py:458-535`). Fine for PoC 0 but architectural constraint for real sensor data.
+- Orchestrator processes one event at a time (`event_queue.py:177-198`); executive handles one per RPC call (`gladys_executive/server.py:375-456`). Fine for PoC 0 but architectural constraint for real sensor data.
 
 ---
 

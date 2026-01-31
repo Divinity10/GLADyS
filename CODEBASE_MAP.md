@@ -201,8 +201,8 @@ Each table has a single owning component. No table is written by multiple servic
 |-------|-------|-------------|-----------|
 | `episodic_events` | Orchestrator | (1) Immediate heuristic match, (2) After queued event processed | `server.py:182`, `event_queue.py:248` |
 | `heuristic_fires` | Orchestrator | On any heuristic match (fire-and-forget) | `router.py:130` |
-| `heuristics` | Executive | On positive feedback (learned patterns) | `stub_server.py:691` |
-| `heuristics.confidence` | Executive | On any feedback (TD learning update) | `stub_server.py:660` |
+| `heuristics` | Executive | On positive feedback (learned patterns) | `gladys_executive/server.py:537-563` |
+| `heuristics.confidence` | Executive | On any feedback (TD learning update) | `gladys_executive/server.py:477-485` |
 | `heuristic_fires.outcome` | OutcomeWatcher | Implicit feedback (pattern match on later events) | `outcome_watcher.py` |
 
 ### Response Delivery

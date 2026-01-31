@@ -156,7 +156,7 @@ See also: §36 (Event Condensation Strategy) in cross-cutting.md — overlapping
 
 #### Problem
 
-The orchestrator worker loop processes one event at a time (`event_queue.py:177-198`). The executive handles one event per RPC call (`stub_server.py:458-535`). LLM responses have variable latency (seconds). This means the system processes events at LLM speed regardless of how fast the heuristic path could handle them.
+The orchestrator worker loop processes one event at a time (`event_queue.py:177-198`). The executive handles one event per RPC call (`gladys_executive/server.py:375-456`). LLM responses have variable latency (seconds). This means the system processes events at LLM speed regardless of how fast the heuristic path could handle them.
 
 #### Current Bottleneck
 

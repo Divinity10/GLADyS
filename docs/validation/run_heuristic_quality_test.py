@@ -15,7 +15,7 @@ from typing import List, Dict, Any
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-# The exact prompt from src/executive/stub_server.py
+# The exact prompt from src/services/executive/gladys_executive/server.py
 PATTERN_EXTRACTION_PROMPT = """You just helped with this situation:
 
 Context: {context}
