@@ -57,17 +57,18 @@ def check_prerequisites() -> bool:
         print("  FAIL  uv not found — install from https://docs.astral.sh/uv/")
         ok = False
 
-    # Optional: cargo
-    if check_command("cargo"):
-        print("  OK    cargo (optional)")
-    else:
-        print("  SKIP  cargo not found (optional — needed for Rust memory gateway)")
-
-    # Optional: check for PostgreSQL
+    # PostgreSQL (required for local dev — all services use it)
     if check_command("psql"):
-        print("  OK    psql (optional)")
+        print("  OK    psql")
     else:
-        print("  SKIP  psql not found (optional — needed to run services)")
+        print("  FAIL  psql not found — install PostgreSQL (apt install postgresql)")
+        ok = False
+
+    # Optional: cargo (only needed if running Rust salience gateway locally)
+    if check_command("cargo"):
+        print("  OK    cargo (optional — for local Rust salience gateway)")
+    else:
+        print("  SKIP  cargo not found (optional — Docker mode runs Rust service in container)")
 
     return ok
 
