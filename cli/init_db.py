@@ -25,16 +25,27 @@ DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_HOST = os.environ.get("DB_HOST", "localhost")
 
 
+def _psql_cmd(dbname: str, as_postgres: bool) -> list[str]:
+    """Build the psql command prefix for the given auth mode."""
+    if as_postgres and sys.platform != "win32":
+        # Peer auth via sudo — no host flag needed
+        return ["sudo", "-u", "postgres", "psql", "-p", DB_PORT, "-d", dbname]
+    # Password auth as gladys user
+    return ["psql", "-h", DB_HOST, "-p", DB_PORT, "-U", DB_USER, "-d", dbname]
+
+
+def _psql_env() -> dict[str, str]:
+    """Environment with PGPASSWORD set for password auth."""
+    env = os.environ.copy()
+    env["PGPASSWORD"] = DB_PASS
+    return env
+
+
 def run_psql(sql: str, dbname: str = "postgres", as_postgres: bool = True) -> tuple[bool, str]:
     """Run a SQL statement via psql. Returns (success, output)."""
-    cmd = []
-    if sys.platform != "win32" and as_postgres:
-        cmd = ["sudo", "-u", "postgres"]
-    cmd += ["psql", "-h", DB_HOST, "-p", DB_PORT, "-d", dbname, "-c", sql]
-    # When running as postgres user via sudo, don't pass host (uses peer auth)
-    if as_postgres and sys.platform != "win32":
-        cmd = ["sudo", "-u", "postgres", "psql", "-p", DB_PORT, "-d", dbname, "-c", sql]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    cmd = _psql_cmd(dbname, as_postgres) + ["-c", sql]
+    env = None if as_postgres else _psql_env()
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
     output = result.stdout.strip()
     if result.returncode != 0:
         return False, result.stderr.strip()
@@ -43,12 +54,15 @@ def run_psql(sql: str, dbname: str = "postgres", as_postgres: bool = True) -> tu
 
 def run_psql_file(filepath: Path, dbname: str, as_postgres: bool = True) -> tuple[bool, str]:
     """Run a SQL file via psql. Returns (success, output)."""
-    cmd = []
-    if sys.platform != "win32" and as_postgres:
-        cmd = ["sudo", "-u", "postgres", "psql", "-p", DB_PORT, "-d", dbname, "-f", str(filepath)]
+    if as_postgres and sys.platform != "win32":
+        # postgres user can't read files in /root etc, so pipe stdin instead
+        cmd = _psql_cmd(dbname, as_postgres)
+        with open(filepath) as f:
+            sql = f.read()
+        result = subprocess.run(cmd, input=sql, capture_output=True, text=True, timeout=60)
     else:
-        cmd = ["psql", "-h", DB_HOST, "-p", DB_PORT, "-d", dbname, "-f", str(filepath)]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        cmd = _psql_cmd(dbname, as_postgres) + ["-f", str(filepath)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, env=_psql_env())
     output = result.stdout.strip()
     if result.returncode != 0:
         return False, result.stderr.strip()
@@ -105,8 +119,25 @@ def grant_permissions() -> bool:
     return True
 
 
+def create_extensions() -> bool:
+    """Create required extensions (needs superuser)."""
+    for ext in ("uuid-ossp", "vector"):
+        ok, output = run_psql(
+            f'CREATE EXTENSION IF NOT EXISTS "{ext}";', dbname=DB_NAME, as_postgres=True
+        )
+        if ok:
+            print(f"  OK    Extension {ext}")
+        else:
+            if "already exists" in output:
+                print(f"  OK    Extension {ext} (already installed)")
+            else:
+                print(f"  FAIL  Extension {ext}: {output}")
+                return False
+    return True
+
+
 def run_migrations() -> bool:
-    """Run all migration files in order."""
+    """Run all migration files in order as the gladys user."""
     if not MIGRATIONS_DIR.exists():
         print(f"  FAIL  Migrations directory not found: {MIGRATIONS_DIR}")
         return False
@@ -118,11 +149,11 @@ def run_migrations() -> bool:
 
     all_ok = True
     for migration in migrations:
-        ok, output = run_psql_file(migration, DB_NAME)
+        # Run as gladys user (password auth) — avoids /root permission issues
+        ok, output = run_psql_file(migration, DB_NAME, as_postgres=False)
         if ok:
             print(f"  OK    {migration.name}")
         else:
-            # Check if it's just "already exists" noise vs real errors
             if "already exists" in output or "NOTICE" in output:
                 print(f"  OK    {migration.name} (already applied)")
             else:
@@ -153,6 +184,10 @@ def main() -> int:
     if not create_database():
         return 1
     grant_permissions()
+
+    print("\nCreating extensions (requires superuser):")
+    if not create_extensions():
+        return 1
 
     print("\nRunning migrations:")
     if not run_migrations():
