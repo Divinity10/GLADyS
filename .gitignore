@@ -44,6 +44,9 @@ docs/prompts/
 docs/archive/
 
 
+# Plans (internal working docs, not committed)
+docs/plans/
+
 # Implementation prompts and plans (working docs, not committed)
 docs/design/*_PROMPT.md
 docs/design/*_IMPL_PROMPT.md
