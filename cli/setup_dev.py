@@ -57,6 +57,13 @@ def check_prerequisites() -> bool:
         print("  FAIL  uv not found — install from https://docs.astral.sh/uv/")
         ok = False
 
+    # protoc (required for proto stub generation)
+    if check_command("protoc"):
+        print("  OK    protoc")
+    else:
+        print("  FAIL  protoc not found — install protobuf-compiler (apt install protobuf-compiler)")
+        ok = False
+
     # PostgreSQL (required for local dev — all services use it)
     if check_command("psql"):
         print("  OK    psql")
