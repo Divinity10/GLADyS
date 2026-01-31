@@ -360,10 +360,18 @@ GLADys/
 │
 ├── src/
 │   ├── lib/
-│   │   └── gladys_common/      # SHARED PYTHON UTILITIES
-│   │       └── gladys_common/
+│   │   ├── gladys_common/      # SHARED PYTHON UTILITIES
+│   │   │   └── gladys_common/
+│   │   │       ├── __init__.py
+│   │   │       └── logging.py  # Structured logging (structlog)
+│   │   │
+│   │   └── gladys_client/      # SHARED CLIENT LIBRARY (DB, gRPC clients)
+│   │       └── gladys_client/
 │   │           ├── __init__.py
-│   │           └── logging.py  # Structured logging (structlog)
+│   │           ├── db.py       # PostgreSQL queries (events, heuristics, fires, metrics)
+│   │           ├── orchestrator.py  # Orchestrator gRPC client (publish_event, get_stub)
+│   │           ├── cache.py    # SalienceGateway gRPC client
+│   │           └── health.py   # Multi-service health checker
 │   │
 │   ├── services/
 │   │   ├── memory/             # MemoryStorage service (port 50051)
@@ -380,6 +388,9 @@ GLADys/
 │   │   ├── executive/          # ExecutiveService stub (port 50053)
 │   │   │   └── gladys_executive/
 │   │   │
+│   │   ├── fun_api/            # REST/JSON API (separated from dashboard HTMX)
+│   │   │   └── routers/        # Pure REST routers (cache, fires, heuristics, etc.)
+│   │   │
 │   │   └── dashboard/          # Dashboard V2 (FastAPI + htmx + Alpine.js)
 │   │       ├── backend/        # FastAPI routers, env management
 │   │       ├── frontend/       # HTML/CSS/JS, Jinja2 components
@@ -388,16 +399,16 @@ GLADys/
 │   └── db/
 │       └── migrations/         # PostgreSQL schema (shared, not memory-owned)
 │
-├── cli/                        # Service management scripts (formerly scripts/)
+├── cli/                        # Service management scripts (thin wrappers over gladys_client)
 │   ├── local.py                # Manage local services
 │   ├── docker.py               # Manage Docker services
 │   ├── proto_gen.py            # Generate proto stubs for all services
 │   ├── _service_base.py        # Shared service management framework
 │   ├── _local_backend.py       # Local service start/stop/status
 │   ├── _docker_backend.py      # Docker service management
-│   ├── _cache_client.py        # gRPC client for cache management
-│   ├── _health_client.py       # gRPC client for health checks
-│   ├── _db.py                  # Centralized DB queries (events, heuristics, fires, metrics)
+│   ├── _cache_client.py        # Cache CLI (re-exports from gladys_client.cache)
+│   ├── _health_client.py       # Health CLI (re-exports from gladys_client.health)
+│   ├── _db.py                  # DB CLI (re-exports from gladys_client.db)
 │   ├── _sync_check.py          # Proto/migration sync verification
 │   └── _gladys.py              # Shared config (ports, utils)
 │
@@ -544,7 +555,7 @@ The dashboard provides a dev/debug interface for GLADyS with tabs for event simu
 ### Architecture
 - **Backend**: FastAPI (Python) serving REST APIs, SSE streams, and Jinja2 htmx partials
 - **Frontend**: Vanilla HTML/CSS/JS with htmx (async updates) and Alpine.js (client-side reactivity). No build step.
-- **DB access**: Centralized in `cli/_db.py` — routers are thin HTTP wrappers
+- **DB access**: Centralized in `gladys_client.db` — routers are thin HTTP wrappers
 - **Management**: `tools/dashboard/dashboard.py` handles start/stop/restart
 
 ### Key Files
@@ -558,7 +569,7 @@ The dashboard provides a dev/debug interface for GLADyS with tabs for event simu
 | `frontend/components/event_row.html` | Event row + drill-down with feedback + delete |
 | `frontend/js/app.js` | Alpine state, service actions with status messaging |
 | `frontend/js/events.js` | SSE handling, deleteEvent, clearAllEvents, queue polling |
-| `cli/_db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
+| `gladys_client/db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
 
 ---
 
@@ -641,7 +652,7 @@ Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT buil
 
 **Solution:**
 ```bash
-docker compose -f tests/integration/docker-compose.yml build --no-cache memory-rust
+docker compose -f docker/docker-compose.yml build --no-cache memory-rust
 python cli/docker.py restart memory-rust
 ```
 

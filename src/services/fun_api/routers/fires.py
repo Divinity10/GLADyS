@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from backend.env import env
 
-import _db
+from gladys_client import db as _db
 
 router = APIRouter(prefix="/api/fires")
 

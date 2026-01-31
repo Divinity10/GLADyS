@@ -10,8 +10,8 @@ from pathlib import Path
 
 # Add paths for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "executive"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "executive"))
 
 import grpc
 

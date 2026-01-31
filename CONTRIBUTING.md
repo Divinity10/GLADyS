@@ -102,7 +102,7 @@ All proto definitions live in a single shared directory: `proto/` at the project
 
 ```bash
 # From project root
-python scripts/proto_gen.py
+python cli/proto_gen.py
 ```
 
 This script:

@@ -35,16 +35,16 @@
 ### Running & Managing Services
 | I want to... | Command |
 |--------------|---------|
-| Start all services | `python scripts/docker.py start all` |
-| Check what's running | `python scripts/docker.py status` |
-| View service logs | `python scripts/docker.py logs` |
-| Reset everything | `python scripts/docker.py reset` |
+| Start all services | `python cli/docker.py start all` |
+| Check what's running | `python cli/docker.py status` |
+| View service logs | `python cli/docker.py logs` |
+| Reset everything | `python cli/docker.py reset` |
 
 ### Debugging & Investigation
 | I want to... | See |
 |--------------|-----|
-| See events and heuristics visually | [Lab Bench UI](../src/dashboard/README.md) |
-| Query the database directly | `python scripts/docker.py psql` |
+| See events and heuristics visually | [Dashboard](../src/services/dashboard/) |
+| Query the database directly | `python cli/docker.py psql` |
 | Understand why confidence changed | [learning.md §20](design/questions/learning.md) |
 | Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |
 
@@ -53,7 +53,7 @@
 |--------------|-----|
 | Build a sensor | [ADR-0003](adr/ADR-0003-Plugin-Manifest-Specification.md), [GETTING_STARTED](GETTING_STARTED.md#i-want-to-build-a-sensor) |
 | Build a skill/actuator | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) |
-| Add a database migration | [src/memory/migrations/](../src/memory/migrations/) |
+| Add a database migration | [src/db/migrations/](../src/db/migrations/) |
 | Change a proto contract | [CONTRIBUTING.md](../CONTRIBUTING.md#regenerating-proto-stubs) |
 
 ### Understanding the System

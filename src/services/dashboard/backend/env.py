@@ -36,8 +36,14 @@ try:
 except ImportError:
     PROTOS_AVAILABLE = False
 
-# Also make scripts importable
+# Make gladys_client importable
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "lib" / "gladys_client"))
+
+# CLI admin modules (backends, _gladys) needed by services router
 sys.path.insert(0, str(PROJECT_ROOT / "cli"))
+
+# FUN API routers (REST/JSON endpoints separated from dashboard)
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services"))
 
 
 @dataclass

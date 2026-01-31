@@ -1,20 +1,15 @@
-"""Services router — health checks, start/stop/restart.
+"""Services router — health check (HTMX/HTML).
 
-Imports LocalBackend/DockerBackend directly instead of shelling out.
+Service start/stop/restart endpoints moved to fun_api/routers/services.py.
 """
 
 import asyncio
-import io
-import sys
-from contextlib import redirect_stdout
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from backend.env import PROJECT_ROOT, env
 
-# Import admin script modules directly (scripts/ is on sys.path via env.py)
 from _local_backend import LocalBackend
 from _docker_backend import DockerBackend
 from _gladys import is_port_open
@@ -49,11 +44,9 @@ def _resolve_names(name: str) -> list[str]:
 def _check_health_one(service: dict) -> str:
     """Check one service's health. Returns color string."""
     backend = _get_backend()
-    # Map dashboard name to backend name
     backend_names = _resolve_names(service["name"])
     backend_name = backend_names[0]
 
-    # Quick port check first
     if not is_port_open(service["host"], service["port"]):
         return "gray"
 
@@ -90,49 +83,3 @@ async def get_health(request: Request):
         "services": services,
         "all_status": all_status,
     })
-
-
-def _do_service_action(action: str, name: str) -> tuple[bool, str]:
-    """Execute a service action, capturing stdout."""
-    backend = _get_backend()
-    backend_names = _resolve_names(name)
-
-    # Capture print output from backend methods
-    buf = io.StringIO()
-    try:
-        with redirect_stdout(buf):
-            if action == "start":
-                success = backend.start_service(backend_names, wait=True)
-            elif action == "stop":
-                success = backend.stop_service(backend_names)
-            elif action == "restart":
-                success = backend.restart_service(backend_names)
-            else:
-                return False, f"Unknown action: {action}"
-        return success, buf.getvalue().strip()
-    except Exception as e:
-        return False, f"{buf.getvalue().strip()}\nError: {e}"
-
-
-@router.post("/{name}/start")
-async def start_service(name: str):
-    success, output = await asyncio.get_event_loop().run_in_executor(
-        None, _do_service_action, "start", name
-    )
-    return JSONResponse({"success": success, "output": output})
-
-
-@router.post("/{name}/stop")
-async def stop_service(name: str):
-    success, output = await asyncio.get_event_loop().run_in_executor(
-        None, _do_service_action, "stop", name
-    )
-    return JSONResponse({"success": success, "output": output})
-
-
-@router.post("/{name}/restart")
-async def restart_service(name: str):
-    success, output = await asyncio.get_event_loop().run_in_executor(
-        None, _do_service_action, "restart", name
-    )
-    return JSONResponse({"success": success, "output": output})

@@ -252,7 +252,7 @@ wheels = [
 [[package]]
 name = "gladys-common"
 version = "0.1.0"
-source = { editable = "../common" }
+source = { editable = "../../lib/gladys_common" }
 dependencies = [
     { name = "colorama" },
     { name = "structlog" },
@@ -280,7 +280,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "gladys-common", editable = "../common" },
+    { name = "gladys-common", editable = "../../lib/gladys_common" },
     { name = "grpcio", specifier = ">=1.60.0" },
     { name = "grpcio-reflection", specifier = ">=1.60.0" },
     { name = "protobuf", specifier = ">=4.25.0" },

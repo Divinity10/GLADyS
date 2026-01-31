@@ -163,7 +163,7 @@ def close_all_channels():
 After Claude updates `memory.proto`, you'll need to regenerate stubs:
 
 ```bash
-python scripts/proto_gen.py
+python cli/proto_gen.py
 ```
 
 Claude will post in `MESSAGES.md` when this is needed.

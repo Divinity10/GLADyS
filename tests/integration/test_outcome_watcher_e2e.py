@@ -28,8 +28,8 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "memory" / "python"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
 
 try:
     from gladys_orchestrator.generated import (

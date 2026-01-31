@@ -43,7 +43,7 @@ SERVICES = {
 
 def main():
     """Entry point for gladys-docker command."""
-    backend = DockerBackend(ROOT / "src" / "integration" / "docker-compose.yml")
+    backend = DockerBackend(ROOT / "docker" / "docker-compose.yml")
     manager = ServiceManager(backend, SERVICES)
     manager.run()
 

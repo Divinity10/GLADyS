@@ -6,14 +6,14 @@ Unified service management for running GLADyS in local or Docker environments.
 
 ```bash
 # Local development (native processes)
-python scripts/local.py status
-python scripts/local.py start all
-python scripts/local.py stop all
+python cli/local.py status
+python cli/local.py start all
+python cli/local.py stop all
 
 # Docker environment
-python scripts/docker.py status
-python scripts/docker.py start all
-python scripts/docker.py stop all
+python cli/docker.py status
+python cli/docker.py start all
+python cli/docker.py stop all
 ```
 
 ## Port Mapping
@@ -64,10 +64,10 @@ Both `local.py` and `docker.py` support:
 | `_service_base.py` | Framework: ServiceManager, ServiceBackend |
 | `_local_backend.py` | Local process management |
 | `_docker_backend.py` | Docker Compose integration |
-| `_cache_client.py` | gRPC client for cache management |
-| `_health_client.py` | gRPC client for health checks |
-| `_db.py` | Centralized DB queries (events, heuristics, fires, metrics) |
-| `_orchestrator.py` | Orchestrator gRPC client (queue, events) |
+| `_cache_client.py` | Cache CLI (thin wrapper over gladys_client.cache) |
+| `_health_client.py` | Health CLI (thin wrapper over gladys_client.health) |
+| `_db.py` | DB CLI (thin wrapper over gladys_client.db) |
+| `_orchestrator.py` | Orchestrator CLI (thin wrapper over gladys_client.orchestrator) |
 | `_gladys.py` | Shared config (ports, utilities) |
 | `verify_env.py` | Environment verification |
 | `verify_local.py` | Local setup verification |
@@ -76,29 +76,29 @@ Both `local.py` and `docker.py` support:
 
 ```bash
 # Start everything locally
-python scripts/local.py start all
+python cli/local.py start all
 
 # Check what's running
-python scripts/local.py status
+python cli/local.py status
 
 # Check gRPC health endpoints
-python scripts/local.py health
-python scripts/local.py health -d  # detailed
+python cli/local.py health
+python cli/local.py health -d  # detailed
 
 # View orchestrator logs
-python scripts/local.py logs orchestrator -f
+python cli/local.py logs orchestrator -f
 
 # View cache stats
-python scripts/local.py cache stats
+python cli/local.py cache stats
 
 # Run a SQL query
-python scripts/local.py sql "SELECT COUNT(*) FROM heuristics"
+python cli/local.py sql "SELECT COUNT(*) FROM heuristics"
 
 # Run integration tests
-python scripts/local.py test
+python cli/local.py test
 
 # Stop everything
-python scripts/local.py stop all
+python cli/local.py stop all
 ```
 
 ## Health Check
@@ -107,13 +107,13 @@ The `health` command calls gRPC health endpoints on running services:
 
 ```bash
 # Check all services
-python scripts/local.py health
+python cli/local.py health
 
 # Check specific service
-python scripts/local.py health memory-rust
+python cli/local.py health memory-rust
 
 # Detailed output with uptime and metrics
-python scripts/local.py health -d
+python cli/local.py health -d
 ```
 
 **Output:**
@@ -129,12 +129,12 @@ executive-stub       [OK] HEALTHY      uptime=3585s
 All proto definitions live in `proto/` at the project root. After editing protos:
 
 ```bash
-python scripts/proto_gen.py
+python cli/proto_gen.py
 ```
 
 This regenerates stubs in:
-- `src/memory/python/gladys_memory/generated/`
-- `src/orchestrator/gladys_orchestrator/generated/`
+- `src/services/memory/gladys_memory/` (memory_pb2.py, memory_pb2_grpc.py)
+- `src/services/orchestrator/gladys_orchestrator/generated/`
 
 ## Cache Management
 
@@ -142,14 +142,14 @@ The SalienceGateway (Rust) has an LRU cache. Manage it with:
 
 ```bash
 # View cache statistics
-python scripts/local.py cache stats
+python cli/local.py cache stats
 
 # List cached heuristics
-python scripts/local.py cache list
+python cli/local.py cache list
 
 # Flush entire cache
-python scripts/local.py cache flush
+python cli/local.py cache flush
 
 # Evict specific heuristic
-python scripts/local.py cache evict <heuristic-id>
+python cli/local.py cache evict <heuristic-id>
 ```

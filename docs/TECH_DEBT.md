@@ -2,7 +2,7 @@
 
 Items to revisit post-PoC. Each entry should note what it is, why it's fine for now, and what to do when it matters.
 
-## `scripts/_db.py` — Connection per call
+## `gladys_client/db.py` — Connection per call
 
 Opens and closes a psycopg2 connection for every function call. `get_metrics()` opens one connection for four sequential queries, but each of `list_events()`, `list_fires()`, etc. opens its own.
 
@@ -10,15 +10,15 @@ Opens and closes a psycopg2 connection for every function call. `get_metrics()` 
 **When it matters**: If polling interval drops below ~2s or multiple dashboard instances run simultaneously.
 **Fix**: Add connection pooling (e.g., `psycopg2.pool.SimpleConnectionPool`) with module-level lifecycle.
 
-## `scripts/_db.py` — DSN passed as parameter
+## `gladys_client/db.py` — DSN passed as parameter
 
 Every caller passes `env.get_db_dsn()` on every call. Keeps the module stateless but creates repetitive call sites.
 
 **Why it's fine now**: Only three callers (events, metrics, fires routers).
-**When it matters**: If more consumers adopt `_db.py` and the pattern becomes noisy.
+**When it matters**: If more consumers adopt `gladys_client.db` and the pattern becomes noisy.
 **Fix**: Add a `configure(dsn)` or `set_dsn(dsn)` function for module-level state, called once at startup.
 
-## `scripts/_db.py` — `get_metrics()` runs four queries
+## `gladys_client/db.py` — `get_metrics()` runs four queries
 
 Four separate `SELECT COUNT(*)` queries instead of a single query with subqueries.
 

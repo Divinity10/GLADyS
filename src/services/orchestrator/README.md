@@ -44,7 +44,7 @@ All proto definitions live in `proto/` at the project root (single source of tru
 
 ```bash
 # Regenerate stubs after editing protos
-python scripts/proto_gen.py
+python cli/proto_gen.py
 ```
 
 Generated stubs are written to `gladys_orchestrator/generated/` (DO NOT EDIT these).
@@ -53,7 +53,7 @@ Generated stubs are written to `gladys_orchestrator/generated/` (DO NOT EDIT the
 
 ```bash
 # Via admin script (recommended)
-python scripts/local.py start orchestrator
+python cli/local.py start orchestrator
 
 # Directly
 cd src/orchestrator
@@ -79,7 +79,7 @@ The Orchestrator depends on:
 - **MemoryStorage** (50051) - for storing events, recording fires
 - **Executive** (50053) - for handling high-salience events
 
-Start these first or use `python scripts/local.py start all`.
+Start these first or use `python cli/local.py start all`.
 
 ## Testing
 

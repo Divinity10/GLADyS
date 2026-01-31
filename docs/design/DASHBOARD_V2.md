@@ -471,9 +471,9 @@ The FastAPI backend bridges HTTP/SSE to gRPC. These are the endpoints the fronte
 | Method | Path | Maps to | Notes |
 |--------|------|---------|-------|
 | GET | `/api/services/health` | gRPC `GetHealth` on all services | Aggregated health |
-| POST | `/api/services/{name}/start` | `scripts/local.py start {name}` | Service control |
-| POST | `/api/services/{name}/stop` | `scripts/local.py stop {name}` | Service control |
-| POST | `/api/services/{name}/restart` | `scripts/local.py restart {name}` | Service control |
+| POST | `/api/services/{name}/start` | `cli/local.py start {name}` | Service control |
+| POST | `/api/services/{name}/stop` | `cli/local.py stop {name}` | Service control |
+| POST | `/api/services/{name}/restart` | `cli/local.py restart {name}` | Service control |
 
 ### Logs
 

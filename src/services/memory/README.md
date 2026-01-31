@@ -63,7 +63,7 @@ fn main() {
 **Python**:
 ```bash
 # From project root
-python scripts/proto_gen.py
+python cli/proto_gen.py
 ```
 
 **C#** (like Executive):
@@ -153,7 +153,7 @@ For faster iteration when debugging:
 
 ```bash
 # Option 1: Use the admin script (recommended)
-python scripts/local.py start all
+python cli/local.py start all
 
 # Option 2: Start manually
 # Terminal 1: Database (using local PostgreSQL or Docker)

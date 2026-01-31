@@ -23,9 +23,9 @@ import grpc
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "orchestrator"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
 # Force local memory package to be first in path
-sys.path.insert(0, str(PROJECT_ROOT / "src" / "memory" / "python"))
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
 
 try:
     # Try importing directly from source location

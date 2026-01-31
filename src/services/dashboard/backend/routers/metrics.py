@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from backend.env import PROJECT_ROOT, env
 
-import _db
+from gladys_client import db as _db
 
 router = APIRouter(prefix="/api")
 

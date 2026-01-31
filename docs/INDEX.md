@@ -75,7 +75,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
 | **Code** | `cli/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |
-| **Code** | `cli/_orchestrator.py` | Orchestrator gRPC client — queue inspection and event publishing. |
+| **Lib** | `src/lib/gladys_client/` | Shared client library — DB queries, gRPC clients (orchestrator, cache, health). |
+| **Code** | `cli/_orchestrator.py` | Orchestrator CLI commands (thin wrapper over gladys_client). |
 | **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
 | **Test** | `tests/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
 ## 🎭 Executive & Personality

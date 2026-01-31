@@ -1,8 +1,7 @@
 """Environment sync checking for GLADyS services.
 
 Checks for drift between:
-- Proto files in memory/proto vs orchestrator/proto
-- Generated stubs vs source protos
+- Canonical proto files vs generated stubs
 - Applied migrations vs migration files
 """
 
@@ -33,7 +32,7 @@ def file_hash(path: Path) -> str:
 
 
 def check_proto_sync() -> Tuple[List[SyncIssue], List[str]]:
-    """Check if proto files are in sync between locations.
+    """Check that canonical proto/ dir exists and list proto files.
 
     Returns:
         Tuple of (issues, success_messages)
@@ -41,48 +40,25 @@ def check_proto_sync() -> Tuple[List[SyncIssue], List[str]]:
     issues = []
     successes = []
 
-    # Canonical source is memory/proto
-    memory_proto = ROOT / "src" / "memory" / "proto"
-    orchestrator_proto = ROOT / "src" / "orchestrator" / "proto"
+    # Canonical source is proto/ at project root
+    proto_dir = ROOT / "proto"
 
-    if not memory_proto.exists():
+    if not proto_dir.exists():
         issues.append(SyncIssue(
             "proto", "error",
-            f"Canonical proto dir not found: {memory_proto}"
+            f"Canonical proto dir not found: {proto_dir}"
         ))
         return issues, successes
 
-    if not orchestrator_proto.exists():
+    proto_files = list(proto_dir.glob("*.proto"))
+    if not proto_files:
         issues.append(SyncIssue(
             "proto", "error",
-            f"Orchestrator proto dir not found: {orchestrator_proto}"
+            f"No .proto files found in {proto_dir}"
         ))
-        return issues, successes
-
-    # Check each proto file
-    for proto_file in memory_proto.glob("*.proto"):
-        name = proto_file.name
-        orch_file = orchestrator_proto / name
-
-        mem_hash = file_hash(proto_file)
-        orch_hash = file_hash(orch_file)
-
-        if orch_hash == "MISSING":
-            issues.append(SyncIssue(
-                "proto", "error",
-                f"{name}: Missing from orchestrator/proto",
-                action="Run: python cli/proto_gen.py"
-            ))
-        elif mem_hash != orch_hash:
-            issues.append(SyncIssue(
-                "proto", "error",
-                f"{name}: OUT OF SYNC\n"
-                f"     - memory/proto: {mem_hash}\n"
-                f"     - orchestrator/proto: {orch_hash} (stale)",
-                action="Run: python cli/proto_gen.py"
-            ))
-        else:
-            successes.append(f"{name}: in sync ({mem_hash})")
+    else:
+        for pf in sorted(proto_files):
+            successes.append(f"{pf.name}: present ({file_hash(pf)})")
 
     return issues, successes
 
@@ -96,17 +72,16 @@ def check_stub_freshness() -> Tuple[List[SyncIssue], List[str]]:
     issues = []
     successes = []
 
-    # Check memory-python stubs
-    memory_proto = ROOT / "src" / "memory" / "proto"
-    memory_stubs = ROOT / "src" / "memory" / "python" / "gladys_memory"
+    # Canonical proto source
+    proto_dir = ROOT / "proto"
 
-    # Check orchestrator stubs
-    orch_proto = ROOT / "src" / "orchestrator" / "proto"
-    orch_stubs = ROOT / "src" / "orchestrator" / "gladys_orchestrator" / "generated"
+    # Generated stub locations
+    memory_stubs = ROOT / "src" / "services" / "memory" / "gladys_memory"
+    orch_stubs = ROOT / "src" / "services" / "orchestrator" / "gladys_orchestrator" / "generated"
 
     stub_locations = [
-        ("memory-python", memory_proto, memory_stubs, "_pb2.py"),
-        ("orchestrator", orch_proto, orch_stubs, "_pb2.py"),
+        ("memory-python", proto_dir, memory_stubs, "_pb2.py"),
+        ("orchestrator", proto_dir, orch_stubs, "_pb2.py"),
     ]
 
     for service, proto_dir, stub_dir, suffix in stub_locations:
@@ -184,7 +159,7 @@ def count_migrations_in_db(port: int) -> Optional[int]:
 
 def count_migration_files() -> int:
     """Count migration .sql files."""
-    migrations_dir = ROOT / "src" / "memory" / "migrations"
+    migrations_dir = ROOT / "src" / "db" / "migrations"
     if not migrations_dir.exists():
         return 0
     return len(list(f for f in migrations_dir.glob("*.sql") if not f.name.endswith(".bak")))
