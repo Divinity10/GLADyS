@@ -68,7 +68,7 @@ class OllamaClient:
             self._available = False
             return False
 
-    async def generate(self, prompt: str, system: str | None = None) -> str | None:
+    async def generate(self, prompt: str, system: str | None = None, format: str | None = None) -> str | None:
         """Generate a response from the LLM."""
         if self._available is False:
             return None
@@ -80,6 +80,8 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if format:
+            payload["format"] = format
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -332,6 +334,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         heuristic_store: HeuristicStore | None = None,
     ):
         self.events_received = 0
+        self.moments_received = 0
         self.heuristics_created = 0
         self.ollama = ollama_client
         self.memory_client = memory_client
@@ -420,7 +423,8 @@ Consider this suggestion in your response.
                 logger.info(f"GLADyS: {response_text}")
 
                 prediction_json = await self.ollama.generate(
-                    PREDICTION_PROMPT.format(context=event_context, response=response_text)
+                    PREDICTION_PROMPT.format(context=event_context, response=response_text),
+                    format="json",
                 )
                 if prediction_json:
                     try:
@@ -502,7 +506,7 @@ Consider this suggestion in your response.
             context=trace.context,
             response=trace.response,
         )
-        pattern_json = await self.ollama.generate(extraction_prompt)
+        pattern_json = await self.ollama.generate(extraction_prompt, format="json")
         if not pattern_json:
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=True,
