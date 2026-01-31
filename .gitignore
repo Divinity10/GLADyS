@@ -30,7 +30,12 @@ obj/
 # Local config
 .env
 config/local.yaml
-.claude/
+
+# Claude Code - share settings.json and hooks, keep personal files private
+.claude/settings.local.json
+.claude/hooks/archive_memory.py
+.claude/hooks/archive_prefix.py
+.claude/hooks/__pycache__/
 
 # Personal working memory (per-user, not shared)
 claude_memory.md
