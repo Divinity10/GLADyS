@@ -88,6 +88,10 @@ See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for full setup.
 
 - **Leah DeYoung** (LDeYoung17)
 
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE).
+
 ---
 
 <p align="center">
