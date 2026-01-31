@@ -24,16 +24,73 @@ You're a contributor. Here's how to get productive.
 
 ## Prerequisites (Everyone)
 
-- **Git**: You have this if you're reading this
-- **Python 3.11+**: Required for all services
-- **[uv](https://docs.astral.sh/uv/)**: Python package manager
-- **Docker Desktop** (optional): [Install here](https://www.docker.com/products/docker-desktop/) - for integration tests
+- **Git**
+- **Python 3.12+** (managed automatically by uv via `.python-version`)
+- **[uv](https://docs.astral.sh/uv/)**: Python package manager — downloads the correct Python for you
+- **PostgreSQL** with **pgvector** extension
+- **protoc**: Protocol buffer compiler (for gRPC stub generation)
+- **Docker Desktop** (optional): [Install here](https://www.docker.com/products/docker-desktop/) — for integration tests
+
+### Linux (Ubuntu/Debian)
+
+System packages:
+
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-server-dev-14 build-essential \
+    protobuf-compiler libpq-dev git
+```
+
+pgvector (required for semantic search — no apt package for PG 14):
+
+```bash
+cd /tmp
+git clone --branch v0.8.0 https://github.com/pgvector/pgvector.git
+cd pgvector
+make
+sudo make install
+```
+
+> If using PG 15+, you may be able to `apt install postgresql-NN-pgvector` instead.
+
+uv (Python package manager):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Rust (optional — only needed for local Rust salience gateway, Docker mode includes it):
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Start PostgreSQL and enable on boot:
+
+```bash
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+### Windows
+
+- Install [PostgreSQL](https://www.postgresql.org/downloads/) (includes pgvector in recent installers)
+- Install [uv](https://docs.astral.sh/uv/)
+- Install [protoc](https://github.com/protocolbuffers/protobuf/releases) and add to PATH
+
+### macOS
+
+```bash
+brew install postgresql pgvector protobuf uv
+brew services start postgresql
+```
 
 ## Quick Start
 
 ```bash
-make setup    # Installs all Python deps across all services
-make test     # Run unit tests
+make setup      # Install all Python deps across all services
+make init-db    # Create database, user, extensions, run migrations
+make test       # Run unit tests
 ```
 
 ## Choose Your Path
