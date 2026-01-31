@@ -21,7 +21,7 @@ The integration tests successfully validated the "Killer Feature" of GLADyS: the
 ## Artifacts Created
 
 - **Test Driver**: `src/integration/test_scenario_5_learning_loop.py`
-  - Features: Mock Ollama server, in-process Executive Stub, DB cleanup via `scripts/docker.py clean`.
+  - Features: Mock Ollama server, in-process Executive Stub, DB cleanup via `cli/docker.py clean`.
 - **Scenarios**: `docs/validation/integration_test_scenarios.md`
   - Documentation of the validated behaviors and requirements.
 

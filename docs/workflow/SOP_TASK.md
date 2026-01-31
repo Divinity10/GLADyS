@@ -8,7 +8,7 @@ Before implementing logic or modifying code:
 
 - **State Verification**: Don't just trust `.proto` or `.sql` files. Probe the **actual runtime state**.
     - **Database**: If your task depends on a specific schema, run a probe query (e.g., `SELECT column_name FROM information_schema.columns...`) to confirm the columns exist in the target environment.
-    - **API/gRPC**: If you depend on a service, check if the port is open and the service is responsive (`python scripts/local.py status` or `python scripts/docker.py status`).
+    - **API/gRPC**: If you depend on a service, check if the port is open and the service is responsive (`python cli/local.py status` or `python cli/docker.py status`).
 - **Resource Constraints**:
     - Identify which ports and service instances are for **Local Dev** vs. **Docker/Integration**. 
     - **NEVER** modify or connect to ports outside your specific task scope (e.g., don't step on local dev ports `5432` if working on Docker `5433`).

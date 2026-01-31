@@ -1,6 +1,6 @@
 # Extract APIs Plan
 
-**Status**: Not started
+**Status**: Complete (committed on `extract-apis` branch, pending PR to main)
 **Branch**: `extract-apis`
 **Issues**: #36 (gladys_client), #37 (FUN API extraction)
 **Reference**: [directory-restructure.md](directory-restructure.md) Phases 2-3

@@ -67,14 +67,14 @@ Key principles:
 
 ```bash
 # With Docker (recommended - no Rust required)
-python scripts/docker.py start all
-python scripts/docker.py status
-python scripts/docker.py health       # Verify gRPC endpoints respond
+python cli/docker.py start all
+python cli/docker.py status
+python cli/docker.py health       # Verify gRPC endpoints respond
 
 # With local Rust + PostgreSQL
-python scripts/local.py start all
-python scripts/local.py status
-python scripts/local.py health        # Verify gRPC endpoints respond
+python cli/local.py start all
+python cli/local.py status
+python cli/local.py health        # Verify gRPC endpoints respond
 ```
 
 See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for full setup.

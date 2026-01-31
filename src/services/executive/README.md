@@ -47,10 +47,10 @@ Orchestrator → Executive → [LLM Decision] → Response
 
 ```bash
 # Via admin script (recommended)
-python scripts/local.py start executive
+python cli/local.py start executive
 
 # Directly
-cd src/executive
+cd src/services/executive
 uv run python -m gladys_executive start
 
 # With Ollama LLM
@@ -90,7 +90,7 @@ Uses protos from `src/orchestrator/gladys_orchestrator/generated/`:
 ## Testing
 
 ```bash
-cd src/executive
+cd src/services/executive
 uv run python -m gladys_executive status  # Check if running
 
 # Integration tests (from src/integration)
