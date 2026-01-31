@@ -1,6 +1,9 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
+# Auto-detect python3 vs python
+PYTHON := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null)
+
 .PHONY: setup proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
 
 # Default target
@@ -29,26 +32,26 @@ help:
 
 # Install all Python dependencies across all services
 setup:
-	python cli/setup_dev.py
+	$(PYTHON) cli/setup_dev.py
 
 # Verify local environment (PostgreSQL, no Docker)
 verify-local:
-	python cli/verify_local.py
+	$(PYTHON) cli/verify_local.py
 
 # Verify Docker environment
 verify:
-	python cli/verify_env.py
+	$(PYTHON) cli/verify_env.py
 
 # Regenerate proto stubs
 proto:
-	python cli/proto_gen.py
+	$(PYTHON) cli/proto_gen.py
 
 # Run unit tests across all services
 test:
 	cd src/services/memory && uv run pytest tests/ -v
 	cd src/services/orchestrator && uv run pytest tests/ -v
 	cd src/services/dashboard && uv run pytest tests/ -v
-	cd tests/unit && python -m pytest -v
+	cd tests/unit && $(PYTHON) -m pytest -v
 
 # Docker operations
 up:
