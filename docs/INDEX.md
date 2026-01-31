@@ -106,6 +106,14 @@ If none of these fit, create a new doc — and add it to this table and the inde
 
 ---
 
+## 🔬 Research
+*Keywords: Theory, Cognitive Science, Neuroscience, Academic, Open Questions*
+
+| Type | File | Purpose |
+| :--- | :--- | :--- |
+| **Theory** | [THEORETICAL_FOUNDATIONS.md](research/THEORETICAL_FOUNDATIONS.md) | Cognitive science and RL foundations — how the architecture maps to neuroscience. |
+| **Questions** | [OPEN_QUESTIONS.md](research/OPEN_QUESTIONS.md) | Unsolved research problems where expert input would help. |
+
 ## 🔍 Validation & Metrics
 *Where to check if things actually work.*
 
