@@ -15,19 +15,29 @@ from typing import List, Dict, Any
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-# The exact prompt from src/services/executive/gladys_executive/server.py
+# Keep in sync with src/services/executive/gladys_executive/server.py PATTERN_EXTRACTION_PROMPT
 PATTERN_EXTRACTION_PROMPT = """You just helped with this situation:
 
 Context: {context}
 Your response: {response}
 User feedback: positive
 
-Extract a generalizable heuristic that can be applied to similar situations in the future.
-- condition: A general description of when this pattern applies (avoid specific names/numbers)
-- action: What to do when the condition matches
+Extract a generalizable heuristic for similar future situations.
 
-Be general enough to match similar situations, specific enough to be useful.
-Output ONLY valid JSON with no other text: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
+Rules:
+- condition: Describe a SITUATION, not a person. Must be 10-50 words. No proper nouns or specific numbers.
+- action.type: One of "suggest", "remind", "warn"
+- action.message: The advice to give. Must be 10-50 words.
+
+Good examples:
+{{"condition": "When a player's health drops below a critical threshold during combat and healing items are available in inventory", "action": {{"type": "suggest", "message": "Use a healing item before continuing the fight to avoid being defeated and losing progress"}}}}
+{{"condition": "When a puzzle cell has only one possible candidate remaining based on row column and box constraints", "action": {{"type": "suggest", "message": "Fill in the cell with the only remaining candidate since it is the sole valid option"}}}}
+
+Bad examples (DO NOT generate these):
+- Too vague: {{"condition": "When something happens", "action": {{"type": "suggest", "message": "Do the right thing"}}}}
+- Too specific: {{"condition": "When John plays level 5 on Tuesday", "action": {{"type": "suggest", "message": "Press the blue button at coordinates 150 200"}}}}
+
+Output valid JSON: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
 
 @dataclass
 class Scenario:
