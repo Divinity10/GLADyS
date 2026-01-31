@@ -47,7 +47,7 @@ Can we build the individual subsystems and get them communicating?
 ### What was NOT proven (known gaps)
 
 - **Confidence updates from feedback**: Explicit feedback path exists but effect on confidence scores is unverified. We don't know if feedback actually changes heuristic behavior.
-- **Salience cache correctness**: The Rust LRU cache works, but there's no mechanism for cache invalidation when heuristics are updated or new heuristics are created. The cache may serve stale data indefinitely.
+- **Salience cache not functioning as designed**: The Rust LRU cache was designed as the fast path for heuristic matching (cache → DB → LLM), but currently only tracks hit/miss stats — Python storage is always queried (`server.rs:242-295`). The cache must become authoritative for matching in PoC 1. This requires solving cache staleness (invalidation when heuristics are created, updated, or decayed). Whether to check cache and DB simultaneously (hedged request) is a separate design question.
 - **Python Orchestrator viability**: Works under trivial load (manual event submission). No data on behavior under realistic concurrent event volume. Adequate for PoC scope; unknown beyond that.
 - **Heuristic creation from feedback**: The LLM can respond to events, but the path from positive feedback → new heuristic is not proven. This is the core claim PoC 1 must validate.
 
@@ -57,6 +57,7 @@ Can we build the individual subsystems and get them communicating?
 - Python is adequate for all services at PoC scale; no evidence C#/Rust rewrites are needed yet
 - Current codebase structure doesn't match the architecture we've decided on — directory restructure needed before building more
 - Integration gaps exist in the feedback pipeline (GetHeuristic RPC missing, feedback_source not propagated through gRPC)
+- Orchestrator processes one event at a time (`event_queue.py:177-198`); executive handles one per RPC call (`stub_server.py:458-535`). Fine for PoC 0 but architectural constraint for real sensor data.
 
 ---
 
@@ -86,6 +87,10 @@ Can the system learn from experience with real data flowing through it?
 
 This is the core value proposition: "the second time is faster." It requires multiple co-dependent workstreams that must converge — you can't test learning without real data, and you can't get meaningful data without real sensors.
 
+### Framing: Accuracy-Latency Tradeoff
+
+PoC 1 doesn't need to solve the general resource allocation problem, but it lays the foundation. The heuristic firing threshold IS an accuracy-latency tradeoff decision — "when is a cached answer good enough to skip reasoning?" Getting this framing right now prevents rework in PoC 2 when real volume arrives. See `docs/design/questions/resource-allocation.md` for the full analysis and research questions.
+
 ### Workstreams
 
 These run in parallel and converge on the integration test described below.
@@ -95,6 +100,14 @@ These run in parallel and converge on the integration test described below.
 #### W1: One Real Sensor
 
 Build one real sensor that produces events without human intervention. Must emit events through the Orchestrator pipeline via gRPC. Packaged in pack structure (`packs/<domain>/sensors/`) with `manifest.yaml`.
+
+**Prerequisite**: Define sensor event contract before building the sensor:
+- Composable event interface model: base interface (all events) + domain interfaces (pack-defined) + event-type interfaces (conditional on discriminator fields). Not a single flat schema.
+- Driver → Sensor → Orchestrator interface (driver sends raw data, sensor normalizes to interface model)
+- Basic guidance for when to use preprocessors vs send raw events
+- Contract must accommodate both push (event-driven) and polling sensor patterns
+
+See `docs/design/questions/resource-allocation.md` (Sensor Event Contract Design) for full design questions.
 
 Candidate selection is a planning-session decision. Options: Discord (Mike's domain), file watcher (simplest), game log reader (closest to target use case).
 
@@ -114,7 +127,7 @@ Interface must stay clean enough to extract into a separate process later withou
 
 - Add `feedback_source` field to `UpdateHeuristicConfidenceRequest` in proto — implicit vs explicit must be distinguishable
 - Add `GetHeuristic` RPC to proto (learning.md Gap 1 — currently a blocker for dynamic heuristic lookup)
-- Resolve cache staleness: mechanism for salience cache to learn when heuristics are updated or new heuristics created
+- Fix cache to serve its designed role: cache must be authoritative for heuristic matching (cache → DB fallback → LLM). Currently bypassed — Python storage always queried (`server.rs:242-295`). Requires: cache population strategy, staleness detection/invalidation when heuristics are created/updated/decayed, and a design decision on whether to hedge (check cache and DB simultaneously)
 
 #### W4: Heuristic Creation from Feedback
 
@@ -174,6 +187,24 @@ Can the system handle real-world conditions — multiple sensors, concurrent eve
 
 - PoC 1 convergence test passes
 - Planning session incorporating PoC 1 lessons learned
+
+### Workstreams
+
+#### W5: Event Volume Management
+
+Address the accuracy-latency tradeoff under real-world event volume. PoC 1 operates at manual/low volume; PoC 2 must handle sustained sensor output.
+
+Implements (selection based on PoC 1 lessons):
+- Concurrent event processing: configurable worker pool in orchestrator (N>1)
+- Event deduplication/suppression: mechanism to avoid re-processing redundant events within a time window
+- Dynamic heuristic behavior: meta-heuristics or conditional suppression ("if similar event processed recently, suppress unless key value changed significantly")
+- Preprocessor integration: if PoC 1 sensor data quality requires enrichment before evaluation
+
+Design basis: `docs/design/questions/resource-allocation.md`
+
+#### W6: Second Sensor
+
+Add a sensor from a different domain than W1. Validates cross-domain behavior, event contract generality, and concurrent sensor handling.
 
 ### What to Prove
 
@@ -292,7 +323,7 @@ Items explicitly out of scope for all PoC phases, with conditions that would bri
 | **Fine-tuning strategy** | Requires Leah input. Post-MVP. | PoC 3 complete and online learning alone is insufficient. | Post-PoC 3 |
 | **Multi-user households** | Post-MVP. Single user is hard enough. | Product viability discussions after PoC 3. | Post-PoC 3 |
 | **Supervisor subsystem** | No real sensors/plugins to monitor yet. | Multiple sensors running concurrently need health monitoring. | PoC 2 (multiple sensors) |
-| **Preprocessors** | Role defined (fast enrichment salience depends on), but no real sensor data to preprocess. | Real sensor produces data that needs enrichment before salience can evaluate it meaningfully. | PoC 1 or PoC 2 (depends on sensor choice) |
+| **Preprocessors** | Role defined (fast enrichment salience depends on), but no real sensor data to preprocess. | Real sensor produces data that needs enrichment before salience can evaluate it meaningfully, OR response accuracy suffers from raw event data quality. | PoC 1 or PoC 2 (depends on sensor choice and data quality) |
 | **Context/Mode detection** | Needs an owner (Orchestrator or Salience). Design not started. | Second domain sensor added — system needs to distinguish contexts. | PoC 2 (multiple sensors/domains) |
 | **Configuration subsystem** | Runtime config changes beyond .env-at-startup. Dashboard Settings tab needs a backend. | Settings tab is needed for practical use during testing. | PoC 1 or PoC 2 |
 | **Plugin behavior enforcement** | "Immune system" for plugins. We control all plugins during PoC. | Third-party or community plugins considered. | Post-PoC 3 |
@@ -300,6 +331,7 @@ Items explicitly out of scope for all PoC phases, with conditions that would bri
 | **Linux/WSL readiness** | Audit for Windows path assumptions. | Directory restructure (prerequisite phase). | Prerequisite phase |
 | **Install package / dev setup** | Single-command setup. | New developer onboards, or setup friction slows iteration. | Any PoC |
 | **Hot reload for Python gRPC** | Code velocity improvement. | Iteration speed becomes a bottleneck during implementation. | Any PoC |
+| **Resource allocation research** | Formal models for accuracy-latency tradeoff (expected utility, cascade models, anytime algorithms). GLADyS System 1/2 is an instance of this class of problem. | PoC 1 heuristic threshold tuning reveals need for principled approach, or PoC 2 volume management needs theoretical grounding. | PoC 2 planning session |
 
 ---
 

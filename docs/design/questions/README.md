@@ -15,6 +15,7 @@ This directory organizes design questions and decisions by category. Each file c
 | Plugins & Skills | [plugins.md](plugins.md) | 3 | 2 | 0 |
 | Infrastructure | [infrastructure.md](infrastructure.md) | 1 | 1 | 1 |
 | Data Types | [data-types.md](data-types.md) | 1 | 0 | 0 |
+| Resource Allocation | [resource-allocation.md](resource-allocation.md) | 4 | 0 | 0 |
 | Cross-Cutting | [cross-cutting.md](cross-cutting.md) | 2 | 3 | 1 |
 
 **Legend**: Open = actively under discussion | Resolved = decision made (see ADR) | Gap = needs ADR
@@ -64,6 +65,15 @@ How to handle streaming sensor data (temperature, CO2) vs discrete events.
 **Key topics**:
 - Continuous data filtering strategies
 - Metric vs event distinction
+
+### [resource-allocation.md](resource-allocation.md) - Accuracy-Latency Tradeoff, Event Volume, Sensor Contract
+How GLADyS allocates limited compute to maximize response quality and timeliness. Covers the accuracy-latency tension, dynamic heuristic behavior, concurrent event processing, and sensor event contract design.
+
+**Key topics**:
+- Accuracy-latency tradeoff (formal models, research areas)
+- Dynamic heuristics (meta-heuristics, conditional suppression, event-response maps)
+- Concurrent event processing (worker pools, async dispatch)
+- Sensor event contract (JSON schema, driver→sensor→orchestrator interface)
 
 ### [cross-cutting.md](cross-cutting.md) - Integration, Audit, Output Routing
 Topics that span multiple subsystems or don't fit cleanly elsewhere.

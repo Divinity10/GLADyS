@@ -32,6 +32,7 @@ When a doorbell rings during a gaming session, two contexts apply: gaming (prima
 **Priority**: Medium
 **Created**: 2026-01-31
 **Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+**See also**: [resource-allocation.md](resource-allocation.md) — Dynamic Heuristic Behavior section covers the broader accuracy-latency framing that subsumes this question
 
 Some sensors produce high-frequency data — a motion sensor firing hundreds of times per hour, a game emitting damage events every tick, a temperature sensor reporting every second. Most are repetitive. Storing and processing each individually is wasteful, but naive deduplication destroys information the learning pipeline needs.
 
@@ -150,6 +151,7 @@ Current PoC implementation in `router.py` would need to change:
 **Status**: Open - needs design
 **Priority**: High (affects scalability and reliability)
 **Created**: 2026-01-26
+**See also**: [resource-allocation.md](resource-allocation.md) — Concurrent Event Processing section addresses §31.1 and §31.5 specifically
 
 #### Context
 
