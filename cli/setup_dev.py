@@ -158,9 +158,9 @@ def main() -> int:
 
     print("All packages installed successfully.")
     print("\nNext steps:")
-    print("  - Start PostgreSQL (local or Docker)")
+    print("  - Start PostgreSQL: sudo systemctl start postgresql")
+    print("  - Initialize database: make init-db")
     print("  - Run 'make test' to verify")
-    print("  - Run 'python tools/dashboard/dashboard.py start' for the dashboard")
     return 0
 
 

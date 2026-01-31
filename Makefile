@@ -1,7 +1,7 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
-.PHONY: setup proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
+.PHONY: setup init-db proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
 
 # Default target
 help:
@@ -11,6 +11,7 @@ help:
 	@echo ""
 	@echo "Local Development (preferred):"
 	@echo "  setup         Install all Python deps across all services"
+	@echo "  init-db       Create gladys user/database and run migrations"
 	@echo "  verify-local  Check local environment (PostgreSQL, pgvector, tables)"
 	@echo ""
 	@echo "Docker Development:"
@@ -30,6 +31,10 @@ help:
 # Install all Python dependencies across all services (uv handles Python version via .python-version)
 setup:
 	uv run cli/setup_dev.py
+
+# Create gladys user/database and run all migrations
+init-db:
+	uv run cli/init_db.py
 
 # Verify local environment (PostgreSQL, no Docker)
 verify-local:
