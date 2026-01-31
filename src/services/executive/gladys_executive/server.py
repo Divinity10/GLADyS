@@ -602,6 +602,9 @@ Consider this suggestion in your response.
             )
 
         # Dedup check: reject near-duplicates (similarity > 0.9)
+        # Note: event_text param name is misleading — the RPC generates an embedding
+        # and compares it against condition_embedding in the heuristics table (storage.py:378),
+        # so passing condition text here correctly does condition-to-condition similarity.
         if self.memory_client:
             matches = await self.memory_client.query_matching_heuristics(
                 event_text=condition, min_confidence=0.0, limit=1,
