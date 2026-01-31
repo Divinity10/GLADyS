@@ -231,7 +231,7 @@ def main() -> int:
             print(f"\n{BLUE}Starting containers...{RESET}")
             subprocess.run(
                 ["docker", "compose", "up", "-d"],
-                cwd="tests/integration",
+                cwd="docker",
                 capture_output=True,
             )
             time.sleep(2)
@@ -260,7 +260,7 @@ def main() -> int:
                     grpc_ok = False
 
             if not grpc_ok:
-                print(f"\n  {YELLOW}Check container logs: docker compose -f tests/integration/docker-compose.yml logs{RESET}")
+                print(f"\n  {YELLOW}Check container logs: docker compose -f docker/docker-compose.yml logs{RESET}")
                 return 1
         except ImportError:
             print(f"  {YELLOW}SKIP{RESET}: grpc module not installed")

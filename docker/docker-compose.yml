@@ -1,5 +1,5 @@
-# GLADyS Integration Test - Full Stack PoC
-# Run: docker-compose up -d
+# GLADyS Docker Development Environment
+# Run: make up  (or: cd docker && docker compose up -d)
 #
 # PORTS: Docker uses offset ports to avoid conflict with local development:
 #   - postgres: PostgreSQL with pgvector (port 5433)
@@ -41,7 +41,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - ../../src/db/migrations:/docker-entrypoint-initdb.d:ro
+      - ../src/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gladys"]
       interval: 5s
@@ -50,7 +50,7 @@ services:
 
   memory-python:
     build:
-      context: ../..
+      context: ..
       dockerfile: src/services/memory/Dockerfile
     container_name: gladys-integration-memory-python
     environment:
@@ -63,7 +63,7 @@ services:
       - "50061:50051"  # Host 50061 -> Container 50051 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
-      - ../../src/services/memory/gladys_memory:/app/gladys_memory:ro
+      - ../src/services/memory/gladys_memory:/app/gladys_memory:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
 
   memory-rust:
     build:
-      context: ../..
+      context: ..
       dockerfile: src/services/salience/Dockerfile
     container_name: gladys-integration-memory-rust
     environment:
@@ -97,7 +97,7 @@ services:
 
   orchestrator:
     build:
-      context: ../..
+      context: ..
       dockerfile: src/services/orchestrator/Dockerfile
     container_name: gladys-integration-orchestrator
     environment:
@@ -113,7 +113,7 @@ services:
       - "50060:50050"  # Host 50060 -> Container 50050 (avoids conflict with local)
     # DEV: Mount source so code changes don't require rebuild
     volumes:
-      - ../../src/services/orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
+      - ../src/services/orchestrator/gladys_orchestrator:/app/gladys_orchestrator:ro
     depends_on:
       memory-rust:
         condition: service_healthy
@@ -134,7 +134,7 @@ services:
   #   Default: memory-python:50051 (uses Python path for storage operations)
   executive-stub:
     build:
-      context: ../..
+      context: ..
       dockerfile: src/services/executive/Dockerfile
     container_name: gladys-integration-executive-stub
     environment:

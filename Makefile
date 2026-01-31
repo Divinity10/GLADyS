@@ -1,7 +1,7 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
-.PHONY: setup init-db proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local dashboard start stop status
+.PHONY: setup init-db proto test help up down restart build benchmark rust-rebuild exec-rebuild verify verify-local dashboard start stop status
 
 # Default target
 help:
@@ -23,6 +23,7 @@ help:
 	@echo "  up            Start Docker services"
 	@echo "  down          Stop Docker services"
 	@echo "  restart       Restart Docker services"
+	@echo "  build         Rebuild all Docker containers"
 	@echo "  rust-rebuild  Rebuild Rust container (after Rust code changes)"
 	@echo "  exec-rebuild  Rebuild Executive container (after proto changes)"
 	@echo ""
@@ -61,21 +62,25 @@ test:
 
 # Docker operations
 up:
-	cd tests/integration && docker compose up -d
+	cd docker && docker compose up -d
 
 down:
-	cd tests/integration && docker compose down
+	cd docker && docker compose down
 
 restart:
-	cd tests/integration && docker compose restart
+	cd docker && docker compose restart
+
+# Rebuild all Docker containers
+build:
+	cd docker && docker compose build --no-cache
 
 # Rebuild ONLY the Rust container (Python uses volume mounts, doesn't need rebuild)
 rust-rebuild:
-	cd tests/integration && docker compose up -d --build --force-recreate memory-rust
+	cd docker && docker compose up -d --build --force-recreate memory-rust
 
 # Rebuild Executive container (required after proto changes or Dockerfile changes)
 exec-rebuild:
-	cd tests/integration && docker compose up -d --build --force-recreate executive-stub
+	cd docker && docker compose up -d --build --force-recreate executive-stub
 
 # Local service management (init-db is idempotent — safe to run every time)
 start: init-db

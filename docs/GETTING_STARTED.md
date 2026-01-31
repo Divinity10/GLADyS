@@ -269,7 +269,7 @@ make benchmark   # Run performance benchmark
 Or manually:
 
 ```bash
-cd tests/integration
+cd docker
 docker compose up -d    # Starts all 5 services
 docker compose ps       # Check status
 docker compose logs -f  # Follow logs
@@ -303,14 +303,14 @@ make rust-rebuild   # Rebuild only the Rust container
 
 ```bash
 docker ps                        # All running containers
-docker compose -f tests/integration/docker-compose.yml ps   # GLADyS services
+docker compose -f docker/docker-compose.yml ps   # GLADyS services
 ```
 
 ### Viewing logs
 
 ```bash
-docker compose -f tests/integration/docker-compose.yml logs -f           # All services
-docker compose -f tests/integration/docker-compose.yml logs memory-python  # Specific service
+docker compose -f docker/docker-compose.yml logs -f           # All services
+docker compose -f docker/docker-compose.yml logs memory-python  # Specific service
 ```
 
 ### Regenerating proto stubs

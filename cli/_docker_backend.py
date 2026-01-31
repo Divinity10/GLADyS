@@ -14,7 +14,7 @@ class DockerBackend(ServiceBackend):
     """Docker-specific service operations."""
 
     def __init__(self, compose_file: Optional[Path] = None):
-        self.compose_file = compose_file or (ROOT / "tests" / "integration" / "docker-compose.yml")
+        self.compose_file = compose_file or (ROOT / "docker" / "docker-compose.yml")
         self.containers = {
             "memory-python": "gladys-integration-memory-python",
             "memory-rust": "gladys-integration-memory-rust",

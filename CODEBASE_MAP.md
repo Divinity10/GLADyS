@@ -652,7 +652,7 @@ Proto files live at `proto/` (project root), but Dockerfiles have DIFFERENT buil
 
 **Solution:**
 ```bash
-docker compose -f tests/integration/docker-compose.yml build --no-cache memory-rust
+docker compose -f docker/docker-compose.yml build --no-cache memory-rust
 python cli/docker.py restart memory-rust
 ```
 

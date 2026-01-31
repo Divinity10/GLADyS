@@ -9,7 +9,12 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Install dependencies including grpc tools for proto generation
-RUN pip install --no-cache-dir grpcio grpcio-tools grpcio-reflection aiohttp
+RUN pip install --no-cache-dir grpcio grpcio-tools grpcio-reflection aiohttp structlog colorama
+
+# Copy gladys_common shared library
+COPY src/lib/gladys_common/pyproject.toml ./common/pyproject.toml
+COPY src/lib/gladys_common/gladys_common ./common/gladys_common
+RUN pip install --no-cache-dir ./common
 
 # Copy proto files from project root
 COPY proto/ proto/
