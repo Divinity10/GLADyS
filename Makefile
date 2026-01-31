@@ -1,7 +1,7 @@
 # GLADyS Makefile
 # Cross-platform targets for common operations
 
-.PHONY: setup init-db proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local
+.PHONY: setup init-db proto test help up down restart benchmark rust-rebuild exec-rebuild verify verify-local dashboard start stop status
 
 # Default target
 help:
@@ -12,6 +12,10 @@ help:
 	@echo "Local Development (preferred):"
 	@echo "  setup         Install all Python deps across all services"
 	@echo "  init-db       Create gladys user/database and run migrations"
+	@echo "  start         Start all local services (memory, orchestrator, executive)"
+	@echo "  stop          Stop all local services"
+	@echo "  status        Show status of local services"
+	@echo "  dashboard     Start the dashboard (http://localhost:8502)"
 	@echo "  verify-local  Check local environment (PostgreSQL, pgvector, tables)"
 	@echo ""
 	@echo "Docker Development:"
@@ -72,6 +76,22 @@ rust-rebuild:
 # Rebuild Executive container (required after proto changes or Dockerfile changes)
 exec-rebuild:
 	cd tests/integration && docker compose up -d --build --force-recreate executive-stub
+
+# Local service management (init-db is idempotent — safe to run every time)
+start: init-db
+	uv run cli/local.py start all
+	@echo ""
+	@echo "Start the dashboard with: make dashboard (http://localhost:8502)"
+
+stop:
+	uv run cli/local.py stop all
+
+status:
+	uv run cli/local.py status
+
+# Start the dashboard
+dashboard:
+	cd src/services/dashboard && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8502 --reload
 
 # Run benchmark
 benchmark:

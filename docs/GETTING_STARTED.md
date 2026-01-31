@@ -77,6 +77,7 @@ sudo systemctl enable postgresql
 - Install [PostgreSQL](https://www.postgresql.org/downloads/) (includes pgvector in recent installers)
 - Install [uv](https://docs.astral.sh/uv/)
 - Install [protoc](https://github.com/protocolbuffers/protobuf/releases) and add to PATH
+- Install make: `winget install ezwinports.make` (required for Makefile targets)
 
 ### macOS
 

@@ -81,15 +81,15 @@ Title line: `type(scope): message`
 
 Types: `doc`, `feat`, `fix`, `refactor`, `test`, `chore`
 
-Body (optional, after blank line): bulleted list only. Each bullet is a subject with detail. Sub-items allowed. No prose paragraphs.
+Body (optional, after blank line): bulleted list only. Each bullet describes what changed and why. No file names (git history tracks that). No prose paragraphs.
 
 ```
 feat(dev): add make setup and fix GETTING_STARTED.md paths
 
-- cli/setup_dev.py: installs all Python deps via uv sync --all-extras
-  in dependency order, checks prerequisites, generates proto stubs
-- Makefile: add setup target, fix test target to run across all services
-- GETTING_STARTED.md: fix all stale paths (scripts/ → cli/, etc)
+- Install all Python deps via uv sync --all-extras in dependency order
+- Check prerequisites, generate proto stubs
+- Fix test target to run across all services
+- Fix all stale paths (scripts/ → cli/, etc)
 ```
 
 **Do NOT include `Co-Authored-By: Claude` or any AI attribution.** Commits represent the project owners' decisions.
