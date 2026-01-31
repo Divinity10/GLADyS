@@ -6,6 +6,7 @@ These tests require PostgreSQL to be running (docker-compose up -d).
 import asyncio
 import json
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import grpc
@@ -17,6 +18,14 @@ from gladys_memory.config import StorageSettings
 from gladys_memory.embeddings import EmbeddingGenerator
 from gladys_memory.grpc_server import MemoryStorageServicer, _embedding_to_bytes, _bytes_to_embedding
 from gladys_memory.storage import MemoryStorage, EpisodicEvent
+
+
+def _make_mock_context():
+    """Create a mock gRPC context with invocation_metadata and async abort."""
+    ctx = MagicMock()
+    ctx.invocation_metadata.return_value = []
+    ctx.abort = AsyncMock(side_effect=grpc.RpcError())
+    return ctx
 
 
 # Test configuration
@@ -120,7 +129,7 @@ class TestMemoryStorageServicer:
         )
 
         request = memory_pb2.StoreEventRequest(event=event)
-        response = await servicer.StoreEvent(request, None)
+        response = await servicer.StoreEvent(request, _make_mock_context())
 
         assert response.success is True
         assert response.error == ""
@@ -152,7 +161,7 @@ class TestMemoryStorageServicer:
             source_filter="test",
             limit=10,
         )
-        response = await servicer.QueryByTime(request, None)
+        response = await servicer.QueryByTime(request, _make_mock_context())
 
         assert response.error == ""
         assert len(response.events) >= 1
@@ -189,7 +198,7 @@ class TestMemoryStorageServicer:
             similarity_threshold=0.5,
             limit=10,
         )
-        response = await servicer.QueryBySimilarity(request, None)
+        response = await servicer.QueryBySimilarity(request, _make_mock_context())
 
         assert response.error == ""
         # Should find at least our event (similarity should be high)
@@ -198,15 +207,16 @@ class TestMemoryStorageServicer:
 
     @pytest.mark.asyncio
     async def test_query_by_similarity_no_embedding(self, servicer):
-        """Test querying with no embedding returns error."""
+        """Test querying with no embedding aborts with INVALID_ARGUMENT."""
         request = memory_pb2.QueryBySimilarityRequest(
             query_embedding=b"",
             similarity_threshold=0.5,
             limit=10,
         )
-        response = await servicer.QueryBySimilarity(request, None)
-
-        assert response.error == "No query embedding provided"
+        ctx = _make_mock_context()
+        with pytest.raises(grpc.RpcError):
+            await servicer.QueryBySimilarity(request, ctx)
+        ctx.abort.assert_any_call(grpc.StatusCode.INVALID_ARGUMENT, "No query embedding provided")
 
     @pytest.mark.asyncio
     async def test_generate_embedding(self, servicer):
@@ -214,7 +224,7 @@ class TestMemoryStorageServicer:
         request = memory_pb2.GenerateEmbeddingRequest(
             text="Hello, world!"
         )
-        response = await servicer.GenerateEmbedding(request, None)
+        response = await servicer.GenerateEmbedding(request, _make_mock_context())
 
         assert response.error == ""
         embedding = _bytes_to_embedding(response.embedding)
@@ -223,11 +233,12 @@ class TestMemoryStorageServicer:
 
     @pytest.mark.asyncio
     async def test_generate_embedding_empty_text(self, servicer):
-        """Test embedding generation with empty text returns error."""
+        """Test embedding generation with empty text aborts with INVALID_ARGUMENT."""
         request = memory_pb2.GenerateEmbeddingRequest(text="")
-        response = await servicer.GenerateEmbedding(request, None)
-
-        assert response.error == "No text provided"
+        ctx = _make_mock_context()
+        with pytest.raises(grpc.RpcError):
+            await servicer.GenerateEmbedding(request, ctx)
+        ctx.abort.assert_any_call(grpc.StatusCode.INVALID_ARGUMENT, "No text provided")
 
     @pytest.mark.asyncio
     async def test_store_heuristic(self, servicer, cleanup_heuristics):
@@ -245,7 +256,7 @@ class TestMemoryStorageServicer:
         )
 
         request = memory_pb2.StoreHeuristicRequest(heuristic=heuristic)
-        response = await servicer.StoreHeuristic(request, None)
+        response = await servicer.StoreHeuristic(request, _make_mock_context())
 
         assert response.success is True
         assert response.error == ""
@@ -267,7 +278,7 @@ class TestMemoryStorageServicer:
 
         # Query via gRPC
         request = memory_pb2.QueryHeuristicsRequest(min_confidence=0.5)
-        response = await servicer.QueryHeuristics(request, None)
+        response = await servicer.QueryHeuristics(request, _make_mock_context())
 
         assert response.error == ""
         # Find our heuristic in matches (CBR schema returns HeuristicMatch)
@@ -291,7 +302,7 @@ class TestMemoryStorageServicer:
 
         # Query with high threshold
         request = memory_pb2.QueryHeuristicsRequest(min_confidence=0.8)
-        response = await servicer.QueryHeuristics(request, None)
+        response = await servicer.QueryHeuristics(request, _make_mock_context())
 
         assert response.error == ""
         # Our low-confidence heuristic should NOT be found
