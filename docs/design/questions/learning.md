@@ -277,6 +277,48 @@ Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Im
 
 ---
 
+### Q: Similarity Threshold Strategy (§31)
+
+**Status**: Open — needs empirical data
+**Priority**: Medium (affects matching quality)
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md` (design decision, not research question)
+
+Heuristics match incoming events via embedding cosine similarity (pgvector). The current threshold is 0.7 globally.
+
+**The question**: Should the threshold be:
+- Global (one number for everything)?
+- Per-heuristic (learned from feedback — heuristics that produce false positives tighten their threshold)?
+- Per-domain (gaming may need tighter matching than home automation)?
+- Adaptive (starts loose, tightens as confidence grows)?
+
+At 0.7, "user wants ice cream" matches "user wants frozen dessert" (0.78) but not "email about meeting" (0.69). Is that the right boundary?
+
+**Relevant**: ADR-0010 Section 3.2, `heuristics.similarity_threshold`
+
+**When to revisit**: When running load tests or real workloads with meaningful heuristics. See also §23.3 (Tuning Mode).
+
+---
+
+### Q: Conflicting Heuristic Resolution (§32)
+
+**Status**: Open — design decision needed
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+When multiple heuristics match an event, the highest `similarity * confidence` score wins. This is a simple argmax.
+
+**The question**: Is argmax the right strategy? Alternatives:
+- Weighted voting across matching heuristics
+- Escalate to System 2 when top-2 scores are close (deliberation trigger)
+- Domain-specific resolution strategies
+- Hierarchical heuristics (some override others)
+
+**Relevant**: ADR-0010 Section 3.1 (escalation triggers)
+
+---
+
 ## Resolved
 
 ### R: Semantic Heuristic Matching (§28)

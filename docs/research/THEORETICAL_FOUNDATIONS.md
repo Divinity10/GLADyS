@@ -4,13 +4,25 @@ GLADyS draws from neuroscience, cognitive science, and reinforcement learning to
 
 This document explains the theoretical basis, how we operationalize it, and where we need expert input. If you have background in any of these areas and see something wrong or improvable, we want to hear from you.
 
-## Guiding Principle
+## Guiding Principles
 
 **GLADyS is inspired by neuroscience, not a model of the brain.**
 
 We borrow concepts — dual-process cognition, memory consolidation, salience networks, prediction error learning — because they solve real engineering problems. We don't borrow them because we're trying to simulate biology. If a simpler non-biological approach works better for a given problem, we use that instead.
 
 The test for adopting a brain-inspired mechanism: does it concretely improve learning quality, response appropriateness, routing accuracy, or system performance? If not, it's intellectually interesting but not useful to us.
+
+**GLADyS optimizes for correctness, not user comfort.**
+
+The system should make the *right* prediction and take the *right* action, measured by expected value and outcome accuracy — not by whether the user liked the result. A correct warning that gets ignored is a success (the heuristic was right). A pleasant response based on a wrong prediction is a failure (the heuristic was wrong).
+
+This is a deliberate departure from how the brain works. Human cognition is riddled with well-documented biases — loss aversion, confirmation bias, anchoring, status quo bias — that distort decision-making in predictable ways. Faithfully reproducing the brain's architecture risks reproducing these failure modes. We prefer approaches that **structurally avoid** cognitive biases rather than approaches that reproduce them and then try to filter them out.
+
+In practice, this means:
+- **Expected value over prospect theory**: Heuristic selection should use E(X) = probability × magnitude, not human-like loss aversion where losses loom larger than equivalent gains
+- **Prediction accuracy over user agreement**: The learning signal is "was the prediction correct?" not "did the user like it?" A user override means intent disagreement, not heuristic failure
+- **Bayesian updating over anchoring**: Beliefs update proportionally to evidence, not disproportionately anchored to first observations
+- **Evidence-proportional confidence over confirmation bias**: Contradicting evidence reduces confidence as much as confirming evidence increases it — no asymmetric weighting
 
 ## The Core Idea
 

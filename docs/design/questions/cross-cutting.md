@@ -2,11 +2,53 @@
 
 Topics that span multiple subsystems: audit, output routing, integration, and architectural gaps.
 
-**Last updated**: 2026-01-26
+**Last updated**: 2026-01-31
 
 ---
 
 ## Open Questions
+
+### Q: Cross-Context Salience Strategy (§35)
+
+**Status**: Open — design decision
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+When a doorbell rings during a gaming session, two contexts apply: gaming (primary) and home (the doorbell's domain). Currently, we evaluate with both profiles and take the maximum salience.
+
+**The question**: Is "max across contexts" the right rule? Alternatives:
+- Switching cost (brief reduced sensitivity during context change)
+- Persistent background monitoring (some contexts always run)
+- Priority ordering (safety contexts always override)
+
+**Relevant**: ADR-0013 Section 5.3.1
+
+---
+
+### Q: Event Condensation Strategy (§36)
+
+**Status**: Open — design decision
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+Some sensors produce high-frequency data — a motion sensor firing hundreds of times per hour, a game emitting damage events every tick, a temperature sensor reporting every second. Most are repetitive. Storing and processing each individually is wasteful, but naive deduplication destroys information the learning pipeline needs.
+
+**Possible approaches** (not mutually exclusive):
+- **Sensor-level rate limiting**: Sensors fire on intervals, batching events with timestamp lists
+- **Orchestrator-level condensation**: Recent event map merges identical events within a time window
+- **Storage-level compression**: Identical events stored as one record with timestamp array
+
+**Design questions**:
+- What's the right condensation unit? By exact match, embedding similarity, or source?
+- Does condensation interact with habituation? (Double-filtering risk)
+- What temporal features matter enough to preserve? (Bursts, periodicity, acceleration)
+- Should condensation be a preprocessor function? (Requires state — see §37)
+
+**Relevant**: ADR-0013 Section 6.3 (overload handling), ADR-0004 Section 4 (memory hierarchy)
+
+---
 
 ### Q: Orchestrator vs Executive Responsibility Boundary (§30)
 

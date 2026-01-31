@@ -2,11 +2,34 @@
 
 Plugin architecture, sensors, skills, actuators, integration models, and skill design patterns.
 
-**Last updated**: 2026-01-25
+**Last updated**: 2026-01-31
 
 ---
 
 ## Open Questions
+
+### Q: Preprocessor Plugin Constraints (§37)
+
+**Status**: Open — design decision
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+Raw sensor data is often noisy. Preprocessors are optional plugins between a sensor and the salience gateway. Current thinking: they must be extremely fast (sub-millisecond, no model inference) and salience-affecting only (annotate/adjust salience hints, don't make routing decisions).
+
+**Design questions**:
+
+- **Where's the boundary between preprocessor and sensor?** If a doorbell camera does its own human detection, is that a preprocessor or a smarter sensor? Does the distinction matter architecturally?
+
+- **What can preprocessors know?** Stateless = simple classification only. But useful preprocessing sometimes requires state (e.g., "third motion event in 60 seconds from same zone"). How much state is acceptable before a "preprocessor" becomes a subsystem?
+
+- **Should preprocessors drop events entirely?** Current thinking: no — they annotate, gateway decides. But 200 wind-triggered events/hour are noise even when annotated. Is there a case for preprocessor-level suppression?
+
+- **How do preprocessors interact with learning?** If a preprocessor incorrectly suppresses a real threat, the error is invisible — gateway never sees it, learning pipeline never gets the feedback signal. How do we detect preprocessing errors?
+
+**Relevant**: ADR-0013 Section 4.1 (pipeline position), ADR-0003 (plugin architecture)
+
+---
 
 ### Q: Actuator/Effector Gap (§1)
 

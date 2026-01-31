@@ -81,6 +81,39 @@ ADR-0004's `user_profile` table has simple EWMA fields. ADR-0007's `AdaptivePara
 
 ---
 
+### Q: L0-L4 Hierarchy Validity (§33)
+
+**Status**: Open — partly architectural, partly research
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+The memory hierarchy maps CPU cache levels to memory consolidation stages. L0 (context window) through L4 (cold archive) have increasing latency and decreasing access frequency.
+
+**The question**: Is this mapping principled, or is it a convenient metaphor? Specifically:
+- Should consolidation priority be salience-weighted rather than purely temporal?
+- Should GLADyS update stored events when they're accessed in a new context (reconsolidation)?
+- Should the sleep cycle replay high-surprise events more often? (See also `docs/research/RESEARCH_BACKLOG.md` — experience replay section)
+
+**Relevant**: ADR-0004 Section 4
+
+---
+
+### Q: Semantic Fact Extraction Method (§34)
+
+**Status**: Open — design decision
+**Priority**: Medium
+**Created**: 2026-01-31
+**Origin**: Relocated from `docs/research/OPEN_QUESTIONS.md`
+
+The current plan: LLM-based extraction during the sleep cycle. Feed batches of events to an LLM, ask it to extract subject-predicate-object facts.
+
+**The question**: Is LLM-based extraction the right approach, or should we use more structured methods (information extraction, knowledge graph construction)? What quality controls are needed? How do we handle contradictory facts from different episodes?
+
+**Relevant**: ADR-0004 Section 8.3, ADR-0010 Section 3.2
+
+---
+
 ## Resolved
 
 ### R: Semantic Memory Architecture (§24)
