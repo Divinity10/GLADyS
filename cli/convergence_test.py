@@ -393,10 +393,6 @@ def main():
     exec_channel = grpc.insecure_channel(exec_addr)
     exec_stub = executive_pb2_grpc.ExecutiveServiceStub(exec_channel)
 
-    steps = [
-        ("Health check", lambda: step_01_health_check(ports)),
-    ]
-
     # State carried between steps
     state = {}
 
@@ -470,6 +466,10 @@ def main():
     # Step 10
     run_step(10, "Cross-domain specificity check",
              lambda: step_10_cross_domain(orch_stub, state["heuristic_id"]))
+
+    # Cleanup
+    orch_channel.close()
+    exec_channel.close()
 
     # Summary
     print()
