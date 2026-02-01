@@ -440,7 +440,12 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         request: executive_pb2.ProcessEventRequest,
         context: grpc.aio.ServicerContext,
     ) -> executive_pb2.ProcessEventResponse:
-        """Process a high-salience event."""
+        """Process an event, deciding between heuristic fast-path and LLM reasoning.
+
+        §30 boundary change: Executive now decides heuristic-vs-LLM.
+        If a high-confidence suggestion is attached, return the heuristic action
+        directly without calling the LLM.
+        """
         self.events_received += 1
         event = request.event
 
@@ -451,12 +456,41 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             f"threat={threat:.2f}, text={event.raw_text[:50] if event.raw_text else ''}..."
         )
 
+        # §30 fast-path: high-confidence heuristic → return action without LLM
+        heuristic_threshold = float(os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7"))
+        if (request.suggestion
+                and request.suggestion.heuristic_id
+                and request.suggestion.confidence >= heuristic_threshold):
+            suggestion = request.suggestion
+            logger.info(
+                f"HEURISTIC_FASTPATH: event={event.id}, "
+                f"heuristic={suggestion.heuristic_id}, "
+                f"confidence={suggestion.confidence:.3f}, "
+                f"threshold={heuristic_threshold}"
+            )
+            response_id = self._store_trace(
+                event_id=event.id,
+                context=event.raw_text or "",
+                response=suggestion.suggested_action,
+                matched_heuristic_id=suggestion.heuristic_id,
+                predicted_success=suggestion.confidence,
+                prediction_confidence=suggestion.confidence,
+            )
+            return executive_pb2.ProcessEventResponse(
+                accepted=True,
+                response_id=response_id,
+                response_text=suggestion.suggested_action,
+                predicted_success=suggestion.confidence,
+                prediction_confidence=suggestion.confidence,
+            )
+
         response_id = ""
         response_text = ""
         predicted_success = 0.0
         prediction_confidence = 0.0
 
         if self.ollama and request.immediate:
+            logger.info(f"LLM_PATH: event={event.id} (no high-confidence heuristic)")
             event_context = format_event_for_llm(event)
 
             # Build prompt, including suggestion if present (Scenario 2)
