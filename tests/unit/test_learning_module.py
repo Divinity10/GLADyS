@@ -155,8 +155,8 @@ async def test_on_fire_no_pattern_match(learning_module, memory_client, outcome_
 
     # Fire still recorded
     memory_client.record_heuristic_fire.assert_awaited_once()
-    # But no outcome expectation (no pattern match)
-    assert outcome_watcher.pending_count == 0
+    # No specific pattern match, but default timeout expectation is registered
+    assert outcome_watcher.pending_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -296,6 +296,86 @@ async def test_ignored_counter_resets_on_explicit_feedback(learning_module, memo
     await learning_module.on_heuristic_ignored("h-1")
     await learning_module.on_heuristic_ignored("h-1")
     memory_client.update_heuristic_confidence.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# _check_ignored_fires tests (wired call site for on_heuristic_ignored)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_ignored_fire_detected_on_next_event(learning_module, memory_client):
+    """Fire from a source, then a new event from same source without feedback → ignored."""
+    # Fire a heuristic for a sudoku event
+    await learning_module.on_fire(
+        heuristic_id="h-1",
+        event_id="evt-1",
+        condition_text="naked single in sudoku",
+        predicted_success=0.5,
+        source="sensor:puzzle:sudoku",
+    )
+
+    # New event from same source — no feedback was given on evt-1
+    event = MagicMock()
+    event.raw_text = "Row 5 column 3 has candidates 2, 7."
+    event.source = "sensor:puzzle:sudoku"
+
+    await learning_module.check_event_for_outcomes(event)
+
+    # Should have called on_heuristic_ignored → ignore count is now 1
+    assert learning_module._ignore_counts["h-1"] == 1
+
+
+@pytest.mark.asyncio
+async def test_acknowledged_fire_not_counted_as_ignored(learning_module, memory_client):
+    """Fire that received explicit feedback should NOT be counted as ignored."""
+    await learning_module.on_fire(
+        heuristic_id="h-1",
+        event_id="evt-1",
+        condition_text="naked single in sudoku",
+        predicted_success=0.5,
+        source="sensor:puzzle:sudoku",
+    )
+
+    # User gives explicit feedback
+    await learning_module.on_feedback(
+        event_id="evt-1",
+        heuristic_id="h-1",
+        positive=True,
+        source="explicit",
+    )
+    memory_client.update_heuristic_confidence.reset_mock()
+
+    # New event from same source
+    event = MagicMock()
+    event.raw_text = "Another sudoku event."
+    event.source = "sensor:puzzle:sudoku"
+
+    await learning_module.check_event_for_outcomes(event)
+
+    # Should NOT have been counted as ignored
+    assert learning_module._ignore_counts["h-1"] == 0
+
+
+@pytest.mark.asyncio
+async def test_different_source_not_counted_as_ignored(learning_module, memory_client):
+    """Fire from source A, event from source B → NOT ignored."""
+    await learning_module.on_fire(
+        heuristic_id="h-1",
+        event_id="evt-1",
+        condition_text="naked single in sudoku",
+        predicted_success=0.5,
+        source="sensor:puzzle:sudoku",
+    )
+
+    # Event from different source
+    event = MagicMock()
+    event.raw_text = "Player health dropped."
+    event.source = "sensor:gaming:melvor"
+
+    await learning_module.check_event_for_outcomes(event)
+
+    # Should NOT have triggered ignore for sudoku heuristic
+    assert learning_module._ignore_counts["h-1"] == 0
 
 
 # ---------------------------------------------------------------------------

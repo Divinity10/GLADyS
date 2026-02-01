@@ -65,6 +65,7 @@ class OutcomeWatcher:
         self,
         patterns: list[OutcomePattern],
         memory_client: Any = None,
+        default_timeout_sec: int = 120,
     ):
         """
         Initialize the outcome watcher.
@@ -73,9 +74,13 @@ class OutcomeWatcher:
             patterns: List of outcome patterns to watch for
             memory_client: gRPC client for calling UpdateHeuristicConfidence
                           and GetHeuristic (for fetching condition_text)
+            default_timeout_sec: Default timeout for fires without a specific
+                pattern match. On expiry, timeout-positive feedback is sent
+                (no complaint within timeout = heuristic was correct).
         """
         self.patterns = patterns
         self._memory_client = memory_client
+        self._default_timeout_sec = default_timeout_sec
         self._pending: list[PendingOutcome] = []
         self._lock = asyncio.Lock()
         # Cache heuristic condition_text to avoid repeated lookups
@@ -128,10 +133,11 @@ class OutcomeWatcher:
                 logger.debug(f"OutcomeWatcher: No condition_text for heuristic {heuristic_id}")
                 return False
 
-        # Find matching pattern
+        now = datetime.utcnow()
+
+        # Find matching pattern (specific outcome to watch for)
         for pattern in self.patterns:
             if pattern.trigger_pattern.lower() in condition_text.lower():
-                now = datetime.utcnow()
                 pending = PendingOutcome(
                     heuristic_id=heuristic_id,
                     event_id=event_id,
@@ -150,7 +156,25 @@ class OutcomeWatcher:
                 )
                 return True
 
-        return False
+        # No specific pattern matched — register a default timeout expectation.
+        # When this expires without complaint, timeout-positive feedback is sent.
+        pending = PendingOutcome(
+            heuristic_id=heuristic_id,
+            event_id=event_id,
+            trigger_pattern="",
+            expected_pattern="",  # Empty = timeout-only, never matched by check_event
+            fire_time=now,
+            timeout_at=now + timedelta(seconds=self._default_timeout_sec),
+            predicted_success=predicted_success,
+            is_success_outcome=True,
+        )
+        async with self._lock:
+            self._pending.append(pending)
+        logger.info(
+            f"OutcomeWatcher: Registered default timeout for heuristic {heuristic_id}: "
+            f"{self._default_timeout_sec}s (no complaint = positive)"
+        )
+        return True
 
     async def check_event(self, event: Any) -> list[str]:
         """
@@ -171,7 +195,7 @@ class OutcomeWatcher:
             remaining = []
 
             for pending in self._pending:
-                if pending.expected_pattern.lower() in raw_text_lower:
+                if pending.expected_pattern and pending.expected_pattern.lower() in raw_text_lower:
                     matched.append(pending)
                 else:
                     remaining.append(pending)

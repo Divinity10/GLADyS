@@ -173,7 +173,7 @@ All four workstreams converge on this scenario:
 
 ### Lessons Learned
 
-*(To be populated after PoC 1 completes)*
+*(To be populated after PoC 1 convergence test passes. Run: `uv run cli/convergence_test.py`)*
 
 ---
 
