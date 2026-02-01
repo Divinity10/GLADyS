@@ -50,7 +50,6 @@ async def get_metrics(request: Request):
     except Exception:
         pass
 
-    return templates.TemplateResponse("components/metrics.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "components/metrics.html", {
         "metrics": metrics,
     })

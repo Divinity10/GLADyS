@@ -184,8 +184,7 @@ async def list_events(request: Request, limit: int = 25, offset: int = 0,
                       source: Optional[str] = None):
     """List historical events — returns full lab tab."""
     events = _fetch_events(limit=limit, offset=offset, source=source)
-    return templates.TemplateResponse("components/lab.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "components/lab.html", {
         "initial_events": events,
     })
 

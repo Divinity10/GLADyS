@@ -50,7 +50,7 @@ app.include_router(fun_services.router)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/api/components/lab")
@@ -62,7 +62,7 @@ async def get_lab(request: Request):
 @app.get("/api/components/{name}")
 async def get_component(name: str, request: Request):
     """Load a tab component partial."""
-    return templates.TemplateResponse(f"components/{name}.html", {"request": request})
+    return templates.TemplateResponse(request, f"components/{name}.html")
 
 
 if __name__ == "__main__":

@@ -78,8 +78,7 @@ async def get_health(request: Request):
         if s["status"] in ("gray", "yellow"):
             all_status = "yellow"
 
-    return templates.TemplateResponse("components/sidebar.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "components/sidebar.html", {
         "services": services,
         "all_status": all_status,
     })
