@@ -1,8 +1,9 @@
 """Event routing logic for the Orchestrator.
 
-Routes events based on heuristic confidence and salience:
-- High-conf heuristic match → return cached action immediately
-- Otherwise → queue for async LLM processing (priority by salience)
+Routes all events to Executive (§30 boundary change):
+- Executive decides heuristic-vs-LLM based on suggestion context
+- Orchestrator attaches salience + heuristic context but does not decide
+- Exception: emergency fast-path (confidence >= 0.95 AND threat >= 0.9)
 
 Events are annotated with evaluated salience before routing so that
 Executive receives events with salience already attached.
@@ -61,13 +62,14 @@ class ResponseSubscriber:
 
 class EventRouter:
     """
-    Routes events based on heuristic confidence and salience.
+    Routes events to Executive with heuristic context (§30 boundary change).
 
     Flow:
     1. Receive event from sensor/preprocessor
     2. Query Salience+Memory for salience score and heuristic match (via gRPC)
-    3. If high-conf heuristic match (>= threshold) → return action immediately
-    4. Otherwise → queue for async LLM processing (priority by salience)
+    3. Build heuristic suggestion context (if match found)
+    4. Queue for Executive processing (Executive decides heuristic-vs-LLM)
+    5. Exception: emergency fast-path for critical threats with high confidence
     """
 
     def __init__(
@@ -142,17 +144,15 @@ class EventRouter:
             elif matched_heuristic_id:
                 logger.warning(f"Cannot record fire: memory_client is None (heuristic={matched_heuristic_id})")
 
-            # Step 5: Check for high-confidence heuristic shortcut (System 1 fast path)
-            # If matched heuristic has confidence >= threshold, return action immediately
-            # without calling LLM. This is the "learned response" path.
-            # If confidence < threshold, pass suggestion context for LLM consideration (Scenario 2).
-            heuristic_data = None  # Store for potential low-conf suggestion
+            # Step 5: Build heuristic context for Executive (§30 boundary change)
+            # Orchestrator no longer decides heuristic-vs-LLM — Executive does.
+            # All events are forwarded to Executive with heuristic context attached.
+            heuristic_data = None
             if matched_heuristic_id and self._memory_client:
                 heuristic = await self._memory_client.get_heuristic(matched_heuristic_id)
                 if heuristic:
                     confidence = heuristic.get("confidence", 0.0)
 
-                    # Extract action message and condition for suggestion context
                     action_text = ""
                     effects_json = heuristic.get("effects_json", "{}")
                     try:
@@ -163,7 +163,6 @@ class EventRouter:
 
                     condition_text = heuristic.get("condition_text", "")
 
-                    # Store for potential low-conf suggestion (used if we don't return early)
                     heuristic_data = {
                         "heuristic_id": matched_heuristic_id,
                         "suggested_action": action_text,
@@ -171,33 +170,33 @@ class EventRouter:
                         "condition_text": condition_text,
                     }
 
-                    if confidence >= self.config.heuristic_confidence_threshold:
-                        # High-confidence heuristic - use cached action
+                    # Emergency fast-path: confidence >= 0.95 AND critical threat
+                    # This is the only case where Orchestrator short-circuits Executive.
+                    threat = salience.get("threat", 0.0)
+                    if confidence >= 0.95 and threat >= 0.9:
                         logger.info(
-                            f"HEURISTIC_SHORTCUT: event={event_id}, "
-                            f"heuristic={matched_heuristic_id}, confidence={confidence:.3f}"
+                            f"EMERGENCY_FASTPATH: event={event_id}, "
+                            f"heuristic={matched_heuristic_id}, confidence={confidence:.3f}, "
+                            f"threat={threat:.3f}"
                         )
-
                         result["response_text"] = action_text
                         result["prediction_confidence"] = confidence
-                        result["predicted_success"] = confidence  # Use confidence as prediction
+                        result["predicted_success"] = confidence
                         result["queued"] = False
 
-                        # Broadcast response to subscribers
                         await self.broadcast_response({
                             "event_id": event_id,
                             "response_id": "",
                             "response_text": action_text,
                             "predicted_success": confidence,
                             "prediction_confidence": confidence,
-                            "routing_path": "HEURISTIC",
+                            "routing_path": "EMERGENCY",
                             "matched_heuristic_id": matched_heuristic_id,
                             "event_source": getattr(event, "source", ""),
                             "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
                             "response_timestamp_ms": int(time.time() * 1000),
                         })
 
-                        # Register for outcome tracking
                         if self._outcome_watcher:
                             await self._outcome_watcher.register_fire(
                                 heuristic_id=matched_heuristic_id,
@@ -205,27 +204,26 @@ class EventRouter:
                                 predicted_success=confidence,
                             )
 
-                        # Broadcast to event subscribers
                         await self._broadcast_to_subscribers(event)
-
                         return result
 
-            # Step 6: Queue for async processing (no high-conf heuristic matched)
-            # Events are processed by salience priority (higher = sooner)
-            logger.debug(f"Event {event_id}: salience={max_salience:.2f} → queue for async processing")
+            # Step 6: Always queue for Executive (§30)
+            # Executive decides heuristic-vs-LLM based on suggestion context.
+            logger.info(
+                f"ROUTE_TO_EXECUTIVE: event={event_id}, salience={max_salience:.2f}, "
+                f"has_suggestion={heuristic_data is not None}"
+            )
             result["queued"] = True
-            result["_salience"] = max_salience  # For server to use when enqueuing
+            result["_salience"] = max_salience
 
-            # Pass suggestion context for low-conf heuristic matches (Scenario 2)
-            # LLM will see the pattern suggestion even though confidence is below threshold
             if heuristic_data:
                 result["_suggestion"] = heuristic_data
                 logger.info(
-                    f"LOW_CONF_SUGGESTION: event={event_id}, "
+                    f"SUGGESTION_CONTEXT: event={event_id}, "
                     f"heuristic={heuristic_data['heuristic_id']}, confidence={heuristic_data['confidence']:.3f}"
                 )
 
-            # Step 4: Register heuristic fire for outcome tracking (if applicable)
+            # Register heuristic fire for outcome tracking
             if matched_heuristic_id and self._outcome_watcher:
                 await self._outcome_watcher.register_fire(
                     heuristic_id=matched_heuristic_id,
@@ -233,9 +231,7 @@ class EventRouter:
                     predicted_success=result.get("predicted_success", 0.0),
                 )
 
-            # Also broadcast to subscribers (for monitoring, etc.)
             await self._broadcast_to_subscribers(event)
-
             return result
 
         except Exception as e:
