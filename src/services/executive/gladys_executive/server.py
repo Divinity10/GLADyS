@@ -17,7 +17,7 @@ from typing import Any
 
 import aiohttp
 
-from gladys_common import get_logger
+from gladys_common import get_logger, bind_trace_id, get_or_create_trace_id
 
 # Add orchestrator and memory to path for generated protos
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "orchestrator"))
@@ -379,6 +379,14 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self._started_at = time.time()
 
     @staticmethod
+    def _setup_trace(context) -> str:
+        """Extract or generate trace ID and bind to logging context."""
+        metadata = dict(context.invocation_metadata())
+        trace_id = get_or_create_trace_id(metadata)
+        bind_trace_id(trace_id)
+        return trace_id
+
+    @staticmethod
     def _check_heuristic_quality(condition: str, action: dict) -> str | None:
         """Validate heuristic quality. Returns error message or None if valid."""
         word_count = len(condition.split())
@@ -447,14 +455,17 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         If a high-confidence suggestion is attached, return the heuristic action
         directly without calling the LLM.
         """
+        self._setup_trace(context)
         self.events_received += 1
         event = request.event
 
-        immediate_str = " (IMMEDIATE)" if request.immediate else ""
-        threat = event.salience.threat if event.salience else 0.0
         logger.info(
-            f"EVENT{immediate_str}: id={event.id}, source={event.source}, "
-            f"threat={threat:.2f}, text={event.raw_text[:50] if event.raw_text else ''}..."
+            "ProcessEvent received",
+            event_id=event.id,
+            source=event.source,
+            immediate=request.immediate,
+            threat=round(event.salience.threat, 2) if event.salience else 0.0,
+            text_preview=event.raw_text[:50] if event.raw_text else "",
         )
 
         # §30 fast-path: high-confidence heuristic → return action without LLM
@@ -561,9 +572,12 @@ Consider this suggestion in your response.
         context: grpc.aio.ServicerContext,
     ) -> executive_pb2.ProvideFeedbackResponse:
         """Handle feedback on a previous LLM response."""
+        self._setup_trace(context)
         logger.info(
-            f"FEEDBACK: response_id={request.response_id}, "
-            f"event_id={request.event_id}, positive={request.positive}"
+            "FEEDBACK received",
+            response_id=request.response_id,
+            event_id=request.event_id,
+            positive=request.positive,
         )
 
         if not request.positive:
