@@ -277,7 +277,7 @@ impl SalienceGateway for SalienceService {
         };
 
         let mut matched_heuristic_id = String::new();
-        let mut from_cache = false;
+        let mut heuristic_matched = false;
 
         // Cache-first heuristic matching:
         // 1. Generate embedding for event text (via Python)
@@ -313,14 +313,14 @@ impl SalienceGateway for SalienceService {
                             "Heuristic matched (cache hit)"
                         );
                         matched_heuristic_id = h_id.to_string();
-                        from_cache = true;
+                        heuristic_matched = true;
                         Self::apply_heuristic_salience(&mut salience, cached_h);
                     }
                 }
             }
 
             // Step 3: Cache miss - fall back to Python storage
-            if !from_cache {
+            if !heuristic_matched {
                 debug!("Cache miss, querying Python storage for heuristic matching");
                 match self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
                     Ok(heuristics_from_storage) => {
@@ -348,7 +348,7 @@ impl SalienceGateway for SalienceService {
                                         "Heuristic matched (storage fallback)"
                                     );
                                     matched_heuristic_id = h_id.to_string();
-                                    from_cache = true; // Matched from storage, now cached
+                                    heuristic_matched = true;
                                     Self::apply_heuristic_salience(&mut salience, cached_h);
                                 }
                             }
@@ -368,7 +368,7 @@ impl SalienceGateway for SalienceService {
         }
 
         // Novelty detection: If no heuristic matched, this is potentially novel
-        if !from_cache && !req.raw_text.is_empty() {
+        if !heuristic_matched && !req.raw_text.is_empty() {
             salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
         }
 
@@ -383,7 +383,7 @@ impl SalienceGateway for SalienceService {
 
         Ok(Response::new(EvaluateSalienceResponse {
             salience: Some(salience),
-            from_cache, // Heuristic match found (cache or storage fallback)
+            from_cache: heuristic_matched,
             matched_heuristic_id,
             error: String::new(),
             // Rust fast path never does novelty detection (no embedding model)

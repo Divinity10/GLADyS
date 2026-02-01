@@ -6,7 +6,6 @@ for integration testing. The real Executive will be in C#/.NET.
 
 import asyncio
 import json
-import logging
 import os
 import time
 import uuid
@@ -17,6 +16,8 @@ import sys
 from typing import Any
 
 import aiohttp
+
+from gladys_common import get_logger
 
 # Add orchestrator and memory to path for generated protos
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "orchestrator"))
@@ -45,7 +46,7 @@ except ImportError:
         memory_pb2 = None
         memory_pb2_grpc = None
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OllamaClient:
@@ -64,7 +65,7 @@ class OllamaClient:
                     self._available = resp.status == 200
                     return self._available
         except Exception as e:
-            logger.debug(f"Ollama not available: {e}")
+            logger.debug("Ollama not available", error=str(e))
             self._available = False
             return False
 
@@ -94,13 +95,13 @@ class OllamaClient:
                         data = await resp.json()
                         return data.get("response", "")
                     else:
-                        logger.warning(f"Ollama returned status {resp.status}")
+                        logger.warning("Ollama returned error status", status=resp.status)
                         return None
         except asyncio.TimeoutError:
             logger.warning("Ollama request timed out")
             return None
         except Exception as e:
-            logger.warning(f"Ollama request failed: {e}")
+            logger.warning("Ollama request failed", error=str(e))
             return None
 
 
@@ -125,14 +126,14 @@ class MemoryClient:
             await asyncio.wait_for(self._channel.channel_ready(), timeout=5.0)
             self._stub = memory_pb2_grpc.MemoryStorageStub(self._channel)
             self._available = True
-            logger.info(f"Connected to Memory service at {self.address}")
+            logger.info("Connected to Memory service", address=self.address)
             return True
         except asyncio.TimeoutError:
-            logger.warning(f"Memory service not available at {self.address} (timeout)")
+            logger.warning("Memory service not available (timeout)", address=self.address)
             self._available = False
             return False
         except Exception as e:
-            logger.warning(f"Failed to connect to Memory service: {e}")
+            logger.warning("Failed to connect to Memory service", address=self.address, error=str(e))
             self._available = False
             return False
 
@@ -166,15 +167,15 @@ class MemoryClient:
             )
             response = await self._stub.StoreHeuristic(request)
             if response.success:
-                logger.info(f"Stored heuristic in Memory: id={response.heuristic_id}")
+                logger.info("Stored heuristic in Memory", heuristic_id=response.heuristic_id)
                 return True, response.heuristic_id
             else:
                 return False, response.error
         except grpc.aio.AioRpcError as e:
-            logger.warning(f"Memory StoreHeuristic RPC error: {e.code()} - {e.details()}")
+            logger.warning("Memory StoreHeuristic RPC error", code=str(e.code()), details=e.details())
             return False, str(e.details())
         except Exception as e:
-            logger.warning(f"Memory StoreHeuristic failed: {e}")
+            logger.warning("Memory StoreHeuristic failed", error=str(e))
             return False, str(e)
 
     async def query_matching_heuristics(
@@ -199,7 +200,7 @@ class MemoryClient:
                 for match in response.matches
             ]
         except Exception as e:
-            logger.warning(f"QueryMatchingHeuristics failed: {e}")
+            logger.warning("QueryMatchingHeuristics failed", error=str(e))
             return []
 
     async def update_heuristic_confidence(
@@ -335,9 +336,9 @@ class HeuristicStore:
                     for h_data in data.get("heuristics", []):
                         h = Heuristic(**h_data)
                         self.heuristics[h.id] = h
-                logger.info(f"Loaded {len(self.heuristics)} heuristics from {self.path}")
+                logger.info("Loaded heuristics", count=len(self.heuristics), path=str(self.path))
             except Exception as e:
-                logger.warning(f"Failed to load heuristics from {self.path}: {e}")
+                logger.warning("Failed to load heuristics", path=str(self.path), error=str(e))
 
     def _save(self) -> None:
         try:
@@ -345,12 +346,12 @@ class HeuristicStore:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.error(f"Failed to save heuristics to {self.path}: {e}")
+            logger.error("Failed to save heuristics", path=str(self.path), error=str(e))
 
     def add(self, heuristic: Heuristic) -> None:
         self.heuristics[heuristic.id] = heuristic
         self._save()
-        logger.info(f"Stored heuristic: id={heuristic.id}")
+        logger.info("Stored heuristic", heuristic_id=heuristic.id)
 
     def get(self, heuristic_id: str) -> Heuristic | None:
         return self.heuristics.get(heuristic_id)
@@ -490,7 +491,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         prediction_confidence = 0.0
 
         if self.ollama and request.immediate:
-            logger.info(f"LLM_PATH: event={event.id} (no high-confidence heuristic)")
+            logger.info("LLM_PATH", event_id=event.id)
             event_context = format_event_for_llm(event)
 
             # Build prompt, including suggestion if present (Scenario 2)
@@ -507,14 +508,15 @@ Consider this suggestion in your response.
 
 """
                 logger.info(
-                    f"Including suggestion in prompt: heuristic={suggestion.heuristic_id}, "
-                    f"confidence={suggestion.confidence:.2f}"
+                    "Including suggestion in prompt",
+                    heuristic_id=suggestion.heuristic_id,
+                    confidence=round(suggestion.confidence, 2),
                 )
             prompt += "How should I respond?"
             llm_response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
             if llm_response:
                 response_text = llm_response.strip()
-                logger.info(f"GLADyS: {response_text}")
+                logger.info("GLADyS response", response_text=response_text)
 
                 prediction_json = await self.ollama.generate(
                     PREDICTION_PROMPT.format(context=event_context, response=response_text),
@@ -619,7 +621,7 @@ Consider this suggestion in your response.
             action = pattern.get("action", {})
             if not condition:
                 raise ValueError("Missing 'condition'")
-            logger.info(f"Extracted pattern: condition='{condition}'")
+            logger.info("Extracted pattern", condition=condition)
         except (json.JSONDecodeError, ValueError) as e:
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=True,
@@ -629,7 +631,7 @@ Consider this suggestion in your response.
         # Quality gate: validate before storing
         gate_error = self._check_heuristic_quality(condition, action)
         if gate_error:
-            logger.warning(f"QUALITY_GATE: Rejected heuristic: {gate_error}")
+            logger.warning("QUALITY_GATE: Rejected heuristic", reason=gate_error)
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=True,
                 error_message=f"Quality gate: {gate_error}",
@@ -646,8 +648,9 @@ Consider this suggestion in your response.
             for heuristic_id, similarity in matches:
                 if similarity > 0.9:
                     logger.warning(
-                        f"QUALITY_GATE: Near-duplicate detected: "
-                        f"similarity={similarity:.3f} to heuristic={heuristic_id}"
+                        "QUALITY_GATE: Near-duplicate detected",
+                        similarity=round(similarity, 3),
+                        existing_heuristic_id=heuristic_id,
                     )
                     return executive_pb2.ProvideFeedbackResponse(
                         accepted=True,
@@ -735,16 +738,16 @@ async def serve(
     if ollama_url:
         ollama_client = OllamaClient(base_url=ollama_url, model=ollama_model)
         if await ollama_client.check_available():
-            logger.info(f"Connected to Ollama at {ollama_url} (model: {ollama_model})")
+            logger.info("Connected to Ollama", url=ollama_url, model=ollama_model)
         else:
-            logger.warning(f"Ollama not available at {ollama_url}")
+            logger.warning("Ollama not available", url=ollama_url)
             ollama_client = None
 
     memory_client = None
     if memory_address:
         memory_client = MemoryClient(address=memory_address)
         if await memory_client.connect():
-            logger.info(f"Connected to Memory service at {memory_address}")
+            logger.info("Connected to Memory service", address=memory_address)
         else:
             memory_client = None
 
@@ -766,7 +769,7 @@ async def serve(
     address = f"0.0.0.0:{port}"
     server.add_insecure_port(address)
 
-    logger.info(f"Executive stub server started on {address}")
+    logger.info("Executive stub server started", address=address)
     await server.start()
 
     try:
