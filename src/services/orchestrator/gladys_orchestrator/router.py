@@ -19,7 +19,7 @@ from gladys_common import get_logger
 
 from .config import OrchestratorConfig
 from .generated import types_pb2
-from .outcome_watcher import OutcomeWatcher
+from .learning import LearningModule
 
 logger = get_logger(__name__)
 
@@ -77,7 +77,7 @@ class EventRouter:
         salience_client=None,
         executive_client=None,
         memory_client: Optional[Any] = None,
-        outcome_watcher: Optional[OutcomeWatcher] = None,
+        learning_module: Optional[LearningModule] = None,
     ):
         self.config = config
         self._subscribers: dict[str, Subscriber] = {}
@@ -85,7 +85,7 @@ class EventRouter:
         self._salience_client = salience_client
         self._executive_client = executive_client
         self._memory_client = memory_client
-        self._outcome_watcher = outcome_watcher
+        self._learning_module = learning_module
 
     async def route_event(self, event: Any) -> dict:
         """
@@ -97,9 +97,9 @@ class EventRouter:
 
         try:
             # Step 0: Check if this event satisfies any pending outcome expectations
-            # (Implicit feedback - Phase 2)
-            if self._outcome_watcher:
-                resolved = await self._outcome_watcher.check_event(event)
+            # (Implicit feedback via LearningModule)
+            if self._learning_module:
+                resolved = await self._learning_module.check_event_for_outcomes(event)
                 if resolved:
                     logger.info("Event satisfied outcome for heuristics", event_id=event_id, resolved=resolved)
 
@@ -127,21 +127,8 @@ class EventRouter:
                 "queued": False,  # True if event was queued for async processing
             }
 
-            # Step 4: Record heuristic fire (Flight Recorder)
-            if matched_heuristic_id and self._memory_client:
-                logger.info("Recording heuristic fire", heuristic_id=matched_heuristic_id, event_id=event_id)
-                # fire-and-forget, don't block the response
-                task = asyncio.create_task(
-                    self._memory_client.record_heuristic_fire(
-                        heuristic_id=matched_heuristic_id,
-                        event_id=event_id,
-                        episodic_event_id=""  # Episodic event not yet stored at fire time
-                    ),
-                    name="record_heuristic_fire"
-                )
-                task.add_done_callback(_handle_task_exception)
-            elif matched_heuristic_id:
-                logger.warning("Cannot record fire: memory_client is None", heuristic_id=matched_heuristic_id)
+            # Step 4: Record heuristic fire via LearningModule
+            # (Deferred to Step 5 after we have condition_text from heuristic lookup)
 
             # Step 5: Build heuristic context for Executive (§30 boundary change)
             # Orchestrator no longer decides heuristic-vs-LLM — Executive does.
@@ -198,12 +185,17 @@ class EventRouter:
                             "response_timestamp_ms": int(time.time() * 1000),
                         })
 
-                        if self._outcome_watcher:
-                            await self._outcome_watcher.register_fire(
-                                heuristic_id=matched_heuristic_id,
-                                event_id=event_id,
-                                predicted_success=confidence,
+                        if self._learning_module:
+                            task = asyncio.create_task(
+                                self._learning_module.on_fire(
+                                    heuristic_id=matched_heuristic_id,
+                                    event_id=event_id,
+                                    condition_text=condition_text,
+                                    predicted_success=confidence,
+                                ),
+                                name="learning_on_fire",
                             )
+                            task.add_done_callback(_handle_task_exception)
 
                         await self._broadcast_to_subscribers(event)
                         return result
@@ -228,13 +220,21 @@ class EventRouter:
                     confidence=round(heuristic_data["confidence"], 3),
                 )
 
-            # Register heuristic fire for outcome tracking
-            if matched_heuristic_id and self._outcome_watcher:
-                await self._outcome_watcher.register_fire(
-                    heuristic_id=matched_heuristic_id,
-                    event_id=event_id,
-                    predicted_success=result.get("predicted_success", 0.0),
+            # Register heuristic fire via LearningModule
+            if matched_heuristic_id and self._learning_module:
+                condition_text_for_fire = ""
+                if heuristic_data:
+                    condition_text_for_fire = heuristic_data.get("condition_text", "")
+                task = asyncio.create_task(
+                    self._learning_module.on_fire(
+                        heuristic_id=matched_heuristic_id,
+                        event_id=event_id,
+                        condition_text=condition_text_for_fire,
+                        predicted_success=result.get("predicted_success", 0.0),
+                    ),
+                    name="learning_on_fire",
                 )
+                task.add_done_callback(_handle_task_exception)
 
             await self._broadcast_to_subscribers(event)
             return result

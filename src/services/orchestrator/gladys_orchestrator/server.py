@@ -15,6 +15,7 @@ from .registry import ComponentRegistry
 from .router import EventRouter
 from .event_queue import EventQueue
 from .outcome_watcher import OutcomeWatcher, OutcomePattern
+from .learning import LearningModule
 from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
 from .clients.memory_client import MemoryStorageClient
@@ -55,12 +56,18 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         # Create OutcomeWatcher for implicit feedback (Phase 2)
         self._outcome_watcher = self._create_outcome_watcher(config, memory_client)
 
+        # Create LearningModule facade (W2)
+        self._learning_module = LearningModule(
+            memory_client=self._memory_client,
+            outcome_watcher=self._outcome_watcher,
+        )
+
         self.router = EventRouter(
             config,
             salience_client,
             executive_client,
             memory_client=self._memory_client,
-            outcome_watcher=self._outcome_watcher,
+            learning_module=self._learning_module,
         )
 
         # Event queue for async processing (replaces MomentAccumulator)
@@ -121,20 +128,24 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         self._running = True
         # Start event queue (worker + timeout scanner)
         await self.event_queue.start()
-        # Start outcome watcher cleanup loop (if enabled)
-        if self._outcome_watcher:
+        # Start learning module cleanup loop (handles timeout=positive signals)
+        if self._learning_module:
             asyncio.create_task(self._outcome_cleanup_loop())
         logger.info("Orchestrator servicer started")
 
     async def _outcome_cleanup_loop(self) -> None:
-        """Background loop that cleans up expired outcome expectations."""
+        """Background loop that cleans up expired outcome expectations.
+
+        Uses LearningModule.cleanup_expired() which sends timeout=positive
+        implicit feedback before removing expired expectations.
+        """
         cleanup_interval = self.config.outcome_cleanup_interval_sec
         while self._running:
             await asyncio.sleep(cleanup_interval)
-            if self._outcome_watcher:
-                expired = await self._outcome_watcher.cleanup_expired()
+            if self._learning_module:
+                expired = await self._learning_module.cleanup_expired()
                 if expired > 0:
-                    logger.debug(f"OutcomeWatcher: Cleaned up {expired} expired expectations")
+                    logger.debug(f"LearningModule: Cleaned up {expired} expired expectations")
 
     async def stop(self) -> None:
         """Stop background tasks gracefully."""

@@ -201,9 +201,10 @@ CREATE TABLE heuristic_fires (
 
 ### Q: Learning Loop Integration Gaps (§29)
 
-**Status**: Open - Blockers identified, needs implementation
+**Status**: Resolved (W2 + prior PRs)
 **Priority**: High (blocks full E2E validation)
 **Created**: 2026-01-26
+**Resolved**: 2026-01-31 — Gap 1 (GetHeuristic RPC) fixed in PR #44. Gap 2 (feedback_source) fixed in PR #44. Gap 3 (E2E test) resolved by `tests/integration/test_learning_implicit_e2e.py` and `tests/unit/test_learning_module.py` (W2 learning module).
 
 #### Context
 

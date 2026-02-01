@@ -204,10 +204,10 @@ Each table has a single owning component. No table is written by multiple servic
 | Table | Owner | Write Paths | Key Files |
 |-------|-------|-------------|-----------|
 | `episodic_events` | Orchestrator | (1) Immediate heuristic match, (2) After queued event processed | `server.py:182`, `event_queue.py:248` |
-| `heuristic_fires` | Orchestrator | On any heuristic match (fire-and-forget) | `router.py:130` |
+| `heuristic_fires` | Orchestrator | On any heuristic match (via LearningModule) | `learning.py:on_fire()` |
 | `heuristics` | Executive | On positive feedback (learned patterns) | `gladys_executive/server.py:537-563` |
 | `heuristics.confidence` | Executive | On any feedback (TD learning update) | `gladys_executive/server.py:477-485` |
-| `heuristic_fires.outcome` | OutcomeWatcher | Implicit feedback (pattern match on later events) | `outcome_watcher.py` |
+| `heuristic_fires.outcome` | LearningModule | Implicit feedback (timeout, undo, ignored-3x, pattern match) | `learning.py:on_outcome()` |
 
 ### Response Delivery
 
@@ -251,8 +251,8 @@ All event responses flow through the Orchestrator — no component can push resp
 **Background tasks** (created via `asyncio.create_task()`):
 - `EventQueue._worker_loop()` - Dequeues events by priority, sends to Executive
 - `EventQueue._timeout_scanner_loop()` - Removes expired events (default 30s timeout)
-- `_outcome_cleanup_loop()` - Cleans expired outcome expectations every 30s
-- `record_heuristic_fire()` - Fire-and-forget, **no error handling** (known issue)
+- `_outcome_cleanup_loop()` - Cleans expired outcome expectations every 30s, sends timeout=positive feedback via LearningModule
+- `learning_module.on_fire()` - Fire-and-forget (records fire + registers outcome expectation)
 
 **gRPC Server**: Uses `ThreadPoolExecutor(max_workers=config.max_workers)` but all handlers are `async def` running on the asyncio loop.
 
@@ -516,21 +516,47 @@ See `docs/design/LOGGING_STANDARD.md` for full specification.
 
 ---
 
-## OutcomeWatcher (Implicit Feedback)
+## Learning Module
 
-**Location**: `src/services/orchestrator/gladys_orchestrator/outcome_watcher.py`
-**Integrated in**: `router.py`
+**Location**: `src/services/orchestrator/gladys_orchestrator/learning.py`
+**Integrated in**: `router.py` (via `LearningModule`), `server.py` (creation + cleanup loop)
 
-Watches for "outcomes" after heuristic fires to provide implicit feedback. When a heuristic fires and a subsequent event matches the expected outcome pattern, positive feedback is automatically sent.
+Facade that consolidates all learning-related operations behind a clean interface. The router only interacts with `LearningModule` for learning operations — not directly with `outcome_watcher` or `memory_client` for learning purposes.
+
+### Implicit Feedback Signals
+
+| Signal | Meaning | Implementation |
+|--------|---------|----------------|
+| **Timeout** | No complaint within timeout → positive | `cleanup_expired()` sends positive feedback for expired outcome expectations |
+| **Undo within 60s** | User undid the action → negative | `_check_undo_signal()` detects undo keywords in events within 60s of a fire |
+| **Ignored 3x** | Heuristic fired 3 times without engagement → negative | `on_heuristic_ignored()` tracks consecutive ignores per heuristic |
+| **Outcome pattern** | Expected event observed → positive/negative | Delegates to `OutcomeWatcher.check_event()` |
+
+### Interface
+
+| Method | Purpose |
+|--------|---------|
+| `on_feedback()` | Handle explicit feedback (user thumbs up/down) |
+| `on_fire()` | Register heuristic fire (flight recorder + outcome watcher) |
+| `on_outcome()` | Handle implicit feedback signal |
+| `check_event_for_outcomes()` | Check incoming event for outcome matches + undo signals |
+| `on_heuristic_ignored()` | Track ignored suggestions (3x = negative) |
+| `cleanup_expired()` | Timeout handling + positive feedback + stale fire cleanup |
 
 ### Integration Points
 
 | Location | What Happens |
 |----------|--------------|
-| `router.py:83-86` | Every incoming event is checked against pending outcomes via `check_event()` |
-| `router.py:159-164` | When heuristic matches, fire is registered with expected outcome via `register_fire()` |
-| `server.py:57` | OutcomeWatcher created via `_create_outcome_watcher()` |
-| `server.py:107-108` | Cleanup loop started for expired expectations |
+| `router.py` | Every incoming event checked via `learning_module.check_event_for_outcomes()` |
+| `router.py` | Heuristic fires registered via `learning_module.on_fire()` |
+| `server.py` | LearningModule created with memory_client + outcome_watcher |
+| `server.py` | Cleanup loop calls `learning_module.cleanup_expired()` every 30s |
+
+### OutcomeWatcher (Internal)
+
+**Location**: `src/services/orchestrator/gladys_orchestrator/outcome_watcher.py`
+
+Internal dependency of LearningModule. Watches for pattern-based outcome events after heuristic fires.
 
 ### Configuration
 
