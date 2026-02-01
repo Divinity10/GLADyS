@@ -192,6 +192,7 @@ class EventRouter:
                                     event_id=event_id,
                                     condition_text=condition_text,
                                     predicted_success=confidence,
+                                    source=getattr(event, "source", ""),
                                 ),
                                 name="learning_on_fire",
                             )
@@ -231,6 +232,7 @@ class EventRouter:
                         event_id=event_id,
                         condition_text=condition_text_for_fire,
                         predicted_success=result.get("predicted_success", 0.0),
+                        source=getattr(event, "source", ""),
                     ),
                     name="learning_on_fire",
                 )

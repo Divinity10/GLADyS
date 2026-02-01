@@ -40,6 +40,7 @@ class FireRecord:
     fire_time: datetime
     condition_text: str
     predicted_success: float
+    source: str = ""
 
 
 class LearningModule:
@@ -57,9 +58,12 @@ class LearningModule:
         self._memory_client = memory_client
         self._outcome_watcher = outcome_watcher
 
-        # Recent fires for undo detection (keyed by heuristic_id)
+        # Recent fires for undo and ignore detection
         self._recent_fires: list[FireRecord] = []
         self._fires_lock = asyncio.Lock()
+
+        # Event IDs that received explicit feedback (not ignored)
+        self._acknowledged_fires: set[str] = set()
 
         # Ignore counter: heuristic_id -> consecutive ignore count
         self._ignore_counts: dict[str, int] = defaultdict(int)
@@ -97,6 +101,8 @@ class LearningModule:
                 error=result.get("error") if result else "no result",
             )
 
+        # Mark this fire as acknowledged (not ignored)
+        self._acknowledged_fires.add(event_id)
         # Reset ignore counter on any explicit feedback
         self._ignore_counts.pop(heuristic_id, None)
 
@@ -106,6 +112,7 @@ class LearningModule:
         event_id: str,
         condition_text: str,
         predicted_success: float,
+        source: str = "",
     ) -> None:
         """Register heuristic fire. Records in flight recorder, registers with outcome watcher."""
         logger.info(
@@ -137,13 +144,14 @@ class LearningModule:
                 condition_text=condition_text,
             )
 
-        # Track for undo detection
+        # Track for undo and ignore detection
         record = FireRecord(
             heuristic_id=heuristic_id,
             event_id=event_id,
             fire_time=datetime.now(UTC),
             condition_text=condition_text,
             predicted_success=predicted_success,
+            source=source,
         )
         async with self._fires_lock:
             self._recent_fires.append(record)
@@ -185,7 +193,8 @@ class LearningModule:
     async def check_event_for_outcomes(self, event: Any) -> list[str]:
         """Check if incoming event resolves any pending outcomes.
 
-        Also checks for undo signals. Returns resolved heuristic IDs.
+        Also checks for undo signals and ignored heuristic fires.
+        Returns resolved heuristic IDs.
         """
         resolved: list[str] = []
 
@@ -200,6 +209,12 @@ class LearningModule:
             undo_ids = await self._check_undo_signal(raw_text)
             resolved.extend(undo_ids)
 
+        # Check for ignored fires: a new event from the same source means
+        # the user moved on without giving feedback on a previous fire.
+        event_source = getattr(event, "source", "") or ""
+        if event_source:
+            await self._check_ignored_fires(event_source)
+
         return resolved
 
     async def on_heuristic_ignored(self, heuristic_id: str) -> None:
@@ -207,9 +222,8 @@ class LearningModule:
 
         After IGNORED_THRESHOLD consecutive ignores, sends negative implicit feedback.
 
-        Note: No caller exists yet. Detecting "ignored" requires Executive-side
-        awareness of presented-but-not-acted-on suggestions. Wire up when that
-        integration is built.
+        Called by _check_ignored_fires() when a new event arrives from the same
+        source as a previous fire that received no explicit feedback.
         """
         self._ignore_counts[heuristic_id] += 1
         count = self._ignore_counts[heuristic_id]
@@ -269,9 +283,14 @@ class LearningModule:
         now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
         async with self._fires_lock:
+            expired_event_ids = {
+                r.event_id for r in self._recent_fires if r.fire_time < cutoff
+            }
             self._recent_fires = [
                 r for r in self._recent_fires if r.fire_time >= cutoff
             ]
+        # Clean up acknowledged set for expired fires
+        self._acknowledged_fires -= expired_event_ids
 
         logger.debug(
             "cleanup_stats",
@@ -322,3 +341,31 @@ class LearningModule:
             )
 
         return affected
+
+    async def _check_ignored_fires(self, event_source: str) -> None:
+        """Check if any recent fires from this source were ignored.
+
+        A fire is "ignored" if: it came from the same source as this new event,
+        is within the undo window, and never received explicit feedback. When a
+        new event arrives from the same source, the user has moved on.
+        """
+        now = datetime.now(UTC)
+        cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
+        ignored_heuristic_ids: list[str] = []
+
+        async with self._fires_lock:
+            remaining = []
+            for record in self._recent_fires:
+                if (
+                    record.source == event_source
+                    and record.fire_time >= cutoff
+                    and record.event_id not in self._acknowledged_fires
+                ):
+                    ignored_heuristic_ids.append(record.heuristic_id)
+                    # Don't keep this fire — it's been evaluated as ignored
+                else:
+                    remaining.append(record)
+            self._recent_fires = remaining
+
+        for heuristic_id in ignored_heuristic_ids:
+            await self.on_heuristic_ignored(heuristic_id)
