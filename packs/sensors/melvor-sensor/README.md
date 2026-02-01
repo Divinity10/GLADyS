@@ -44,5 +44,24 @@ python sensor.py --mock --dry-run
 ```
 
 ## Known Limitations
-- The driver currently relies on polling and basic hooks which may miss rapid events or detailed loot drops in some game versions.
-- Requires the game to be active in the browser window to process updates reliably.
+
+### Driver Coverage
+The current driver implementation has varying levels of support for game events:
+
+- **Fully Supported (Live)**:
+  - `combat_started`: Correctly detects and reports when a new fight begins.
+  - `combat_died`: Correctly detects and reports player death.
+
+- **Partially Supported (Live)**:
+  - `combat_killed`: Detects when an enemy dies, but loot data is currently a placeholder (empty list) as loot extraction requires more complex hooking of the drop system.
+
+- **Mock Only (Not yet implemented in driver)**:
+  - `level_up`
+  - `skill_started`
+  - `skill_milestone`
+  - `shop_purchase`
+  - `item_equipped`
+
+### Reliability
+- The driver relies on polling `window.game` state every 1s. Rapid events occurring between polls may be missed.
+- Requires the Melvor Idle browser tab to be active for the userscript to process updates reliably.
