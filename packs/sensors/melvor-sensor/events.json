@@ -1,0 +1,197 @@
+[
+  {
+    "event_type": "combat_started",
+    "timestamp": "2024-01-01T12:00:00.000000",
+    "data": {
+      "monster_name": "Chicken",
+      "combat_area": "Farmland",
+      "player_hp": 100,
+      "player_attack": 5,
+      "player_defence": 2
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T12:00:10.000000",
+    "data": {
+      "monster_name": "Chicken",
+      "loot": [{"item": "Feathers", "qty": 5}, {"item": "Raw Chicken", "qty": 1}],
+      "xp_gained": 10
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T12:00:20.000000",
+    "data": {
+      "monster_name": "Chicken",
+      "loot": [{"item": "Bones", "qty": 1}],
+      "xp_gained": 10
+    }
+  },
+  {
+    "event_type": "item_equipped",
+    "timestamp": "2024-01-01T12:01:00.000000",
+    "data": {
+      "item_name": "Iron Dagger",
+      "slot": "Weapon",
+      "stats": {"attack": 10, "speed": 2.4}
+    }
+  },
+  {
+    "event_type": "combat_started",
+    "timestamp": "2024-01-01T12:01:30.000000",
+    "data": {
+      "monster_name": "Goblin",
+      "combat_area": "Goblin Village",
+      "player_hp": 100,
+      "player_attack": 10,
+      "player_defence": 2
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T12:01:40.000000",
+    "data": {
+      "monster_name": "Goblin",
+      "loot": [{"item": "Coins", "qty": 15}],
+      "xp_gained": 25
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T12:01:50.000000",
+    "data": {
+      "monster_name": "Goblin",
+      "loot": [{"item": "Bronze Helmet", "qty": 1}],
+      "xp_gained": 25
+    }
+  },
+  {
+    "event_type": "combat_died",
+    "timestamp": "2024-01-01T12:02:00.000000",
+    "data": {
+      "monster_name": "Goblin",
+      "player_hp": 0
+    }
+  },
+  {
+    "event_type": "item_equipped",
+    "timestamp": "2024-01-01T12:02:15.000000",
+    "data": {
+      "item_name": "Bronze Pickaxe",
+      "slot": "Weapon",
+      "stats": {"attack": 2, "speed": 2.6}
+    }
+  },
+  {
+    "event_type": "skill_started",
+    "timestamp": "2024-01-01T12:02:30.000000",
+    "data": {
+      "skill_name": "Mining",
+      "action": "Mining Copper Ore",
+      "xp_rate": 15
+    }
+  },
+  {
+    "event_type": "level_up",
+    "timestamp": "2024-01-01T12:05:00.000000",
+    "data": {
+      "skill_name": "Mining",
+      "new_level": 2,
+      "unlocks": ["Tin Ore"]
+    }
+  },
+  {
+    "event_type": "skill_milestone",
+    "timestamp": "2024-01-01T12:10:00.000000",
+    "data": {
+      "skill_name": "Mining",
+      "milestone": "100 Copper Ore",
+      "total_xp": 500
+    }
+  },
+  {
+    "event_type": "shop_purchase",
+    "timestamp": "2024-01-01T12:15:00.000000",
+    "data": {
+      "item_name": "Bronze Pickaxe",
+      "cost": 500,
+      "currency": "GP",
+      "gold_remaining": 50
+    }
+  },
+  {
+    "event_type": "skill_started",
+    "timestamp": "2024-01-01T12:20:00.000000",
+    "data": {
+      "skill_name": "Woodcutting",
+      "action": "Chopping Normal Logs",
+      "xp_rate": 10
+    }
+  },
+  {
+    "event_type": "skill_milestone",
+    "timestamp": "2024-01-01T12:25:00.000000",
+    "data": {
+      "skill_name": "Woodcutting",
+      "milestone": "50 Logs",
+      "total_xp": 500
+    }
+  },
+  {
+    "event_type": "skill_started",
+    "timestamp": "2024-01-01T12:30:00.000000",
+    "data": {
+      "skill_name": "Fishing",
+      "action": "Fishing Raw Shrimp",
+      "xp_rate": 10
+    }
+  },
+  {
+    "event_type": "level_up",
+    "timestamp": "2024-01-01T12:35:00.000000",
+    "data": {
+      "skill_name": "Fishing",
+      "new_level": 5,
+      "unlocks": ["Raw Sardine"]
+    }
+  },
+  {
+    "event_type": "skill_started",
+    "timestamp": "2024-01-01T12:40:00.000000",
+    "data": {
+      "skill_name": "Cooking",
+      "action": "Cooking Shrimp",
+      "xp_rate": 15
+    }
+  },
+  {
+    "event_type": "combat_started",
+    "timestamp": "2024-01-01T13:00:00.000000",
+    "data": {
+      "monster_name": "Plant",
+      "combat_area": "Farmland",
+      "player_hp": 100,
+      "player_attack": 12,
+      "player_defence": 5
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T13:00:15.000000",
+    "data": {
+      "monster_name": "Plant",
+      "loot": [{"item": "Potato", "qty": 5}],
+      "xp_gained": 15
+    }
+  },
+  {
+    "event_type": "combat_killed",
+    "timestamp": "2024-01-01T13:00:30.000000",
+    "data": {
+      "monster_name": "Plant",
+      "loot": [{"item": "Potato Seeds", "qty": 2}],
+      "xp_gained": 15
+    }
+  }
+]
