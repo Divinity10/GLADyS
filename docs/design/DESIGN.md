@@ -107,8 +107,9 @@ A dual-process learning engine. System 1 (Heuristics) learns from feedback to ha
 ### Current Implementation
 - **Mechanism**: **Bayesian Beta-Binomial** with Beta(1,1) prior.
 - **Confidence**: Posterior mean = `(1 + success_count) / (2 + fire_count)`. New heuristics start at 0.5, converging with evidence.
-- **Feedback**: Explicit (User Thumbs Up/Down) and Implicit (OutcomeWatcher).
+- **Feedback**: Explicit (User Thumbs Up/Down) and Implicit (LearningModule).
 - **Storage**: Heuristics stored with `confidence`, `fire_count`, `success_count` in Postgres.
+- **Learning Module**: `src/services/orchestrator/gladys_orchestrator/learning.py` — facade that consolidates all learning operations. The router only interacts with `LearningModule` for learning. Implements three implicit feedback signals: timeout=positive, undo within 60s=negative, ignored 3x=negative. Delegates pattern-based outcome detection to `OutcomeWatcher`.
 
 ### PoC Deviations
 - **Full Bayesian**: ADR-0010 allows for more sophisticated modeling (e.g., hierarchical priors, context-dependent updates). PoC uses simple Beta-Binomial.
