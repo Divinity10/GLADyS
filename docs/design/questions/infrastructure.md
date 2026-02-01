@@ -83,7 +83,7 @@ await context.abort(grpc.StatusCode.INTERNAL, str(e))  # Proper gRPC error
 
 ##### 26.2 Document Executive Stub as Reference (TODO)
 
-**Issue**: The Executive stub (`stub_server.py`) contains production-quality logic for TD learning and pattern extraction. This should be formally documented as the reference implementation for the eventual C# Executive.
+**Issue**: The Executive (`gladys_executive/server.py`) contains production-quality logic for TD learning and pattern extraction. This should be formally documented as the reference implementation for the eventual C# Executive.
 
 **Action**: Add a design doc noting:
 - `PATTERN_EXTRACTION_PROMPT` is the canonical format

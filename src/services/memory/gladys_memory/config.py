@@ -132,6 +132,10 @@ class ServerSettings(BaseSettings):
     host: str = Field(default="0.0.0.0", description="gRPC server bind address")
     port: int = Field(default=50051, description="gRPC server port")
     max_workers: int = Field(default=10, description="Thread pool size")
+    salience_address: str = Field(
+        default="localhost:50052",
+        description="Address of Rust SalienceGateway for cache invalidation notifications",
+    )
 
 
 class MemorySettings(BaseSettings):

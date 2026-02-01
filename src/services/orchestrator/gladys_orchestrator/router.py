@@ -1,8 +1,9 @@
 """Event routing logic for the Orchestrator.
 
-Routes events based on heuristic confidence and salience:
-- High-conf heuristic match → return cached action immediately
-- Otherwise → queue for async LLM processing (priority by salience)
+Routes all events to Executive (§30 boundary change):
+- Executive decides heuristic-vs-LLM based on suggestion context
+- Orchestrator attaches salience + heuristic context but does not decide
+- Exception: emergency fast-path (confidence >= 0.95 AND threat >= 0.9)
 
 Events are annotated with evaluated salience before routing so that
 Executive receives events with salience already attached.
@@ -10,7 +11,6 @@ Executive receives events with salience already attached.
 
 import asyncio
 import json
-import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -61,13 +61,14 @@ class ResponseSubscriber:
 
 class EventRouter:
     """
-    Routes events based on heuristic confidence and salience.
+    Routes events to Executive with heuristic context (§30 boundary change).
 
     Flow:
     1. Receive event from sensor/preprocessor
     2. Query Salience+Memory for salience score and heuristic match (via gRPC)
-    3. If high-conf heuristic match (>= threshold) → return action immediately
-    4. Otherwise → queue for async LLM processing (priority by salience)
+    3. Build heuristic suggestion context (if match found)
+    4. Queue for Executive processing (Executive decides heuristic-vs-LLM)
+    5. Exception: emergency fast-path for critical threats with high confidence
     """
 
     def __init__(
@@ -100,7 +101,7 @@ class EventRouter:
             if self._outcome_watcher:
                 resolved = await self._outcome_watcher.check_event(event)
                 if resolved:
-                    logger.info(f"Event {event_id} satisfied outcome for heuristics: {resolved}")
+                    logger.info("Event satisfied outcome for heuristics", event_id=event_id, resolved=resolved)
 
             # Step 1: Get salience score
             salience = await self._get_salience(event)
@@ -128,7 +129,7 @@ class EventRouter:
 
             # Step 4: Record heuristic fire (Flight Recorder)
             if matched_heuristic_id and self._memory_client:
-                logger.info(f"Recording heuristic fire: heuristic={matched_heuristic_id}, event={event_id}")
+                logger.info("Recording heuristic fire", heuristic_id=matched_heuristic_id, event_id=event_id)
                 # fire-and-forget, don't block the response
                 task = asyncio.create_task(
                     self._memory_client.record_heuristic_fire(
@@ -140,30 +141,27 @@ class EventRouter:
                 )
                 task.add_done_callback(_handle_task_exception)
             elif matched_heuristic_id:
-                logger.warning(f"Cannot record fire: memory_client is None (heuristic={matched_heuristic_id})")
+                logger.warning("Cannot record fire: memory_client is None", heuristic_id=matched_heuristic_id)
 
-            # Step 5: Check for high-confidence heuristic shortcut (System 1 fast path)
-            # If matched heuristic has confidence >= threshold, return action immediately
-            # without calling LLM. This is the "learned response" path.
-            # If confidence < threshold, pass suggestion context for LLM consideration (Scenario 2).
-            heuristic_data = None  # Store for potential low-conf suggestion
+            # Step 5: Build heuristic context for Executive (§30 boundary change)
+            # Orchestrator no longer decides heuristic-vs-LLM — Executive does.
+            # All events are forwarded to Executive with heuristic context attached.
+            heuristic_data = None
             if matched_heuristic_id and self._memory_client:
                 heuristic = await self._memory_client.get_heuristic(matched_heuristic_id)
                 if heuristic:
                     confidence = heuristic.get("confidence", 0.0)
 
-                    # Extract action message and condition for suggestion context
                     action_text = ""
                     effects_json = heuristic.get("effects_json", "{}")
                     try:
                         action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
                         action_text = action.get("message") or action.get("text") or action.get("response") or ""
                     except json.JSONDecodeError:
-                        logger.warning(f"Failed to parse effects_json for heuristic {matched_heuristic_id}")
+                        logger.warning("Failed to parse effects_json", heuristic_id=matched_heuristic_id)
 
                     condition_text = heuristic.get("condition_text", "")
 
-                    # Store for potential low-conf suggestion (used if we don't return early)
                     heuristic_data = {
                         "heuristic_id": matched_heuristic_id,
                         "suggested_action": action_text,
@@ -171,33 +169,35 @@ class EventRouter:
                         "condition_text": condition_text,
                     }
 
-                    if confidence >= self.config.heuristic_confidence_threshold:
-                        # High-confidence heuristic - use cached action
+                    # Emergency fast-path: confidence >= 0.95 AND critical threat
+                    # This is the only case where Orchestrator short-circuits Executive.
+                    threat = salience.get("threat", 0.0)
+                    if confidence >= 0.95 and threat >= 0.9:
                         logger.info(
-                            f"HEURISTIC_SHORTCUT: event={event_id}, "
-                            f"heuristic={matched_heuristic_id}, confidence={confidence:.3f}"
+                            "EMERGENCY_FASTPATH",
+                            event_id=event_id,
+                            heuristic_id=matched_heuristic_id,
+                            confidence=round(confidence, 3),
+                            threat=round(threat, 3),
                         )
-
                         result["response_text"] = action_text
                         result["prediction_confidence"] = confidence
-                        result["predicted_success"] = confidence  # Use confidence as prediction
+                        result["predicted_success"] = confidence
                         result["queued"] = False
 
-                        # Broadcast response to subscribers
                         await self.broadcast_response({
                             "event_id": event_id,
                             "response_id": "",
                             "response_text": action_text,
                             "predicted_success": confidence,
                             "prediction_confidence": confidence,
-                            "routing_path": "HEURISTIC",
+                            "routing_path": "EMERGENCY",
                             "matched_heuristic_id": matched_heuristic_id,
                             "event_source": getattr(event, "source", ""),
                             "event_timestamp_ms": int(getattr(event, "timestamp", None) and event.timestamp.ToMilliseconds() or 0),
                             "response_timestamp_ms": int(time.time() * 1000),
                         })
 
-                        # Register for outcome tracking
                         if self._outcome_watcher:
                             await self._outcome_watcher.register_fire(
                                 heuristic_id=matched_heuristic_id,
@@ -205,27 +205,30 @@ class EventRouter:
                                 predicted_success=confidence,
                             )
 
-                        # Broadcast to event subscribers
                         await self._broadcast_to_subscribers(event)
-
                         return result
 
-            # Step 6: Queue for async processing (no high-conf heuristic matched)
-            # Events are processed by salience priority (higher = sooner)
-            logger.debug(f"Event {event_id}: salience={max_salience:.2f} → queue for async processing")
+            # Step 6: Always queue for Executive (§30)
+            # Executive decides heuristic-vs-LLM based on suggestion context.
+            logger.info(
+                "ROUTE_TO_EXECUTIVE",
+                event_id=event_id,
+                salience=round(max_salience, 2),
+                has_suggestion=heuristic_data is not None,
+            )
             result["queued"] = True
-            result["_salience"] = max_salience  # For server to use when enqueuing
+            result["_salience"] = max_salience
 
-            # Pass suggestion context for low-conf heuristic matches (Scenario 2)
-            # LLM will see the pattern suggestion even though confidence is below threshold
             if heuristic_data:
                 result["_suggestion"] = heuristic_data
                 logger.info(
-                    f"LOW_CONF_SUGGESTION: event={event_id}, "
-                    f"heuristic={heuristic_data['heuristic_id']}, confidence={heuristic_data['confidence']:.3f}"
+                    "SUGGESTION_CONTEXT",
+                    event_id=event_id,
+                    heuristic_id=heuristic_data["heuristic_id"],
+                    confidence=round(heuristic_data["confidence"], 3),
                 )
 
-            # Step 4: Register heuristic fire for outcome tracking (if applicable)
+            # Register heuristic fire for outcome tracking
             if matched_heuristic_id and self._outcome_watcher:
                 await self._outcome_watcher.register_fire(
                     heuristic_id=matched_heuristic_id,
@@ -233,13 +236,11 @@ class EventRouter:
                     predicted_success=result.get("predicted_success", 0.0),
                 )
 
-            # Also broadcast to subscribers (for monitoring, etc.)
             await self._broadcast_to_subscribers(event)
-
             return result
 
         except Exception as e:
-            logger.error(f"Error routing event {event_id}: {e}")
+            logger.error("Error routing event", event_id=event_id, error=str(e))
             return {"event_id": event_id, "accepted": False, "error_message": str(e)}
 
     def _has_explicit_salience(self, event: Any) -> bool:
@@ -265,7 +266,7 @@ class EventRouter:
         """
         # First check: if event has explicit salience, use it (override for testing)
         if self._has_explicit_salience(event):
-            logger.debug(f"Event {getattr(event, 'id', 'unknown')}: Using explicit salience from event")
+            logger.debug("Using explicit salience from event", event_id=getattr(event, "id", "unknown"))
             return {
                 "threat": event.salience.threat,
                 "opportunity": event.salience.opportunity,
@@ -331,7 +332,7 @@ class EventRouter:
         Also attaches matched_heuristic_id for feedback correlation.
         """
         if not hasattr(event, "salience"):
-            logger.warning(f"Event {getattr(event, 'id', 'unknown')} has no salience field")
+            logger.warning("Event has no salience field", event_id=getattr(event, "id", "unknown"))
             return
 
         # Check if the event's salience field supports proto CopyFrom
@@ -358,7 +359,7 @@ class EventRouter:
                 event.matched_heuristic_id = matched_heuristic
         else:
             # Non-proto event (e.g., test mocks) - salience already attached or not applicable
-            logger.debug(f"Event {getattr(event, 'id', 'unknown')} has non-proto salience, skipping attach")
+            logger.debug("Event has non-proto salience, skipping attach", event_id=getattr(event, "id", "unknown"))
 
     def _get_max_salience(self, salience: dict) -> float:
         """Get the maximum salience dimension value."""
@@ -390,12 +391,12 @@ class EventRouter:
         if self._executive_client:
             response = await self._executive_client.send_event_immediate(event, suggestion=suggestion)
             if response.get("accepted"):
-                logger.info(f"IMMEDIATE: Event {event_id} delivered to Executive")
+                logger.info("IMMEDIATE: Event delivered to Executive", event_id=event_id)
             else:
-                logger.warning(f"IMMEDIATE: Event {event_id} delivery failed: {response.get('error_message')}")
+                logger.warning("IMMEDIATE: Event delivery failed", event_id=event_id, error=response.get("error_message"))
             return response
         else:
-            logger.info(f"IMMEDIATE: Event {event_id} (no Executive connected)")
+            logger.info("IMMEDIATE: No Executive connected", event_id=event_id)
             return None
 
     async def _broadcast_to_subscribers(self, event: Any, immediate: bool = False) -> None:
@@ -413,7 +414,7 @@ class EventRouter:
             try:
                 subscriber.queue.put_nowait(event)
             except asyncio.QueueFull:
-                logger.warning(f"Subscriber {subscriber.subscriber_id} queue full, dropping event")
+                logger.warning("Subscriber queue full, dropping event", subscriber_id=subscriber.subscriber_id)
 
     def add_subscriber(
         self,
@@ -453,13 +454,13 @@ class EventRouter:
             source_filters=source_filters,
             include_immediate=include_immediate,
         )
-        logger.info(f"Response subscriber added: {subscriber_id}")
+        logger.info("Response subscriber added", subscriber_id=subscriber_id)
         return queue
 
     def remove_response_subscriber(self, subscriber_id: str) -> None:
         """Remove a response subscriber."""
         self._response_subscribers.pop(subscriber_id, None)
-        logger.info(f"Response subscriber removed: {subscriber_id}")
+        logger.info("Response subscriber removed", subscriber_id=subscriber_id)
 
     async def broadcast_response(self, response: dict) -> None:
         """
@@ -481,8 +482,10 @@ class EventRouter:
 
         subscriber_count = len(self._response_subscribers)
         logger.info(
-            f"broadcast_response: event_id={event_id}, routing_path={routing_path}, "
-            f"subscriber_count={subscriber_count}"
+            "Broadcasting response",
+            event_id=event_id,
+            routing_path=routing_path,
+            subscriber_count=subscriber_count,
         )
 
         for subscriber in list(self._response_subscribers.values()):
@@ -497,8 +500,6 @@ class EventRouter:
 
             try:
                 subscriber.queue.put_nowait(response)
-                logger.debug(
-                    f"Delivered response {event_id} to subscriber {subscriber.subscriber_id}"
-                )
+                logger.debug("Delivered response to subscriber", event_id=event_id, subscriber_id=subscriber.subscriber_id)
             except asyncio.QueueFull:
-                logger.warning(f"Response subscriber {subscriber.subscriber_id} queue full, dropping response")
+                logger.warning("Response subscriber queue full, dropping response", subscriber_id=subscriber.subscriber_id)

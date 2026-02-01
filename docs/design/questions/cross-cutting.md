@@ -53,9 +53,10 @@ Some sensors produce high-frequency data — a motion sensor firing hundreds of 
 
 ### Q: Orchestrator vs Executive Responsibility Boundary (§30)
 
-**Status**: Design decision needed
+**Status**: Resolved — implemented in W3 (branch `poc1/closed-loop-learning`)
 **Priority**: High (affects PoC architecture)
 **Created**: 2026-01-26
+**Resolved**: 2026-01-31
 
 #### Problem
 
@@ -138,11 +139,17 @@ Current PoC implementation in `router.py` would need to change:
 - Always send to Executive with heuristic context attached
 - Add fast-path exception for critical urgency only
 
-#### Decision Needed
+#### Resolution
 
-1. Should we implement this change in the PoC?
-2. What threshold defines "critical urgency" for the fast-path?
-3. How does Executive signal rate limiting back to Orchestrator?
+Implemented in W3. Answers to the open questions:
+
+1. **Yes** — implemented in PoC on `poc1/closed-loop-learning` branch
+2. **Emergency fast-path**: confidence >= 0.95 AND threat >= 0.9 (Orchestrator short-circuits)
+3. **Rate limiting**: Deferred to post-PoC
+
+Key implementation files:
+- `src/services/orchestrator/gladys_orchestrator/router.py` — always forwards to Executive, emergency fast-path only
+- `src/services/executive/gladys_executive/server.py` — heuristic fast-path (confidence >= 0.7, configurable via `EXECUTIVE_HEURISTIC_THRESHOLD`)
 
 ---
 

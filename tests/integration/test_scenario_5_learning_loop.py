@@ -43,8 +43,8 @@ except ImportError:
     print("ERROR: Proto stubs not found. Run 'make proto'")
     sys.exit(1)
 
-# Import the Stub Server implementation to run it in-process
-from stub_server import serve as run_stub_server
+# Import the Executive server implementation to run it in-process
+from gladys_executive.server import serve as run_executive_server
 
 # Configuration
 MOCK_OLLAMA_PORT = 11439
@@ -137,7 +137,7 @@ class LearningLoopTest:
         # 2. Start Executive Stub (in background)
         # Point it to our Mock Ollama and the real Memory service
         self.stub_task = asyncio.create_task(
-            run_stub_server(
+            run_executive_server(
                 port=TEST_STUB_PORT,
                 ollama_url=f"http://localhost:{MOCK_OLLAMA_PORT}",
                 ollama_model="mock-model",

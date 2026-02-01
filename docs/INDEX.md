@@ -87,7 +87,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0014](adr/ADR-0014-Executive-Decision-Loop.md) | The OODA decision loop specification. |
 | **Truth** | [ADR-0015](adr/ADR-0015-Personality-Subsystem.md) | Personality traits and response styles. |
 | **Design** | [DESIGN.md#executive-subsystem](design/DESIGN.md#executive-subsystem) | **Current Implementation**: Python stub, Ollama integration. |
-| **Impl** | `src/services/executive/gladys_executive/stub_server.py` | Executive gRPC server (TD learning, heuristic writes). |
+| **Impl** | `src/services/executive/gladys_executive/server.py` | Executive gRPC server (TD learning, heuristic writes). |
 | **Config** | [Templates](design/PERSONALITY_TEMPLATES.md) | Specific personality configurations (Murderbot, Butler). |
 
 ## 🔌 Plugins & World

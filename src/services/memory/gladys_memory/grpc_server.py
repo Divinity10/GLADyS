@@ -116,10 +116,42 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         self,
         storage: MemoryStorage,
         embeddings: EmbeddingGenerator,
+        salience_address: str | None = None,
     ):
         self.storage = storage
         self.embeddings = embeddings
         self._started_at = datetime.now(timezone.utc)
+        self._salience_address = salience_address
+        self._salience_channel = None
+        self._salience_stub = None
+
+    async def _notify_heuristic_change(self, heuristic_id: str, change_type: str):
+        """Notify Rust SalienceGateway of a heuristic change for cache invalidation."""
+        if not self._salience_address:
+            return
+        try:
+            if self._salience_channel is None:
+                self._salience_channel = grpc.aio.insecure_channel(self._salience_address)
+                self._salience_stub = memory_pb2_grpc.SalienceGatewayStub(self._salience_channel)
+
+            await self._salience_stub.NotifyHeuristicChange(
+                memory_pb2.NotifyHeuristicChangeRequest(
+                    heuristic_id=heuristic_id,
+                    change_type=change_type,
+                )
+            )
+            logger.debug(
+                "Notified salience cache",
+                heuristic_id=heuristic_id,
+                change_type=change_type,
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to notify salience cache (non-fatal)",
+                heuristic_id=heuristic_id,
+                change_type=change_type,
+                error=str(e),
+            )
 
     def _setup_trace(self, context) -> str:
         """Extract or generate trace ID and bind to logging context."""
@@ -249,6 +281,10 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 origin_id=h.origin_id or None,
             )
             logger.info("StoreHeuristic success", heuristic_id=h.id)
+
+            # Notify Rust cache of new/updated heuristic
+            await self._notify_heuristic_change(h.id, "created")
+
             return memory_pb2.StoreHeuristicResponse(
                 success=True,
                 heuristic_id=h.id,
@@ -346,10 +382,15 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 condition = h.get("condition", {})
                 action = h.get("action", {})
 
+                # Include condition_embedding so Rust cache can do local similarity
+                raw_embedding = h.get("condition_embedding")
+                embedding_bytes = _embedding_to_bytes(raw_embedding) if raw_embedding is not None else b""
+
                 proto_h = memory_pb2.Heuristic(
                     id=str(h["id"]),
                     name=h["name"],
                     condition_text=condition.get("text", ""),
+                    condition_embedding=embedding_bytes,
                     effects_json=json.dumps(action),
                     confidence=h["confidence"],
                     origin=condition.get("origin", ""),
@@ -450,6 +491,9 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     f"positive={request.positive}, "
                     f"old={old_conf:.3f}, new={new_conf:.3f}, delta={delta:.3f}"
                 )
+
+            # Notify Rust cache of confidence change
+            await self._notify_heuristic_change(heuristic_id, "updated")
 
             return memory_pb2.UpdateHeuristicConfidenceResponse(
                 success=True,
@@ -816,8 +860,10 @@ async def serve(
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=srv_cfg.max_workers))
 
     # Add servicer (SalienceGateway moved to Rust fast path)
+    salience_address = srv_cfg.salience_address
+    print(f"Cache invalidation notifications → {salience_address}")
     memory_pb2_grpc.add_MemoryStorageServicer_to_server(
-        MemoryStorageServicer(storage, embeddings),
+        MemoryStorageServicer(storage, embeddings, salience_address=salience_address),
         server,
     )
 

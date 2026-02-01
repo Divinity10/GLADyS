@@ -78,6 +78,8 @@ pub struct CachedHeuristic {
     pub condition: serde_json::Value,
     pub action: serde_json::Value,
     pub confidence: f32,
+    /// Condition embedding for local cosine similarity matching (384-dim f32)
+    pub condition_embedding: Vec<f32>,
     /// Last accessed time for LRU eviction
     pub last_accessed_ms: i64,
     /// Time when this heuristic was cached (for TTL-based invalidation)
@@ -261,11 +263,55 @@ impl MemoryCache {
             .collect()
     }
 
-    /// Find matching heuristics for a given context
-    pub fn find_heuristics(&self, _context: &serde_json::Value) -> Vec<&CachedHeuristic> {
-        // TODO: Implement condition matching
-        // For now, return empty - will be implemented when we define condition format
-        Vec::new()
+    /// Find heuristics matching a query embedding via cosine similarity.
+    ///
+    /// Returns (heuristic_id, similarity) pairs sorted by similarity descending.
+    /// Filters by min_similarity, min_confidence, and TTL expiry.
+    pub fn find_matching_heuristics(
+        &self,
+        query_embedding: &[f32],
+        min_similarity: f32,
+        min_confidence: f32,
+        limit: usize,
+    ) -> Vec<(Uuid, f32)> {
+        if query_embedding.is_empty() {
+            return Vec::new();
+        }
+
+        let now = current_time_ms();
+        let ttl = self.config.heuristic_ttl_ms;
+
+        let mut matches: Vec<(Uuid, f32)> = self.heuristics
+            .values()
+            .filter(|h| {
+                // Skip expired
+                if ttl > 0 && (now - h.cached_at_ms) >= ttl {
+                    return false;
+                }
+                // Skip low confidence
+                if h.confidence < min_confidence {
+                    return false;
+                }
+                // Skip empty embeddings
+                !h.condition_embedding.is_empty()
+            })
+            .filter_map(|h| {
+                let sim = cosine_similarity(query_embedding, &h.condition_embedding);
+                if sim >= min_similarity {
+                    Some((h.id, sim))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        if limit > 0 && matches.len() > limit {
+            matches.truncate(limit);
+        }
+
+        matches
     }
 
     /// Get cache statistics.
@@ -441,6 +487,7 @@ mod tests {
             name: "low_confidence".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.3,
             last_accessed_ms: 0,
             cached_at_ms: 0,
@@ -453,6 +500,7 @@ mod tests {
             name: "high_confidence".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.9,
             last_accessed_ms: 0,
             cached_at_ms: 0,
@@ -488,6 +536,7 @@ mod tests {
             name: "first".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 1000, // Oldest
             cached_at_ms: 0,
@@ -500,6 +549,7 @@ mod tests {
             name: "second".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
@@ -512,6 +562,7 @@ mod tests {
             name: "third".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 3000, // Newest
             cached_at_ms: 0,
@@ -528,6 +579,7 @@ mod tests {
             name: "fourth".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 4000,
             cached_at_ms: 0,
@@ -561,6 +613,7 @@ mod tests {
             name: "first".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 1000,
             cached_at_ms: 0,
@@ -573,6 +626,7 @@ mod tests {
             name: "second".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
@@ -585,6 +639,7 @@ mod tests {
             name: "third".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 3000,
             cached_at_ms: 0,
@@ -603,6 +658,7 @@ mod tests {
             name: "fourth".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 0, // Will be set by add_heuristic
             cached_at_ms: 0,
@@ -614,5 +670,127 @@ mod tests {
         assert!(cache.get_heuristic(&id2).is_none()); // id2 should be evicted (was oldest)
         assert!(cache.get_heuristic(&id3).is_some());
         assert!(cache.get_heuristic(&id4).is_some());
+    }
+
+    #[test]
+    fn test_find_matching_heuristics_basic() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 50,
+            novelty_threshold: 0.9,
+            heuristic_ttl_ms: 300_000, // 5 min
+        });
+
+        // Create two heuristics with different embeddings
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+
+        // Embedding: mostly positive values
+        let emb1: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        // Embedding: same direction, should be very similar
+        let emb2: Vec<f32> = (0..384).map(|i| (i as f32 / 384.0) + 0.01).collect();
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id1,
+            name: "h1".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb1.clone(),
+            confidence: 0.8,
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id2,
+            name: "h2".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb2,
+            confidence: 0.3, // Below threshold
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        // Query with emb1 — should match h1 (high confidence), not h2 (low confidence)
+        let matches = cache.find_matching_heuristics(&emb1, 0.7, 0.5, 10);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, id1);
+        assert!(matches[0].1 > 0.99); // Self-similarity
+
+        // Query with no minimum confidence — should match both
+        let matches_all = cache.find_matching_heuristics(&emb1, 0.7, 0.0, 10);
+        assert_eq!(matches_all.len(), 2);
+        // Results should be sorted by similarity (h1 first = exact match)
+        assert_eq!(matches_all[0].0, id1);
+    }
+
+    #[test]
+    fn test_find_matching_heuristics_empty_embedding() {
+        let cache = MemoryCache::new(CacheConfig::default());
+        let matches = cache.find_matching_heuristics(&[], 0.7, 0.5, 10);
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_heuristics_ttl_expiry() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 50,
+            novelty_threshold: 0.9,
+            heuristic_ttl_ms: 1, // 1ms TTL — will expire immediately
+        });
+
+        let emb: Vec<f32> = vec![1.0; 384];
+        cache.add_heuristic(CachedHeuristic {
+            id: Uuid::new_v4(),
+            name: "expired".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb.clone(),
+            confidence: 0.9,
+            last_accessed_ms: 0,
+            cached_at_ms: 1, // Very old
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        // Wait a tiny bit for TTL to expire
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        let matches = cache.find_matching_heuristics(&emb, 0.5, 0.0, 10);
+        assert!(matches.is_empty(), "Expired heuristic should not match");
+    }
+
+    #[test]
+    fn test_cache_invalidation_removes_heuristic() {
+        let mut cache = MemoryCache::new(CacheConfig::default());
+
+        let id = Uuid::new_v4();
+        cache.add_heuristic(CachedHeuristic {
+            id,
+            name: "to_remove".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: vec![1.0; 384],
+            confidence: 0.9,
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        assert!(cache.get_heuristic(&id).is_some());
+        assert!(cache.remove_heuristic(&id));
+        assert!(cache.get_heuristic(&id).is_none());
+
+        // Subsequent queries should not find it
+        let emb = vec![1.0; 384];
+        let matches = cache.find_matching_heuristics(&emb, 0.5, 0.0, 10);
+        assert!(matches.is_empty());
     }
 }

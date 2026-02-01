@@ -6,7 +6,6 @@ for integration testing. The real Executive will be in C#/.NET.
 
 import asyncio
 import json
-import logging
 import os
 import time
 import uuid
@@ -17,6 +16,8 @@ import sys
 from typing import Any
 
 import aiohttp
+
+from gladys_common import get_logger, bind_trace_id, get_or_create_trace_id
 
 # Add orchestrator and memory to path for generated protos
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "orchestrator"))
@@ -45,7 +46,7 @@ except ImportError:
         memory_pb2 = None
         memory_pb2_grpc = None
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OllamaClient:
@@ -64,11 +65,11 @@ class OllamaClient:
                     self._available = resp.status == 200
                     return self._available
         except Exception as e:
-            logger.debug(f"Ollama not available: {e}")
+            logger.debug("Ollama not available", error=str(e))
             self._available = False
             return False
 
-    async def generate(self, prompt: str, system: str | None = None) -> str | None:
+    async def generate(self, prompt: str, system: str | None = None, format: str | None = None) -> str | None:
         """Generate a response from the LLM."""
         if self._available is False:
             return None
@@ -80,6 +81,8 @@ class OllamaClient:
         }
         if system:
             payload["system"] = system
+        if format:
+            payload["format"] = format
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -92,13 +95,13 @@ class OllamaClient:
                         data = await resp.json()
                         return data.get("response", "")
                     else:
-                        logger.warning(f"Ollama returned status {resp.status}")
+                        logger.warning("Ollama returned error status", status=resp.status)
                         return None
         except asyncio.TimeoutError:
             logger.warning("Ollama request timed out")
             return None
         except Exception as e:
-            logger.warning(f"Ollama request failed: {e}")
+            logger.warning("Ollama request failed", error=str(e))
             return None
 
 
@@ -123,14 +126,14 @@ class MemoryClient:
             await asyncio.wait_for(self._channel.channel_ready(), timeout=5.0)
             self._stub = memory_pb2_grpc.MemoryStorageStub(self._channel)
             self._available = True
-            logger.info(f"Connected to Memory service at {self.address}")
+            logger.info("Connected to Memory service", address=self.address)
             return True
         except asyncio.TimeoutError:
-            logger.warning(f"Memory service not available at {self.address} (timeout)")
+            logger.warning("Memory service not available (timeout)", address=self.address)
             self._available = False
             return False
         except Exception as e:
-            logger.warning(f"Failed to connect to Memory service: {e}")
+            logger.warning("Failed to connect to Memory service", address=self.address, error=str(e))
             self._available = False
             return False
 
@@ -164,16 +167,41 @@ class MemoryClient:
             )
             response = await self._stub.StoreHeuristic(request)
             if response.success:
-                logger.info(f"Stored heuristic in Memory: id={response.heuristic_id}")
+                logger.info("Stored heuristic in Memory", heuristic_id=response.heuristic_id)
                 return True, response.heuristic_id
             else:
                 return False, response.error
         except grpc.aio.AioRpcError as e:
-            logger.warning(f"Memory StoreHeuristic RPC error: {e.code()} - {e.details()}")
+            logger.warning("Memory StoreHeuristic RPC error", code=str(e.code()), details=e.details())
             return False, str(e.details())
         except Exception as e:
-            logger.warning(f"Memory StoreHeuristic failed: {e}")
+            logger.warning("Memory StoreHeuristic failed", error=str(e))
             return False, str(e)
+
+    async def query_matching_heuristics(
+        self,
+        event_text: str,
+        min_confidence: float = 0.0,
+        limit: int = 5,
+    ) -> list[tuple[str, float]]:
+        """Query heuristics by semantic similarity. Returns list of (heuristic_id, similarity)."""
+        if not self._available or not self._stub:
+            return []
+
+        try:
+            request = memory_pb2.QueryMatchingHeuristicsRequest(
+                event_text=event_text,
+                min_confidence=min_confidence,
+                limit=limit,
+            )
+            response = await self._stub.QueryMatchingHeuristics(request)
+            return [
+                (match.heuristic.id, match.similarity)
+                for match in response.matches
+            ]
+        except Exception as e:
+            logger.warning("QueryMatchingHeuristics failed", error=str(e))
+            return []
 
     async def update_heuristic_confidence(
         self,
@@ -234,12 +262,22 @@ Context: {context}
 Your response: {response}
 User feedback: positive
 
-Extract a generalizable heuristic that can be applied to similar situations in the future.
-- condition: A general description of when this pattern applies (avoid specific names/numbers)
-- action: What to do when the condition matches
+Extract a generalizable heuristic for similar future situations.
 
-Be general enough to match similar situations, specific enough to be useful.
-Output ONLY valid JSON with no other text: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
+Rules:
+- condition: Describe a SITUATION, not a person. Must be 10-50 words. No proper nouns or specific numbers.
+- action.type: One of "suggest", "remind", "warn"
+- action.message: The advice to give. Must be 10-50 words.
+
+Good examples:
+{{"condition": "When a player's health drops below a critical threshold during combat and healing items are available in inventory", "action": {{"type": "suggest", "message": "Use a healing item before continuing the fight to avoid being defeated and losing progress"}}}}
+{{"condition": "When a puzzle cell has only one possible candidate remaining based on row column and box constraints", "action": {{"type": "suggest", "message": "Fill in the cell with the only remaining candidate since it is the sole valid option"}}}}
+
+Bad examples (DO NOT generate these):
+- Too vague: {{"condition": "When something happens", "action": {{"type": "suggest", "message": "Do the right thing"}}}}
+- Too specific: {{"condition": "When John plays level 5 on Tuesday", "action": {{"type": "suggest", "message": "Press the blue button at coordinates 150 200"}}}}
+
+Output valid JSON: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
 
 
 PREDICTION_PROMPT = """Given this situation and response:
@@ -298,9 +336,9 @@ class HeuristicStore:
                     for h_data in data.get("heuristics", []):
                         h = Heuristic(**h_data)
                         self.heuristics[h.id] = h
-                logger.info(f"Loaded {len(self.heuristics)} heuristics from {self.path}")
+                logger.info("Loaded heuristics", count=len(self.heuristics), path=str(self.path))
             except Exception as e:
-                logger.warning(f"Failed to load heuristics from {self.path}: {e}")
+                logger.warning("Failed to load heuristics", path=str(self.path), error=str(e))
 
     def _save(self) -> None:
         try:
@@ -308,12 +346,12 @@ class HeuristicStore:
             with open(self.path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.error(f"Failed to save heuristics to {self.path}: {e}")
+            logger.error("Failed to save heuristics", path=str(self.path), error=str(e))
 
     def add(self, heuristic: Heuristic) -> None:
         self.heuristics[heuristic.id] = heuristic
         self._save()
-        logger.info(f"Stored heuristic: id={heuristic.id}")
+        logger.info("Stored heuristic", heuristic_id=heuristic.id)
 
     def get(self, heuristic_id: str) -> Heuristic | None:
         return self.heuristics.get(heuristic_id)
@@ -332,12 +370,46 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         heuristic_store: HeuristicStore | None = None,
     ):
         self.events_received = 0
+        self.moments_received = 0
         self.heuristics_created = 0
         self.ollama = ollama_client
         self.memory_client = memory_client
         self.heuristic_store = heuristic_store or HeuristicStore()
         self.reasoning_traces: dict[str, ReasoningTrace] = {}
         self._started_at = time.time()
+
+    @staticmethod
+    def _setup_trace(context) -> str:
+        """Extract or generate trace ID and bind to logging context."""
+        metadata = dict(context.invocation_metadata())
+        trace_id = get_or_create_trace_id(metadata)
+        bind_trace_id(trace_id)
+        return trace_id
+
+    @staticmethod
+    def _check_heuristic_quality(condition: str, action: dict) -> str | None:
+        """Validate heuristic quality. Returns error message or None if valid."""
+        word_count = len(condition.split())
+        if word_count < 10:
+            return f"Condition too short ({word_count} words, minimum 10)"
+        if word_count > 50:
+            return f"Condition too long ({word_count} words, maximum 50)"
+
+        if not isinstance(action, dict):
+            return "Action must be a JSON object"
+        if "type" not in action:
+            return "Action missing required field 'type'"
+        if action.get("type") not in ("suggest", "remind", "warn"):
+            return f"Action type must be suggest/remind/warn, got '{action.get('type')}'"
+        if "message" not in action:
+            return "Action missing required field 'message'"
+        msg_words = len(action["message"].split())
+        if msg_words < 10:
+            return f"Action message too short ({msg_words} words, minimum 10)"
+        if msg_words > 50:
+            return f"Action message too long ({msg_words} words, maximum 50)"
+
+        return None
 
     def _cleanup_old_traces(self) -> int:
         old_ids = [
@@ -377,16 +449,52 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         request: executive_pb2.ProcessEventRequest,
         context: grpc.aio.ServicerContext,
     ) -> executive_pb2.ProcessEventResponse:
-        """Process a high-salience event."""
+        """Process an event, deciding between heuristic fast-path and LLM reasoning.
+
+        §30 boundary change: Executive now decides heuristic-vs-LLM.
+        If a high-confidence suggestion is attached, return the heuristic action
+        directly without calling the LLM.
+        """
+        self._setup_trace(context)
         self.events_received += 1
         event = request.event
 
-        immediate_str = " (IMMEDIATE)" if request.immediate else ""
-        threat = event.salience.threat if event.salience else 0.0
         logger.info(
-            f"EVENT{immediate_str}: id={event.id}, source={event.source}, "
-            f"threat={threat:.2f}, text={event.raw_text[:50] if event.raw_text else ''}..."
+            "ProcessEvent received",
+            event_id=event.id,
+            source=event.source,
+            immediate=request.immediate,
+            threat=round(event.salience.threat, 2) if event.salience else 0.0,
+            text_preview=event.raw_text[:50] if event.raw_text else "",
         )
+
+        # §30 fast-path: high-confidence heuristic → return action without LLM
+        heuristic_threshold = float(os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7"))
+        if (request.suggestion
+                and request.suggestion.heuristic_id
+                and request.suggestion.confidence >= heuristic_threshold):
+            suggestion = request.suggestion
+            logger.info(
+                f"HEURISTIC_FASTPATH: event={event.id}, "
+                f"heuristic={suggestion.heuristic_id}, "
+                f"confidence={suggestion.confidence:.3f}, "
+                f"threshold={heuristic_threshold}"
+            )
+            response_id = self._store_trace(
+                event_id=event.id,
+                context=event.raw_text or "",
+                response=suggestion.suggested_action,
+                matched_heuristic_id=suggestion.heuristic_id,
+                predicted_success=suggestion.confidence,
+                prediction_confidence=suggestion.confidence,
+            )
+            return executive_pb2.ProcessEventResponse(
+                accepted=True,
+                response_id=response_id,
+                response_text=suggestion.suggested_action,
+                predicted_success=suggestion.confidence,
+                prediction_confidence=suggestion.confidence,
+            )
 
         response_id = ""
         response_text = ""
@@ -394,6 +502,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         prediction_confidence = 0.0
 
         if self.ollama and request.immediate:
+            logger.info("LLM_PATH", event_id=event.id)
             event_context = format_event_for_llm(event)
 
             # Build prompt, including suggestion if present (Scenario 2)
@@ -410,17 +519,19 @@ Consider this suggestion in your response.
 
 """
                 logger.info(
-                    f"Including suggestion in prompt: heuristic={suggestion.heuristic_id}, "
-                    f"confidence={suggestion.confidence:.2f}"
+                    "Including suggestion in prompt",
+                    heuristic_id=suggestion.heuristic_id,
+                    confidence=round(suggestion.confidence, 2),
                 )
             prompt += "How should I respond?"
             llm_response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
             if llm_response:
                 response_text = llm_response.strip()
-                logger.info(f"GLADyS: {response_text}")
+                logger.info("GLADyS response", response_text=response_text)
 
                 prediction_json = await self.ollama.generate(
-                    PREDICTION_PROMPT.format(context=event_context, response=response_text)
+                    PREDICTION_PROMPT.format(context=event_context, response=response_text),
+                    format="json",
                 )
                 if prediction_json:
                     try:
@@ -461,9 +572,12 @@ Consider this suggestion in your response.
         context: grpc.aio.ServicerContext,
     ) -> executive_pb2.ProvideFeedbackResponse:
         """Handle feedback on a previous LLM response."""
+        self._setup_trace(context)
         logger.info(
-            f"FEEDBACK: response_id={request.response_id}, "
-            f"event_id={request.event_id}, positive={request.positive}"
+            "FEEDBACK received",
+            response_id=request.response_id,
+            event_id=request.event_id,
+            positive=request.positive,
         )
 
         if not request.positive:
@@ -502,7 +616,7 @@ Consider this suggestion in your response.
             context=trace.context,
             response=trace.response,
         )
-        pattern_json = await self.ollama.generate(extraction_prompt)
+        pattern_json = await self.ollama.generate(extraction_prompt, format="json")
         if not pattern_json:
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=True,
@@ -521,12 +635,41 @@ Consider this suggestion in your response.
             action = pattern.get("action", {})
             if not condition:
                 raise ValueError("Missing 'condition'")
-            logger.info(f"Extracted pattern: condition='{condition}'")
+            logger.info("Extracted pattern", condition=condition)
         except (json.JSONDecodeError, ValueError) as e:
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=True,
                 error_message=f"Pattern parsing failed: {e}",
             )
+
+        # Quality gate: validate before storing
+        gate_error = self._check_heuristic_quality(condition, action)
+        if gate_error:
+            logger.warning("QUALITY_GATE: Rejected heuristic", reason=gate_error)
+            return executive_pb2.ProvideFeedbackResponse(
+                accepted=True,
+                error_message=f"Quality gate: {gate_error}",
+            )
+
+        # Dedup check: reject near-duplicates (similarity > 0.9)
+        # Note: event_text param name is misleading — the RPC generates an embedding
+        # and compares it against condition_embedding in the heuristics table (storage.py:378),
+        # so passing condition text here correctly does condition-to-condition similarity.
+        if self.memory_client:
+            matches = await self.memory_client.query_matching_heuristics(
+                event_text=condition, min_confidence=0.0, limit=1,
+            )
+            for heuristic_id, similarity in matches:
+                if similarity > 0.9:
+                    logger.warning(
+                        "QUALITY_GATE: Near-duplicate detected",
+                        similarity=round(similarity, 3),
+                        existing_heuristic_id=heuristic_id,
+                    )
+                    return executive_pb2.ProvideFeedbackResponse(
+                        accepted=True,
+                        error_message=f"Near-duplicate of existing heuristic (similarity={similarity:.2f})",
+                    )
 
         if trace.matched_heuristic_id and self.memory_client:
             await self.memory_client.update_heuristic_confidence(
@@ -609,16 +752,16 @@ async def serve(
     if ollama_url:
         ollama_client = OllamaClient(base_url=ollama_url, model=ollama_model)
         if await ollama_client.check_available():
-            logger.info(f"Connected to Ollama at {ollama_url} (model: {ollama_model})")
+            logger.info("Connected to Ollama", url=ollama_url, model=ollama_model)
         else:
-            logger.warning(f"Ollama not available at {ollama_url}")
+            logger.warning("Ollama not available", url=ollama_url)
             ollama_client = None
 
     memory_client = None
     if memory_address:
         memory_client = MemoryClient(address=memory_address)
         if await memory_client.connect():
-            logger.info(f"Connected to Memory service at {memory_address}")
+            logger.info("Connected to Memory service", address=memory_address)
         else:
             memory_client = None
 
@@ -640,7 +783,7 @@ async def serve(
     address = f"0.0.0.0:{port}"
     server.add_insecure_port(address)
 
-    logger.info(f"Executive stub server started on {address}")
+    logger.info("Executive stub server started", address=address)
     await server.start()
 
     try:

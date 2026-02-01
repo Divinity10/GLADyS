@@ -25,7 +25,7 @@
 │   Port 50050  │    │   Port 50052     │    │   Port 50053     │
 │               │    │                  │    │                  │
 │ OrchestratorSvc│   │ SalienceGateway  │    │ ExecutiveService │
-│               │    │ (evaluates       │    │ (stub for now)   │
+│               │    │ (evaluates       │    │ (decides action)   │
 │ Routes events │    │  salience)       │    │                  │
 └───────┬───────┘    └────────┬─────────┘    └──────────────────┘
         │                     │
@@ -59,7 +59,7 @@
 | Orchestrator | 50050 | 50060 | `OrchestratorService` | Python |
 | MemoryStorage | 50051 | 50061 | `MemoryStorage` | Python |
 | SalienceGateway | 50052 | 50062 | `SalienceGateway` | Rust |
-| Executive | 50053 | 50063 | `ExecutiveService` | Python (stub) |
+| Executive | 50053 | 50063 | `ExecutiveService` | Python |
 | Dashboard (UI) | 8502 | 8502 | - | Python (FastAPI/htmx) |
 | PostgreSQL | 5432 | 5433 | - | - |
 
@@ -94,11 +94,12 @@
 
 | RPC | Purpose |
 |-----|---------|
-| `EvaluateSalience` | Score event importance (calls MemoryStorage on cache miss) |
+| `EvaluateSalience` | Score event importance (cache-first: local cosine similarity on cached embeddings, falls back to MemoryStorage on cache miss) |
 | `FlushCache` | Clear heuristic cache |
 | `EvictFromCache` | Remove single heuristic from cache |
 | `GetCacheStats` | Get hit rate, size, etc. |
 | `ListCachedHeuristics` | List what's in cache |
+| `NotifyHeuristicChange` | Push invalidation from Memory (created/updated/deleted) |
 | `GetHealth` | Basic health check (HEALTHY/UNHEALTHY) |
 | `GetHealthDetails` | Detailed health with uptime, cache stats |
 
@@ -148,10 +149,13 @@
             Results returned to Rust → cached → salience computed
         │
         ▼
-4. If salience > threshold: Orchestrator calls Executive.ProcessEvent (50053)
+4. Orchestrator ALWAYS forwards to Executive.ProcessEvent (50053)
+   with heuristic suggestion context (if any match found)
+   Exception: emergency fast-path (confidence >= 0.95 AND threat >= 0.9)
         │
         ▼
-5. Executive uses LLM to decide action, may create new heuristic
+5. Executive decides: high-confidence heuristic → fast-path (no LLM)
+                      otherwise → LLM reasoning, may create new heuristic
 ```
 
 ---
@@ -201,8 +205,8 @@ Each table has a single owning component. No table is written by multiple servic
 |-------|-------|-------------|-----------|
 | `episodic_events` | Orchestrator | (1) Immediate heuristic match, (2) After queued event processed | `server.py:182`, `event_queue.py:248` |
 | `heuristic_fires` | Orchestrator | On any heuristic match (fire-and-forget) | `router.py:130` |
-| `heuristics` | Executive | On positive feedback (learned patterns) | `stub_server.py:691` |
-| `heuristics.confidence` | Executive | On any feedback (TD learning update) | `stub_server.py:660` |
+| `heuristics` | Executive | On positive feedback (learned patterns) | `gladys_executive/server.py:537-563` |
+| `heuristics.confidence` | Executive | On any feedback (TD learning update) | `gladys_executive/server.py:477-485` |
 | `heuristic_fires.outcome` | OutcomeWatcher | Implicit feedback (pattern match on later events) | `outcome_watcher.py` |
 
 ### Response Delivery
@@ -211,8 +215,8 @@ All event responses flow through the Orchestrator — no component can push resp
 
 | Path | Flow | Delivery |
 |------|------|----------|
-| Immediate (heuristic) | Sensor → Orchestrator → EventAck (inline) | Synchronous in PublishEvents stream |
-| Queued (LLM) | Sensor → Orchestrator → Queue → Executive → Orchestrator → broadcast | Async via SubscribeResponses stream |
+| Emergency fast-path | Sensor → Orchestrator → EventAck (inline) | Synchronous in PublishEvents stream (confidence >= 0.95 AND threat >= 0.9 only) |
+| Normal (all other events) | Sensor → Orchestrator → Queue → Executive → Orchestrator → broadcast | Async via SubscribeResponses stream. Executive decides heuristic fast-path vs LLM. |
 
 ---
 
