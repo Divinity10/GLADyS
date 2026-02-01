@@ -671,4 +671,126 @@ mod tests {
         assert!(cache.get_heuristic(&id3).is_some());
         assert!(cache.get_heuristic(&id4).is_some());
     }
+
+    #[test]
+    fn test_find_matching_heuristics_basic() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 50,
+            novelty_threshold: 0.9,
+            heuristic_ttl_ms: 300_000, // 5 min
+        });
+
+        // Create two heuristics with different embeddings
+        let id1 = Uuid::new_v4();
+        let id2 = Uuid::new_v4();
+
+        // Embedding: mostly positive values
+        let emb1: Vec<f32> = (0..384).map(|i| i as f32 / 384.0).collect();
+        // Embedding: same direction, should be very similar
+        let emb2: Vec<f32> = (0..384).map(|i| (i as f32 / 384.0) + 0.01).collect();
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id1,
+            name: "h1".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb1.clone(),
+            confidence: 0.8,
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        cache.add_heuristic(CachedHeuristic {
+            id: id2,
+            name: "h2".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb2,
+            confidence: 0.3, // Below threshold
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        // Query with emb1 — should match h1 (high confidence), not h2 (low confidence)
+        let matches = cache.find_matching_heuristics(&emb1, 0.7, 0.5, 10);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].0, id1);
+        assert!(matches[0].1 > 0.99); // Self-similarity
+
+        // Query with no minimum confidence — should match both
+        let matches_all = cache.find_matching_heuristics(&emb1, 0.7, 0.0, 10);
+        assert_eq!(matches_all.len(), 2);
+        // Results should be sorted by similarity (h1 first = exact match)
+        assert_eq!(matches_all[0].0, id1);
+    }
+
+    #[test]
+    fn test_find_matching_heuristics_empty_embedding() {
+        let cache = MemoryCache::new(CacheConfig::default());
+        let matches = cache.find_matching_heuristics(&[], 0.7, 0.5, 10);
+        assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_heuristics_ttl_expiry() {
+        let mut cache = MemoryCache::new(CacheConfig {
+            max_events: 100,
+            max_heuristics: 50,
+            novelty_threshold: 0.9,
+            heuristic_ttl_ms: 1, // 1ms TTL — will expire immediately
+        });
+
+        let emb: Vec<f32> = vec![1.0; 384];
+        cache.add_heuristic(CachedHeuristic {
+            id: Uuid::new_v4(),
+            name: "expired".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: emb.clone(),
+            confidence: 0.9,
+            last_accessed_ms: 0,
+            cached_at_ms: 1, // Very old
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        // Wait a tiny bit for TTL to expire
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        let matches = cache.find_matching_heuristics(&emb, 0.5, 0.0, 10);
+        assert!(matches.is_empty(), "Expired heuristic should not match");
+    }
+
+    #[test]
+    fn test_cache_invalidation_removes_heuristic() {
+        let mut cache = MemoryCache::new(CacheConfig::default());
+
+        let id = Uuid::new_v4();
+        cache.add_heuristic(CachedHeuristic {
+            id,
+            name: "to_remove".to_string(),
+            condition: serde_json::json!({}),
+            action: serde_json::json!({}),
+            condition_embedding: vec![1.0; 384],
+            confidence: 0.9,
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        });
+
+        assert!(cache.get_heuristic(&id).is_some());
+        assert!(cache.remove_heuristic(&id));
+        assert!(cache.get_heuristic(&id).is_none());
+
+        // Subsequent queries should not find it
+        let emb = vec![1.0; 384];
+        let matches = cache.find_matching_heuristics(&emb, 0.5, 0.0, 10);
+        assert!(matches.is_empty());
+    }
 }
