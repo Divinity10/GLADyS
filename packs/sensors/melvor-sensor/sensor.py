@@ -27,7 +27,7 @@ from gladys_orchestrator.generated import (
     orchestrator_pb2,
     orchestrator_pb2_grpc,
 )
-from gladys_common import setup_logging, get_logger
+from gladys_common import setup_logging, get_logger, bind_trace_id, generate_trace_id
 
 SENSOR_ID = "melvor-sensor"
 DEFAULT_PORT = 8702
@@ -42,11 +42,13 @@ class MelvorSensor:
         self,
         orchestrator_addr: str,
         http_port: int,
+        trace_id: str,
         mock_file: Path | None = None,
         dry_run: bool = False
     ):
         self.orchestrator_addr = orchestrator_addr
         self.http_port = http_port
+        self.trace_id = trace_id
         self.mock_file = mock_file
         self.dry_run = dry_run
         self.event_queue = asyncio.Queue()
@@ -201,7 +203,8 @@ class MelvorSensor:
                         batch_size=1,
                         batch_interval_ms=0
                     )
-                )
+                ),
+                metadata=[('x-gladys-trace-id', self.trace_id)]
             )
             if response.success:
                 logger.info("Registered with orchestrator", assigned_id=response.assigned_id or SENSOR_ID)
@@ -258,7 +261,10 @@ class MelvorSensor:
 
                 if await self.register(stub):
                     backoff = 1 
-                    async for ack in stub.PublishEvents(self.stream_events(stub)):
+                    async for ack in stub.PublishEvents(
+                        self.stream_events(stub),
+                        metadata=[('x-gladys-trace-id', self.trace_id)]
+                    ):
                         if ack.accepted:
                             logger.debug("Event accepted", event_id=ack.event_id[:8])
                         else:
@@ -292,8 +298,14 @@ async def main():
     
     args = parser.parse_args()
 
-    # Configure logging per standard
+    # Configure logging and trace ID per standard
     setup_logging(SENSOR_ID)
+    trace_id = generate_trace_id()
+    bind_trace_id(trace_id)
+
+    # Issue #3: Explicit start log
+    mode = "mock" if args.mock else "live"
+    logger.info("Sensor started", mode=mode, dry_run=args.dry_run, trace_id=trace_id)
 
     if args.orchestrator:
         addr = args.orchestrator
@@ -309,6 +321,7 @@ async def main():
     sensor = MelvorSensor(
         orchestrator_addr=addr,
         http_port=args.port,
+        trace_id=trace_id,
         mock_file=mock_file,
         dry_run=args.dry_run
     )
