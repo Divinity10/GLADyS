@@ -102,7 +102,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Impl** | `src/services/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
 | **Impl** | `src/services/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
 | **UI** | `src/services/dashboard/` | Dashboard V2 (FastAPI + htmx + Alpine.js). See [DASHBOARD_V2.md](design/DASHBOARD_V2.md). |
-| **UI (legacy)** | `src/ui/dashboard.py` | Streamlit dashboard (deprecated, replaced by V2). |
+| **UI (legacy)** | *(removed)* | Streamlit V1 dashboard deleted; replaced by V2 above. |
 
 ---
 

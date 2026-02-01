@@ -121,7 +121,7 @@ Non-negotiable unless an ADR is superseded:
 Facts about how the team works. Do NOT push back on requests that contradict these without re-reading this section first.
 
 - **Dual environments**: Scott runs both Docker and local instances simultaneously. Environment switching in tools is essential, not a deployment concern.
-- **Dashboard purpose**: The Streamlit dashboard (`src/ui/dashboard.py`) is a dev/QA tool for troubleshooting and verifying the pipeline. It is not an end-user UI.
+- **Dashboard purpose**: The dashboard (`src/services/dashboard/`, FastAPI + htmx + Alpine.js) is a dev/QA tool for troubleshooting and verifying the pipeline. It is not an end-user UI.
 - **Schema sync**: Local and Docker databases must stay in sync unless there's a documented reason to diverge (see Database Schema Management below).
 - **Testing workflow**: The core validation is the feedback loop — submit event, get response, give feedback, resubmit, verify heuristic fires instead of LLM. All tools should support this workflow.
 

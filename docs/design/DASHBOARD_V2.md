@@ -546,7 +546,7 @@ src/dashboard/
 └── pyproject.toml           # Backend dependencies
 ```
 
-V1 Streamlit dashboard remains at `src/ui/dashboard.py` until V2 is ready.
+V1 Streamlit dashboard has been removed. V2 is the active dashboard.
 
 ## Existing Code to Reuse
 
