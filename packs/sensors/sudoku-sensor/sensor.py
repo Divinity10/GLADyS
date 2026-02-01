@@ -18,7 +18,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import logging
 import os
 import sys
 import uuid
@@ -31,24 +30,23 @@ from google.protobuf import struct_pb2, timestamp_pb2
 
 # Add orchestrator to path for proto imports
 sys.path.insert(0, str(Path(__file__).parents[3] / "src" / "services" / "orchestrator"))
+# Add common lib to path for logging
+sys.path.insert(0, str(Path(__file__).parents[3] / "src" / "lib" / "gladys_common"))
 
 from gladys_orchestrator.generated import (
     common_pb2,
     orchestrator_pb2,
     orchestrator_pb2_grpc,
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("sudoku-sensor")
+from gladys_common import setup_logging, get_logger, bind_trace_id
 
 SENSOR_ID = "sudoku-sensor"
 DEFAULT_PORT = 8701
 DEFAULT_ORCHESTRATOR_ADDR = "localhost:50050"
 DOCKER_ORCHESTRATOR_ADDR = "localhost:50060"
+
+# Initialize logging (will be configured in main)
+logger = get_logger()
 
 class SudokuSensor:
     def __init__(
@@ -130,11 +128,11 @@ class SudokuSensor:
         """Handle incoming HTTP POST from driver."""
         try:
             data = await request.json()
-            logger.info(f"Received HTTP event: {data.get('event_type')}")
+            logger.info("Received HTTP event", event_type=data.get('event_type'))
             await self.event_queue.put(data)
             return web.json_response({"status": "accepted"})
         except Exception as e:
-            logger.error(f"Error handling HTTP event: {e}")
+            logger.error("Error handling HTTP event", error=str(e))
             return web.json_response({"error": str(e)}, status=400)
 
     async def start_http_server(self):
@@ -145,19 +143,19 @@ class SudokuSensor:
         await runner.setup()
         site = web.TCPSite(runner, 'localhost', self.http_port)
         await site.start()
-        logger.info(f"HTTP server listening on localhost:{self.http_port}")
+        logger.info("HTTP server listening", port=self.http_port)
         return runner
 
     async def run_mock_generator(self):
         """Generate mock events from file."""
         if not self.mock_file or not self.mock_file.exists():
-            logger.error("Mock file not found")
+            logger.error("Mock file not found", path=str(self.mock_file))
             return
 
         with open(self.mock_file, "r") as f:
             events = json.load(f)
 
-        logger.info(f"Loaded {len(events)} mock events")
+        logger.info("Loaded mock events", count=len(events))
         
         for event in events:
             if not self.running: 
@@ -166,7 +164,7 @@ class SudokuSensor:
             # Update timestamp to now to look real
             event["timestamp"] = datetime.now().isoformat()
             
-            logger.info(f"Queueing mock event: {event['event_type']}")
+            logger.info("Queueing mock event", event_type=event['event_type'])
             await self.event_queue.put(event)
             await asyncio.sleep(2)  # Simulate delay between events
 
@@ -182,20 +180,20 @@ class SudokuSensor:
                     component_type="sensor",
                     address="", 
                     capabilities=orchestrator_pb2.ComponentCapabilities(
-                        transport_mode=orchestrator_pb2.TRANSPORT_MODE_STREAMING,
+                        transport_mode=orchestrator_pb2_grpc.orchestrator__pb2.TRANSPORT_MODE_STREAMING,
                         batch_size=1,
                         batch_interval_ms=0
                     )
                 )
             )
             if response.success:
-                logger.info(f"Registered with orchestrator as '{response.assigned_id or SENSOR_ID}'")
+                logger.info("Registered with orchestrator", assigned_id=response.assigned_id or SENSOR_ID)
                 return True
             else:
-                logger.error(f"Registration failed: {response.error_message}")
+                logger.error("Registration failed", error=response.error_message)
                 return False
         except grpc.aio.AioRpcError as e:
-            logger.error(f"Failed to register: {e.code()} - {e.details()}")
+            logger.error("Failed to register", code=e.code(), details=e.details())
             return False
 
     async def stream_events(self, stub):
@@ -207,11 +205,11 @@ class SudokuSensor:
             
             if self.dry_run:
                 print(f"[DRY RUN] Would emit: {event_msg.raw_text}")
-                print(f"          Structured: {event_msg.structured}")
+                # print(f"          Structured: {event_msg.structured}")
                 self.event_queue.task_done()
                 continue
             
-            logger.info(f"Emitting: {event_msg.raw_text}")
+            logger.info("Emitting event", text=event_msg.raw_text)
             yield event_msg
             self.event_queue.task_done()
 
@@ -243,7 +241,7 @@ class SudokuSensor:
         while self.running:
             channel = None
             try:
-                logger.info(f"Connecting to orchestrator at {self.orchestrator_addr}...")
+                logger.info("Connecting to orchestrator", addr=self.orchestrator_addr)
                 channel = grpc.aio.insecure_channel(self.orchestrator_addr)
                 stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
 
@@ -251,24 +249,22 @@ class SudokuSensor:
                     backoff = 1 # Reset backoff on success
                     
                     # Start bidirectional stream
-                    # We send events via stream_events() generator
-                    # We receive ACKs from the server
                     async for ack in stub.PublishEvents(self.stream_events(stub)):
                         if ack.accepted:
-                            logger.debug(f"Event {ack.event_id[:8]} accepted")
+                            logger.debug("Event accepted", event_id=ack.event_id[:8])
                         else:
-                            logger.warning(f"Event {ack.event_id[:8]} rejected: {ack.error_message}")
+                            logger.warning("Event rejected", event_id=ack.event_id[:8], error=ack.error_message)
                 
             except grpc.aio.AioRpcError as e:
-                logger.error(f"gRPC error: {e.code()} - {e.details()}")
+                logger.error("gRPC error", code=e.code(), details=e.details())
             except Exception as e:
-                logger.error(f"Unexpected error: {e}")
+                logger.error("Unexpected error", error=str(e))
             finally:
                 if channel:
                     await channel.close()
                 
             if self.running:
-                logger.info(f"Reconnecting in {backoff}s...")
+                logger.info("Reconnecting", delay=backoff)
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30)
 
@@ -287,6 +283,9 @@ async def main():
     parser.add_argument("--orchestrator", type=str, help="Orchestrator address")
     
     args = parser.parse_args()
+
+    # Configure logging per standard
+    setup_logging(SENSOR_ID)
 
     # Determine orchestrator address
     if args.orchestrator:
