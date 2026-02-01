@@ -90,9 +90,23 @@ service SalienceGateway {
     // List heuristics currently in cache
     rpc ListCachedHeuristics(ListCachedHeuristicsRequest) returns (ListCachedHeuristicsResponse);
 
+    // Notify cache of heuristic changes (push invalidation from Memory)
+    rpc NotifyHeuristicChange(NotifyHeuristicChangeRequest) returns (NotifyHeuristicChangeResponse);
+
     // --- Health Check ---
     rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
     rpc GetHealthDetails(gladys.types.GetHealthDetailsRequest) returns (gladys.types.GetHealthDetailsResponse);
+}
+
+// --- Cache Invalidation Messages ---
+
+message NotifyHeuristicChangeRequest {
+    string heuristic_id = 1;
+    string change_type = 2; // "created", "updated", "deleted"
+}
+
+message NotifyHeuristicChangeResponse {
+    bool success = 1;
 }
 
 // --- Cache Management Messages ---

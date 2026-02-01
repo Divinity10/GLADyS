@@ -938,6 +938,11 @@ class SalienceGatewayStub(object):
                 request_serializer=memory__pb2.ListCachedHeuristicsRequest.SerializeToString,
                 response_deserializer=memory__pb2.ListCachedHeuristicsResponse.FromString,
                 _registered_method=True)
+        self.NotifyHeuristicChange = channel.unary_unary(
+                '/gladys.memory.SalienceGateway/NotifyHeuristicChange',
+                request_serializer=memory__pb2.NotifyHeuristicChangeRequest.SerializeToString,
+                response_deserializer=memory__pb2.NotifyHeuristicChangeResponse.FromString,
+                _registered_method=True)
         self.GetHealth = channel.unary_unary(
                 '/gladys.memory.SalienceGateway/GetHealth',
                 request_serializer=types__pb2.GetHealthRequest.SerializeToString,
@@ -994,6 +999,13 @@ class SalienceGatewayServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def NotifyHeuristicChange(self, request, context):
+        """Notify cache of heuristic changes (push invalidation from Memory)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetHealth(self, request, context):
         """--- Health Check ---
         """
@@ -1034,6 +1046,11 @@ def add_SalienceGatewayServicer_to_server(servicer, server):
                     servicer.ListCachedHeuristics,
                     request_deserializer=memory__pb2.ListCachedHeuristicsRequest.FromString,
                     response_serializer=memory__pb2.ListCachedHeuristicsResponse.SerializeToString,
+            ),
+            'NotifyHeuristicChange': grpc.unary_unary_rpc_method_handler(
+                    servicer.NotifyHeuristicChange,
+                    request_deserializer=memory__pb2.NotifyHeuristicChangeRequest.FromString,
+                    response_serializer=memory__pb2.NotifyHeuristicChangeResponse.SerializeToString,
             ),
             'GetHealth': grpc.unary_unary_rpc_method_handler(
                     servicer.GetHealth,
@@ -1184,6 +1201,33 @@ class SalienceGateway(object):
             '/gladys.memory.SalienceGateway/ListCachedHeuristics',
             memory__pb2.ListCachedHeuristicsRequest.SerializeToString,
             memory__pb2.ListCachedHeuristicsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def NotifyHeuristicChange(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.SalienceGateway/NotifyHeuristicChange',
+            memory__pb2.NotifyHeuristicChangeRequest.SerializeToString,
+            memory__pb2.NotifyHeuristicChangeResponse.FromString,
             options,
             channel_credentials,
             insecure,

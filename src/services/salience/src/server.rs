@@ -26,6 +26,7 @@ use crate::proto::{
     FlushCacheRequest, FlushCacheResponse, EvictFromCacheRequest, EvictFromCacheResponse,
     GetCacheStatsRequest, GetCacheStatsResponse, ListCachedHeuristicsRequest,
     ListCachedHeuristicsResponse, CachedHeuristicInfo,
+    NotifyHeuristicChangeRequest, NotifyHeuristicChangeResponse,
 };
 use crate::proto::gladys::types::{
     GetHealthRequest, GetHealthResponse, GetHealthDetailsRequest, GetHealthDetailsResponse,
@@ -455,6 +456,45 @@ impl SalienceGateway for SalienceService {
         Ok(Response::new(ListCachedHeuristicsResponse {
             heuristics: info,
         }))
+    }
+
+    /// Handle heuristic change notification from Memory service.
+    /// On "created"/"updated": evict stale entry so next request re-fetches from Python.
+    /// On "deleted": evict from cache.
+    async fn notify_heuristic_change(
+        &self,
+        request: Request<NotifyHeuristicChangeRequest>,
+    ) -> Result<Response<NotifyHeuristicChangeResponse>, Status> {
+        let req = request.into_inner();
+        let change_type = req.change_type.as_str();
+
+        info!(
+            heuristic_id = %req.heuristic_id,
+            change_type = %change_type,
+            "Heuristic change notification received"
+        );
+
+        let id = uuid::Uuid::parse_str(&req.heuristic_id)
+            .map_err(|e| Status::invalid_argument(format!("Invalid UUID: {}", e)))?;
+
+        match change_type {
+            "created" | "updated" => {
+                // Evict stale entry; next evaluate_salience will re-fetch from Python
+                let mut cache = self.cache.write().await;
+                cache.remove_heuristic(&id);
+            }
+            "deleted" => {
+                let mut cache = self.cache.write().await;
+                cache.remove_heuristic(&id);
+            }
+            _ => {
+                warn!(change_type = %change_type, "Unknown change type, evicting as safety measure");
+                let mut cache = self.cache.write().await;
+                cache.remove_heuristic(&id);
+            }
+        }
+
+        Ok(Response::new(NotifyHeuristicChangeResponse { success: true }))
     }
 
     /// Basic health check
