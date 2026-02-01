@@ -6,9 +6,31 @@ function appState() {
         serviceActionPending: false,
         serviceAction: '',
         serviceStatusMsg: '',
+        warmingOllama: false,
 
         init() {
-            this.$watch('activeTab', (val) => localStorage.setItem('activeTab', val));
+            this.$watch('activeTab', (val) => {
+                localStorage.setItem('activeTab', val);
+                // Trigger data refresh when switching tabs
+                this.$nextTick(() => {
+                    if (val === 'lab') {
+                        // Re-fetch event rows for the Lab tab
+                        const tbody = document.getElementById('event-table-body');
+                        if (tbody) {
+                            fetch('/api/events/rows?limit=25&offset=0')
+                                .then(r => r.text())
+                                .then(html => { tbody.innerHTML = html; });
+                        }
+                    } else if (val === 'knowledge') {
+                        // Dispatch event for Alpine.js knowledge component
+                        window.dispatchEvent(new CustomEvent('refresh-knowledge'));
+                    } else {
+                        // For HTMX tabs (learning, llm, logs, settings), re-trigger load
+                        const tabDiv = document.querySelector(`[x-show="activeTab === '${val}'"]`);
+                        if (tabDiv) htmx.trigger(tabDiv, 'load');
+                    }
+                });
+            });
             this.$watch('environment', (val) => {
                 localStorage.setItem('environment', val);
                 this.switchEnvironment(val);
@@ -86,6 +108,17 @@ function appState() {
             const name = this.selectedService;
             if (name === 'all' && !confirm('Are you sure you want to restart ALL services?')) return;
             await this._doServiceAction('restart');
+        },
+
+        async warmOllama() {
+            this.warmingOllama = true;
+            try {
+                await fetch('/api/llm/warm', { method: 'POST' });
+            } catch (err) {
+                console.error('Failed to warm Ollama:', err);
+            } finally {
+                this.warmingOllama = false;
+            }
         },
 
         // Column Resizing

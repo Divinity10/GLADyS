@@ -5,6 +5,8 @@
               hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.querySelector('[name=text]').value=''; if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
               class="flex gap-2 items-center">
             <select name="source" class="input-dense bg-gray-900 w-32">
+                <option value="sudoku">sudoku</option>
+                <option value="melvor">melvor</option>
                 <option value="minecraft">minecraft</option>
                 <option value="kitchen">kitchen</option>
                 <option value="smart_home">smart_home</option>

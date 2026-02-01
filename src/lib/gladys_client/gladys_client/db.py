@@ -38,19 +38,21 @@ def list_events(dsn: str, *, limit: int = 50, offset: int = 0,
     try:
         cur = conn.cursor()
         query = """
-            SELECT id, timestamp, source, raw_text,
-                   salience, response_text, response_id,
-                   predicted_success, prediction_confidence
-            FROM episodic_events
-            WHERE archived = false
+            SELECT e.id, e.timestamp, e.source, e.raw_text,
+                   e.salience, e.response_text, e.response_id,
+                   e.predicted_success, e.prediction_confidence,
+                   hf.heuristic_id AS matched_heuristic_id
+            FROM episodic_events e
+            LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+            WHERE e.archived = false
         """
         params = []
 
         if source:
-            query += " AND source = %s"
+            query += " AND e.source = %s"
             params.append(source)
 
-        query += " ORDER BY timestamp DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY e.timestamp DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         cur.execute(query, params)
@@ -161,6 +163,18 @@ def count_heuristics(dsn: str, *, include_frozen: bool = False) -> int:
             query += " WHERE frozen = false"
         cur.execute(query)
         return cur.fetchone()["cnt"]
+    finally:
+        conn.close()
+
+
+def delete_heuristic(dsn: str, heuristic_id: str) -> bool:
+    """Delete a heuristic by ID. Returns True if found and deleted."""
+    conn = _connect(dsn)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM heuristics WHERE id = %s", [heuristic_id])
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 
