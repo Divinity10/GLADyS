@@ -75,6 +75,15 @@
     }
   },
   {
+    "event_type": "item_equipped",
+    "timestamp": "2024-01-01T12:02:15.000000",
+    "data": {
+      "item_name": "Bronze Pickaxe",
+      "slot": "Weapon",
+      "stats": {"attack": 2, "speed": 2.6}
+    }
+  },
+  {
     "event_type": "skill_started",
     "timestamp": "2024-01-01T12:02:30.000000",
     "data": {

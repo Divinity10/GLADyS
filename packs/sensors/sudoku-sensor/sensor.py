@@ -38,7 +38,7 @@ from gladys_orchestrator.generated import (
     orchestrator_pb2,
     orchestrator_pb2_grpc,
 )
-from gladys_common import setup_logging, get_logger, bind_trace_id
+from gladys_common import setup_logging, get_logger
 
 SENSOR_ID = "sudoku-sensor"
 DEFAULT_PORT = 8701
@@ -180,7 +180,7 @@ class SudokuSensor:
                     component_type="sensor",
                     address="", 
                     capabilities=orchestrator_pb2.ComponentCapabilities(
-                        transport_mode=orchestrator_pb2_grpc.orchestrator__pb2.TRANSPORT_MODE_STREAMING,
+                        transport_mode=orchestrator_pb2.TRANSPORT_MODE_STREAMING,
                         batch_size=1,
                         batch_interval_ms=0
                     )
@@ -205,7 +205,6 @@ class SudokuSensor:
             
             if self.dry_run:
                 print(f"[DRY RUN] Would emit: {event_msg.raw_text}")
-                # print(f"          Structured: {event_msg.structured}")
                 self.event_queue.task_done()
                 continue
             

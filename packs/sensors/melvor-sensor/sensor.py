@@ -27,7 +27,7 @@ from gladys_orchestrator.generated import (
     orchestrator_pb2,
     orchestrator_pb2_grpc,
 )
-from gladys_common import setup_logging, get_logger, bind_trace_id
+from gladys_common import setup_logging, get_logger
 
 SENSOR_ID = "melvor-sensor"
 DEFAULT_PORT = 8702
