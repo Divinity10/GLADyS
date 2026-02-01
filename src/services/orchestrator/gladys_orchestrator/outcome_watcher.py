@@ -224,6 +224,19 @@ class OutcomeWatcher:
             logger.error(f"OutcomeWatcher: Error sending feedback: {e}")
             return False
 
+    async def get_expired_items(self) -> list[tuple[str, str]]:
+        """Return (heuristic_id, event_id) for expired pending outcomes.
+
+        Does NOT remove them — call cleanup_expired() after processing.
+        """
+        now = datetime.utcnow()
+        async with self._lock:
+            return [
+                (p.heuristic_id, p.event_id)
+                for p in self._pending
+                if p.timeout_at < now
+            ]
+
     async def cleanup_expired(self) -> int:
         """
         Remove expired pending outcomes.

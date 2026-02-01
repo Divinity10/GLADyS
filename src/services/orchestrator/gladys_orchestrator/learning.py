@@ -51,7 +51,7 @@ class LearningModule:
 
     def __init__(
         self,
-        memory_client: Any,
+        memory_client: Any,  # TODO: add Protocol type when interface stabilizes
         outcome_watcher: OutcomeWatcher | None,
     ) -> None:
         self._memory_client = memory_client
@@ -206,6 +206,10 @@ class LearningModule:
         """Track that a heuristic suggestion was ignored (not acted upon).
 
         After IGNORED_THRESHOLD consecutive ignores, sends negative implicit feedback.
+
+        Note: No caller exists yet. Detecting "ignored" requires Executive-side
+        awareness of presented-but-not-acted-on suggestions. Wire up when that
+        integration is built.
         """
         self._ignore_counts[heuristic_id] += 1
         count = self._ignore_counts[heuristic_id]
@@ -241,15 +245,7 @@ class LearningModule:
             return 0
 
         # Get expired items before cleanup
-        # Note: outcome_watcher uses naive UTC datetimes (pre-existing tech debt),
-        # so we compare with naive UTC here at the boundary.
-        now_naive = datetime.utcnow()  # noqa: DTZ003 — matching outcome_watcher convention
-        expired_items: list[tuple[str, str]] = []
-
-        async with self._outcome_watcher._lock:
-            for p in self._outcome_watcher._pending:
-                if p.timeout_at < now_naive:
-                    expired_items.append((p.heuristic_id, p.event_id))
+        expired_items = await self._outcome_watcher.get_expired_items()
 
         # Now do the standard cleanup (removes expired from pending list)
         expired_count = await self._outcome_watcher.cleanup_expired()
