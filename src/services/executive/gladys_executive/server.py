@@ -78,6 +78,7 @@ class OllamaClient:
             "model": self.model,
             "prompt": prompt,
             "stream": False,
+            "keep_alive": "30m",
         }
         if system:
             payload["system"] = system

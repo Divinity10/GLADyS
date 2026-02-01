@@ -83,7 +83,7 @@
             this.probeLoading = false;
         }
     }
-}" x-init="fetchHeuristics()">
+}" x-init="fetchHeuristics()" @refresh-knowledge.window="fetchHeuristics()">
 
     <!-- Header & Actions -->
     <div class="flex flex-col gap-2 mb-2">
@@ -164,7 +164,10 @@
                     <template x-data="{ expanded: false }">
                         <tbody class="border-b border-gray-800 last:border-0">
                             <tr @click="expanded = !expanded" class="cursor-pointer hover:bg-gray-800 transition-colors" :class="expanded ? 'bg-gray-800' : ''">
-                                <td class="font-bold py-2" x-text="h.name"></td>
+                                <td class="font-bold py-2">
+                                    <span x-text="h.name"></span>
+                                    <span class="text-[9px] font-mono text-secondary ml-1" x-text="h.id ? h.id.substring(0, 8) : ''"></span>
+                                </td>
                                 <td class="text-secondary truncate max-w-md" x-text="h.condition_text"></td>
                                 <td class="text-center">
                                     <div class="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">

@@ -98,6 +98,12 @@
                         </div>
                         <div x-show="serviceStatusMsg" x-text="serviceStatusMsg"
                              class="text-[10px] text-center text-yellow-300 mt-1"></div>
+                        <button @click="warmOllama()" :disabled="warmingOllama"
+                                :class="warmingOllama ? 'opacity-50 cursor-wait' : ''"
+                                class="btn text-[10px] w-full mt-2">
+                            <span x-show="!warmingOllama">🔥 Warm Ollama</span>
+                            <span x-show="warmingOllama">Warming...</span>
+                        </button>
                     </div>
                 </div>
                 <div class="flex-1"></div>

@@ -55,7 +55,8 @@ def _make_event_dict(event_id: str, source: str, text: str,
                      timestamp=None, salience: dict = None,
                      response_text: str = "", response_id: str = "",
                      predicted_success: float = None,
-                     prediction_confidence: float = None) -> dict:
+                     prediction_confidence: float = None,
+                     matched_heuristic_id: str = "") -> dict:
     """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
@@ -67,10 +68,10 @@ def _make_event_dict(event_id: str, source: str, text: str,
         status = "queued"
 
     path = ""
-    if response_id:
-        path = "EXECUTIVE"
-    elif response_text:
+    if matched_heuristic_id:
         path = "HEURISTIC"
+    elif response_text or response_id:
+        path = "LLM"
 
     salience_breakdown = {}
     if isinstance(salience, dict):
@@ -124,6 +125,7 @@ def _fetch_events(limit: int = 25, offset: int = 0,
                 response_id=row["response_id"] or "",
                 predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
                 prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
+                matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
             ))
     except Exception as e:
         import sys
@@ -337,7 +339,14 @@ async def submit_feedback(request: Request):
             event_id=event_id,
             positive=positive,
         ))
-        label = "\U0001f44d Saved" if positive else "\U0001f44e Saved"
+        if getattr(resp, "created_heuristic_id", ""):
+            label = f"\u2728 Created heuristic {resp.created_heuristic_id[:8]}\u2026"
+        elif positive:
+            label = "\U0001f44d Saved"
+        else:
+            label = "\U0001f44e Saved"
+        if getattr(resp, "error_message", ""):
+            label += f" ({resp.error_message})"
         return HTMLResponse(f'<span class="text-green-400 text-[10px]">{label}</span>')
     except grpc.RpcError as e:
         return HTMLResponse(f'<span class="text-red-400 text-[10px]">Error: {e.code().name}</span>', status_code=502)
