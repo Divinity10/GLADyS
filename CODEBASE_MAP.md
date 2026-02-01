@@ -414,7 +414,8 @@ GLADys/
 │   ├── _health_client.py       # Health CLI (re-exports from gladys_client.health)
 │   ├── _db.py                  # DB CLI (re-exports from gladys_client.db)
 │   ├── _sync_check.py          # Proto/migration sync verification
-│   └── _gladys.py              # Shared config (ports, utils)
+│   ├── _gladys.py              # Shared config (ports, utils)
+│   └── convergence_test.py     # PoC 1 convergence test (10-step integration test)
 │
 ├── packs/                      # Plugin packs (formerly plugins/)
 │   ├── sensors/                # Sensor packs
