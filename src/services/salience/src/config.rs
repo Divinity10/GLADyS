@@ -74,8 +74,8 @@ pub struct CacheConfig {
     pub max_heuristics: usize,
     /// Novelty threshold - similarity below this = novel (default: 0.7)
     pub novelty_threshold: f32,
-    /// TTL for cached heuristic confidence in milliseconds (default: 5000 = 5 seconds)
-    /// After this time, cached confidence is considered stale and will be refreshed
+    /// TTL for cached heuristic confidence in milliseconds (default: 300000 = 5 minutes)
+    /// Safety net for stale entries; push invalidation handles normal updates
     pub heuristic_ttl_ms: i64,
 }
 
@@ -97,7 +97,7 @@ impl Default for CacheConfig {
             heuristic_ttl_ms: env::var("CACHE_HEURISTIC_TTL_MS")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(5000), // 5 seconds default
+                .unwrap_or(300_000), // 5 minutes default
         }
     }
 }
