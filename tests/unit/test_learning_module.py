@@ -11,7 +11,7 @@ Tests all interface methods and implicit feedback signals:
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -253,7 +253,7 @@ async def test_check_event_no_undo_outside_window(learning_module, memory_client
     # Manually backdate the fire record
     async with learning_module._fires_lock:
         for r in learning_module._recent_fires:
-            r.fire_time = datetime.utcnow() - timedelta(seconds=UNDO_WINDOW_SEC + 10)
+            r.fire_time = datetime.now(UTC) - timedelta(seconds=UNDO_WINDOW_SEC + 10)
 
     event = FakeEvent(raw_text="User wants to undo the last action")
     resolved = await learning_module.check_event_for_outcomes(event)

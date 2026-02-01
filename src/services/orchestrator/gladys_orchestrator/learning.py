@@ -15,7 +15,7 @@ Implicit feedback signals:
 import asyncio
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from gladys_common import get_logger
@@ -141,7 +141,7 @@ class LearningModule:
         record = FireRecord(
             heuristic_id=heuristic_id,
             event_id=event_id,
-            fire_time=datetime.utcnow(),
+            fire_time=datetime.now(UTC),
             condition_text=condition_text,
             predicted_success=predicted_success,
         )
@@ -241,12 +241,14 @@ class LearningModule:
             return 0
 
         # Get expired items before cleanup
-        now = datetime.utcnow()
+        # Note: outcome_watcher uses naive UTC datetimes (pre-existing tech debt),
+        # so we compare with naive UTC here at the boundary.
+        now_naive = datetime.utcnow()  # noqa: DTZ003 — matching outcome_watcher convention
         expired_items: list[tuple[str, str]] = []
 
         async with self._outcome_watcher._lock:
             for p in self._outcome_watcher._pending:
-                if p.timeout_at < now:
+                if p.timeout_at < now_naive:
                     expired_items.append((p.heuristic_id, p.event_id))
 
         # Now do the standard cleanup (removes expired from pending list)
@@ -268,6 +270,7 @@ class LearningModule:
             )
 
         # Also clean up stale fire records (older than undo window)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
         async with self._fires_lock:
             self._recent_fires = [
@@ -298,7 +301,7 @@ class LearningModule:
         if not any(kw in text_lower for kw in undo_keywords):
             return []
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
         affected: list[str] = []
 
