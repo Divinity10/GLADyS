@@ -67,6 +67,10 @@ class OrchestratorConfig(BaseSettings):
         default=30,
         description="How often to cleanup expired outcome expectations",
     )
+    outcome_timeout_sec: int = Field(
+        default=120,
+        description="Default timeout for implicit feedback (no complaint = positive)",
+    )
     # Default outcome patterns - JSON array of objects with:
     # - trigger_pattern: substring match on heuristic condition_text
     # - outcome_pattern: substring match on outcome event raw_text

@@ -282,12 +282,16 @@ def step_07_verify_fire(dsn: str, heuristic_id: str) -> None:
     logger.info("fire_verified", fire_id=fires[0]["id"], outcome=fires[0].get("outcome"))
 
 
-def step_08_wait_implicit_feedback(dsn: str, heuristic_id: str) -> None:
+def step_08_wait_implicit_feedback(dsn: str, heuristic_id: str,
+                                   outcome_timeout: int) -> None:
     """Wait for implicit feedback (timeout-based positive signal).
 
-    The outcome watcher uses a timeout (typically 120s). For testing we check
-    that the fire was registered. If the timeout is too long, we verify the
-    mechanism exists and move on.
+    The outcome watcher expires pending expectations after outcome_timeout
+    seconds, then the cleanup loop (every 30s) sends timeout-positive
+    feedback. We wait long enough for both to complete.
+
+    For fast testing, start orchestrator with OUTCOME_TIMEOUT_SEC=10
+    OUTCOME_CLEANUP_INTERVAL_SEC=5 and pass --outcome-timeout 10.
     """
     fires = _get_fires_for_heuristic(dsn, heuristic_id)
     if not fires:
@@ -300,21 +304,29 @@ def step_08_wait_implicit_feedback(dsn: str, heuristic_id: str) -> None:
         logger.info("implicit_feedback_already_resolved", outcome=outcome)
         return
 
-    # Outcome is still pending/unknown — wait a short time in case timeout is short
-    logger.info("waiting_for_implicit_feedback", current_outcome=outcome)
-    time.sleep(5)
+    # Wait for: outcome timeout + cleanup interval + margin
+    # Cleanup interval defaults to 30s; we add margin for scheduling jitter.
+    wait_sec = outcome_timeout + 35
+    logger.info("waiting_for_implicit_feedback",
+                outcome_timeout=outcome_timeout, total_wait=wait_sec)
 
-    fires = _get_fires_for_heuristic(dsn, heuristic_id)
-    latest = fires[0]
-    outcome = latest.get("outcome")
+    # Poll periodically rather than blocking the full duration
+    poll_interval = 5
+    elapsed = 0
+    while elapsed < wait_sec:
+        time.sleep(poll_interval)
+        elapsed += poll_interval
 
-    if outcome and outcome not in ("unknown", None):
-        logger.info("implicit_feedback_resolved", outcome=outcome)
-    else:
-        # Timeout is likely longer than we can wait in a test.
-        # Verify the fire is registered (mechanism works), skip waiting.
-        logger.info("implicit_feedback_pending",
-                     msg="Fire registered; timeout likely >5s. Accepting as OK.")
+        fires = _get_fires_for_heuristic(dsn, heuristic_id)
+        latest = fires[0]
+        outcome = latest.get("outcome")
+        if outcome and outcome not in ("unknown", None):
+            logger.info("implicit_feedback_resolved",
+                        outcome=outcome, elapsed_sec=elapsed)
+            return
+
+    raise StepFailed(8, "implicit feedback resolved within timeout",
+                     f"outcome still '{outcome}' after {wait_sec}s")
 
 
 def step_09_verify_confidence(dsn: str, heuristic_id: str) -> None:
@@ -326,19 +338,12 @@ def step_09_verify_confidence(dsn: str, heuristic_id: str) -> None:
     confidence = float(h["confidence"])
     fire_count = h.get("fire_count", 0)
 
-    # Confidence may not have increased if implicit feedback hasn't fired yet.
-    # We verify fire_count >= 1 (the fire happened) and log the confidence.
     if fire_count < 1:
         raise StepFailed(9, "fire_count >= 1", f"fire_count={fire_count}")
+    if confidence <= 0.3:
+        raise StepFailed(9, "confidence > 0.3", f"confidence={confidence}")
 
-    if confidence > 0.3:
-        logger.info("confidence_increased", confidence=confidence, fire_count=fire_count)
-    else:
-        # Confidence hasn't increased yet (implicit feedback timeout pending).
-        # This is acceptable — the fire was recorded; confidence update is async.
-        logger.info("confidence_not_yet_increased",
-                     confidence=confidence, fire_count=fire_count,
-                     msg="Implicit feedback timeout may not have elapsed yet")
+    logger.info("confidence_increased", confidence=confidence, fire_count=fire_count)
 
 
 def step_10_cross_domain(orch_stub, sudoku_heuristic_id: str) -> None:
@@ -377,6 +382,9 @@ def main():
     parser = argparse.ArgumentParser(description="GLADyS PoC 1 Convergence Test")
     parser.add_argument("--env", choices=["local", "docker"], default="local",
                         help="Environment to test against (default: local)")
+    parser.add_argument("--outcome-timeout", type=int, default=120,
+                        help="Outcome timeout in seconds (must match orchestrator's "
+                             "OUTCOME_TIMEOUT_SEC). Lower values make step 8/9 faster.")
     args = parser.parse_args()
 
     setup_logging("convergence-test")
@@ -457,7 +465,8 @@ def main():
 
     # Step 8
     run_step(8, "Wait for implicit feedback",
-             lambda: step_08_wait_implicit_feedback(dsn, state["heuristic_id"]))
+             lambda: step_08_wait_implicit_feedback(dsn, state["heuristic_id"],
+                                                    args.outcome_timeout))
 
     # Step 9
     run_step(9, "Verify confidence increased",

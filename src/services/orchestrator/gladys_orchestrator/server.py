@@ -121,7 +121,11 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         else:
             logger.info("OutcomeWatcher enabled but no patterns configured")
 
-        return OutcomeWatcher(patterns=patterns, memory_client=memory_client)
+        return OutcomeWatcher(
+            patterns=patterns,
+            memory_client=memory_client,
+            default_timeout_sec=config.outcome_timeout_sec,
+        )
 
     async def start(self) -> None:
         """Start background tasks (event queue, outcome cleanup)."""

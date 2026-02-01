@@ -155,8 +155,8 @@ async def test_on_fire_no_pattern_match(learning_module, memory_client, outcome_
 
     # Fire still recorded
     memory_client.record_heuristic_fire.assert_awaited_once()
-    # But no outcome expectation (no pattern match)
-    assert outcome_watcher.pending_count == 0
+    # No specific pattern match, but default timeout expectation is registered
+    assert outcome_watcher.pending_count == 1
 
 
 # ---------------------------------------------------------------------------
