@@ -374,7 +374,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at,
+                           frozen, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -396,7 +396,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at,
+                           frozen, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL

@@ -346,10 +346,15 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 condition = h.get("condition", {})
                 action = h.get("action", {})
 
+                # Include condition_embedding so Rust cache can do local similarity
+                raw_embedding = h.get("condition_embedding")
+                embedding_bytes = _embedding_to_bytes(raw_embedding) if raw_embedding is not None else b""
+
                 proto_h = memory_pb2.Heuristic(
                     id=str(h["id"]),
                     name=h["name"],
                     condition_text=condition.get("text", ""),
+                    condition_embedding=embedding_bytes,
                     effects_json=json.dumps(action),
                     confidence=h["confidence"],
                     origin=condition.get("origin", ""),

@@ -130,12 +130,20 @@ impl SalienceService {
                                         serde_json::json!({})
                                     }
                                 };
+                                // Parse condition_embedding from proto bytes
+                                let condition_embedding = if !h.condition_embedding.is_empty() {
+                                    crate::client::bytes_to_embedding(&h.condition_embedding)
+                                } else {
+                                    Vec::new()
+                                };
+
                                 Some(CachedHeuristic {
                                     id,
                                     name: h.name,
                                     condition,
                                     action,
                                     confidence: h.confidence,
+                                    condition_embedding,
                                     last_accessed_ms: 0,
                                     cached_at_ms: 0, // Will be set by add_heuristic
                                     hit_count: 0,
@@ -161,12 +169,43 @@ impl SalienceService {
         }
     }
 
-    // NOTE: Word overlap matching has been removed.
-    // All heuristic matching is now done via Python's semantic similarity
-    // using embeddings. This is more accurate and avoids false positives
-    // from sentences that share structural words but have different meanings.
-    // Example: "email about killing neighbor" should NOT match "email about meeting"
-    // even though they share words like "email", "about", etc.
+    /// Generate an embedding for event text by calling Python's GenerateEmbedding RPC.
+    /// Returns None if generation fails (graceful degradation → falls back to Python matching).
+    async fn generate_event_embedding(
+        &self,
+        text: &str,
+        trace_id: Option<&str>,
+    ) -> Option<Vec<f32>> {
+        let storage_config = self.storage_config.as_ref()?;
+
+        let client_config = ClientConfig {
+            address: storage_config.address.clone(),
+            connect_timeout: storage_config.connect_timeout(),
+            request_timeout: storage_config.request_timeout(),
+        };
+
+        match StorageClient::connect(client_config).await {
+            Ok(mut client) => {
+                if let Some(tid) = trace_id {
+                    client = client.with_trace_id(tid.to_string());
+                }
+                match client.generate_embedding(text).await {
+                    Ok(embedding) => {
+                        debug!(dims = embedding.len(), "Generated event embedding");
+                        Some(embedding)
+                    }
+                    Err(e) => {
+                        warn!("Failed to generate embedding: {}", e);
+                        None
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to connect for embedding generation: {}", e);
+                None
+            }
+        }
+    }
 
     /// Apply salience boosts from a matched heuristic.
     fn apply_heuristic_salience(salience: &mut SalienceVector, heuristic: &CachedHeuristic) {
@@ -237,66 +276,98 @@ impl SalienceGateway for SalienceService {
         };
 
         let mut matched_heuristic_id = String::new();
-        let mut from_storage = false;
+        let mut from_cache = false;
 
-        // Always query Python storage for semantic heuristic matching.
-        // Python uses embedding similarity which is more accurate than word overlap.
-        // The local cache is only used for storing heuristics for metadata/stats.
+        // Cache-first heuristic matching:
+        // 1. Generate embedding for event text (via Python)
+        // 2. Check local cache using cosine similarity
+        // 3. On cache miss, fall back to Python QueryMatchingHeuristics
         if !req.raw_text.is_empty() {
-            debug!("Querying Python storage for semantic heuristic matching");
-            // NOTE: source_filter is for domain-prefixed conditions (e.g., "minecraft:").
-            // Don't automatically filter by event source - let semantic matching work.
-            // Heuristics can optionally use condition prefixes for domain separation.
-            match self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
-                Ok(heuristics_from_storage) => {
-                    // Add to local cache for stats tracking
+            // Step 1: Generate embedding for the event text
+            let query_embedding = self.generate_event_embedding(&req.raw_text, Some(&trace_id)).await;
+
+            // Step 2: Check cache if we have an embedding
+            if let Some(ref embedding) = query_embedding {
+                let cache = self.cache.read().await;
+                let cache_matches = cache.find_matching_heuristics(
+                    embedding,
+                    self.config.min_heuristic_similarity,
+                    self.config.min_heuristic_confidence,
+                    1, // Only need best match
+                );
+                drop(cache);
+
+                if let Some((h_id, similarity)) = cache_matches.first() {
+                    // Cache hit - use cached heuristic
                     let mut cache = self.cache.write().await;
-                    for h in heuristics_from_storage {
-                        let h_id = h.id;
-                        let h_name = h.name.clone();
+                    cache.record_hit();
+                    cache.touch_heuristic(h_id);
 
-                        // Check if it's already in cache to track hits/misses
-                        if cache.get_heuristic(&h_id).is_some() {
-                            cache.record_hit();
-                            cache.touch_heuristic(&h_id);
-                        } else {
-                            cache.record_miss();
-                            cache.add_heuristic(h);
-                        }
+                    if let Some(cached_h) = cache.get_heuristic(h_id) {
+                        info!(
+                            trace_id = %trace_id,
+                            heuristic_id = %h_id,
+                            heuristic_name = %cached_h.name,
+                            similarity = %similarity,
+                            "Heuristic matched (cache hit)"
+                        );
+                        matched_heuristic_id = h_id.to_string();
+                        from_cache = true;
+                        Self::apply_heuristic_salience(&mut salience, cached_h);
+                    }
+                }
+            }
 
-                        // Use the first (best) match from storage
-                        // Python returns results ordered by semantic similarity
-                        if matched_heuristic_id.is_empty() {
-                            if let Some(cached_h) = cache.get_heuristic(&h_id) {
-                                info!(
-                                    trace_id = %trace_id,
-                                    heuristic_id = %h_id,
-                                    heuristic_name = %h_name,
-                                    "Heuristic matched (semantic similarity)"
-                                );
-                                matched_heuristic_id = h_id.to_string();
-                                from_storage = true;
-                                Self::apply_heuristic_salience(&mut salience, cached_h);
+            // Step 3: Cache miss - fall back to Python storage
+            if !from_cache {
+                debug!("Cache miss, querying Python storage for heuristic matching");
+                match self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
+                    Ok(heuristics_from_storage) => {
+                        let mut cache = self.cache.write().await;
+                        cache.record_miss();
+
+                        for h in heuristics_from_storage {
+                            let h_id = h.id;
+                            let h_name = h.name.clone();
+
+                            // Add/update cache
+                            if cache.get_heuristic(&h_id).is_some() {
+                                cache.touch_heuristic(&h_id);
+                            } else {
+                                cache.add_heuristic(h);
+                            }
+
+                            // Use the first (best) match
+                            if matched_heuristic_id.is_empty() {
+                                if let Some(cached_h) = cache.get_heuristic(&h_id) {
+                                    info!(
+                                        trace_id = %trace_id,
+                                        heuristic_id = %h_id,
+                                        heuristic_name = %h_name,
+                                        "Heuristic matched (storage fallback)"
+                                    );
+                                    matched_heuristic_id = h_id.to_string();
+                                    from_cache = true; // Matched from storage, now cached
+                                    Self::apply_heuristic_salience(&mut salience, cached_h);
+                                }
                             }
                         }
+                    },
+                    Err(e) => {
+                        return Ok(Response::new(EvaluateSalienceResponse {
+                            salience: Some(salience),
+                            from_cache: false,
+                            matched_heuristic_id: String::new(),
+                            error: e,
+                            novelty_detection_skipped: true,
+                        }));
                     }
-                },
-                Err(e) => {
-                    // Storage query failed - return error to caller so Orchestrator knows
-                    // that salience evaluation was incomplete/failed.
-                    return Ok(Response::new(EvaluateSalienceResponse {
-                        salience: Some(salience), // Return base salience (novelty only)
-                        from_cache: false,
-                        matched_heuristic_id: String::new(),
-                        error: e,
-                        novelty_detection_skipped: true,
-                    }));
                 }
             }
         }
 
         // Novelty detection: If no heuristic matched, this is potentially novel
-        if !from_storage && !req.raw_text.is_empty() {
+        if !from_cache && !req.raw_text.is_empty() {
             salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
         }
 
@@ -311,7 +382,7 @@ impl SalienceGateway for SalienceService {
 
         Ok(Response::new(EvaluateSalienceResponse {
             salience: Some(salience),
-            from_cache: from_storage, // Semantic match found from storage
+            from_cache, // Heuristic match found (cache or storage fallback)
             matched_heuristic_id,
             error: String::new(),
             // Rust fast path never does novelty detection (no embedding model)
@@ -472,6 +543,7 @@ mod tests {
                 }
             }),
             confidence: 0.95,
+            condition_embedding: Vec::new(),
             last_accessed_ms: 0,
             cached_at_ms: 0,
             hit_count: 0,
@@ -520,6 +592,7 @@ mod tests {
                 condition: serde_json::json!({}),
                 action: serde_json::json!({}),
                 confidence: 0.9,
+                condition_embedding: Vec::new(),
                 last_accessed_ms: 1000,
                 cached_at_ms: 1000,
                 hit_count: 5,
@@ -531,6 +604,7 @@ mod tests {
                 condition: serde_json::json!({}),
                 action: serde_json::json!({}),
                 confidence: 0.8,
+                condition_embedding: Vec::new(),
                 last_accessed_ms: 2000,
                 cached_at_ms: 2000,
                 hit_count: 2,

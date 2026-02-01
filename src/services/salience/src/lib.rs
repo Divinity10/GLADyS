@@ -78,6 +78,8 @@ pub struct CachedHeuristic {
     pub condition: serde_json::Value,
     pub action: serde_json::Value,
     pub confidence: f32,
+    /// Condition embedding for local cosine similarity matching (384-dim f32)
+    pub condition_embedding: Vec<f32>,
     /// Last accessed time for LRU eviction
     pub last_accessed_ms: i64,
     /// Time when this heuristic was cached (for TTL-based invalidation)
@@ -261,11 +263,55 @@ impl MemoryCache {
             .collect()
     }
 
-    /// Find matching heuristics for a given context
-    pub fn find_heuristics(&self, _context: &serde_json::Value) -> Vec<&CachedHeuristic> {
-        // TODO: Implement condition matching
-        // For now, return empty - will be implemented when we define condition format
-        Vec::new()
+    /// Find heuristics matching a query embedding via cosine similarity.
+    ///
+    /// Returns (heuristic_id, similarity) pairs sorted by similarity descending.
+    /// Filters by min_similarity, min_confidence, and TTL expiry.
+    pub fn find_matching_heuristics(
+        &self,
+        query_embedding: &[f32],
+        min_similarity: f32,
+        min_confidence: f32,
+        limit: usize,
+    ) -> Vec<(Uuid, f32)> {
+        if query_embedding.is_empty() {
+            return Vec::new();
+        }
+
+        let now = current_time_ms();
+        let ttl = self.config.heuristic_ttl_ms;
+
+        let mut matches: Vec<(Uuid, f32)> = self.heuristics
+            .values()
+            .filter(|h| {
+                // Skip expired
+                if ttl > 0 && (now - h.cached_at_ms) >= ttl {
+                    return false;
+                }
+                // Skip low confidence
+                if h.confidence < min_confidence {
+                    return false;
+                }
+                // Skip empty embeddings
+                !h.condition_embedding.is_empty()
+            })
+            .filter_map(|h| {
+                let sim = cosine_similarity(query_embedding, &h.condition_embedding);
+                if sim >= min_similarity {
+                    Some((h.id, sim))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        if limit > 0 && matches.len() > limit {
+            matches.truncate(limit);
+        }
+
+        matches
     }
 
     /// Get cache statistics.
@@ -441,6 +487,7 @@ mod tests {
             name: "low_confidence".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.3,
             last_accessed_ms: 0,
             cached_at_ms: 0,
@@ -453,6 +500,7 @@ mod tests {
             name: "high_confidence".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.9,
             last_accessed_ms: 0,
             cached_at_ms: 0,
@@ -488,6 +536,7 @@ mod tests {
             name: "first".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 1000, // Oldest
             cached_at_ms: 0,
@@ -500,6 +549,7 @@ mod tests {
             name: "second".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
@@ -512,6 +562,7 @@ mod tests {
             name: "third".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 3000, // Newest
             cached_at_ms: 0,
@@ -528,6 +579,7 @@ mod tests {
             name: "fourth".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 4000,
             cached_at_ms: 0,
@@ -561,6 +613,7 @@ mod tests {
             name: "first".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 1000,
             cached_at_ms: 0,
@@ -573,6 +626,7 @@ mod tests {
             name: "second".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 2000,
             cached_at_ms: 0,
@@ -585,6 +639,7 @@ mod tests {
             name: "third".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 3000,
             cached_at_ms: 0,
@@ -603,6 +658,7 @@ mod tests {
             name: "fourth".to_string(),
             condition: serde_json::json!({}),
             action: serde_json::json!({}),
+            condition_embedding: Vec::new(),
             confidence: 0.5,
             last_accessed_ms: 0, // Will be set by add_heuristic
             cached_at_ms: 0,

@@ -107,13 +107,12 @@ impl Default for CacheConfig {
 pub struct SalienceConfig {
     /// Minimum confidence for heuristic matching (default: 0.5)
     pub min_heuristic_confidence: f32,
+    /// Minimum cosine similarity for cache-local heuristic matching (default: 0.7)
+    pub min_heuristic_similarity: f32,
     /// Baseline novelty for all events (default: 0.1)
     pub baseline_novelty: f32,
     /// Novelty boost when no heuristic matches (default: 0.4)
     pub unmatched_novelty_boost: f32,
-    // NOTE: word_overlap_ratio and min_word_overlap have been removed.
-    // Heuristic matching now uses semantic similarity via Python embeddings.
-    // This provides much more accurate matching than word overlap.
 }
 
 impl Default for SalienceConfig {
@@ -123,6 +122,10 @@ impl Default for SalienceConfig {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0.5),
+            min_heuristic_similarity: env::var("SALIENCE_MIN_HEURISTIC_SIMILARITY")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0.7),
             baseline_novelty: env::var("SALIENCE_BASELINE_NOVELTY")
                 .ok()
                 .and_then(|s| s.parse().ok())
