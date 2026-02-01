@@ -42,3 +42,7 @@ Print events to console without connecting to the Orchestrator:
 ```bash
 python sensor.py --mock --dry-run
 ```
+
+## Known Limitations
+- The driver currently relies on polling and basic hooks which may miss rapid events or detailed loot drops in some game versions.
+- Requires the game to be active in the browser window to process updates reliably.

@@ -22,7 +22,6 @@ import logging
 import os
 import sys
 import uuid
-import time
 from datetime import datetime
 from pathlib import Path
 from aiohttp import web
@@ -94,8 +93,10 @@ class SudokuSensor:
         raw_text = f"Sudoku event: {event_type}"
         
         if event_type == "puzzle_start":
-            diff = data.get("difficulty", "?")
-            raw_text = f"Started a new difficulty {diff} sudoku puzzle"
+            diff_map = {1: "Easy", 2: "Medium", 3: "Hard", 4: "Evil"}
+            diff_val = data.get("difficulty", 1)
+            diff_str = diff_map.get(diff_val, str(diff_val))
+            raw_text = f"Started a new {diff_str} sudoku puzzle"
         elif event_type == "cell_filled":
             row = data.get("row")
             col = data.get("col")

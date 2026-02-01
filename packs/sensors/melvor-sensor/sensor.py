@@ -10,7 +10,6 @@ import json
 import logging
 import sys
 import uuid
-import time
 from datetime import datetime
 from pathlib import Path
 from aiohttp import web
