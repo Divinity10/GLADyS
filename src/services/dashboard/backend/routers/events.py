@@ -13,15 +13,18 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 
+import structlog
+
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
 
-from gladys_client import db as _db
+logger = structlog.get_logger()
 
 if PROTOS_AVAILABLE:
     from gladys_orchestrator.generated import (
         common_pb2,
         executive_pb2,
         executive_pb2_grpc,
+        memory_pb2,
         orchestrator_pb2,
         orchestrator_pb2_grpc,
     )
@@ -106,31 +109,55 @@ def _make_event_dict(event_id: str, source: str, text: str,
     }
 
 
-def _fetch_events(limit: int = 25, offset: int = 0,
-                   source: str = None) -> list[dict]:
-    """Fetch events from DB and convert to template-ready dicts."""
-    events = []
+def _proto_event_to_dict(ev) -> dict:
+    """Convert a memory_pb2.EpisodicEvent proto to template-ready dict."""
+    salience_data = {}
+    if ev.salience:
+        for key in ("threat", "opportunity", "humor", "novelty", "goal_relevance",
+                     "social", "emotional", "actionability", "habituation"):
+            salience_data[key] = getattr(ev.salience, key, 0.0)
+
+    ts = datetime.fromtimestamp(ev.timestamp_ms / 1000, tz=timezone.utc) if ev.timestamp_ms else None
+
+    # proto3 floats default to 0.0 — can't distinguish "unset" from "set to 0.0".
+    # Pass the value through; _make_event_dict shows "0.00" which is correct when
+    # the event was actually scored. The None/"—" path is lost at the proto layer.
+    ps = ev.predicted_success if ev.predicted_success != 0.0 else None
+    pc = ev.prediction_confidence if ev.prediction_confidence != 0.0 else None
+
+    return _make_event_dict(
+        event_id=ev.id,
+        source=ev.source,
+        text=ev.raw_text,
+        timestamp=ts,
+        salience=salience_data,
+        response_text=ev.response_text,
+        response_id=ev.response_id,
+        predicted_success=ps,
+        prediction_confidence=pc,
+        matched_heuristic_id=ev.matched_heuristic_id or "",
+    )
+
+
+async def _fetch_events(limit: int = 25, offset: int = 0,
+                        source: str = None) -> list[dict]:
+    """Fetch events via Memory service gRPC and convert to template-ready dicts."""
+    stub = env.memory_stub()
+    if not stub:
+        return []
     try:
-        rows = _db.list_events(env.get_db_dsn(), limit=limit, offset=offset,
-                               source=source)
-        for row in rows:
-            salience_data = row["salience"] if isinstance(row["salience"], dict) else {}
-            events.append(_make_event_dict(
-                event_id=str(row["id"]),
-                source=row["source"] or "",
-                text=row["raw_text"] or "",
-                timestamp=row["timestamp"],
-                salience=salience_data,
-                response_text=row["response_text"] or "",
-                response_id=row["response_id"] or "",
-                predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
-                prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
-                matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
-            ))
-    except Exception as e:
-        import sys
-        print(f"Event list query error: {e}", file=sys.stderr)
-    return events
+        resp = await stub.ListEvents(memory_pb2.ListEventsRequest(
+            limit=limit,
+            offset=offset,
+            source=source or "",
+        ))
+        if resp.error:
+            logger.error("ListEvents gRPC error", error=resp.error)
+            return []
+        return [_proto_event_to_dict(ev) for ev in resp.events]
+    except grpc.RpcError as e:
+        logger.error("ListEvents gRPC call failed", error=str(e))
+        return []
 
 
 @router.post("/events")
@@ -146,7 +173,8 @@ async def submit_event(request: Request):
 
     event_id = str(uuid.uuid4())
 
-    stub = env.orchestrator_stub()
+    # PublishEvents is a streaming RPC — must use sync stub in a thread
+    stub = env.sync_orchestrator_stub()
     if not stub:
         return HTMLResponse('<span class="text-red-400">Error: orchestrator not available (proto stubs missing)</span>', status_code=503)
 
@@ -185,7 +213,7 @@ async def submit_event(request: Request):
 async def list_events(request: Request, limit: int = 25, offset: int = 0,
                       source: Optional[str] = None):
     """List historical events — returns full lab tab."""
-    events = _fetch_events(limit=limit, offset=offset, source=source)
+    events = await _fetch_events(limit=limit, offset=offset, source=source)
     return templates.TemplateResponse(request, "components/lab.html", {
         "initial_events": events,
     })
@@ -195,7 +223,7 @@ async def list_events(request: Request, limit: int = 25, offset: int = 0,
 async def list_event_rows(request: Request, limit: int = 25, offset: int = 0,
                           source: Optional[str] = None):
     """Return just the event table rows (for htmx partial swap)."""
-    events = _fetch_events(limit=limit, offset=offset, source=source)
+    events = await _fetch_events(limit=limit, offset=offset, source=source)
     html = ""
     for event in events:
         html += templates.get_template("components/event_row.html").render(event=event)
@@ -209,7 +237,7 @@ async def get_queue_rows(request: Request):
     if not stub:
         return HTMLResponse("")
     try:
-        resp = stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
+        resp = await stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
         html = ""
         for qi in resp.events:
             html += templates.get_template("components/queue_row.html").render(item={
@@ -229,7 +257,8 @@ async def event_stream(request: Request):
     """SSE stream of event lifecycle updates via orchestrator subscription."""
 
     async def generate():
-        stub = env.orchestrator_stub()
+        # SSE runs a blocking gRPC stream in a thread — use sync stubs
+        stub = env.sync_orchestrator_stub()
         if not stub:
             yield {"event": "error", "data": json.dumps({"error": "Proto stubs not available"})}
             return
@@ -246,33 +275,35 @@ async def event_stream(request: Request):
 
             def _subscribe():
                 try:
+                    mem_stub = env.sync_memory_stub()
                     for resp in stub.SubscribeResponses(req):
                         import time as _time
                         event_id = resp.event_id
-                        row = None
-                        for _attempt in range(4):
-                            try:
-                                row = _db.get_event(env.get_db_dsn(), event_id)
-                            except Exception:
-                                row = None
-                            if row:
-                                break
-                            _time.sleep(0.25 * (_attempt + 1))
+                        event_data = None
 
-                        if row:
-                            salience_data = row["salience"] if isinstance(row["salience"], dict) else {}
-                            event_data = _make_event_dict(
-                                event_id=str(row["id"]),
-                                source=row["source"] or "",
-                                text=row["raw_text"] or "",
-                                timestamp=row["timestamp"],
-                                salience=salience_data,
-                                response_text=resp.response_text if hasattr(resp, "response_text") else (row["response_text"] or ""),
-                                response_id=row["response_id"] or "",
-                                predicted_success=float(row["predicted_success"]) if row["predicted_success"] is not None else None,
-                                prediction_confidence=float(row["prediction_confidence"]) if row["prediction_confidence"] is not None else None,
-                            )
-                        else:
+                        # Retry fetching from Memory service (event may not be stored yet)
+                        if mem_stub:
+                            for _attempt in range(4):
+                                try:
+                                    get_resp = mem_stub.GetEvent(
+                                        memory_pb2.GetEventRequest(event_id=event_id)
+                                    )
+                                    if get_resp.event and get_resp.event.id:
+                                        ev = get_resp.event
+                                        # Use response_text from SSE notification if available
+                                        if hasattr(resp, "response_text") and resp.response_text:
+                                            ev_copy = memory_pb2.EpisodicEvent()
+                                            ev_copy.CopyFrom(ev)
+                                            ev_copy.response_text = resp.response_text
+                                            event_data = _proto_event_to_dict(ev_copy)
+                                        else:
+                                            event_data = _proto_event_to_dict(ev)
+                                        break
+                                except grpc.RpcError:
+                                    pass
+                                _time.sleep(0.25 * (_attempt + 1))
+
+                        if not event_data:
                             event_data = _make_event_dict(
                                 event_id=event_id,
                                 source="",
@@ -322,6 +353,7 @@ async def submit_feedback(request: Request):
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else dict(await request.form())
 
     event_id = body.get("event_id", "")
+    response_id = body.get("response_id", "")
     feedback = body.get("feedback", "")
 
     if not event_id:
@@ -335,9 +367,10 @@ async def submit_feedback(request: Request):
 
     try:
         positive = feedback in ("good", "positive", "true", "1")
-        resp = stub.ProvideFeedback(executive_pb2.ProvideFeedbackRequest(
+        resp = await stub.ProvideFeedback(executive_pb2.ProvideFeedbackRequest(
             event_id=event_id,
             positive=positive,
+            response_id=response_id,
         ))
         if getattr(resp, "created_heuristic_id", ""):
             label = f"\u2728 Created heuristic {resp.created_heuristic_id[:8]}\u2026"

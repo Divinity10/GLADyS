@@ -37,5 +37,5 @@ async def set_environment(request: Request):
     if mode not in ENV_CONFIGS:
         return JSONResponse({"error": f"Unknown mode: {mode}. Use 'local' or 'docker'."}, status_code=400)
 
-    env.switch(mode)
+    await env.switch(mode)
     return JSONResponse({"mode": env.mode, "success": True})

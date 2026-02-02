@@ -79,7 +79,7 @@ async def get_queue():
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
 
     try:
-        resp = stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
+        resp = await stub.ListQueuedEvents(orchestrator_pb2.ListQueuedEventsRequest(limit=100))
         items = []
         for qi in resp.events:
             items.append({

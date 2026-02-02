@@ -45,7 +45,7 @@ async def list_heuristics(sort: str = "confidence", order: str = "desc"):
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
     try:
-        resp = stub.QueryHeuristics(memory_pb2.QueryHeuristicsRequest(
+        resp = await stub.QueryHeuristics(memory_pb2.QueryHeuristicsRequest(
             min_confidence=0.0, limit=200,
         ))
         items = [_heuristic_to_dict(m.heuristic) for m in resp.matches]
@@ -76,7 +76,7 @@ async def create_heuristic(request: Request):
             confidence=body.get("confidence", 0.5),
             origin=body.get("origin", "manual"),
         )
-        resp = stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
+        resp = await stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
             heuristic=h,
             generate_embedding=True,
         ))
@@ -103,7 +103,7 @@ async def update_heuristic(heuristic_id: str, request: Request):
             confidence=body.get("confidence", 0.5),
             origin=body.get("origin", "manual"),
         )
-        resp = stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
+        resp = await stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
             heuristic=h,
             generate_embedding=True,
         ))

@@ -216,6 +216,106 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
         except Exception as e:
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
+    async def ListEvents(self, request, context):
+        """List recent events for dashboard."""
+        self._setup_trace(context)
+        logger.info(
+            "ListEvents request",
+            limit=request.limit,
+            offset=request.offset,
+            source=request.source or None,
+        )
+        try:
+            limit = request.limit if request.limit > 0 else 50
+            offset = request.offset if request.offset > 0 else 0
+            source = request.source if request.source else None
+
+            rows = await self.storage.list_events(
+                limit=limit,
+                offset=offset,
+                source=source,
+                include_archived=request.include_archived,
+            )
+
+            proto_events = []
+            for row in rows:
+                salience = types_pb2.SalienceVector()
+                sal_data = row.get("salience")
+                if isinstance(sal_data, dict):
+                    salience.threat = sal_data.get("threat", 0.0)
+                    salience.opportunity = sal_data.get("opportunity", 0.0)
+                    salience.humor = sal_data.get("humor", 0.0)
+                    salience.novelty = sal_data.get("novelty", 0.0)
+                    salience.goal_relevance = sal_data.get("goal_relevance", 0.0)
+                    salience.social = sal_data.get("social", 0.0)
+                    salience.emotional = sal_data.get("emotional", 0.0)
+                    salience.actionability = sal_data.get("actionability", 0.0)
+                    salience.habituation = sal_data.get("habituation", 0.0)
+
+                proto_events.append(memory_pb2.EpisodicEvent(
+                    id=str(row["id"]),
+                    timestamp_ms=int(row["timestamp"].timestamp() * 1000),
+                    source=row["source"] or "",
+                    raw_text=row["raw_text"] or "",
+                    salience=salience,
+                    predicted_success=float(row["predicted_success"]) if row.get("predicted_success") is not None else 0.0,
+                    prediction_confidence=float(row["prediction_confidence"]) if row.get("prediction_confidence") is not None else 0.0,
+                    response_id=row.get("response_id") or "",
+                    response_text=row.get("response_text") or "",
+                    matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+                ))
+
+            logger.info("ListEvents success", count=len(proto_events))
+            return memory_pb2.ListEventsResponse(events=proto_events)
+        except Exception as e:
+            logger.error("ListEvents failed", error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
+    async def GetEvent(self, request, context):
+        """Get a single event by ID."""
+        self._setup_trace(context)
+        logger.info("GetEvent request", event_id=request.event_id)
+        try:
+            if not request.event_id:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No event_id provided")
+
+            row = await self.storage.get_event(request.event_id)
+
+            if not row:
+                return memory_pb2.GetEventResponse(error="Event not found")
+
+            salience = types_pb2.SalienceVector()
+            sal_data = row.get("salience")
+            if isinstance(sal_data, dict):
+                salience.threat = sal_data.get("threat", 0.0)
+                salience.opportunity = sal_data.get("opportunity", 0.0)
+                salience.humor = sal_data.get("humor", 0.0)
+                salience.novelty = sal_data.get("novelty", 0.0)
+                salience.goal_relevance = sal_data.get("goal_relevance", 0.0)
+                salience.social = sal_data.get("social", 0.0)
+                salience.emotional = sal_data.get("emotional", 0.0)
+                salience.actionability = sal_data.get("actionability", 0.0)
+                salience.habituation = sal_data.get("habituation", 0.0)
+
+            event = memory_pb2.EpisodicEvent(
+                id=str(row["id"]),
+                timestamp_ms=int(row["timestamp"].timestamp() * 1000),
+                source=row["source"] or "",
+                raw_text=row["raw_text"] or "",
+                salience=salience,
+                predicted_success=float(row["predicted_success"]) if row.get("predicted_success") is not None else 0.0,
+                prediction_confidence=float(row["prediction_confidence"]) if row.get("prediction_confidence") is not None else 0.0,
+                response_id=row.get("response_id") or "",
+                response_text=row.get("response_text") or "",
+                matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+            )
+
+            logger.info("GetEvent success", event_id=request.event_id)
+            return memory_pb2.GetEventResponse(event=event)
+        except Exception as e:
+            logger.error("GetEvent failed", event_id=request.event_id, error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
     async def GenerateEmbedding(self, request, context):
         """Generate embedding for text."""
         try:
@@ -861,7 +961,7 @@ async def serve(
 
     # Add servicer (SalienceGateway moved to Rust fast path)
     salience_address = srv_cfg.salience_address
-    print(f"Cache invalidation notifications → {salience_address}")
+    print(f"Cache invalidation notifications \u2192 {salience_address}")
     memory_pb2_grpc.add_MemoryStorageServicer_to_server(
         MemoryStorageServicer(storage, embeddings, salience_address=salience_address),
         server,

@@ -12,7 +12,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -343,18 +343,15 @@ class TestEvents:
         assert resp.status_code == 200
         assert resp.text == ""
 
-    def test_event_list_db_error(self, client):
-        """Event list with DB error should still return 200 with template."""
-        mock_db.list_events.side_effect = Exception("connection refused")
+    def test_event_list_grpc_unavailable(self, client):
+        """Event list with no memory stub returns 200 with empty template."""
         resp = client.get("/api/events")
         assert resp.status_code == 200
         # Should render the lab template even with empty events
         assert "lab-tab" in resp.text
-        mock_db.list_events.side_effect = None
 
-    def test_event_rows_shape(self, client):
-        """Event rows endpoint returns HTML."""
-        mock_db.list_events.return_value = []
+    def test_event_rows_grpc_unavailable(self, client):
+        """Event rows without memory stub returns empty HTML."""
         resp = client.get("/api/events/rows?limit=10&offset=0")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")
@@ -375,6 +372,90 @@ class TestEvents:
         resp = client.delete("/api/events")
         assert resp.status_code == 200
         assert resp.json()["deleted"] == 15
+
+
+# ─── Feedback ─────────────────────────────────────────────────────────────
+
+
+class TestFeedback:
+    """Feedback endpoint must forward response_id to executive."""
+
+    def _mock_executive_stub(self):
+        stub = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.created_heuristic_id = ""
+        mock_resp.error_message = ""
+        stub.ProvideFeedback = AsyncMock(return_value=mock_resp)
+        return stub
+
+    def _patch_executive_proto(self):
+        """Inject mock executive_pb2 into events module (skipped by PROTOS_AVAILABLE=False)."""
+        import backend.routers.events as events_mod
+        return patch.object(events_mod, "executive_pb2", create=True, new=MagicMock())
+
+    def test_feedback_forwards_response_id(self, client):
+        """response_id from request body must appear in ProvideFeedbackRequest."""
+        stub = self._mock_executive_stub()
+
+        with patch.object(env_module.env, "executive_stub", return_value=stub):
+            with self._patch_executive_proto() as mock_exec_pb2:
+                resp = client.post("/api/feedback",
+                                   json={"event_id": "evt-123",
+                                         "response_id": "resp-456",
+                                         "feedback": "good"})
+
+        assert resp.status_code == 200
+        mock_exec_pb2.ProvideFeedbackRequest.assert_called_once_with(
+            event_id="evt-123",
+            positive=True,
+            response_id="resp-456",
+        )
+
+    def test_feedback_forwards_response_id_negative(self, client):
+        """Negative feedback sets positive=False."""
+        stub = self._mock_executive_stub()
+
+        with patch.object(env_module.env, "executive_stub", return_value=stub):
+            with self._patch_executive_proto() as mock_exec_pb2:
+                resp = client.post("/api/feedback",
+                                   json={"event_id": "evt-123",
+                                         "response_id": "resp-789",
+                                         "feedback": "bad"})
+
+        assert resp.status_code == 200
+        mock_exec_pb2.ProvideFeedbackRequest.assert_called_once_with(
+            event_id="evt-123",
+            positive=False,
+            response_id="resp-789",
+        )
+
+    def test_feedback_missing_response_id_sends_empty(self, client):
+        """When response_id is absent, empty string is forwarded (not omitted)."""
+        stub = self._mock_executive_stub()
+
+        with patch.object(env_module.env, "executive_stub", return_value=stub):
+            with self._patch_executive_proto() as mock_exec_pb2:
+                resp = client.post("/api/feedback",
+                                   json={"event_id": "evt-123",
+                                         "feedback": "good"})
+
+        assert resp.status_code == 200
+        mock_exec_pb2.ProvideFeedbackRequest.assert_called_once_with(
+            event_id="evt-123",
+            positive=True,
+            response_id="",
+        )
+
+    def test_feedback_no_event_id_returns_400(self, client):
+        resp = client.post("/api/feedback",
+                           json={"feedback": "good"})
+        assert resp.status_code == 400
+
+    def test_feedback_no_stub_returns_503(self, client):
+        with patch.object(env_module.env, "executive_stub", return_value=None):
+            resp = client.post("/api/feedback",
+                               json={"event_id": "evt-123", "feedback": "good"})
+        assert resp.status_code == 503
 
 
 # ─── Component routes (template rendering) ───────────────────────────────

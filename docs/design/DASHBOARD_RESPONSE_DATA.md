@@ -324,9 +324,9 @@ Also add new fields to the existing `EpisodicEvent` message:
 ```protobuf
 message EpisodicEvent {
     // ... existing fields 1-12 ...
-    string llm_prompt_text = 13;
-    string decision_path = 14;
-    string matched_heuristic_id = 15;
+    string matched_heuristic_id = 13;  // already added in #66
+    string llm_prompt_text = 14;
+    string decision_path = 15;
     string episode_id = 16;
 }
 ```

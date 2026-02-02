@@ -162,3 +162,50 @@
                 class="btn text-xs text-red-400 hover:text-red-200">Clear all</button>
     </div>
 </div>
+
+<script>
+(function() {
+    const filterRow = document.querySelector('#lab-tab thead tr.bg-gray-800');
+    if (!filterRow) return;
+
+    const inputs = filterRow.querySelectorAll('input, select');
+    inputs.forEach(el => el.addEventListener('input', applyEventFilters));
+
+    function applyEventFilters() {
+        const cells = filterRow.querySelectorAll('td');
+        const filters = [];
+        cells.forEach(td => {
+            const sel = td.querySelector('select');
+            const inp = td.querySelector('input[type="text"]');
+            const mode = sel ? sel.value : 'contains';
+            const val = inp ? inp.value.trim().toLowerCase() : '';
+            filters.push({ mode, val });
+        });
+
+        const tbody = document.getElementById('event-table-body');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+
+        for (const row of rows) {
+            // Detail rows (id starts with "detail-") follow their parent's visibility
+            if (row.id && row.id.startsWith('detail-')) continue;
+
+            const tds = row.querySelectorAll('td');
+            let visible = true;
+            for (let i = 0; i < filters.length && i < tds.length; i++) {
+                const f = filters[i];
+                if (!f.val) continue;
+                const text = (tds[i].textContent || '').trim().toLowerCase();
+                if (f.mode === 'equals' && text !== f.val) { visible = false; break; }
+                if (f.mode === 'contains' && !text.includes(f.val)) { visible = false; break; }
+                if (f.mode === 'starts' && !text.startsWith(f.val)) { visible = false; break; }
+                if (f.mode === 'ends' && !text.endsWith(f.val)) { visible = false; break; }
+            }
+            row.style.display = visible ? '' : 'none';
+            // Hide associated detail row when parent is hidden
+            const detailRow = row.id ? document.getElementById('detail-' + row.id.replace('event-', '')) : null;
+            if (detailRow && !visible) detailRow.style.display = 'none';
+        }
+    }
+})();
+</script>

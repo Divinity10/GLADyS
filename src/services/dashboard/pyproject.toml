@@ -2,12 +2,14 @@
 name = "gladys-dashboard"
 version = "0.1.0"
 description = "GLADyS Dashboard V2"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "python-multipart",
     "uvicorn",
     "sse-starlette",
     "jinja2",
+    "structlog",
     "grpcio",
     "grpcio-tools",
     "psycopg2-binary",

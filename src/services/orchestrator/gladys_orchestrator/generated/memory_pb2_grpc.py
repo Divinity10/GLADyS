@@ -52,6 +52,16 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.QueryBySimilarityRequest.SerializeToString,
                 response_deserializer=memory__pb2.QueryEventsResponse.FromString,
                 _registered_method=True)
+        self.ListEvents = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/ListEvents',
+                request_serializer=memory__pb2.ListEventsRequest.SerializeToString,
+                response_deserializer=memory__pb2.ListEventsResponse.FromString,
+                _registered_method=True)
+        self.GetEvent = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetEvent',
+                request_serializer=memory__pb2.GetEventRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetEventResponse.FromString,
+                _registered_method=True)
         self.GenerateEmbedding = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/GenerateEmbedding',
                 request_serializer=memory__pb2.GenerateEmbeddingRequest.SerializeToString,
@@ -155,6 +165,20 @@ class MemoryStorageServicer(object):
 
     def QueryBySimilarity(self, request, context):
         """Query events by embedding similarity
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListEvents(self, request, context):
+        """List recent events (newest first, paginated) — dashboard
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetEvent(self, request, context):
+        """Get a single event by ID
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -293,6 +317,16 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.QueryBySimilarity,
                     request_deserializer=memory__pb2.QueryBySimilarityRequest.FromString,
                     response_serializer=memory__pb2.QueryEventsResponse.SerializeToString,
+            ),
+            'ListEvents': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListEvents,
+                    request_deserializer=memory__pb2.ListEventsRequest.FromString,
+                    response_serializer=memory__pb2.ListEventsResponse.SerializeToString,
+            ),
+            'GetEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEvent,
+                    request_deserializer=memory__pb2.GetEventRequest.FromString,
+                    response_serializer=memory__pb2.GetEventResponse.SerializeToString,
             ),
             'GenerateEmbedding': grpc.unary_unary_rpc_method_handler(
                     servicer.GenerateEmbedding,
@@ -458,6 +492,60 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/QueryBySimilarity',
             memory__pb2.QueryBySimilarityRequest.SerializeToString,
             memory__pb2.QueryEventsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/ListEvents',
+            memory__pb2.ListEventsRequest.SerializeToString,
+            memory__pb2.ListEventsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetEvent',
+            memory__pb2.GetEventRequest.SerializeToString,
+            memory__pb2.GetEventResponse.FromString,
             options,
             channel_credentials,
             insecure,

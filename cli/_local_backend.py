@@ -145,6 +145,9 @@ class LocalBackend(ServiceBackend):
         # Merge environment variables
         env = {**os.environ, **config.get("env", {})}
 
+        # Force UTF-8 on Windows to avoid cp1252 encoding errors in redirected stdout
+        env.setdefault("PYTHONUTF8", "1")
+
         # Set LOG_FILE for structured logging (gladys_common)
         log_file = get_log_file(name)
         env["LOG_FILE"] = str(log_file)
