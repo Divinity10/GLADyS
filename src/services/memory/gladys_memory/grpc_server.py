@@ -961,7 +961,7 @@ async def serve(
 
     # Add servicer (SalienceGateway moved to Rust fast path)
     salience_address = srv_cfg.salience_address
-    print(f"Cache invalidation notifications → {salience_address}")
+    print(f"Cache invalidation notifications \u2192 {salience_address}")
     memory_pb2_grpc.add_MemoryStorageServicer_to_server(
         MemoryStorageServicer(storage, embeddings, salience_address=salience_address),
         server,

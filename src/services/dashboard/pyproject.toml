@@ -9,6 +9,7 @@ dependencies = [
     "uvicorn",
     "sse-starlette",
     "jinja2",
+    "structlog",
     "grpcio",
     "grpcio-tools",
     "psycopg2-binary",

@@ -45,14 +45,14 @@
                 <div class="flex gap-2 items-center">
                     {% if event.status == 'responded' %}
                     <button hx-post="/api/feedback"
-                            hx-vals='{"event_id": "{{ event.id }}", "feedback": "good"}'
+                            hx-vals='{"event_id": "{{ event.id }}", "response_id": "{{ event.response_id }}", "feedback": "good"}'
                             hx-target="#feedback-status-{{ event.id }}"
                             hx-swap="innerHTML"
                             hx-disabled-elt="this"
                             hx-indicator="#feedback-status-{{ event.id }}"
                             class="btn text-green-400">👍 Good</button>
                     <button hx-post="/api/feedback"
-                            hx-vals='{"event_id": "{{ event.id }}", "feedback": "bad"}'
+                            hx-vals='{"event_id": "{{ event.id }}", "response_id": "{{ event.response_id }}", "feedback": "bad"}'
                             hx-target="#feedback-status-{{ event.id }}"
                             hx-swap="innerHTML"
                             hx-disabled-elt="this"

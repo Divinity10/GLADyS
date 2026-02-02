@@ -2,6 +2,7 @@
 // Events submitted but not yet responded to. Shown in queue panel.
 
 const pendingEvents = new Map();  // event_id -> {source, text, submitted_at}
+const PENDING_TIMEOUT_MS = 60000;  // 60s — fallback expiry if event never appears anywhere
 
 function addPendingEvent(eventId, source, text) {
     pendingEvents.set(eventId, {source, text, submitted_at: Date.now()});
@@ -36,17 +37,30 @@ function pollQueue() {
     const body = document.getElementById('queue-table-body');
     if (!body) return;
 
+    const now = Date.now();
+    const eventTable = document.getElementById('event-table-body');
+
+    // Remove pending events that already appear in the main event table or have expired
+    for (const [id, ev] of pendingEvents) {
+        const inEventTable = eventTable && eventTable.querySelector('#event-' + id);
+        const expired = now - ev.submitted_at > PENDING_TIMEOUT_MS;
+        if (inEventTable || expired) {
+            pendingEvents.delete(id);
+        }
+    }
+
     fetch('/api/queue/rows')
         .then(r => r.text())
         .then(serverHtml => {
             // Build pending rows only for events NOT already in server queue
             let pendingHtml = '';
             for (const [id, ev] of pendingEvents) {
-                // Skip if this event already appears in server queue HTML
+                // Event appeared in server queue — it's been received, remove from pending
                 if (serverHtml.includes(id.substring(0, 12))) {
+                    pendingEvents.delete(id);
                     continue;
                 }
-                const age = Math.round((Date.now() - ev.submitted_at) / 1000);
+                const age = Math.round((now - ev.submitted_at) / 1000);
                 pendingHtml +=
                     '<tr class="border-b border-gray-800 text-[11px] bg-blue-900/20">' +
                     '<td class="font-mono truncate">' + id.substring(0, 12) + '&hellip;</td>' +

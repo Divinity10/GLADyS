@@ -18,7 +18,7 @@ async def cache_stats():
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
     try:
-        resp = stub.GetCacheStats(memory_pb2.GetCacheStatsRequest())
+        resp = await stub.GetCacheStats(memory_pb2.GetCacheStatsRequest())
         return JSONResponse({
             "current_size": resp.current_size,
             "max_capacity": resp.max_capacity,
@@ -36,7 +36,7 @@ async def cache_entries():
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
     try:
-        resp = stub.ListCachedHeuristics(memory_pb2.ListCachedHeuristicsRequest())
+        resp = await stub.ListCachedHeuristics(memory_pb2.ListCachedHeuristicsRequest())
         entries = []
         for h in resp.heuristics:
             entries.append({
@@ -57,7 +57,7 @@ async def cache_flush():
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
     try:
-        resp = stub.FlushCache(memory_pb2.FlushCacheRequest())
+        resp = await stub.FlushCache(memory_pb2.FlushCacheRequest())
         return JSONResponse({"flushed": resp.entries_flushed})
     except grpc.RpcError as e:
         return JSONResponse({"error": f"gRPC error: {e.code().name}"}, status_code=502)

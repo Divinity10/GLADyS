@@ -353,6 +353,7 @@ async def submit_feedback(request: Request):
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else dict(await request.form())
 
     event_id = body.get("event_id", "")
+    response_id = body.get("response_id", "")
     feedback = body.get("feedback", "")
 
     if not event_id:
@@ -369,6 +370,7 @@ async def submit_feedback(request: Request):
         resp = await stub.ProvideFeedback(executive_pb2.ProvideFeedbackRequest(
             event_id=event_id,
             positive=positive,
+            response_id=response_id,
         ))
         if getattr(resp, "created_heuristic_id", ""):
             label = f"\u2728 Created heuristic {resp.created_heuristic_id[:8]}\u2026"

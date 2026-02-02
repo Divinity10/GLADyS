@@ -27,7 +27,7 @@ async def memory_probe(request: Request):
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
 
     try:
-        resp = stub.QuerySimilarHeuristics(memory_pb2.QuerySimilarHeuristicsRequest(
+        resp = await stub.QuerySimilarHeuristics(memory_pb2.QuerySimilarHeuristicsRequest(
             query_text=query,
             limit=limit,
         ))
