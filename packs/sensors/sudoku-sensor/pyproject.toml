@@ -1,0 +1,15 @@
+[project]
+name = "gladys-sudoku-sensor"
+version = "0.1.0"
+description = "Sudoku sensor for GLADyS — receives events from WebSudoku via Tampermonkey driver"
+requires-python = ">=3.11"
+dependencies = [
+    "grpcio>=1.60",
+    "grpcio-tools>=1.60",
+    "aiohttp>=3.9",
+    "structlog>=24.1",
+    "colorama>=0.4",
+]
+
+[tool.uv]
+dev-dependencies = []
