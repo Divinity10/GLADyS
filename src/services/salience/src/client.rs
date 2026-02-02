@@ -327,6 +327,7 @@ impl EventBuilder {
                 prediction_confidence: 0.0,
                 response_id: String::new(),
                 response_text: String::new(),
+                matched_heuristic_id: String::new(),
             },
         }
     }

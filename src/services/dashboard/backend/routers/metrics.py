@@ -43,7 +43,7 @@ async def get_metrics(request: Request):
         stub = env.salience_stub()
         if stub:
             from gladys_orchestrator.generated import memory_pb2
-            resp = stub.GetCacheStats(memory_pb2.GetCacheStatsRequest())
+            resp = await stub.GetCacheStats(memory_pb2.GetCacheStatsRequest())
             total_lookups = resp.total_hits + resp.total_misses
             if total_lookups > 0:
                 metrics["cache_hit_rate"] = round(resp.total_hits / total_lookups * 100)

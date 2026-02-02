@@ -343,18 +343,15 @@ class TestEvents:
         assert resp.status_code == 200
         assert resp.text == ""
 
-    def test_event_list_db_error(self, client):
-        """Event list with DB error should still return 200 with template."""
-        mock_db.list_events.side_effect = Exception("connection refused")
+    def test_event_list_grpc_unavailable(self, client):
+        """Event list with no memory stub returns 200 with empty template."""
         resp = client.get("/api/events")
         assert resp.status_code == 200
         # Should render the lab template even with empty events
         assert "lab-tab" in resp.text
-        mock_db.list_events.side_effect = None
 
-    def test_event_rows_shape(self, client):
-        """Event rows endpoint returns HTML."""
-        mock_db.list_events.return_value = []
+    def test_event_rows_grpc_unavailable(self, client):
+        """Event rows without memory stub returns empty HTML."""
         resp = client.get("/api/events/rows?limit=10&offset=0")
         assert resp.status_code == 200
         assert resp.headers["content-type"].startswith("text/html")

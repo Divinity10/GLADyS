@@ -16,6 +16,12 @@ service MemoryStorage {
     // Query events by embedding similarity
     rpc QueryBySimilarity(QueryBySimilarityRequest) returns (QueryEventsResponse);
 
+    // List recent events (newest first, paginated) — dashboard
+    rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+
+    // Get a single event by ID
+    rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+
     // Generate embedding for text
     rpc GenerateEmbedding(GenerateEmbeddingRequest) returns (GenerateEmbeddingResponse);
 
@@ -165,6 +171,7 @@ message EpisodicEvent {
     float prediction_confidence = 10;   // LLM's confidence in that prediction (0.0-1.0)
     string response_id = 11;            // Links to executive response/reasoning trace
     string response_text = 12;          // The actual LLM response text
+    string matched_heuristic_id = 13;   // Heuristic that fired for this event (from heuristic_fires)
 }
 
 message StoreEventRequest {
@@ -192,6 +199,29 @@ message QueryBySimilarityRequest {
 
 message QueryEventsResponse {
     repeated EpisodicEvent events = 1;
+    string error = 2;
+}
+
+// --- Dashboard Event Queries ---
+
+message ListEventsRequest {
+    int32 limit = 1;              // default 50
+    int32 offset = 2;
+    string source = 3;            // filter by source, empty = all
+    bool include_archived = 4;    // default false
+}
+
+message ListEventsResponse {
+    repeated EpisodicEvent events = 1;
+    string error = 2;
+}
+
+message GetEventRequest {
+    string event_id = 1;
+}
+
+message GetEventResponse {
+    EpisodicEvent event = 1;
     string error = 2;
 }
 

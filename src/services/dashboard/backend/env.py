@@ -2,6 +2,9 @@
 
 Provides environment-aware addressing (Local vs Docker) and lazy gRPC
 channel/stub creation. Import the `env` singleton to access stubs.
+
+Async stubs (default) for use in FastAPI async handlers.
+Sync stubs via `sync_*_stub()` for background threads (e.g. SSE).
 """
 
 import os
@@ -11,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 import grpc
+import grpc.aio
 
 # Project root: src/services/dashboard/backend/env.py -> project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -84,11 +88,16 @@ SERVICE_INFO = {
 
 
 class Environment:
-    """Manages current environment selection and gRPC channels."""
+    """Manages current environment selection and gRPC channels.
+
+    Provides async stubs (grpc.aio) for FastAPI handlers and sync stubs
+    (grpc.insecure_channel) for background threads like SSE.
+    """
 
     def __init__(self):
         self._mode: str = "local"
-        self._channels: dict[str, grpc.Channel] = {}
+        self._async_channels: dict[str, grpc.aio.Channel] = {}
+        self._sync_channels: dict[str, grpc.Channel] = {}
 
     @property
     def mode(self) -> str:
@@ -98,54 +107,83 @@ class Environment:
     def config(self) -> EnvConfig:
         return ENV_CONFIGS[self._mode]
 
-    def switch(self, mode: str):
+    async def switch(self, mode: str):
         """Switch environment, closing existing channels."""
         mode = mode.lower()
         if mode not in ENV_CONFIGS:
             raise ValueError(f"Unknown environment: {mode}")
         if mode != self._mode:
-            self._close_channels()
+            await self._close_channels()
             self._mode = mode
 
-    def _close_channels(self):
-        for ch in self._channels.values():
+    async def _close_channels(self):
+        for ch in self._async_channels.values():
+            try:
+                await ch.close()
+            except Exception:
+                pass
+        self._async_channels.clear()
+        for ch in self._sync_channels.values():
             try:
                 ch.close()
             except Exception:
                 pass
-        self._channels.clear()
+        self._sync_channels.clear()
 
-    def _get_channel(self, address: str) -> grpc.Channel:
-        if address not in self._channels:
-            self._channels[address] = grpc.insecure_channel(address)
-        return self._channels[address]
+    def _get_async_channel(self, address: str) -> grpc.aio.Channel:
+        if address not in self._async_channels:
+            self._async_channels[address] = grpc.aio.insecure_channel(address)
+        return self._async_channels[address]
+
+    def _get_sync_channel(self, address: str) -> grpc.Channel:
+        if address not in self._sync_channels:
+            self._sync_channels[address] = grpc.insecure_channel(address)
+        return self._sync_channels[address]
+
+    # --- Async stubs (for FastAPI async handlers) ---
 
     def orchestrator_stub(self):
         if not PROTOS_AVAILABLE:
             return None
         return orchestrator_pb2_grpc.OrchestratorServiceStub(
-            self._get_channel(self.config.orchestrator)
+            self._get_async_channel(self.config.orchestrator)
         )
 
     def memory_stub(self):
         if not PROTOS_AVAILABLE:
             return None
         return memory_pb2_grpc.MemoryStorageStub(
-            self._get_channel(self.config.memory)
+            self._get_async_channel(self.config.memory)
         )
 
     def salience_stub(self):
         if not PROTOS_AVAILABLE:
             return None
         return memory_pb2_grpc.SalienceGatewayStub(
-            self._get_channel(self.config.salience)
+            self._get_async_channel(self.config.salience)
         )
 
     def executive_stub(self):
         if not PROTOS_AVAILABLE:
             return None
         return executive_pb2_grpc.ExecutiveServiceStub(
-            self._get_channel(self.config.executive)
+            self._get_async_channel(self.config.executive)
+        )
+
+    # --- Sync stubs (for background threads like SSE) ---
+
+    def sync_orchestrator_stub(self):
+        if not PROTOS_AVAILABLE:
+            return None
+        return orchestrator_pb2_grpc.OrchestratorServiceStub(
+            self._get_sync_channel(self.config.orchestrator)
+        )
+
+    def sync_memory_stub(self):
+        if not PROTOS_AVAILABLE:
+            return None
+        return memory_pb2_grpc.MemoryStorageStub(
+            self._get_sync_channel(self.config.memory)
         )
 
     def services_list(self) -> list[dict]:

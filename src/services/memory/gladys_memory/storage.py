@@ -206,6 +206,74 @@ class MemoryStorage:
 
         return [(self._row_to_event(row), row["similarity"]) for row in rows]
 
+    async def list_events(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        source: Optional[str] = None,
+        include_archived: bool = False,
+    ) -> list[dict]:
+        """List recent events, newest first. Returns dicts with matched_heuristic_id."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Use DISTINCT ON to avoid duplicate rows when an event has multiple
+        # heuristic_fires.  Inner query deduplicates; outer query applies sort + pagination.
+        inner = """
+            SELECT DISTINCT ON (e.id)
+                   e.id, e.timestamp, e.source, e.raw_text,
+                   e.salience, e.response_text, e.response_id,
+                   e.predicted_success, e.prediction_confidence,
+                   hf.heuristic_id AS matched_heuristic_id
+            FROM episodic_events e
+            LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+        """
+        conditions = []
+        params = []
+        idx = 1
+
+        if not include_archived:
+            conditions.append("e.archived = false")
+
+        if source:
+            conditions.append(f"e.source = ${idx}")
+            params.append(source)
+            idx += 1
+
+        if conditions:
+            inner += " WHERE " + " AND ".join(conditions)
+
+        # DISTINCT ON requires ORDER BY to start with the distinct column
+        inner += " ORDER BY e.id, hf.fired_at DESC NULLS LAST"
+
+        query = f"SELECT * FROM ({inner}) sub ORDER BY sub.timestamp DESC LIMIT ${idx} OFFSET ${idx + 1}"
+        params.extend([limit, offset])
+
+        rows = await self._pool.fetch(query, *params)
+        return [dict(row) for row in rows]
+
+    async def get_event(self, event_id: str) -> Optional[dict]:
+        """Fetch a single event by ID. Returns None if not found."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        row = await self._pool.fetchrow(
+            """
+            SELECT DISTINCT ON (e.id)
+                   e.id, e.timestamp, e.source, e.raw_text,
+                   e.salience, e.response_text, e.response_id,
+                   e.predicted_success, e.prediction_confidence,
+                   hf.heuristic_id AS matched_heuristic_id
+            FROM episodic_events e
+            LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+            WHERE e.id = $1
+            ORDER BY e.id, hf.fired_at DESC NULLS LAST
+            """,
+            uuid.UUID(event_id),
+        )
+        return dict(row) if row else None
+
     def _row_to_event(self, row: asyncpg.Record) -> EpisodicEvent:
         """Convert database row to EpisodicEvent."""
         return EpisodicEvent(
