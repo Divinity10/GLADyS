@@ -249,17 +249,101 @@ Implementation: Alpine.js custom events or URL hash parameters to communicate be
 
 ## API Changes
 
-### New endpoints
+### Architecture: dashboard → gRPC → Memory service → DB
+
+The dashboard backend MUST NOT query PostgreSQL directly. All data access goes through the Memory service gRPC API. This ensures query logic lives in one place — bug fixes apply everywhere. (Existing direct-DB access in the events router is tech debt tracked in #66.)
+
+### New Memory proto RPCs
+
+Add to `memory.proto` `MemoryStorage` service:
+
+```protobuf
+// List events with decision chain data for Response tab
+rpc ListResponses(ListResponsesRequest) returns (ListResponsesResponse);
+
+// Get full detail for one event (drill-down)
+rpc GetResponseDetail(GetResponseDetailRequest) returns (GetResponseDetailResponse);
+```
+
+New messages:
+
+```protobuf
+message ListResponsesRequest {
+    string decision_path = 1;    // filter: "heuristic", "llm", or "" for all
+    string source = 2;           // filter: sensor source or "" for all
+    string search = 3;           // text search across raw_text and response_text
+    int32 limit = 4;             // default 50
+    int32 offset = 5;
+}
+
+message ResponseSummary {
+    string event_id = 1;
+    int64 timestamp_ms = 2;
+    string source = 3;
+    string raw_text = 4;              // full text (frontend truncates)
+    string decision_path = 5;
+    string matched_heuristic_id = 6;
+    string matched_heuristic_condition = 7;  // from JOIN
+    string response_text = 8;
+}
+
+message ListResponsesResponse {
+    repeated ResponseSummary responses = 1;
+    string error = 2;
+}
+
+message GetResponseDetailRequest {
+    string event_id = 1;
+}
+
+message ResponseDetail {
+    string event_id = 1;
+    int64 timestamp_ms = 2;
+    string source = 3;
+    string raw_text = 4;
+    string decision_path = 5;
+    string matched_heuristic_id = 6;
+    string matched_heuristic_condition = 7;
+    float matched_heuristic_confidence = 8;
+    string llm_prompt_text = 9;
+    string response_text = 10;
+    // Outcome (from heuristic_fires, if exists)
+    string fire_id = 11;              // empty if no fire
+    string feedback_source = 12;
+    string outcome = 13;
+}
+
+message GetResponseDetailResponse {
+    ResponseDetail detail = 1;
+    string error = 2;
+}
+```
+
+Also add new fields to the existing `EpisodicEvent` message:
+
+```protobuf
+message EpisodicEvent {
+    // ... existing fields 1-12 ...
+    string llm_prompt_text = 13;
+    string decision_path = 14;
+    string matched_heuristic_id = 15;
+    string episode_id = 16;
+}
+```
+
+### New dashboard REST endpoints
+
+These call Memory gRPC, not `gladys_client.db`:
 
 ```
 GET /api/responses?decision_path=...&source=...&search=...&limit=50&offset=0
 ```
-Returns `episodic_events` joined with `heuristics` (for condition text) and `heuristic_fires` (for outcome). Filtered by `decision_path`, `source`, text search.
+Dashboard route calls `ListResponses` gRPC. Returns response summaries.
 
 ```
 GET /api/responses/{event_id}
 ```
-Returns full detail for one event: all fields including `llm_prompt_text`, joined heuristic data, fire outcome.
+Dashboard route calls `GetResponseDetail` gRPC. Returns full drill-down data.
 
 ### Modified endpoints
 
@@ -287,17 +371,18 @@ DELETE /api/heuristics (body: {ids}) — bulk delete (already exists at heuristi
 ### Backend (service changes)
 1. Migration: add `llm_prompt_text`, `decision_path`, `matched_heuristic_id` to `episodic_events`
 2. Migration: create `episodes` table, add `episode_id` to `episodic_events`
-3. Proto: add `prompt_text`, `decision_path`, `matched_heuristic_id` to `ProcessEventResponse`
-4. Executive: populate new response fields in both heuristic fast-path and LLM path
-5. Orchestrator: persist new fields when storing event
-6. Remove `_make_event_dict` decision path derivation logic (replaced by stored column)
-7. Fix `episodic_event_id` in `on_fire()` (one-line)
-8. New DB functions in `gladys_client/db.py` for response queries
-9. New API routes for response listing/detail
+3. Proto: add new fields to `EpisodicEvent` message, add `prompt_text`/`decision_path`/`matched_heuristic_id` to `ProcessEventResponse`
+4. Proto: add `ListResponses`/`GetResponseDetail` RPCs + request/response messages to `memory.proto`
+5. Executive: populate new response fields in both heuristic fast-path and LLM path
+6. Orchestrator: persist new fields when storing event (pass through to `StoreEvent`)
+7. Memory service: update `StoreEvent` to persist new columns, implement `ListResponses`/`GetResponseDetail` RPCs
+8. Remove `_make_event_dict` decision path derivation logic (replaced by stored column)
+9. Fix `episodic_event_id` in `on_fire()` (one-line)
+10. New dashboard API routes (`/api/responses`) that call Memory gRPC (NOT direct DB)
 
 ### Frontend (dashboard changes)
-10. New Response tab component (`response.html`)
-11. Replace Knowledge tab with Heuristics tab component (`heuristics.html`)
-12. Cross-tab linking mechanism
-13. Inline click-to-edit pattern (reusable across both tabs)
-14. Multi-select + bulk action bar pattern
+11. New Response tab component (`response.html`)
+12. Replace Knowledge tab with Heuristics tab component (`heuristics.html`)
+13. Cross-tab linking mechanism
+14. Inline click-to-edit pattern (reusable across both tabs)
+15. Multi-select + bulk action bar pattern
