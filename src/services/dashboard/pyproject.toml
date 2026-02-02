@@ -2,6 +2,7 @@
 name = "gladys-dashboard"
 version = "0.1.0"
 description = "GLADyS Dashboard V2"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi",
     "python-multipart",
