@@ -42,6 +42,7 @@
         </select>
 
         <!-- Source Filter (Dynamic in future, static for now as per prompt "dynamic from data" but usually implies backend generated options. I'll keep it simple input or basic select for now) -->
+        <!-- TODO: populate source filter dynamically from data -->
         <select x-model="sourceFilter" @change="applyFilters()" 
                 class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
             <option value="">All Sources</option>

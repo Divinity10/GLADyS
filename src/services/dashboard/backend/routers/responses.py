@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 import structlog
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
+from backend.utils import format_relative_time
 
 logger = structlog.get_logger()
 
@@ -23,25 +24,6 @@ router = APIRouter(prefix="/api")
 
 FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
-
-
-def _format_relative_time(ts) -> str:
-    """Format a timestamp as relative time."""
-    if ts is None:
-        return ""
-    now = datetime.now(timezone.utc)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    delta = now - ts
-    seconds = int(delta.total_seconds())
-    if seconds < 60:
-        return f"{seconds}s ago"
-    elif seconds < 3600:
-        return f"{seconds // 60}m ago"
-    elif seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    else:
-        return f"{seconds // 86400}d ago"
 
 
 def _proto_summary_to_dict(s) -> dict:
@@ -58,7 +40,7 @@ def _proto_summary_to_dict(s) -> dict:
     return {
         "event_id": s.event_id,
         "timestamp": ts,
-        "time_relative": _format_relative_time(ts),
+        "time_relative": format_relative_time(ts),
         "source": s.source,
         "raw_text": s.raw_text,
         "decision_path": path_display,
@@ -75,7 +57,7 @@ def _proto_detail_to_dict(d) -> dict:
     return {
         "event_id": d.event_id,
         "timestamp": ts,
-        "time_relative": _format_relative_time(ts),
+        "time_relative": format_relative_time(ts),
         "source": d.source,
         "raw_text": d.raw_text,
         "decision_path": d.decision_path.upper() if d.decision_path else "",

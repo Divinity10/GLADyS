@@ -64,7 +64,7 @@
     <div x-show="expanded" x-collapse 
          class="bg-gray-900/50 border-t border-gray-800 shadow-inner"
          hx-get="/api/responses/{{ r.event_id }}" 
-         hx-trigger="click once from:parent" 
+         hx-trigger="intersect once" 
          hx-target="this">
          <!-- Spinner -->
          <div class="p-4 flex items-center gap-2 text-gray-500 text-xs">

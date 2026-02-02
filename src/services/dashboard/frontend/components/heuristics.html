@@ -114,6 +114,14 @@
             this.handleTabSwitch({ detail: window.pendingTabFilter });
             window.pendingTabFilter = null;
         }
+    },
+
+    prettyPrintJson(jsonStr) {
+        try {
+            return JSON.stringify(JSON.parse(jsonStr || '{}'), null, 2);
+        } catch (e) {
+            return jsonStr || '{}'; // Fallback to raw string or empty object
+        }
     }
 
 }" x-init="loadHeuristics(); checkPending()" @tab-filter-update.window="handleTabSwitch">
@@ -262,6 +270,8 @@
                     <div class="grid grid-cols-2 gap-4 text-xs text-gray-500">
                         <div><span class="font-bold">Full ID:</span> <span class="font-mono text-gray-400" x-text="h.id"></span></div>
                         <div><span class="font-bold">Created:</span> <span class="text-gray-400" x-text="h.created_at"></span></div>
+                        <div><span class="font-bold">Origin ID:</span> <span class="font-mono text-gray-400" x-text="h.origin_id || 'N/A'"></span></div>
+                        <div><span class="font-bold">Updated:</span> <span class="text-gray-400" x-text="h.updated_at || 'N/A'"></span></div>
                         <div><span class="font-bold">Success Rate:</span> 
                             <span class="text-gray-400" x-text="(h.fire_count > 0 ? Math.round((h.success_count / h.fire_count) * 100) + '%' : 'N/A')"></span>
                         </div>
@@ -286,7 +296,7 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Effects (JSON)</label>
                         <div class="text-xs text-gray-500 mb-1">Raw JSON editing only for PoC</div>
-                        <pre class="bg-gray-800 p-3 rounded border border-gray-700 text-gray-400 font-mono text-xs overflow-x-auto" x-text="JSON.stringify(JSON.parse(h.effects_json || '{}'), null, 2)"></pre>
+                        <pre class="bg-gray-800 p-3 rounded border border-gray-700 text-gray-400 font-mono text-xs overflow-x-auto" x-text="prettyPrintJson(h.effects_json)"></pre>
                     </div>
                     
                     <div class="flex justify-end gap-2 pt-2 border-t border-gray-800">

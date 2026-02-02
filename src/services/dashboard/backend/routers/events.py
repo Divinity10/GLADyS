@@ -16,6 +16,7 @@ from sse_starlette.sse import EventSourceResponse
 import structlog
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
+from backend.utils import format_relative_time
 
 logger = structlog.get_logger()
 
@@ -33,25 +34,6 @@ router = APIRouter(prefix="/api")
 
 FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
-
-
-def _format_relative_time(ts) -> str:
-    """Format a timestamp as relative time."""
-    if ts is None:
-        return ""
-    now = datetime.now(timezone.utc)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    delta = now - ts
-    seconds = int(delta.total_seconds())
-    if seconds < 60:
-        return f"{seconds}s ago"
-    elif seconds < 3600:
-        return f"{seconds // 60}m ago"
-    elif seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    else:
-        return f"{seconds // 86400}d ago"
 
 
 def _make_event_dict(event_id: str, source: str, text: str,
@@ -89,7 +71,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
                 salience_breakdown[key] = f"{salience[key]:.2f}"
 
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
-    time_rel = _format_relative_time(timestamp) if timestamp else "just now"
+    time_rel = format_relative_time(timestamp) if timestamp else "just now"
 
     salience_score = "\u2014"
     if predicted_success is not None:
