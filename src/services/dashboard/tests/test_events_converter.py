@@ -232,3 +232,56 @@ class TestProtoEventToDict:
         result = _proto_event_to_dict(ev)
         # timestamp_ms=0 is falsy, so ts=None, should use "just now"
         assert result["time_relative"] == "just now"
+
+    def test_decision_path_passed_through(self):
+        ev = self._make_proto_event(decision_path="llm")
+        result = _proto_event_to_dict(ev)
+        assert result["path"] == "LLM"
+
+    def test_heuristic_decision_path(self):
+        ev = self._make_proto_event(decision_path="heuristic")
+        result = _proto_event_to_dict(ev)
+        assert result["path"] == "HEURISTIC"
+
+
+class TestDecisionPathLogic:
+    """Tests for decision_path parameter in _make_event_dict."""
+
+    def test_decision_path_overrides_derivation(self):
+        """Stored decision_path should take priority over matched_heuristic_id derivation."""
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            decision_path="llm",
+            matched_heuristic_id="h-123",
+        )
+        assert result["path"] == "LLM"
+
+    def test_decision_path_heuristic(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            decision_path="heuristic",
+        )
+        assert result["path"] == "HEURISTIC"
+
+    def test_fallback_when_no_decision_path(self):
+        """Old data without decision_path should still derive from matched_heuristic_id."""
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            matched_heuristic_id="h-456",
+            decision_path="",
+        )
+        assert result["path"] == "HEURISTIC"
+
+    def test_fallback_llm_when_no_decision_path(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            response_text="some response",
+            decision_path="",
+        )
+        assert result["path"] == "LLM"
+
+    def test_empty_path_when_nothing_set(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+        )
+        assert result["path"] == ""

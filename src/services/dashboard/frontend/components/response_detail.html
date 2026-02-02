@@ -1,0 +1,77 @@
+<div class="p-6 space-y-6 text-sm">
+    
+    <!-- 1. Event -->
+    <div class="space-y-1">
+        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Event</h4>
+        <div class="font-mono text-gray-200 bg-gray-800 p-3 rounded border border-gray-700 whitespace-pre-wrap">{{ detail.raw_text }}</div>
+    </div>
+
+    <!-- 2. Heuristic (if matched) -->
+    {% if detail.matched_heuristic_id %}
+    <div class="space-y-1">
+        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider flex justify-between">
+            <span>Matched Heuristic</span>
+            {% if detail.matched_heuristic_confidence %}
+            <span class="text-blue-400">Confidence: {{ detail.matched_heuristic_confidence }}</span>
+            {% endif %}
+        </h4>
+        <div class="bg-gray-800 p-3 rounded border border-gray-700 space-y-2">
+            <div class="text-gray-200 font-mono">{{ detail.matched_heuristic_condition }}</div>
+            <div class="text-xs">
+                <span class="text-gray-500">ID: </span>
+                <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer font-mono"
+                      @click="$dispatch('switch-tab', { tab: 'heuristics', filter: 'id', value: '{{ detail.matched_heuristic_id }}' })">
+                    {{ detail.matched_heuristic_id }}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 3. LLM Prompt (if exists) -->
+    {% if detail.llm_prompt_text %}
+    <div class="space-y-1" x-data="{ open: false }">
+        <button @click="open = !open" class="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors w-full text-left">
+            <span :class="{'rotate-90': open}" class="transition-transform duration-200">▶</span>
+            <span>LLM Prompt {% if detail.matched_heuristic_id and detail.decision_path == 'LLM' %}(includes heuristic context){% endif %}</span>
+        </button>
+        <div x-show="open" x-collapse>
+             <div class="font-mono text-xs text-gray-300 bg-gray-900 p-3 rounded border border-gray-700 whitespace-pre-wrap mt-2">{{ detail.llm_prompt_text }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 4. Response -->
+    <div class="space-y-1">
+        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Response</h4>
+        {% if detail.response_text %}
+            <div class="text-gray-200 bg-gray-800 p-3 rounded border border-gray-700 whitespace-pre-wrap">{{ detail.response_text }}</div>
+        {% else %}
+            <div class="text-gray-500 italic px-3">(no response)</div>
+        {% endif %}
+    </div>
+
+    <!-- 5. Outcome (if exists) -->
+    {% if detail.fire_id %}
+    <div class="space-y-1">
+        <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Outcome</h4>
+        <div class="bg-gray-800 p-3 rounded border border-gray-700 grid grid-cols-2 gap-4">
+            <div>
+                <span class="text-gray-500 text-xs block">Feedback Source</span>
+                <span class="text-gray-300">{{ detail.feedback_source or 'None' }}</span>
+            </div>
+            <div>
+                <span class="text-gray-500 text-xs block">Outcome</span>
+                {% if detail.outcome == 'success' %}
+                    <span class="text-green-400 font-bold">Success</span>
+                {% elif detail.outcome == 'fail' %}
+                    <span class="text-red-400 font-bold">Fail</span>
+                {% else %}
+                    <span class="text-gray-400">Unknown</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>

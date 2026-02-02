@@ -21,14 +21,36 @@ function appState() {
                                 .then(r => r.text())
                                 .then(html => { tbody.innerHTML = html; });
                         }
-                    } else if (val === 'knowledge') {
-                        // Dispatch event for Alpine.js knowledge component
-                        window.dispatchEvent(new CustomEvent('refresh-knowledge'));
+                    } else if (val === 'heuristics') {
+                        // Dispatch event for Alpine.js heuristics component to maybe refresh if needed
+                        // But loadHeuristics is called on x-init.
+                        // We might want to clear filters if not set by cross-tab linking
                     } else {
-                        // For HTMX tabs (learning, llm, logs, settings), re-trigger load
+                        // For HTMX tabs (response, learning, llm, logs, settings), re-trigger load if empty or needed
+                        // Actually, hx-trigger="load" only happens on element creation/insertion.
+                        // When switching tabs with x-show, the element is already there.
+                        // We should trigger a refresh.
                         const tabDiv = document.querySelector(`[x-show="activeTab === '${val}'"]`);
-                        if (tabDiv) htmx.trigger(tabDiv, 'load');
+                        if (tabDiv) {
+                            // For Response tab, specifically trigger the list reload
+                            if (val === 'response') {
+                                const listContainer = document.getElementById('response-rows');
+                                if (listContainer) htmx.trigger(listContainer, 'load');
+                            }
+                            // Trigger main component load if it hasn't loaded yet (htmx handles this usually)
+                        }
                     }
+                });
+            });
+
+            // Listen for cross-tab linking events
+            window.addEventListener('switch-tab', (e) => {
+                this.activeTab = e.detail.tab;
+                // Store pending filter for components that might not be loaded yet
+                window.pendingTabFilter = e.detail;
+                // Dispatch event for components that are already loaded
+                this.$nextTick(() => {
+                    window.dispatchEvent(new CustomEvent('tab-filter-update', { detail: e.detail }));
                 });
             });
             this.$watch('environment', (val) => {

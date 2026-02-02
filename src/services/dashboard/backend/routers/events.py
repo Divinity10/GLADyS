@@ -59,7 +59,8 @@ def _make_event_dict(event_id: str, source: str, text: str,
                      response_text: str = "", response_id: str = "",
                      predicted_success: float = None,
                      prediction_confidence: float = None,
-                     matched_heuristic_id: str = "") -> dict:
+                     matched_heuristic_id: str = "",
+                     decision_path: str = "") -> dict:
     """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
@@ -70,11 +71,15 @@ def _make_event_dict(event_id: str, source: str, text: str,
     else:
         status = "queued"
 
-    path = ""
-    if matched_heuristic_id:
+    # Use stored decision_path when available; fall back to derivation for old data
+    if decision_path:
+        path = decision_path.upper()
+    elif matched_heuristic_id:
         path = "HEURISTIC"
     elif response_text or response_id:
         path = "LLM"
+    else:
+        path = ""
 
     salience_breakdown = {}
     if isinstance(salience, dict):
@@ -136,6 +141,7 @@ def _proto_event_to_dict(ev) -> dict:
         predicted_success=ps,
         prediction_confidence=pc,
         matched_heuristic_id=ev.matched_heuristic_id or "",
+        decision_path=ev.decision_path or "",
     )
 
 

@@ -1,0 +1,85 @@
+{% for r in responses %}
+<div class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors group" x-data="{ expanded: false }">
+    <!-- Parent Row -->
+    <div class="grid grid-cols-[20px_120px_80px_1fr_90px_150px_1fr] gap-4 px-4 py-3 items-center cursor-pointer text-sm" 
+         :class="{'bg-gray-800': expanded}"
+         @click="expanded = !expanded">
+        
+        <!-- Chevron -->
+        <div class="text-gray-500 transition-transform duration-200" :class="{'rotate-90': expanded}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+        </div>
+
+        <!-- Timestamp -->
+        <div class="text-gray-400 text-xs" title="{{ r.timestamp }}">
+            {{ r.time_relative }}
+        </div>
+
+        <!-- Source -->
+        <div>
+            <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-gray-700 text-gray-300">
+                {{ r.source }}
+            </span>
+        </div>
+
+        <!-- Event (Truncated) -->
+        <div class="text-gray-200 font-mono truncate" title="{{ r.raw_text }}">
+            {{ r.raw_text }}
+        </div>
+
+        <!-- Path -->
+        <div>
+            {% if r.decision_path == 'HEURISTIC' %}
+                <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-green-900/50 text-green-400 border border-green-800">Heuristic</span>
+            {% elif r.decision_path == 'LLM' %}
+                <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-blue-900/50 text-blue-400 border border-blue-800">LLM</span>
+            {% elif r.decision_path == 'HEURISTIC_FALLBACK' %}
+                 <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-yellow-900/50 text-yellow-400 border border-yellow-800">Fallback</span>
+            {% else %}
+                 <span class="text-gray-600 text-xs">—</span>
+            {% endif %}
+        </div>
+
+        <!-- Heuristic -->
+        <div class="truncate">
+            {% if r.matched_heuristic_id %}
+                <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer text-xs font-mono"
+                      @click.stop="$dispatch('switch-tab', { tab: 'heuristics', filter: 'id', value: '{{ r.matched_heuristic_id }}' })">
+                    {{ r.matched_heuristic_condition or r.matched_heuristic_id[:8] }}
+                </span>
+            {% else %}
+                <span class="text-gray-600 text-xs">—</span>
+            {% endif %}
+        </div>
+
+        <!-- Response -->
+        <div class="text-gray-400 truncate text-xs" title="{{ r.response_text }}">
+            {{ r.response_text or '' }}
+        </div>
+    </div>
+
+    <!-- Drill-down Container -->
+    <div x-show="expanded" x-collapse 
+         class="bg-gray-900/50 border-t border-gray-800 shadow-inner"
+         hx-get="/api/responses/{{ r.event_id }}" 
+         hx-trigger="click once from:parent" 
+         hx-target="this">
+         <!-- Spinner -->
+         <div class="p-4 flex items-center gap-2 text-gray-500 text-xs">
+            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Loading details...
+         </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if not responses %}
+<div class="p-8 text-center text-gray-500">
+    No responses found matching criteria.
+</div>
+{% endif %}

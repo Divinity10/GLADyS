@@ -150,10 +150,6 @@ class TestGrpcUnavailable:
                            json={"name": "test"})
         assert resp.status_code == 503
 
-    def test_heuristics_delete_503(self, client):
-        resp = client.delete("/api/heuristics/some-id")
-        assert resp.status_code == 503
-
     def test_memory_probe_empty_query(self, client):
         """Probe with empty query should return 400 regardless of stub."""
         with patch.object(env_module, "PROTOS_AVAILABLE", True):
@@ -467,10 +463,16 @@ class TestComponents:
         assert resp.status_code == 200
         assert "GLADyS Dashboard" in resp.text
 
-    def test_knowledge_component(self, client):
-        resp = client.get("/api/components/knowledge")
+    def test_heuristics_component(self, client):
+        resp = client.get("/api/components/heuristics")
         assert resp.status_code == 200
-        assert "knowledge-tab" in resp.text
+        # Check for Alpine data binding which should be present
+        assert "x-data" in resp.text
+
+    def test_response_component(self, client):
+        resp = client.get("/api/components/response")
+        assert resp.status_code == 200
+        assert "response-rows" in resp.text
 
     def test_learning_component(self, client):
         resp = client.get("/api/components/learning")

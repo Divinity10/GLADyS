@@ -1,0 +1,84 @@
+<div class="h-full flex flex-col" x-data="{ 
+    pathFilter: '', 
+    sourceFilter: '', 
+    searchQuery: '',
+    applyFilters() {
+        const url = `/api/responses/rows?decision_path=${this.pathFilter}&source=${this.sourceFilter}&search=${this.searchQuery}`;
+        htmx.ajax('GET', url, '#response-rows');
+    },
+    clearFilters() {
+        this.pathFilter = '';
+        this.sourceFilter = '';
+        this.searchQuery = '';
+        this.applyFilters();
+    },
+    handleTabSwitch(e) {
+        if (e.detail.tab === 'response') {
+            if (e.detail.filter === 'matched_heuristic_id') {
+                this.searchQuery = e.detail.value;
+                this.applyFilters();
+            }
+        }
+    },
+    checkPending() {
+        if (window.pendingTabFilter && window.pendingTabFilter.tab === 'response') {
+            this.handleTabSwitch({ detail: window.pendingTabFilter });
+            window.pendingTabFilter = null;
+        }
+    }
+}" x-init="checkPending()" @tab-filter-update.window="handleTabSwitch">
+
+    <!-- Toolbar -->
+    <div class="flex items-center gap-4 p-4 border-b border-gray-700 bg-gray-900">
+        <!-- Path Filter -->
+        <select x-model="pathFilter" @change="applyFilters()" 
+                class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+            <option value="">All Paths</option>
+            <option value="heuristic">Heuristic</option>
+            <option value="llm">LLM</option>
+            <option value="heuristic_fallback">Heuristic Fallback</option>
+            <option value="no_response">No Response</option>
+            <option value="timed_out">Timed Out</option>
+        </select>
+
+        <!-- Source Filter (Dynamic in future, static for now as per prompt "dynamic from data" but usually implies backend generated options. I'll keep it simple input or basic select for now) -->
+        <select x-model="sourceFilter" @change="applyFilters()" 
+                class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+            <option value="">All Sources</option>
+            <option value="sudoku">Sudoku</option>
+            <option value="melvor">Melvor</option>
+            <option value="calendar">Calendar</option>
+            <option value="minecraft">Minecraft</option>
+        </select>
+
+        <!-- Search -->
+        <div class="relative flex-1 max-w-md">
+            <input type="text" x-model="searchQuery" @keydown.enter="applyFilters()"
+                   placeholder="Search event text or response..." 
+                   class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1 pl-8 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+            <svg class="w-4 h-4 absolute left-2 top-1.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+        </div>
+        
+        <button @click="clearFilters()" class="text-xs text-gray-400 hover:text-gray-200 underline">Clear</button>
+    </div>
+
+    <!-- Header -->
+    <div class="grid grid-cols-[20px_120px_80px_1fr_90px_150px_1fr] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+        <div></div>
+        <div>Timestamp</div>
+        <div>Source</div>
+        <div>Event</div>
+        <div>Path</div>
+        <div>Heuristic</div>
+        <div>Response</div>
+    </div>
+
+    <!-- List Container -->
+    <div id="response-rows" class="flex-1 overflow-y-auto" hx-get="/api/responses/rows" hx-trigger="load">
+        <!-- Rows will be injected here -->
+        <div class="p-4 text-center text-gray-500">Loading responses...</div>
+    </div>
+
+</div>
