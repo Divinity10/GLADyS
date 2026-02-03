@@ -37,13 +37,13 @@ When the Salience service is unavailable, this fallback ensures events still get
 
 ### Add to OrchestratorConfig
 
-In `src/services/orchestrator/gladys_orchestrator/config.py`:
+In `src/services/orchestrator/gladys_orchestrator/config.py` (pydantic-settings reads from env vars / `.env` file):
 
 ```python
 class OrchestratorConfig(BaseSettings):
     # ... existing fields ...
 
-    # Emergency fast-path thresholds
+    # Emergency fast-path thresholds (default values, override via env)
     # When both conditions are met, Orchestrator bypasses Executive entirely
     emergency_confidence_threshold: float = 0.95
     emergency_threat_threshold: float = 0.9
@@ -51,6 +51,13 @@ class OrchestratorConfig(BaseSettings):
     # Fallback novelty when Salience service is unavailable
     # Must be >= salience_threshold to ensure events still route
     fallback_novelty: float = 0.8
+```
+
+Corresponding environment variables (override defaults via `.env` or shell):
+```
+EMERGENCY_CONFIDENCE_THRESHOLD=0.95
+EMERGENCY_THREAT_THRESHOLD=0.9
+FALLBACK_NOVELTY=0.8
 ```
 
 ### Update EventRouter

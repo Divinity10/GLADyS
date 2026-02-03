@@ -190,12 +190,21 @@ class LearningModule:
 
 ## Configuration
 
-Add to `OrchestratorConfig`:
+Add to `OrchestratorConfig` (pydantic-settings reads from env vars / `.env` file):
 
 ```python
 learning_strategy: str = "bayesian"
 learning_undo_window_sec: float = 60.0
 learning_ignored_threshold: int = 3
+learning_undo_keywords: str = "undo,revert,cancel,rollback,nevermind,never mind"
+```
+
+Corresponding environment variables (override defaults via `.env` or shell):
+```
+LEARNING_STRATEGY=bayesian
+LEARNING_UNDO_WINDOW_SEC=60.0
+LEARNING_IGNORED_THRESHOLD=3
+LEARNING_UNDO_KEYWORDS=undo,revert,cancel,rollback,nevermind,never mind
 ```
 
 Factory:
@@ -203,9 +212,12 @@ Factory:
 ```python
 def create_learning_strategy(config: OrchestratorConfig) -> LearningStrategy:
     if config.learning_strategy == "bayesian":
+        # Parse comma-separated keywords
+        keywords = tuple(k.strip() for k in config.learning_undo_keywords.split(","))
         return BayesianStrategy(BayesianStrategyConfig(
             undo_window_sec=config.learning_undo_window_sec,
             ignored_threshold=config.learning_ignored_threshold,
+            undo_keywords=keywords,
         ))
     raise ValueError(f"Unknown learning strategy: {config.learning_strategy}")
 ```
