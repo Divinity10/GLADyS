@@ -282,8 +282,35 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy:
 - Test LLM path when confidence < threshold
 - Test rejected path when no LLM and not immediate
 
+## Future: Feedback Handling
+
+The strategy owns reasoning traces, so it will handle feedback when that's formalized. Current implementation uses binary feedback (positive/negative). Future approaches to explore:
+
+1. **Scaled feedback** (1-5 rating) — more signal than binary, but UX cost
+2. **Multi-dimensional feedback** — separate ratings for match quality vs response quality
+3. **Weighted feedback** — confidence update magnitude varies by:
+   - Feedback source (explicit user vs implicit timeout)
+   - User calibration (some users are harsher/gentler raters)
+   - Time since response (immediate feedback weighted higher?)
+   - Response path (heuristic vs LLM — different confidence semantics?)
+
+These aren't defined yet. The current binary approach stays for this implementation. When feedback handling is formalized, the strategy Protocol will gain:
+
+```python
+async def handle_feedback(
+    self,
+    response_id: str,
+    feedback: FeedbackData,  # TBD: binary, scaled, or multi-dimensional
+    llm: LLMProvider | None,
+) -> FeedbackResult:
+    """Handle feedback on a previous response."""
+    ...
+```
+
+See also: `docs/design/questions/feedback-signal-decomposition.md`, `docs/design/questions/user-feedback-calibration.md`
+
 ## Out of Scope
 
-- Feedback handling (`ProvideFeedback`) — separate spec if needed
-- Quality gate and dedup logic — stays in feedback handler for now
+- Feedback handling details — deferred until feedback model is designed
+- Quality gate and dedup logic — stays in current `ProvideFeedback` for now
 - Alternative strategies — add in PoC 2
