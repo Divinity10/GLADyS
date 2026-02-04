@@ -1,0 +1,93 @@
+<div class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors"
+     x-data="{ expanded: false }">
+
+    <!-- Parent Row -->
+    <div class="grid grid-cols-[20px_100px_1fr_1fr_80px_80px_80px] gap-4 px-4 py-3 items-center text-sm cursor-pointer"
+         @click="expanded = !expanded"
+         :class="{'bg-gray-800': expanded}">
+
+        <!-- Chevron -->
+        <div class="text-gray-500 transition-transform" :class="{'rotate-90': expanded}">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+        </div>
+
+        <!-- Time -->
+        <div class="text-gray-400 text-[11px]">
+            {% if f.fired_at %}
+            {{ f.fired_at[11:19] }}
+            {% else %}
+            —
+            {% endif %}
+        </div>
+
+        <!-- Heuristic Name (link to Heuristics tab) -->
+        <div class="truncate">
+            <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer text-xs"
+                  @click.stop="window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'heuristics', filter: 'id', value: '{{ f.heuristic_id }}' } }))">
+                {{ f.heuristic_name or f.heuristic_id[:12] or '(unknown)' }}
+            </span>
+        </div>
+
+        <!-- Condition (truncated) -->
+        <div class="text-gray-300 font-mono text-xs truncate" title="{{ f.condition_text }}">
+            {{ f.condition_text[:50] }}{% if f.condition_text|length > 50 %}...{% endif %}
+        </div>
+
+        <!-- Outcome Badge -->
+        <div>
+            <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold
+                {% if f.outcome == 'success' %}bg-green-900/50 text-green-400 border border-green-800
+                {% elif f.outcome == 'failure' %}bg-red-900/50 text-red-400 border border-red-800
+                {% else %}bg-yellow-900/50 text-yellow-400 border border-yellow-800{% endif %}">
+                {% if f.outcome == 'unknown' %}PENDING{% else %}{{ f.outcome }}{% endif %}
+            </span>
+        </div>
+
+        <!-- Feedback Source -->
+        <div class="text-gray-500 text-xs">
+            {{ f.feedback_source or '—' }}
+        </div>
+
+        <!-- Confidence -->
+        <div class="text-xs">
+            <span class="{% if f.confidence >= 0.7 %}text-green-400{% elif f.confidence >= 0.4 %}text-yellow-400{% else %}text-red-400{% endif %}">
+                {{ (f.confidence * 100)|int }}%
+            </span>
+        </div>
+    </div>
+
+    <!-- Drill-down -->
+    <div x-show="expanded" x-collapse class="bg-gray-900/50 border-t border-gray-800 p-4 text-sm">
+        <div class="grid grid-cols-2 gap-6 text-xs">
+            <div>
+                <h4 class="font-bold text-gray-400 mb-2 uppercase tracking-wider text-[10px]">Heuristic Details</h4>
+                <div class="space-y-2 text-gray-500">
+                    <div class="flex justify-between border-b border-gray-800 py-1">
+                        <span class="font-medium">Fire ID:</span>
+                        <span class="font-mono text-gray-400">{{ f.id[:12] }}...</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-800 py-1">
+                        <span class="font-medium">Heuristic ID:</span>
+                        <span class="font-mono text-gray-400">{{ f.heuristic_id[:12] }}...</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-800 py-1">
+                        <span class="font-medium">Event ID:</span>
+                        <span class="font-mono text-gray-400">{{ f.event_id[:12] if f.event_id else '—' }}{% if f.event_id and f.event_id|length > 12 %}...{% endif %}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-gray-800 py-1">
+                        <span class="font-medium">Fired At:</span>
+                        <span class="text-gray-400">{{ f.fired_at or '—' }}</span>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h4 class="font-bold text-gray-400 mb-2 uppercase tracking-wider text-[10px]">Condition Text</h4>
+                <div class="bg-gray-900 p-3 rounded border border-gray-700 font-mono text-gray-300 text-[11px] leading-relaxed">
+                    {{ f.condition_text or '(empty)' }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

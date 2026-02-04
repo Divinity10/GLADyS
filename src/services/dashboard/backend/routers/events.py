@@ -186,8 +186,8 @@ async def submit_event(request: Request):
                 yield event
             for _ack in stub.PublishEvents(event_gen()):
                 break
-        except grpc.RpcError:
-            pass
+        except grpc.RpcError as e:
+            logger.error("PublishEvents gRPC failed", event_id=event_id, error=str(e))
 
     threading.Thread(target=_publish, daemon=True).start()
 

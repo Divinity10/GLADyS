@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 import sys
 
+import grpc
+
 # Module-level mock for proto availability
 from backend import env as env_module
 
@@ -85,3 +87,101 @@ async def test_get_response_detail():
         assert response.status_code == 200
         assert response.context["detail"]["event_id"] == "evt1"
         assert response.context["detail"]["llm_prompt_text"] == "prompt"
+
+
+@pytest.mark.anyio
+async def test_bulk_delete_responses_success():
+    """Test bulk delete returns 200 with deleted count on success."""
+    # Mock gRPC response
+    mock_resp = MagicMock()
+    mock_resp.error = ""
+    mock_resp.deleted_count = 3
+
+    mock_stub = MagicMock()
+    mock_stub.DeleteEpisodicEvents = AsyncMock(return_value=mock_resp)
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.responses.memory_pb2", MagicMock(), create=True):
+        from backend.routers.responses import bulk_delete_responses, BulkDeleteRequest
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        body = BulkDeleteRequest(event_ids=["evt1", "evt2", "evt3"])
+
+        response = await bulk_delete_responses(mock_request, body)
+
+        assert response.status_code == 200
+        import json
+        data = json.loads(response.body)
+        assert data["deleted"] == 3
+
+
+@pytest.mark.anyio
+async def test_bulk_delete_responses_grpc_error():
+    """Test bulk delete returns error on gRPC failure."""
+    mock_stub = MagicMock()
+    mock_stub.DeleteEpisodicEvents = AsyncMock(
+        side_effect=grpc.RpcError()
+    )
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.responses.memory_pb2", MagicMock(), create=True):
+        from backend.routers.responses import bulk_delete_responses, BulkDeleteRequest
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        body = BulkDeleteRequest(event_ids=["evt1"])
+
+        response = await bulk_delete_responses(mock_request, body)
+
+        assert response.status_code == 500
+        import json
+        data = json.loads(response.body)
+        assert "detail" in data
+
+
+@pytest.mark.anyio
+async def test_bulk_delete_responses_no_stub():
+    """Test bulk delete returns 500 when memory stub unavailable."""
+    with patch.object(env_module.env, "memory_stub", return_value=None):
+        from backend.routers.responses import bulk_delete_responses, BulkDeleteRequest
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        body = BulkDeleteRequest(event_ids=["evt1"])
+
+        response = await bulk_delete_responses(mock_request, body)
+
+        assert response.status_code == 500
+        import json
+        data = json.loads(response.body)
+        assert "detail" in data
+
+
+@pytest.mark.anyio
+async def test_bulk_delete_request_model_validates():
+    """Test BulkDeleteRequest pydantic model accepts valid input."""
+    from backend.routers.responses import BulkDeleteRequest
+
+    # Valid request
+    req = BulkDeleteRequest(event_ids=["id1", "id2"])
+    assert req.event_ids == ["id1", "id2"]
+
+    # Empty list is valid
+    req_empty = BulkDeleteRequest(event_ids=[])
+    assert req_empty.event_ids == []
+
+
+@pytest.mark.anyio
+async def test_bulk_delete_request_model_rejects_invalid():
+    """Test BulkDeleteRequest pydantic model rejects invalid input."""
+    from backend.routers.responses import BulkDeleteRequest
+    from pydantic import ValidationError
+
+    # Missing field
+    with pytest.raises(ValidationError):
+        BulkDeleteRequest()
+
+    # Wrong type
+    with pytest.raises(ValidationError):
+        BulkDeleteRequest(event_ids="not-a-list")

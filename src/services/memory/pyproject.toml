@@ -49,3 +49,6 @@ where = ["."]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: mark test as integration test requiring PostgreSQL",
+]

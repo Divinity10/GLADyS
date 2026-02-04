@@ -42,6 +42,18 @@ SERVICE_CONFIGS = {
         "env": {},
         "depends_on": [],
     },
+    "dashboard": {
+        "cwd": ROOT / "src" / "services" / "dashboard",
+        "cmd": [
+            "uv", "run",
+            "uvicorn", "backend.main:app",
+            "--host", "0.0.0.0",
+            "--port", str(LOCAL_PORTS.dashboard),
+            "--reload",
+        ],
+        "env": {},
+        "depends_on": [],
+    },
 }
 
 # Map service names to ports
@@ -51,6 +63,7 @@ SERVICE_PORTS = {
     "orchestrator": LOCAL_PORTS.orchestrator,
     "executive-stub": LOCAL_PORTS.executive,
     "db": LOCAL_PORTS.db,
+    "dashboard": LOCAL_PORTS.dashboard,
 }
 
 

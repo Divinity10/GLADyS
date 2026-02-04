@@ -70,7 +70,7 @@
                     <th class="w-24 align-bottom pb-1">
                         Status <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
                     </th>
-                    <th class="w-32 align-bottom pb-1">
+                    <th class="w-24 align-bottom pb-1">
                         Path <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
                     </th>
                     <th class="align-bottom pb-1">
@@ -86,51 +86,30 @@
                         </div>
                     </td>
                     <td class="p-1">
-                        <div class="flex gap-1">
-                            <select class="input-dense text-[10px] w-12 px-0">
-                                <option value="contains">~</option>
-                                <option value="equals">=</option>
-                            </select>
-                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter...">
-                        </div>
+                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter source..." data-filter-mode="contains">
                     </td>
                     <td class="p-1">
-                        <div class="flex gap-1">
-                            <select class="input-dense text-[10px] w-16 px-0">
-                                <option value="contains">Cont</option>
-                                <option value="starts">Start</option>
-                                <option value="ends">End</option>
-                            </select>
-                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event...">
-                        </div>
+                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event..." data-filter-mode="contains">
                     </td>
                     <td class="p-1">
-                        <div class="flex gap-1">
-                            <select class="input-dense text-[10px] w-12 px-0">
-                                <option value="equals">=</option>
-                                <option value="contains">~</option>
-                            </select>
-                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Status...">
-                        </div>
+                        <select class="input-dense text-[10px] w-full" data-filter-mode="equals">
+                            <option value="">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="processed">Processed</option>
+                            <option value="error">Error</option>
+                            <option value="timeout">Timeout</option>
+                        </select>
                     </td>
                     <td class="p-1">
-                        <div class="flex gap-1">
-                            <select class="input-dense text-[10px] w-12 px-0">
-                                <option value="contains">~</option>
-                                <option value="equals">=</option>
-                            </select>
-                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Path...">
-                        </div>
+                        <select class="input-dense text-[10px] w-full" data-filter-mode="equals">
+                            <option value="">All</option>
+                            <option value="heuristic">Heuristic</option>
+                            <option value="llm">LLM</option>
+                            <option value="none">None</option>
+                        </select>
                     </td>
                     <td class="p-1">
-                        <div class="flex gap-1">
-                            <select class="input-dense text-[10px] w-16 px-0">
-                                <option value="contains">Cont</option>
-                                <option value="starts">Start</option>
-                                <option value="ends">End</option>
-                            </select>
-                            <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response...">
-                        </div>
+                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response..." data-filter-mode="contains">
                     </td>
                 </tr>
             </thead>
@@ -170,14 +149,14 @@
 
     const inputs = filterRow.querySelectorAll('input, select');
     inputs.forEach(el => el.addEventListener('input', applyEventFilters));
+    inputs.forEach(el => el.addEventListener('change', applyEventFilters));
 
     function applyEventFilters() {
         const cells = filterRow.querySelectorAll('td');
         const filters = [];
         cells.forEach(td => {
-            const sel = td.querySelector('select');
-            const inp = td.querySelector('input[type="text"]');
-            const mode = sel ? sel.value : 'contains';
+            const inp = td.querySelector('input[type="text"], select');
+            const mode = inp ? (inp.dataset.filterMode || 'contains') : 'contains';
             const val = inp ? inp.value.trim().toLowerCase() : '';
             filters.push({ mode, val });
         });
@@ -198,8 +177,6 @@
                 const text = (tds[i].textContent || '').trim().toLowerCase();
                 if (f.mode === 'equals' && text !== f.val) { visible = false; break; }
                 if (f.mode === 'contains' && !text.includes(f.val)) { visible = false; break; }
-                if (f.mode === 'starts' && !text.startsWith(f.val)) { visible = false; break; }
-                if (f.mode === 'ends' && !text.endsWith(f.val)) { visible = false; break; }
             }
             row.style.display = visible ? '' : 'none';
             // Hide associated detail row when parent is hidden

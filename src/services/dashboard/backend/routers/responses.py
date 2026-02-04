@@ -1,12 +1,13 @@
 """Responses router — view event decision chains (HTMX/HTML endpoints)."""
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 
 import grpc
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 import structlog
 
@@ -214,3 +215,34 @@ async def get_response_detail(request: Request, event_id: str):
 
     except grpc.RpcError as e:
         return HTMLResponse(f'<div class="p-4 text-red-500">gRPC Error: {e.code().name}</div>')
+
+
+class BulkDeleteRequest(BaseModel):
+    event_ids: List[str]
+
+
+@router.delete("/responses")
+async def bulk_delete_responses(request: Request, body: BulkDeleteRequest):
+    """Bulk delete responses by event_id.
+
+    Note: This requires a DeleteResponses gRPC endpoint in the Memory service.
+    Currently returns a placeholder response.
+    """
+    # TODO: Implement once Memory service has DeleteResponses gRPC endpoint
+    # stub = env.memory_stub()
+    # if not stub:
+    #     return JSONResponse({"detail": "Proto stubs not available"}, status_code=500)
+    #
+    # try:
+    #     resp = await stub.DeleteResponses(memory_pb2.DeleteResponsesRequest(event_ids=body.event_ids))
+    #     if resp.error:
+    #         return JSONResponse({"detail": resp.error}, status_code=400)
+    #     return JSONResponse({"deleted": len(body.event_ids)})
+    # except grpc.RpcError as e:
+    #     return JSONResponse({"detail": f"gRPC error: {e.code().name}"}, status_code=500)
+
+    logger.warning("bulk_delete_responses called but gRPC endpoint not implemented", event_ids=body.event_ids)
+    return JSONResponse(
+        {"detail": "Delete not yet implemented - requires Memory service gRPC endpoint"},
+        status_code=501
+    )

@@ -120,10 +120,67 @@ Non-negotiable unless an ADR is superseded:
 
 Facts about how the team works. Do NOT push back on requests that contradict these without re-reading this section first.
 
+- **Platform**: Windows. Use PowerShell or cross-platform commands. Do NOT use Unix-only syntax (`&&` chaining, `source`, `export`, Unix paths). Use `;` for command chaining in PowerShell, or run commands separately.
 - **Dual environments**: Scott runs both Docker and local instances simultaneously. Environment switching in tools is essential, not a deployment concern.
-- **Dashboard purpose**: The dashboard (`src/services/dashboard/`, FastAPI + htmx + Alpine.js) is a dev/QA tool for troubleshooting and verifying the pipeline. It is not an end-user UI.
 - **Schema sync**: Local and Docker databases must stay in sync unless there's a documented reason to diverge (see Database Schema Management below).
 - **Testing workflow**: The core validation is the feedback loop — submit event, get response, give feedback, resubmit, verify heuristic fires instead of LLM. All tools should support this workflow.
+
+### Stopping the Dashboard (Windows/PowerShell)
+
+```powershell
+# Step 1: Find PID listening on 8502
+netstat -ano | findstr "8502.*LISTENING"
+# Note the PID (last column)
+
+# Step 2: Kill the process tree
+taskkill /F /T /PID <pid>
+```
+
+**If "Process not found" or OwningProcess = 0**: The socket is orphaned. **Close the PowerShell window that started the server.** The terminal holds the socket reference — closing it releases the port immediately. No command will work; you must close the original terminal.
+
+## Dashboard (CRITICAL INFRASTRUCTURE)
+
+**The dashboard is how developers verify the entire GLADyS pipeline works.** Without a working dashboard, there is no way to troubleshoot, tune, or validate the system. Treat dashboard bugs as P0.
+
+**Location**: `src/services/dashboard/` (FastAPI + htmx + Alpine.js)
+**Design docs**: `docs/design/DASHBOARD_*.md`
+
+### Before Touching Dashboard Code
+
+1. **Read** `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` — defines mandatory rendering patterns
+2. **Check** which router layer you need: `backend/routers/` (HTML) vs `fun_api/routers/` (JSON)
+3. **Verify** the tab you're modifying uses Pattern A (server-side rendering) for data lists
+
+### Mandatory Pattern for Data Lists
+
+**Pattern A (server-side rendering)** — ALL data tables/lists MUST use this:
+- Jinja `{% for %}` loops render rows on server
+- htmx fetches pre-rendered HTML
+- Alpine.js for interactivity only (expansion, editing, toggles)
+
+**Anti-pattern (BROKEN, DO NOT USE)**:
+- Alpine `x-for` for server data in htmx-loaded content
+- htmx + x-for doesn't work reliably — x-for may not render DOM elements
+
+### Widget Self-Containment
+
+Each dashboard tab should be:
+- **Independently testable** — has its own test file
+- **Has a design spec** — in `docs/design/DASHBOARD_*.md`
+- **Uses documented patterns** — from component architecture doc
+- **Fails gracefully** — gRPC errors show error HTML, not HTTP 500
+
+### Current Tab Status
+
+| Tab | Pattern | Status | Notes |
+|-----|---------|--------|-------|
+| Lab (events) | A + SSE | Working | |
+| Response | A | Working | |
+| Heuristics | A | Being fixed | Was broken (x-for) |
+| Learning | x-for | **BROKEN** | Needs Pattern A migration |
+| Logs | x-for | Needs audit | |
+| LLM | x-for | Needs audit | |
+| Settings | x-for | Needs audit | |
 
 ## Mode Prefixes
 

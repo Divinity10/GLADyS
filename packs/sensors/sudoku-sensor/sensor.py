@@ -18,7 +18,6 @@ Usage:
 import argparse
 import asyncio
 import json
-import os
 import sys
 import uuid
 from datetime import datetime

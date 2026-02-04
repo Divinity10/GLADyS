@@ -4,15 +4,16 @@ This client queries the "amygdala" (Salience+Memory shared process)
 for salience evaluation of incoming events.
 """
 
-import logging
 from typing import Any
 
 import grpc
 
+from gladys_common import get_logger
+
 from ..generated import memory_pb2
 from ..generated import memory_pb2_grpc
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SalienceMemoryClient:
@@ -37,7 +38,7 @@ class SalienceMemoryClient:
         """Establish connection to Salience+Memory service."""
         self._channel = grpc.aio.insecure_channel(self.address)
         self._stub = memory_pb2_grpc.SalienceGatewayStub(self._channel)
-        logger.info(f"Connected to Salience+Memory at {self.address}")
+        logger.info("Connected to Salience+Memory", address=self.address)
 
     async def close(self) -> None:
         """Close the connection."""
@@ -82,13 +83,13 @@ class SalienceMemoryClient:
             response = await self._stub.EvaluateSalience(request)
 
             if response.error:
-                logger.error(f"Salience evaluation error: {response.error}")
+                logger.error("Salience evaluation error", error=response.error)
                 return self._default_salience()
 
             return self._response_to_dict(response)
 
         except grpc.RpcError as e:
-            logger.error(f"Salience evaluation failed: {e}")
+            logger.error("Salience evaluation failed", error=str(e))
             # Graceful degradation: return default low salience
             return self._default_salience()
 

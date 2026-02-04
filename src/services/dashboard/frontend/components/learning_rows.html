@@ -1,0 +1,7 @@
+{% for f in fires %}
+    {% include 'components/learning_row.html' %}
+{% endfor %}
+
+{% if not fires %}
+<div class="p-8 text-center text-gray-500">No heuristic fires recorded.</div>
+{% endif %}

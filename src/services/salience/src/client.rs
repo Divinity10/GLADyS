@@ -328,6 +328,9 @@ impl EventBuilder {
                 response_id: String::new(),
                 response_text: String::new(),
                 matched_heuristic_id: String::new(),
+                llm_prompt_text: String::new(),
+                decision_path: String::new(),
+                episode_id: String::new(),
             },
         }
     }

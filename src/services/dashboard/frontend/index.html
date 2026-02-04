@@ -7,7 +7,8 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-    <!-- Alpine.js -->
+    <!-- Alpine.js + Collapse plugin (plugin must load first) -->
+    <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Styles -->
     <link rel="stylesheet" href="/css/style.css?v=12">
@@ -119,7 +120,7 @@
         <main class="flex-1 flex flex-col overflow-hidden bg-dark">
             <!-- Tab Bar -->
             <nav class="flex border-b border-gray-700 bg-gray-900 text-xs">
-                <button @click="activeTab = 'lab'" :class="activeTab === 'lab' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Submit and monitor events">Lab</button>
+                <button @click="activeTab = 'lab'" :class="activeTab === 'lab' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Submit and monitor events">Events</button>
                 <button @click="activeTab = 'response'" :class="activeTab === 'response' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Event decision history">Response</button>
                 <button @click="activeTab = 'heuristics'" :class="activeTab === 'heuristics' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Manage heuristics">Heuristics</button>
                 <button @click="activeTab = 'learning'" :class="activeTab === 'learning' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Heuristic fire history">Learning</button>

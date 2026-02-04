@@ -506,7 +506,7 @@ The FastAPI backend bridges HTTP/SSE to gRPC. These are the endpoints the fronte
 ## File Structure
 
 ```
-src/dashboard/
+src/services/dashboard/
 ├── backend/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app, CORS, static files

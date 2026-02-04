@@ -13,7 +13,6 @@ Architecture:
 
 import asyncio
 import heapq
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, Optional
@@ -194,7 +193,7 @@ class EventQueue:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"EventQueue worker error: {e}")
+                logger.error("EventQueue worker error", error=str(e))
                 await asyncio.sleep(0.1)  # Back off on error
 
     def _dequeue(self) -> Optional[QueuedEvent]:
@@ -213,7 +212,7 @@ class EventQueue:
         event_id = queued.event_id
         start_time = time.time()
 
-        logger.info(f"Processing queued event {event_id}")
+        logger.info("Processing queued event", event_id=event_id)
 
         try:
             # Call Executive via callback with suggestion context
@@ -235,7 +234,9 @@ class EventQueue:
 
             # Broadcast response
             logger.debug(
-                f"Broadcast check: callback={bool(self._broadcast_callback)}, response={bool(response)}"
+                "Broadcast check",
+                has_callback=bool(self._broadcast_callback),
+                has_response=bool(response),
             )
             if self._broadcast_callback and response:
                 broadcast_data = {
@@ -250,23 +251,34 @@ class EventQueue:
                     "event_timestamp_ms": queued.enqueue_time_ms,
                     "response_timestamp_ms": int(time.time() * 1000),
                 }
-                logger.info(f"Broadcasting response for event {event_id}")
+                logger.info("Broadcasting response for event", event_id=event_id)
                 await self._broadcast_callback(broadcast_data)
 
             # Store event + response in memory
-            if self._store_callback and response:
+            # Always store, even if response is None (Executive unavailable)
+            if self._store_callback:
+                store_response = response or {
+                    "response_id": "",
+                    "response_text": "(Executive unavailable)",
+                    "predicted_success": 0.0,
+                    "prediction_confidence": 0.0,
+                    "decision_path": "no_executive",
+                    "routing_path": "QUEUED",
+                }
                 try:
-                    await self._store_callback(queued.event, response)
+                    await self._store_callback(queued.event, store_response)
                 except Exception as store_err:
-                    logger.warning(f"Failed to store queued event {event_id}: {store_err}")
+                    logger.warning("Failed to store queued event", event_id=event_id, error=str(store_err))
 
             logger.info(
-                f"Processed event {event_id}: "
-                f"time={process_time_ms}ms, response={bool(response)}"
+                "Processed event",
+                event_id=event_id,
+                time_ms=process_time_ms,
+                has_response=bool(response),
             )
 
         except Exception as e:
-            logger.error(f"Failed to process event {event_id}: {e}")
+            logger.error("Failed to process event", event_id=event_id, error=str(e))
             # Could broadcast error response here
 
     async def _timeout_scanner(self) -> None:
@@ -276,8 +288,9 @@ class EventQueue:
         scan_interval_sec = scan_interval_ms / 1000.0
 
         logger.info(
-            f"EventQueue timeout scanner started: "
-            f"timeout={timeout_ms}ms, interval={scan_interval_ms}ms"
+            "EventQueue timeout scanner started",
+            timeout_ms=timeout_ms,
+            interval_ms=scan_interval_ms,
         )
 
         while not self._shutdown:
@@ -297,8 +310,9 @@ class EventQueue:
                     if queued:
                         self._total_timed_out += 1
                         logger.warning(
-                            f"Event {event_id} timed out after "
-                            f"{now_ms - queued.enqueue_time_ms}ms"
+                            "Event timed out",
+                            event_id=event_id,
+                            age_ms=now_ms - queued.enqueue_time_ms,
                         )
 
                         # Build timeout response
@@ -320,7 +334,7 @@ class EventQueue:
                             try:
                                 await self._store_callback(queued.event, timeout_response)
                             except Exception as store_err:
-                                logger.warning(f"Failed to store timed-out event {event_id}: {store_err}")
+                                logger.warning("Failed to store timed-out event", event_id=event_id, error=str(store_err))
 
                         # Broadcast timeout response to subscribers
                         if self._broadcast_callback:
@@ -329,7 +343,7 @@ class EventQueue:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Timeout scanner error: {e}")
+                logger.error("Timeout scanner error", error=str(e))
 
     @property
     def queue_size(self) -> int:

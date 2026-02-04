@@ -40,11 +40,11 @@ async def cache_entries():
         entries = []
         for h in resp.heuristics:
             entries.append({
-                "heuristic_id": h.id,
+                "heuristic_id": h.heuristic_id,
                 "name": h.name,
-                "condition_text": h.condition_text,
-                "confidence": h.confidence,
-                "hit_count": h.hit_count if hasattr(h, "hit_count") else 0,
+                "hit_count": h.hit_count,
+                "cached_at_unix": h.cached_at_unix,
+                "last_hit_unix": h.last_hit_unix,
             })
         return JSONResponse({"entries": entries, "count": len(entries)})
     except grpc.RpcError as e:

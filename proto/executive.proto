@@ -42,6 +42,9 @@ message ProcessEventResponse {
     string response_text = 4;
     float predicted_success = 5;
     float prediction_confidence = 6;
+    string prompt_text = 7;           // Full LLM prompt (empty for heuristic fast-path)
+    string decision_path = 8;         // "heuristic" or "llm"
+    string matched_heuristic_id = 9;  // UUID of involved heuristic (empty if none)
 }
 
 // Request to provide feedback on a previous LLM response

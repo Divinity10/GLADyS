@@ -58,6 +58,14 @@ service MemoryStorage {
     // Expand context: get entity + relationships + related entities (for LLM prompts)
     rpc ExpandContext(ExpandContextRequest) returns (ExpandContextResponse);
 
+    // --- Response Tab Queries ---
+
+    // List events with decision chain data for Response tab
+    rpc ListResponses(ListResponsesRequest) returns (ListResponsesResponse);
+
+    // Get full detail for one event (drill-down)
+    rpc GetResponseDetail(GetResponseDetailRequest) returns (GetResponseDetailResponse);
+
     // --- Heuristic Fire Tracking ("Flight Recorder") ---
 
     // Record that a heuristic fired
@@ -68,6 +76,9 @@ service MemoryStorage {
 
     // Get fires awaiting feedback
     rpc GetPendingFires(GetPendingFiresRequest) returns (GetPendingFiresResponse);
+
+    // List all heuristic fires with optional filtering (dashboard)
+    rpc ListFires(ListFiresRequest) returns (ListFiresResponse);
 
     // --- Health Check ---
     rpc GetHealth(gladys.types.GetHealthRequest) returns (gladys.types.GetHealthResponse);
@@ -172,6 +183,9 @@ message EpisodicEvent {
     string response_id = 11;            // Links to executive response/reasoning trace
     string response_text = 12;          // The actual LLM response text
     string matched_heuristic_id = 13;   // Heuristic that fired for this event (from heuristic_fires)
+    string llm_prompt_text = 14;         // Full LLM prompt (NULL for heuristic fast-path)
+    string decision_path = 15;           // "heuristic" or "llm"
+    string episode_id = 16;              // FK to episodes table (future use)
 }
 
 message StoreEventRequest {
@@ -447,6 +461,58 @@ message ExpandContextResponse {
     string error = 3;
 }
 
+// --- Response Tab Messages ---
+
+message ListResponsesRequest {
+    string decision_path = 1;    // filter: "heuristic", "llm", or "" for all
+    string source = 2;           // filter: sensor source or "" for all
+    string search = 3;           // text search across raw_text and response_text
+    int32 limit = 4;             // default 50
+    int32 offset = 5;
+}
+
+message ResponseSummary {
+    string event_id = 1;
+    int64 timestamp_ms = 2;
+    string source = 3;
+    string raw_text = 4;              // full text (frontend truncates)
+    string decision_path = 5;
+    string matched_heuristic_id = 6;
+    string matched_heuristic_condition = 7;  // from JOIN
+    string response_text = 8;
+}
+
+message ListResponsesResponse {
+    repeated ResponseSummary responses = 1;
+    string error = 2;
+}
+
+message GetResponseDetailRequest {
+    string event_id = 1;
+}
+
+message ResponseDetail {
+    string event_id = 1;
+    int64 timestamp_ms = 2;
+    string source = 3;
+    string raw_text = 4;
+    string decision_path = 5;
+    string matched_heuristic_id = 6;
+    string matched_heuristic_condition = 7;
+    float matched_heuristic_confidence = 8;
+    string llm_prompt_text = 9;
+    string response_text = 10;
+    // Outcome (from heuristic_fires, if exists)
+    string fire_id = 11;              // empty if no fire
+    string feedback_source = 12;
+    string outcome = 13;
+}
+
+message GetResponseDetailResponse {
+    ResponseDetail detail = 1;
+    string error = 2;
+}
+
 // --- Heuristic Fire Tracking ---
 
 message RecordHeuristicFireRequest {
@@ -478,6 +544,17 @@ message GetPendingFiresResponse {
     repeated HeuristicFire fires = 1;
 }
 
+message ListFiresRequest {
+    string outcome = 1;     // Optional: filter by "success", "failure", "pending"
+    int32 limit = 2;        // Max results (default 100)
+    int32 offset = 3;       // Pagination offset
+}
+
+message ListFiresResponse {
+    repeated HeuristicFire fires = 1;
+    int32 total_count = 2;  // Total matching (for pagination)
+}
+
 message HeuristicFire {
     string id = 1;
     string heuristic_id = 2;
@@ -486,4 +563,8 @@ message HeuristicFire {
     string outcome = 5;
     string feedback_source = 6;
     string episodic_event_id = 7;
+    // Joined fields from heuristics table (populated by ListFires)
+    string heuristic_name = 8;
+    string condition_text = 9;
+    float confidence = 10;
 }

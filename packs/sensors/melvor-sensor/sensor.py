@@ -7,7 +7,6 @@ Receives events from the Melvor Idle driver via HTTP POST and streams them to th
 import argparse
 import asyncio
 import json
-import os
 import sys
 import uuid
 from datetime import datetime

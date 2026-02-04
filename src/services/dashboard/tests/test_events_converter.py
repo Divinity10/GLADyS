@@ -12,8 +12,9 @@ from unittest.mock import MagicMock
 import pytest
 
 # Setup import paths
+# tests/test_events_converter.py -> dashboard/ -> services/ -> src/ -> GLADys/
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent
-PROJECT_ROOT = DASHBOARD_DIR.parent.parent
+PROJECT_ROOT = DASHBOARD_DIR.parent.parent.parent
 sys.path.insert(0, str(DASHBOARD_DIR))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
@@ -21,17 +22,17 @@ sys.path.insert(0, str(PROJECT_ROOT / "src" / "lib" / "gladys_client"))
 sys.path.insert(0, str(PROJECT_ROOT / "cli"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services"))
 
-# Must mock gladys_client.db before importing (metrics router imports it at module level)
-sys.modules.setdefault("gladys_client.db", MagicMock())
-
-from backend.routers.events import _make_event_dict, _proto_event_to_dict
-
 # Import proto types (may fail if stubs not generated)
 try:
     from gladys_orchestrator.generated import memory_pb2, types_pb2
     PROTOS_AVAILABLE = True
 except ImportError:
     PROTOS_AVAILABLE = False
+
+# Must mock gladys_client.db before importing (metrics router imports it at module level)
+sys.modules.setdefault("gladys_client.db", MagicMock())
+
+from backend.routers.events import _make_event_dict, _proto_event_to_dict
 
 
 class TestMakeEventDict:

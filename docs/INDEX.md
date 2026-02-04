@@ -78,7 +78,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Lib** | `src/lib/gladys_client/` | Shared client library — DB queries, gRPC clients (orchestrator, cache, health). |
 | **Code** | `cli/_orchestrator.py` | Orchestrator CLI commands (thin wrapper over gladys_client). |
 | **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
-| **Test** | `tests/integration/test_orchestrator_executive.py` | End-to-end integration test (Orchestrator ↔ Executive). |
+| **Test** | `tests/integration/test_llm_response_flow.py` | End-to-end integration test (Orchestrator ↔ Executive). |
 ## 🎭 Executive & Personality
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
 
@@ -102,6 +102,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Impl** | `src/services/orchestrator/gladys_orchestrator/event_queue.py` | Priority queue with async worker and timeout scanner. |
 | **Impl** | `src/services/orchestrator/gladys_orchestrator/server.py` | Orchestrator gRPC server (routing, subscriptions, store callbacks). |
 | **UI** | `src/services/dashboard/` | Dashboard V2 (FastAPI + htmx + Alpine.js). See [DASHBOARD_V2.md](design/DASHBOARD_V2.md). |
+| **API** | `src/services/fun_api/` | JSON API routers (imported by dashboard). See [CODEBASE_MAP.md](../CODEBASE_MAP.md#dual-router-architecture-critical). |
 | **UI (legacy)** | *(removed)* | Streamlit V1 dashboard deleted; replaced by V2 above. |
 
 ---

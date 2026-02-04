@@ -1,111 +1,109 @@
-<div id="logs-tab" class="flex flex-col h-full gap-4" x-data="{
-    service: 'orchestrator',
-    tail: 100,
-    logs: [],
-    loading: false,
-    autoRefresh: true,
-    interval: null,
-    
-    async fetchLogs() {
-        this.loading = true;
-        try {
-            const resp = await fetch(`/api/logs/${this.service}?tail=${this.tail}`);
-            const data = await resp.json();
-            this.logs = data.lines || [];
-            
-            // Auto-scroll to bottom after render
-            this.$nextTick(() => {
-                const container = this.$refs.logContainer;
-                if (container) container.scrollTop = container.scrollHeight;
-            });
-        } catch (e) {
-            console.error('Failed to fetch logs:', e);
-        } finally {
-            this.loading = false;
-        }
-    },
-    
-    toggleAutoRefresh() {
-        this.autoRefresh = !this.autoRefresh;
-        if (this.autoRefresh) {
-            this.startInterval();
-        } else {
-            this.stopInterval();
-        }
-    },
-    
-    startInterval() {
-        this.stopInterval();
-        this.interval = setInterval(() => this.fetchLogs(), 10000);
-    },
-    
-    stopInterval() {
-        if (this.interval) clearInterval(this.interval);
-    },
-    
-    init() {
-        this.fetchLogs();
-        if (this.autoRefresh) this.startInterval();
-    },
-    
-    destroy() {
-        this.stopInterval();
-    }
-}" x-init="init()" @destroy="destroy()">
+<div id="logs-tab" class="flex flex-col h-full gap-4"
+     x-data="logsToolbar()">
 
     <!-- Log Controls -->
     <div class="bg-gray-800 p-2 border border-gray-700 rounded flex justify-between items-center shadow-md">
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
                 <span class="text-[10px] text-secondary uppercase font-bold">Service</span>
-                <select x-model="service" @change="fetchLogs()" class="input-dense bg-gray-900 text-xs h-7">
+                <select x-model="service" @change="refresh()" class="input-dense bg-gray-900 text-xs h-7">
                     <option value="orchestrator">Orchestrator</option>
                     <option value="memory-python">Memory (Python)</option>
                     <option value="memory-rust">Salience (Rust)</option>
                     <option value="executive-stub">Executive</option>
                 </select>
             </div>
-            
+
             <div class="flex items-center gap-2">
                 <span class="text-[10px] text-secondary uppercase font-bold">Tail</span>
-                <input type="number" x-model.number="tail" @change="fetchLogs()" class="input-dense bg-gray-900 w-16 text-xs h-7" min="10" max="1000">
+                <input type="number" x-model.number="tail" @change="refresh()"
+                       class="input-dense bg-gray-900 w-16 text-xs h-7" min="10" max="1000">
             </div>
-            
-            <button @click="fetchLogs()" class="btn px-3 py-1 flex items-center gap-2" :disabled="loading">
-                <span x-text="loading ? '...' : '↻ Refresh'"></span>
-            </button>
+
+            <button @click="refresh()" class="btn px-3 py-1">&#8635; Refresh</button>
         </div>
 
         <div class="flex items-center gap-4">
-            <label class="flex items-center gap-2 cursor-pointer group">
-                <input type="checkbox" :checked="autoRefresh" @change="toggleAutoRefresh()" class="form-checkbox h-3 w-3 text-blue-500 bg-gray-900 border-gray-700 rounded">
-                <span class="text-[10px] text-secondary uppercase font-bold group-hover:text-gray-300">Auto-refresh (10s)</span>
-            </label>
+            <!-- Client-side search -->
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-secondary uppercase font-bold">Search</span>
+                <input type="text" x-model="searchQuery" @input="filterLines()"
+                       placeholder="Filter logs..."
+                       class="input-dense bg-gray-900 w-40 text-xs h-7">
+                <span x-show="searchQuery" x-text="matchCount + ' matches'"
+                      class="text-[10px] text-secondary"></span>
+            </div>
         </div>
     </div>
 
     <!-- Log Viewer -->
     <div class="flex-1 bg-gray-900 border border-gray-700 rounded overflow-hidden flex flex-col relative">
-        <div class="absolute top-2 right-4 text-[10px] text-secondary font-mono bg-gray-900/80 px-2 py-0.5 rounded border border-gray-800" x-text="`Showing last ${logs.length} lines`"></div>
-        
-        <div x-ref="logContainer" class="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed select-text scroll-smooth">
-            <template x-for="(line, index) in logs" :key="index">
-                <div class="whitespace-pre-wrap break-all border-l-2 pl-3 mb-0.5 hover:bg-gray-800/30 transition-colors"
-                     :class="{
-                        'border-red-600 text-red-300 bg-red-900/10': line.includes('ERROR') || line.includes('CRITICAL'),
-                        'border-yellow-600 text-yellow-200 bg-yellow-900/10': line.includes('WARN'),
-                        'border-blue-600 text-blue-300': line.includes('INFO'),
-                        'border-gray-800 text-gray-500': line.includes('DEBUG') || (!line.includes('INFO') && !line.includes('WARN') && !line.includes('ERROR')),
-                     }">
-                    <span x-text="line"></span>
-                </div>
-            </template>
-            
-            <template x-if="logs.length === 0 && !loading">
-                <div class="h-full flex items-center justify-center text-gray-600 italic">
-                    No log output available for this service.
-                </div>
-            </template>
+        <!-- Line count badge -->
+        <div id="logs-count" class="absolute top-2 right-4 text-[10px] text-secondary font-mono bg-gray-900/80 px-2 py-0.5 rounded border border-gray-800">
+            Loading...
+        </div>
+
+        <!-- Log lines (htmx loads, server renders) -->
+        <div id="logs-container" class="flex-1 overflow-auto p-4 font-mono text-[11px] leading-relaxed select-text"
+             hx-get="/api/logs/orchestrator/lines?tail=100"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="text-gray-500">Loading logs...</div>
         </div>
     </div>
 </div>
+
+<script>
+function logsToolbar() {
+    return {
+        service: 'orchestrator',
+        tail: 100,
+        searchQuery: '',
+        matchCount: 0,
+
+        refresh() {
+            const url = `/api/logs/${this.service}/lines?tail=${this.tail}`;
+            htmx.ajax('GET', url, {target: '#logs-container'});
+            // Clear search on refresh (new content)
+            this.searchQuery = '';
+            this.matchCount = 0;
+        },
+
+        filterLines() {
+            const container = document.getElementById('logs-container');
+            const lines = container.querySelectorAll('[data-log-line]');
+            const query = this.searchQuery.toLowerCase();
+            let matches = 0;
+
+            lines.forEach(line => {
+                const text = line.textContent.toLowerCase();
+                const isMatch = query && text.includes(query);
+
+                // Show/hide based on search (show all if no query)
+                if (!query || isMatch) {
+                    line.style.display = '';
+                    if (isMatch) matches++;
+                } else {
+                    line.style.display = 'none';
+                }
+
+                // Highlight matches
+                if (isMatch && query) {
+                    const original = line.getAttribute('data-original-text') || line.textContent;
+                    line.setAttribute('data-original-text', original);
+                    const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
+                    line.innerHTML = original.replace(regex, '<mark class="bg-yellow-500/40 text-yellow-200">$1</mark>');
+                } else if (line.getAttribute('data-original-text')) {
+                    line.textContent = line.getAttribute('data-original-text');
+                }
+            });
+
+            this.matchCount = matches;
+        },
+
+        escapeRegex(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+    };
+}
+</script>

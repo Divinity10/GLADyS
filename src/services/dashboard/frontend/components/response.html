@@ -1,6 +1,6 @@
-<div class="h-full flex flex-col" x-data="{ 
-    pathFilter: '', 
-    sourceFilter: '', 
+<div class="h-full flex flex-col" x-data="{
+    pathFilter: '',
+    sourceFilter: '',
     searchQuery: '',
     applyFilters() {
         const url = `/api/responses/rows?decision_path=${this.pathFilter}&source=${this.sourceFilter}&search=${this.searchQuery}`;
@@ -27,6 +27,16 @@
         }
     }
 }" x-init="checkPending()" @tab-filter-update.window="handleTabSwitch">
+
+    <!-- Bulk Action Bar -->
+    <div id="response-bulk-action-bar" style="display: none"
+         class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
+        <span class="text-blue-200"><span id="response-selected-count">0</span> selected</span>
+        <button onclick="bulkDeleteResponses()"
+                class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">
+            Delete Selected
+        </button>
+    </div>
 
     <!-- Toolbar -->
     <div class="flex items-center gap-4 p-4 border-b border-gray-700 bg-gray-900">
@@ -66,20 +76,88 @@
     </div>
 
     <!-- Header -->
-    <div class="grid grid-cols-[20px_120px_80px_1fr_90px_150px_1fr] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
-        <div></div>
+    <div class="grid grid-cols-[30px_120px_80px_1fr_90px_100px] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+        <div><input type="checkbox" onclick="toggleSelectAllResponses()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0"></div>
         <div>Timestamp</div>
         <div>Source</div>
         <div>Event</div>
         <div>Path</div>
         <div>Heuristic</div>
-        <div>Response</div>
     </div>
 
     <!-- List Container -->
-    <div id="response-rows" class="flex-1 overflow-y-auto" hx-get="/api/responses/rows" hx-trigger="load">
+    <div id="response-rows" class="flex-1 overflow-y-auto" hx-get="/api/responses/rows" hx-trigger="revealed">
         <!-- Rows will be injected here -->
         <div class="p-4 text-center text-gray-500">Loading responses...</div>
     </div>
 
 </div>
+
+<script>
+// Response selection state (global)
+window.responseSelection = {
+    selected: new Set(),
+    toggle(id) {
+        if (this.selected.has(id)) {
+            this.selected.delete(id);
+        } else {
+            this.selected.add(id);
+        }
+        this.updateUI();
+    },
+    isSelected(id) {
+        return this.selected.has(id);
+    },
+    clear() {
+        this.selected.clear();
+        this.updateUI();
+    },
+    updateUI() {
+        const bar = document.getElementById('response-bulk-action-bar');
+        const count = document.getElementById('response-selected-count');
+        if (this.selected.size > 0) {
+            bar.style.display = '';
+            count.textContent = this.selected.size;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+};
+
+function toggleSelectAllResponses() {
+    const checkboxes = document.querySelectorAll('#response-rows input[type="checkbox"]');
+    const allSelected = checkboxes.length > 0 && [...checkboxes].every(cb => cb.checked);
+    checkboxes.forEach(cb => {
+        cb.checked = !allSelected;
+        const id = cb.value;
+        if (!allSelected) {
+            window.responseSelection.selected.add(id);
+        } else {
+            window.responseSelection.selected.delete(id);
+        }
+    });
+    window.responseSelection.updateUI();
+}
+
+async function bulkDeleteResponses() {
+    const ids = [...window.responseSelection.selected];
+    if (!confirm(`Delete ${ids.length} responses?`)) return;
+
+    try {
+        const res = await fetch('/api/responses', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({event_ids: ids})
+        });
+        if (res.ok) {
+            window.responseSelection.clear();
+            htmx.ajax('GET', '/api/responses/rows', {target: '#response-rows'});
+        } else {
+            const data = await res.json();
+            alert(`Delete failed: ${data.detail || 'Unknown error'}`);
+        }
+    } catch (e) {
+        alert('Delete failed: ' + e);
+    }
+}
+</script>

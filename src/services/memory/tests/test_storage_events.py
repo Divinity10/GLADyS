@@ -1,6 +1,7 @@
-"""Unit tests for MemoryStorage.list_events() and get_event().
+"""Unit tests for MemoryStorage event queries.
 
 Tests query construction and row conversion using a mocked asyncpg pool.
+Covers list_events, get_event, list_responses, and get_response_detail.
 """
 
 import uuid
@@ -87,7 +88,7 @@ class TestListEvents:
         await storage.list_events()
 
         query = storage._pool.fetch.call_args[0][0]
-        assert "ORDER BY e.timestamp DESC" in query
+        assert "ORDER BY sub.timestamp DESC" in query
 
     async def test_left_join_heuristic_fires(self, storage):
         storage._pool.fetch.return_value = []
@@ -153,3 +154,180 @@ class TestGetEvent:
         s._pool = None
         with pytest.raises(RuntimeError, match="Not connected"):
             await s.get_event("some-id")
+
+
+def _make_response_row(**overrides):
+    """Build a dict mimicking a list_responses query row."""
+    defaults = {
+        "id": uuid.uuid4(),
+        "timestamp": datetime(2026, 2, 1, 12, 0, 0, tzinfo=timezone.utc),
+        "source": "sudoku",
+        "raw_text": "player made a move",
+        "decision_path": "heuristic",
+        "response_text": "Try row 3",
+        "matched_heuristic_id": str(uuid.uuid4()),
+        "matched_heuristic_condition": "player stuck on puzzle",
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def _make_detail_row(**overrides):
+    """Build a dict mimicking a get_response_detail query row."""
+    row = _make_response_row(**overrides)
+    row.setdefault("llm_prompt_text", None)
+    row.setdefault("matched_heuristic_confidence", 0.85)
+    row.setdefault("fire_id", uuid.uuid4())
+    row.setdefault("feedback_source", "explicit")
+    row.setdefault("outcome", "success")
+    return row
+
+
+class TestListResponses:
+    async def test_basic_query(self, storage):
+        row = _make_response_row()
+        storage._pool.fetch.return_value = [row]
+
+        result = await storage.list_responses()
+
+        assert len(result) == 1
+        assert result[0]["decision_path"] == "heuristic"
+        storage._pool.fetch.assert_called_once()
+
+    async def test_decision_path_filter(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses(decision_path="llm")
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.decision_path = $" in query
+        args = storage._pool.fetch.call_args[0]
+        assert "llm" in args
+
+    async def test_source_filter(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses(source="melvor")
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.source = $" in query
+        args = storage._pool.fetch.call_args[0]
+        assert "melvor" in args
+
+    async def test_search_filter(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses(search="stuck")
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "ILIKE" in query
+        args = storage._pool.fetch.call_args[0]
+        assert "%stuck%" in args
+
+    async def test_combined_filters(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses(decision_path="heuristic", source="sudoku", search="move")
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.decision_path = $" in query
+        assert "e.source = $" in query
+        assert "ILIKE" in query
+
+    async def test_pagination(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses(limit=10, offset=20)
+
+        args = storage._pool.fetch.call_args[0]
+        assert 10 in args
+        assert 20 in args
+
+    async def test_default_excludes_archived(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses()
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.archived = false" in query
+
+    async def test_joins_heuristics_table(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses()
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "LEFT JOIN heuristics h" in query
+        assert "matched_heuristic_condition" in query
+
+    async def test_order_by_timestamp_desc(self, storage):
+        storage._pool.fetch.return_value = []
+        await storage.list_responses()
+
+        query = storage._pool.fetch.call_args[0][0]
+        assert "ORDER BY sub.timestamp DESC" in query
+
+    async def test_not_connected_raises(self):
+        s = MemoryStorage()
+        s._pool = None
+        with pytest.raises(RuntimeError, match="Not connected"):
+            await s.list_responses()
+
+
+class TestGetResponseDetail:
+    async def test_found(self, storage):
+        event_id = str(uuid.uuid4())
+        row = _make_detail_row(id=uuid.UUID(event_id))
+        storage._pool.fetchrow.return_value = row
+
+        result = await storage.get_response_detail(event_id)
+
+        assert result is not None
+        assert str(result["id"]) == event_id
+        assert result["decision_path"] == "heuristic"
+        assert result["matched_heuristic_confidence"] == 0.85
+        assert result["outcome"] == "success"
+
+    async def test_not_found(self, storage):
+        storage._pool.fetchrow.return_value = None
+        result = await storage.get_response_detail(str(uuid.uuid4()))
+        assert result is None
+
+    async def test_includes_fire_data(self, storage):
+        row = _make_detail_row(
+            fire_id=uuid.uuid4(),
+            feedback_source="implicit",
+            outcome="fail",
+        )
+        storage._pool.fetchrow.return_value = row
+
+        result = await storage.get_response_detail(str(row["id"]))
+        assert result["feedback_source"] == "implicit"
+        assert result["outcome"] == "fail"
+
+    async def test_null_fire_data(self, storage):
+        row = _make_detail_row(fire_id=None, feedback_source=None, outcome=None)
+        storage._pool.fetchrow.return_value = row
+
+        result = await storage.get_response_detail(str(row["id"]))
+        assert result["fire_id"] is None
+        assert result["outcome"] is None
+
+    async def test_llm_path_with_prompt(self, storage):
+        row = _make_detail_row(
+            decision_path="llm",
+            llm_prompt_text="You are an assistant...",
+        )
+        storage._pool.fetchrow.return_value = row
+
+        result = await storage.get_response_detail(str(row["id"]))
+        assert result["decision_path"] == "llm"
+        assert result["llm_prompt_text"] == "You are an assistant..."
+
+    async def test_joins_heuristics_and_fires(self, storage):
+        storage._pool.fetchrow.return_value = None
+        await storage.get_response_detail(str(uuid.uuid4()))
+
+        query = storage._pool.fetchrow.call_args[0][0]
+        assert "LEFT JOIN heuristic_fires hf" in query
+        assert "LEFT JOIN heuristics h" in query
+        assert "matched_heuristic_confidence" in query
+
+    async def test_not_connected_raises(self):
+        s = MemoryStorage()
+        s._pool = None
+        with pytest.raises(RuntimeError, match="Not connected"):
+            await s.get_response_detail("some-id")

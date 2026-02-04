@@ -66,8 +66,8 @@
         <div class="grid grid-cols-2 gap-8">
             <div class="space-y-3">
                 <template x-for="(val, key) in config" :key="key">
-                    <div class="flex justify-between items-center border-b border-gray-700 pb-1 gap-4" x-show="typeof val !== 'object'">
-                        <span class="text-[10px] text-secondary uppercase font-bold" x-text="key.replace(/_/g, ' ') + ':'"></span>
+                    <div class="flex items-center border-b border-gray-700 pb-1 gap-2" x-show="typeof val !== 'object'">
+                        <span class="text-[10px] text-secondary uppercase font-bold w-32 flex-shrink-0" x-text="key.replace(/_/g, ' ') + ':'"></span>
                         <span class="text-xs font-mono text-gray-300" x-text="val"></span>
                     </div>
                 </template>

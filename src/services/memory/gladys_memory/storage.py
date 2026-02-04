@@ -483,7 +483,7 @@ class MemoryStorage:
             """
             SELECT id, name, condition, action, confidence,
                    source_pattern_ids, last_fired, fire_count, success_count,
-                   frozen, created_at, updated_at
+                   frozen, origin, origin_id, created_at, updated_at
             FROM heuristics
             WHERE confidence >= $1
               AND frozen = false
@@ -537,7 +537,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -559,7 +559,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -631,7 +631,7 @@ class MemoryStorage:
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
@@ -651,7 +651,7 @@ class MemoryStorage:
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
@@ -875,6 +875,63 @@ class MemoryStorage:
             )
 
         return [dict(row) for row in rows]
+
+    async def list_fires(
+        self,
+        *,
+        outcome: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """List heuristic fires with optional filtering.
+
+        Returns (fires, total_count).
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Build query with parameterized placeholders ($1, $2, etc.)
+        conditions = []
+        params: list = []
+        idx = 1
+
+        if outcome:
+            conditions.append(f"hf.outcome = ${idx}")
+            params.append(outcome)
+            idx += 1
+
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+        # Count query (without limit/offset)
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM heuristic_fires hf
+            WHERE {where_clause}
+        """
+        total = await self._pool.fetchval(count_query, *params)
+
+        # Main query with JOINs and pagination
+        query = f"""
+            SELECT
+                hf.id,
+                hf.heuristic_id,
+                hf.episodic_event_id as event_id,
+                hf.outcome,
+                hf.feedback_source,
+                hf.fired_at,
+                h.name as heuristic_name,
+                h.condition->>'text' as condition_text,
+                h.confidence
+            FROM heuristic_fires hf
+            LEFT JOIN heuristics h ON hf.heuristic_id = h.id
+            WHERE {where_clause}
+            ORDER BY hf.fired_at DESC NULLS LAST
+            LIMIT ${idx} OFFSET ${idx + 1}
+        """
+        params.extend([limit, offset])
+
+        rows = await self._pool.fetch(query, *params)
+        return [dict(row) for row in rows], total or 0
 
     async def _update_most_recent_fire(
         self,

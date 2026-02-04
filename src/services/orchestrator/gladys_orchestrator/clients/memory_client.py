@@ -3,16 +3,17 @@
 This client stores episodic events in the Memory subsystem.
 """
 
-import logging
 import time
 from typing import Any
 
 import grpc
 
+from gladys_common import get_logger
+
 from ..generated import memory_pb2
 from ..generated import memory_pb2_grpc
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MemoryStorageClient:
@@ -31,7 +32,7 @@ class MemoryStorageClient:
         """Establish connection to MemoryStorage service."""
         self._channel = grpc.aio.insecure_channel(self.address)
         self._stub = memory_pb2_grpc.MemoryStorageStub(self._channel)
-        logger.info(f"Connected to MemoryStorage at {self.address}")
+        logger.info("Connected to MemoryStorage", address=self.address)
 
     async def close(self) -> None:
         """Close the connection."""
@@ -47,6 +48,9 @@ class MemoryStorageClient:
         response_text: str = "",
         predicted_success: float = 0.0,
         prediction_confidence: float = 0.0,
+        prompt_text: str = "",
+        decision_path: str = "",
+        matched_heuristic_id: str = "",
     ) -> bool:
         """
         Store a single episodic event.
@@ -57,6 +61,9 @@ class MemoryStorageClient:
             response_text: The actual LLM response (for fine-tuning)
             predicted_success: LLM's prediction (if routed to LLM)
             prediction_confidence: LLM's confidence (if routed to LLM)
+            prompt_text: Full LLM prompt (empty for heuristic fast-path)
+            decision_path: "heuristic" or "llm"
+            matched_heuristic_id: UUID of involved heuristic (empty if none)
 
         Returns:
             True if stored successfully.
@@ -76,6 +83,9 @@ class MemoryStorageClient:
                 response_text=response_text,
                 predicted_success=predicted_success,
                 prediction_confidence=prediction_confidence,
+                llm_prompt_text=prompt_text,
+                decision_path=decision_path,
+                matched_heuristic_id=matched_heuristic_id,
             )
 
             # Copy salience if present
@@ -88,13 +98,13 @@ class MemoryStorageClient:
             response = await self._stub.StoreEvent(request)
 
             if not response.success:
-                logger.error(f"Failed to store event: {response.error}")
+                logger.error("Failed to store event", error=response.error)
                 return False
 
             return True
 
         except grpc.RpcError as e:
-            logger.error(f"Failed to store event: {e}")
+            logger.error("Failed to store event", error=str(e))
             return False
 
     async def store_events(
@@ -159,7 +169,7 @@ class MemoryStorageClient:
             response = await self._stub.RecordHeuristicFire(request)
             return response.fire_id
         except grpc.RpcError as e:
-            logger.error(f"Failed to record heuristic fire: {e}")
+            logger.error("Failed to record heuristic fire", error=str(e))
             return ""
 
     async def update_heuristic_confidence(
@@ -200,11 +210,13 @@ class MemoryStorageClient:
             )
             response = await self._stub.UpdateHeuristicConfidence(request)
 
-            source_label = f"[{feedback_source}]" if feedback_source else ""
             if response.success:
                 logger.info(
-                    f"Confidence updated {source_label}: {heuristic_id[:8]}... "
-                    f"{response.old_confidence:.2f} → {response.new_confidence:.2f}"
+                    "Confidence updated",
+                    heuristic_id=heuristic_id[:8],
+                    old_confidence=round(response.old_confidence, 2),
+                    new_confidence=round(response.new_confidence, 2),
+                    feedback_source=feedback_source,
                 )
 
             return {
@@ -217,7 +229,7 @@ class MemoryStorageClient:
             }
 
         except grpc.RpcError as e:
-            logger.error(f"Failed to update heuristic confidence: {e}")
+            logger.error("Failed to update heuristic confidence", error=str(e))
             return {"success": False, "error": str(e)}
 
     async def get_heuristic(self, heuristic_id: str) -> dict | None:
@@ -249,5 +261,5 @@ class MemoryStorageClient:
             return None
 
         except grpc.RpcError as e:
-            logger.error(f"Failed to get heuristic: {e}")
+            logger.error("Failed to get heuristic", error=str(e))
             return None

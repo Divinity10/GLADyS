@@ -13,14 +13,15 @@ Skills are:
 """
 
 import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-logger = logging.getLogger(__name__)
+from gladys_common import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -93,7 +94,7 @@ class SkillRegistry:
             Number of skills loaded
         """
         if not skills_dir.exists():
-            logger.warning(f"Skills directory does not exist: {skills_dir}")
+            logger.warning("Skills directory does not exist", path=str(skills_dir))
             return 0
 
         loaded = 0
@@ -102,9 +103,9 @@ class SkillRegistry:
                 self.load_manifest(manifest_path)
                 loaded += 1
             except Exception as e:
-                logger.error(f"Failed to load manifest {manifest_path}: {e}")
+                logger.error("Failed to load manifest", path=str(manifest_path), error=str(e))
 
-        logger.info(f"Loaded {loaded} skill(s) from {skills_dir}")
+        logger.info("Loaded skills from directory", count=loaded, path=str(skills_dir))
         return loaded
 
     def load_manifest(self, manifest_path: Path) -> SkillInfo:
@@ -180,7 +181,7 @@ class SkillRegistry:
             if not any(cap in m.capabilities for m in methods):
                 self._capability_index[cap].append((skill.plugin_id, ""))
 
-        logger.debug(f"Loaded skill: {skill.plugin_id} ({skill.category}) with {len(methods)} methods")
+        logger.debug("Loaded skill", plugin_id=skill.plugin_id, category=skill.category, method_count=len(methods))
         return skill
 
     def query_capability(self, capability: str) -> list[CapabilityMatch]:
@@ -347,7 +348,7 @@ class SkillRegistry:
 
             conn.commit()
 
-        logger.info(f"Synced {synced} skill(s) to database")
+        logger.info("Synced skills to database", count=synced)
         return synced
 
     @classmethod
@@ -424,5 +425,5 @@ class SkillRegistry:
                     if not any(cap in m.capabilities for m in methods):
                         registry._capability_index[cap].append((plugin_id, ""))
 
-        logger.info(f"Loaded {registry.skill_count} skill(s) from database")
+        logger.info("Loaded skills from database", count=registry.skill_count)
         return registry
