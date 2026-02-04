@@ -134,10 +134,11 @@ async def test_on_fire_records_and_registers(learning_module, memory_client, out
         predicted_success=0.7,
     )
 
-    # Should call record_heuristic_fire on memory client
+    # Should call record_heuristic_fire on memory client (with episodic_event_id)
     memory_client.record_heuristic_fire.assert_awaited_once_with(
         heuristic_id="h-1",
         event_id="evt-1",
+        episodic_event_id="evt-1",
     )
 
     # Should register with outcome watcher (oven pattern matches)
@@ -396,7 +397,7 @@ async def test_timeout_sends_positive_feedback(learning_module, memory_client, o
     # Manually expire the pending outcome
     async with outcome_watcher._lock:
         for p in outcome_watcher._pending:
-            p.timeout_at = datetime.utcnow() - timedelta(seconds=1)
+            p.timeout_at = datetime.now(UTC) - timedelta(seconds=1)
 
     memory_client.update_heuristic_confidence.reset_mock()
 

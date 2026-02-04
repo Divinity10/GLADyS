@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "httpx"]
+test = ["pytest", "httpx", "pytest-playwright", "pytest-asyncio"]
 
 [tool.setuptools]
 packages = ["backend"]

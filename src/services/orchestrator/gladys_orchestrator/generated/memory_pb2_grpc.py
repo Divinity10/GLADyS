@@ -117,6 +117,16 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.ExpandContextRequest.SerializeToString,
                 response_deserializer=memory__pb2.ExpandContextResponse.FromString,
                 _registered_method=True)
+        self.ListResponses = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/ListResponses',
+                request_serializer=memory__pb2.ListResponsesRequest.SerializeToString,
+                response_deserializer=memory__pb2.ListResponsesResponse.FromString,
+                _registered_method=True)
+        self.GetResponseDetail = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/GetResponseDetail',
+                request_serializer=memory__pb2.GetResponseDetailRequest.SerializeToString,
+                response_deserializer=memory__pb2.GetResponseDetailResponse.FromString,
+                _registered_method=True)
         self.RecordHeuristicFire = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/RecordHeuristicFire',
                 request_serializer=memory__pb2.RecordHeuristicFireRequest.SerializeToString,
@@ -131,6 +141,11 @@ class MemoryStorageStub(object):
                 '/gladys.memory.MemoryStorage/GetPendingFires',
                 request_serializer=memory__pb2.GetPendingFiresRequest.SerializeToString,
                 response_deserializer=memory__pb2.GetPendingFiresResponse.FromString,
+                _registered_method=True)
+        self.ListFires = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/ListFires',
+                request_serializer=memory__pb2.ListFiresRequest.SerializeToString,
+                response_deserializer=memory__pb2.ListFiresResponse.FromString,
                 _registered_method=True)
         self.GetHealth = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/GetHealth',
@@ -264,6 +279,22 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListResponses(self, request, context):
+        """--- Response Tab Queries ---
+
+        List events with decision chain data for Response tab
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetResponseDetail(self, request, context):
+        """Get full detail for one event (drill-down)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def RecordHeuristicFire(self, request, context):
         """--- Heuristic Fire Tracking ("Flight Recorder") ---
 
@@ -282,6 +313,13 @@ class MemoryStorageServicer(object):
 
     def GetPendingFires(self, request, context):
         """Get fires awaiting feedback
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListFires(self, request, context):
+        """List all heuristic fires with optional filtering (dashboard)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -383,6 +421,16 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     request_deserializer=memory__pb2.ExpandContextRequest.FromString,
                     response_serializer=memory__pb2.ExpandContextResponse.SerializeToString,
             ),
+            'ListResponses': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListResponses,
+                    request_deserializer=memory__pb2.ListResponsesRequest.FromString,
+                    response_serializer=memory__pb2.ListResponsesResponse.SerializeToString,
+            ),
+            'GetResponseDetail': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetResponseDetail,
+                    request_deserializer=memory__pb2.GetResponseDetailRequest.FromString,
+                    response_serializer=memory__pb2.GetResponseDetailResponse.SerializeToString,
+            ),
             'RecordHeuristicFire': grpc.unary_unary_rpc_method_handler(
                     servicer.RecordHeuristicFire,
                     request_deserializer=memory__pb2.RecordHeuristicFireRequest.FromString,
@@ -397,6 +445,11 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.GetPendingFires,
                     request_deserializer=memory__pb2.GetPendingFiresRequest.FromString,
                     response_serializer=memory__pb2.GetPendingFiresResponse.SerializeToString,
+            ),
+            'ListFires': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListFires,
+                    request_deserializer=memory__pb2.ListFiresRequest.FromString,
+                    response_serializer=memory__pb2.ListFiresResponse.SerializeToString,
             ),
             'GetHealth': grpc.unary_unary_rpc_method_handler(
                     servicer.GetHealth,
@@ -854,6 +907,60 @@ class MemoryStorage(object):
             _registered_method=True)
 
     @staticmethod
+    def ListResponses(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/ListResponses',
+            memory__pb2.ListResponsesRequest.SerializeToString,
+            memory__pb2.ListResponsesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetResponseDetail(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/GetResponseDetail',
+            memory__pb2.GetResponseDetailRequest.SerializeToString,
+            memory__pb2.GetResponseDetailResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def RecordHeuristicFire(request,
             target,
             options=(),
@@ -924,6 +1031,33 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/GetPendingFires',
             memory__pb2.GetPendingFiresRequest.SerializeToString,
             memory__pb2.GetPendingFiresResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListFires(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/ListFires',
+            memory__pb2.ListFiresRequest.SerializeToString,
+            memory__pb2.ListFiresResponse.FromString,
             options,
             channel_credentials,
             insecure,

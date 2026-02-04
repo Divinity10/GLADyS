@@ -3,12 +3,13 @@
 Tracks registered components, their status, and pending commands.
 """
 
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from gladys_common import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -75,7 +76,7 @@ class ComponentRegistry:
         if component_id not in self._by_type[component_type]:
             self._by_type[component_type].append(component_id)
 
-        logger.info(f"Registered component: {component_id} ({component_type}) at {address}")
+        logger.info("Registered component", component_id=component_id, component_type=component_type, address=address)
 
         return {
             "success": True,
@@ -86,7 +87,7 @@ class ComponentRegistry:
     def unregister(self, component_id: str) -> bool:
         """Unregister a component."""
         if component_id not in self._components:
-            logger.warning(f"Attempted to unregister unknown component: {component_id}")
+            logger.warning("Attempted to unregister unknown component", component_id=component_id)
             return False
 
         info = self._components.pop(component_id)
@@ -97,7 +98,7 @@ class ComponentRegistry:
                 cid for cid in self._by_type[info.component_type] if cid != component_id
             ]
 
-        logger.info(f"Unregistered component: {component_id}")
+        logger.info("Unregistered component", component_id=component_id)
         return True
 
     def update_heartbeat(
@@ -108,7 +109,7 @@ class ComponentRegistry:
     ) -> bool:
         """Update heartbeat for a component."""
         if component_id not in self._components:
-            logger.warning(f"Heartbeat from unknown component: {component_id}")
+            logger.warning("Heartbeat from unknown component", component_id=component_id)
             return False
 
         info = self._components[component_id]

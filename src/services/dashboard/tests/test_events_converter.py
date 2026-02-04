@@ -12,8 +12,9 @@ from unittest.mock import MagicMock
 import pytest
 
 # Setup import paths
+# tests/test_events_converter.py -> dashboard/ -> services/ -> src/ -> GLADys/
 DASHBOARD_DIR = Path(__file__).resolve().parent.parent
-PROJECT_ROOT = DASHBOARD_DIR.parent.parent
+PROJECT_ROOT = DASHBOARD_DIR.parent.parent.parent
 sys.path.insert(0, str(DASHBOARD_DIR))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "memory"))
@@ -21,17 +22,17 @@ sys.path.insert(0, str(PROJECT_ROOT / "src" / "lib" / "gladys_client"))
 sys.path.insert(0, str(PROJECT_ROOT / "cli"))
 sys.path.insert(0, str(PROJECT_ROOT / "src" / "services"))
 
-# Must mock gladys_client.db before importing (metrics router imports it at module level)
-sys.modules.setdefault("gladys_client.db", MagicMock())
-
-from backend.routers.events import _make_event_dict, _proto_event_to_dict
-
 # Import proto types (may fail if stubs not generated)
 try:
     from gladys_orchestrator.generated import memory_pb2, types_pb2
     PROTOS_AVAILABLE = True
 except ImportError:
     PROTOS_AVAILABLE = False
+
+# Must mock gladys_client.db before importing (metrics router imports it at module level)
+sys.modules.setdefault("gladys_client.db", MagicMock())
+
+from backend.routers.events import _make_event_dict, _proto_event_to_dict
 
 
 class TestMakeEventDict:
@@ -232,3 +233,56 @@ class TestProtoEventToDict:
         result = _proto_event_to_dict(ev)
         # timestamp_ms=0 is falsy, so ts=None, should use "just now"
         assert result["time_relative"] == "just now"
+
+    def test_decision_path_passed_through(self):
+        ev = self._make_proto_event(decision_path="llm")
+        result = _proto_event_to_dict(ev)
+        assert result["path"] == "LLM"
+
+    def test_heuristic_decision_path(self):
+        ev = self._make_proto_event(decision_path="heuristic")
+        result = _proto_event_to_dict(ev)
+        assert result["path"] == "HEURISTIC"
+
+
+class TestDecisionPathLogic:
+    """Tests for decision_path parameter in _make_event_dict."""
+
+    def test_decision_path_overrides_derivation(self):
+        """Stored decision_path should take priority over matched_heuristic_id derivation."""
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            decision_path="llm",
+            matched_heuristic_id="h-123",
+        )
+        assert result["path"] == "LLM"
+
+    def test_decision_path_heuristic(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            decision_path="heuristic",
+        )
+        assert result["path"] == "HEURISTIC"
+
+    def test_fallback_when_no_decision_path(self):
+        """Old data without decision_path should still derive from matched_heuristic_id."""
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            matched_heuristic_id="h-456",
+            decision_path="",
+        )
+        assert result["path"] == "HEURISTIC"
+
+    def test_fallback_llm_when_no_decision_path(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+            response_text="some response",
+            decision_path="",
+        )
+        assert result["path"] == "LLM"
+
+    def test_empty_path_when_nothing_set(self):
+        result = _make_event_dict(
+            event_id="e1", source="s", text="t",
+        )
+        assert result["path"] == ""

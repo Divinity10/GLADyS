@@ -66,6 +66,11 @@ def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
         prediction_confidence=event.prediction_confidence or 0.0,
         response_id=event.response_id or "",
         response_text=event.response_text or "",
+        # Decision chain fields
+        matched_heuristic_id=str(event.matched_heuristic_id) if event.matched_heuristic_id else "",
+        llm_prompt_text=event.llm_prompt_text or "",
+        decision_path=event.decision_path or "",
+        episode_id=str(event.episode_id) if event.episode_id else "",
     )
 
 
@@ -106,6 +111,11 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
         prediction_confidence=proto.prediction_confidence if proto.prediction_confidence else None,
         response_id=proto.response_id if proto.response_id else None,
         response_text=proto.response_text if proto.response_text else None,
+        # Decision chain fields
+        llm_prompt_text=proto.llm_prompt_text if proto.llm_prompt_text else None,
+        decision_path=proto.decision_path if proto.decision_path else None,
+        matched_heuristic_id=UUID(proto.matched_heuristic_id) if proto.matched_heuristic_id else None,
+        episode_id=UUID(proto.episode_id) if proto.episode_id else None,
     )
 
 
@@ -263,6 +273,9 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     response_id=row.get("response_id") or "",
                     response_text=row.get("response_text") or "",
                     matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+                    llm_prompt_text=row.get("llm_prompt_text") or "",
+                    decision_path=row.get("decision_path") or "",
+                    episode_id=str(row["episode_id"]) if row.get("episode_id") else "",
                 ))
 
             logger.info("ListEvents success", count=len(proto_events))
@@ -308,6 +321,9 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 response_id=row.get("response_id") or "",
                 response_text=row.get("response_text") or "",
                 matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+                llm_prompt_text=row.get("llm_prompt_text") or "",
+                decision_path=row.get("decision_path") or "",
+                episode_id=str(row["episode_id"]) if row.get("episode_id") else "",
             )
 
             logger.info("GetEvent success", event_id=request.event_id)
@@ -420,10 +436,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     condition_text=condition.get("text", ""),
                     effects_json=json.dumps(action),
                     confidence=h["confidence"],
-                    origin=condition.get("origin", ""),
+                    origin=h.get("origin", "learned"),
+                    origin_id=h.get("origin_id", ""),
                     last_fired_ms=int(h["last_fired"].timestamp() * 1000) if h["last_fired"] else 0,
                     fire_count=h["fire_count"],
                     success_count=h["success_count"],
+                    created_at_ms=int(h["created_at"].timestamp() * 1000) if h.get("created_at") else 0,
+                    updated_at_ms=int(h["updated_at"].timestamp() * 1000) if h.get("updated_at") else 0,
                 )
 
                 # For now, similarity = 1.0 (all returned heuristics "match")
@@ -493,10 +512,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     condition_embedding=embedding_bytes,
                     effects_json=json.dumps(action),
                     confidence=h["confidence"],
-                    origin=condition.get("origin", ""),
+                    origin=h.get("origin", "learned"),
+                    origin_id=h.get("origin_id", ""),
                     last_fired_ms=int(h["last_fired"].timestamp() * 1000) if h["last_fired"] else 0,
                     fire_count=h["fire_count"],
                     success_count=h["success_count"],
+                    created_at_ms=int(h["created_at"].timestamp() * 1000) if h.get("created_at") else 0,
+                    updated_at_ms=int(h["updated_at"].timestamp() * 1000) if h.get("updated_at") else 0,
                 )
 
                 # Use semantic similarity (or text rank as fallback)
@@ -855,6 +877,78 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             await context.abort(grpc.StatusCode.INTERNAL, str(ex))
 
     # =========================================================================
+    # Response Tab Queries
+    # =========================================================================
+
+    async def ListResponses(self, request, context):
+        """List events with decision chain data for Response tab."""
+        self._setup_trace(context)
+        try:
+            limit = request.limit if request.limit > 0 else 50
+            offset = request.offset if request.offset > 0 else 0
+            decision_path = request.decision_path if request.decision_path else None
+            source = request.source if request.source else None
+            search = request.search if request.search else None
+
+            rows = await self.storage.list_responses(
+                decision_path=decision_path,
+                source=source,
+                search=search,
+                limit=limit,
+                offset=offset,
+            )
+
+            summaries = []
+            for row in rows:
+                summaries.append(memory_pb2.ResponseSummary(
+                    event_id=str(row["id"]),
+                    timestamp_ms=int(row["timestamp"].timestamp() * 1000),
+                    source=row["source"] or "",
+                    raw_text=row["raw_text"] or "",
+                    decision_path=row.get("decision_path") or "",
+                    matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+                    matched_heuristic_condition=row.get("matched_heuristic_condition") or "",
+                    response_text=row.get("response_text") or "",
+                ))
+
+            return memory_pb2.ListResponsesResponse(responses=summaries)
+        except Exception as e:
+            logger.error("ListResponses failed", error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
+    async def GetResponseDetail(self, request, context):
+        """Get full detail for one event (drill-down)."""
+        self._setup_trace(context)
+        try:
+            if not request.event_id:
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No event_id provided")
+
+            row = await self.storage.get_response_detail(request.event_id)
+            if not row:
+                return memory_pb2.GetResponseDetailResponse(error="Event not found")
+
+            detail = memory_pb2.ResponseDetail(
+                event_id=str(row["id"]),
+                timestamp_ms=int(row["timestamp"].timestamp() * 1000),
+                source=row["source"] or "",
+                raw_text=row["raw_text"] or "",
+                decision_path=row.get("decision_path") or "",
+                matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
+                matched_heuristic_condition=row.get("matched_heuristic_condition") or "",
+                matched_heuristic_confidence=float(row["matched_heuristic_confidence"]) if row.get("matched_heuristic_confidence") is not None else 0.0,
+                llm_prompt_text=row.get("llm_prompt_text") or "",
+                response_text=row.get("response_text") or "",
+                fire_id=str(row["fire_id"]) if row.get("fire_id") else "",
+                feedback_source=row.get("feedback_source") or "",
+                outcome=row.get("outcome") or "",
+            )
+
+            return memory_pb2.GetResponseDetailResponse(detail=detail)
+        except Exception as e:
+            logger.error("GetResponseDetail failed", error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
+    # =========================================================================
     # Heuristic Fire Tracking ("Flight Recorder")
     # =========================================================================
 
@@ -913,6 +1007,52 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             logger.error(f"GetPendingFires error: {e}")
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
+    async def ListFires(
+        self,
+        request: memory_pb2.ListFiresRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> memory_pb2.ListFiresResponse:
+        """List heuristic fires with optional filtering."""
+        try:
+            outcome = request.outcome if request.outcome else None
+            limit = request.limit if request.limit > 0 else 100
+            offset = request.offset if request.offset >= 0 else 0
+
+            fires, total = await self.storage.list_fires(
+                outcome=outcome,
+                limit=limit,
+                offset=offset,
+            )
+
+            # Convert to proto
+            fire_protos = []
+            for f in fires:
+                fire_proto = memory_pb2.HeuristicFire(
+                    id=str(f["id"]),
+                    heuristic_id=str(f["heuristic_id"]) if f["heuristic_id"] else "",
+                    event_id=str(f["event_id"]) if f["event_id"] else "",
+                    outcome=f["outcome"] or "",
+                    feedback_source=f["feedback_source"] or "",
+                    heuristic_name=f["heuristic_name"] or "",
+                    condition_text=f["condition_text"] or "",
+                    confidence=float(f["confidence"]) if f["confidence"] is not None else 0.0,
+                )
+                # Set fired_at if present
+                if f["fired_at"]:
+                    fire_proto.fired_at_ms = int(f["fired_at"].timestamp() * 1000)
+                fire_protos.append(fire_proto)
+
+            return memory_pb2.ListFiresResponse(
+                fires=fire_protos,
+                total_count=total,
+            )
+
+        except Exception as e:
+            logger.error(f"ListFires failed: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return memory_pb2.ListFiresResponse()
+
     async def GetHealth(self, request, context):
         """Basic health check."""
         return types_pb2.GetHealthResponse(
@@ -955,6 +1095,11 @@ async def serve(
 
     embeddings = EmbeddingGenerator()
     print(f"Embedding generator initialized (model: {settings.embedding.model_name})")
+
+    # Pre-warm the embedding model to avoid cold-start delays on first request
+    print("Pre-warming embedding model...")
+    embeddings.generate("warmup")
+    print("Embedding model ready")
 
     # Create gRPC server
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=srv_cfg.max_workers))

@@ -53,7 +53,16 @@ MODES = {
         "9. Update claude_memory.md (mark accomplished, cleanup stale info)"
     ),
     "do": (
-        "MODE: DO -Implement efficiently.\n"
+        "MODE: DO - Implement efficiently.\n"
+        "\n"
+        "BEFORE IMPLEMENTING:\n"
+        "1. Verify what exists - read actual code, don't assume from task description\n"
+        "2. Check CODEBASE_MAP.md - especially 'Common Mistakes to Avoid' and data flows\n"
+        "3. Verify API/RPC names in proto files - don't assume convention-based names\n"
+        "4. Trace through all layers - Python services AND Rust components\n"
+        "5. Ask clarifying questions before starting - scope, patterns, contradictions are valid\n"
+        "\n"
+        "THEN IMPLEMENT:\n"
         "- The user has decided what to do. Execute it.\n"
         "- Focus on correctness and simplicity\n"
         "- Ask only if genuinely blocked, not for confirmation\n"

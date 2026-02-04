@@ -1,6 +1,6 @@
 <!-- Main Row -->
 <tr id="event-{{ event.id }}"
-    class="cursor-pointer transition-colors border-b border-gray-800 hover:bg-gray-800"
+    class="parent-row cursor-pointer transition-colors border-b border-gray-800 hover:bg-gray-800"
     onclick="var d=document.getElementById('detail-{{ event.id }}'); d.style.display = d.style.display === 'none' ? '' : 'none'; this.classList.toggle('row-expanded')">
     <td class="text-secondary text-[11px] truncate">{{ event.time_relative }} ({{ event.time_absolute }})</td>
     <td class="truncate"><span class="px-1 bg-gray-700 rounded text-[11px]">{{ event.source }}</span></td>
@@ -19,7 +19,7 @@
 </tr>
 
 <!-- Detail Row (Hidden by default) -->
-<tr id="detail-{{ event.id }}" class="bg-gray-800 border-b border-gray-600" style="display: none;">
+<tr id="detail-{{ event.id }}" class="child-row border-b border-gray-600" style="display: none;">
     <td colspan="6" class="p-4" onclick="event.stopPropagation()">
         <div class="grid grid-cols-2 gap-8">
             <div>

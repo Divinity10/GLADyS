@@ -3,15 +3,16 @@
 This client sends events to the Executive for processing.
 """
 
-import logging
 from typing import Any
 
 import grpc
 
+from gladys_common import get_logger
+
 from ..generated import executive_pb2
 from ..generated import executive_pb2_grpc
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ExecutiveClient:
@@ -33,7 +34,7 @@ class ExecutiveClient:
         """Establish connection to Executive service."""
         self._channel = grpc.aio.insecure_channel(self.address)
         self._stub = executive_pb2_grpc.ExecutiveServiceStub(self._channel)
-        logger.info(f"Connected to Executive at {self.address}")
+        logger.info("Connected to Executive", address=self.address)
 
     async def close(self) -> None:
         """Close the connection."""
@@ -74,8 +75,9 @@ class ExecutiveClient:
                     condition_text=suggestion.get("condition_text", ""),
                 )
                 logger.debug(
-                    f"Including suggestion in request: heuristic={suggestion.get('heuristic_id')}, "
-                    f"confidence={suggestion.get('confidence', 0):.2f}"
+                    "Including suggestion in request",
+                    heuristic_id=suggestion.get("heuristic_id"),
+                    confidence=round(suggestion.get("confidence", 0), 2),
                 )
 
             request = executive_pb2.ProcessEventRequest(
@@ -91,8 +93,11 @@ class ExecutiveClient:
                 "response_text": response.response_text,
                 "predicted_success": response.predicted_success,
                 "prediction_confidence": response.prediction_confidence,
+                "prompt_text": response.prompt_text,
+                "decision_path": response.decision_path,
+                "matched_heuristic_id": response.matched_heuristic_id,
             }
 
         except grpc.RpcError as e:
-            logger.error(f"Failed to send event to Executive: {e}")
+            logger.error("Failed to send event to Executive", error=str(e))
             return {"accepted": False, "error_message": str(e)}

@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from backend.env import PROJECT_ROOT
 
 # Dashboard HTMX routers (return HTML partials)
-from backend.routers import events, metrics, services
+from backend.routers import events, fires as backend_fires, heuristics as backend_heuristics, logs as backend_logs, metrics, services, responses
 
 # FUN API REST/JSON routers
 from fun_api.routers import (
@@ -35,6 +35,10 @@ app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
 app.include_router(services.router)
 app.include_router(events.router)
 app.include_router(metrics.router)
+app.include_router(responses.router)
+app.include_router(backend_heuristics.router)
+app.include_router(backend_logs.router)
+app.include_router(backend_fires.router)
 
 # Register FUN API REST/JSON routers
 app.include_router(heuristics.router)

@@ -2,13 +2,14 @@
 
 import asyncio
 import json
-import logging
 from concurrent import futures
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 import grpc
 from grpc_reflection.v1alpha import reflection
+
+from gladys_common import get_logger
 
 from .config import OrchestratorConfig
 from .registry import ComponentRegistry
@@ -26,7 +27,7 @@ from .generated import orchestrator_pb2
 from .generated import orchestrator_pb2_grpc
 from .generated import types_pb2
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
@@ -90,6 +91,9 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             response_text=response.get("response_text", ""),
             predicted_success=response.get("predicted_success", 0.0),
             prediction_confidence=response.get("prediction_confidence", 0.0),
+            prompt_text=response.get("prompt_text", ""),
+            decision_path=response.get("decision_path", ""),
+            matched_heuristic_id=response.get("matched_heuristic_id", ""),
         )
 
     def _create_outcome_watcher(
@@ -114,10 +118,10 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                     is_success=p.get("is_success", True),
                 ))
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse outcome_patterns_json: {e}")
+            logger.warning("Failed to parse outcome_patterns_json", error=str(e))
 
         if patterns:
-            logger.info(f"OutcomeWatcher enabled with {len(patterns)} patterns")
+            logger.info("OutcomeWatcher enabled", pattern_count=len(patterns))
         else:
             logger.info("OutcomeWatcher enabled but no patterns configured")
 
@@ -149,7 +153,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
             if self._learning_module:
                 expired = await self._learning_module.cleanup_expired()
                 if expired > 0:
-                    logger.debug(f"LearningModule: Cleaned up {expired} expired expectations")
+                    logger.debug("LearningModule: Cleaned up expired expectations", count=expired)
 
     async def stop(self) -> None:
         """Stop background tasks gracefully."""
@@ -202,9 +206,12 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                                 response_text=result.get("response_text", ""),
                                 predicted_success=result.get("predicted_success", 0.0),
                                 prediction_confidence=result.get("prediction_confidence", 0.0),
+                                prompt_text=result.get("prompt_text", ""),
+                                decision_path=result.get("decision_path", ""),
+                                matched_heuristic_id=result.get("matched_heuristic_id", ""),
                             )
                         except Exception as store_err:
-                            logger.warning(f"Failed to store event {event.id}: {store_err}")
+                            logger.warning("Failed to store event", event_id=event.id, error=str(store_err))
 
                 yield orchestrator_pb2.EventAck(
                     event_id=result["event_id"],
@@ -221,7 +228,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                     queued=result.get("queued", False),
                 )
             except Exception as e:
-                logger.error(f"Error routing event {event.id}: {e}")
+                logger.error("Error routing event", event_id=event.id, error=str(e))
                 yield orchestrator_pb2.EventAck(
                     event_id=event.id,
                     accepted=False,
@@ -242,7 +249,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         source_filters = list(request.source_filters) if request.source_filters else None
         event_types = list(request.event_types) if request.event_types else None
 
-        logger.info(f"New subscriber: {subscriber_id}")
+        logger.info("New subscriber", subscriber_id=subscriber_id)
 
         # Register subscriber
         queue = self.router.add_subscriber(subscriber_id, source_filters, event_types)
@@ -253,7 +260,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 yield event
         finally:
             self.router.remove_subscriber(subscriber_id)
-            logger.info(f"Subscriber disconnected: {subscriber_id}")
+            logger.info("Subscriber disconnected", subscriber_id=subscriber_id)
 
     async def SubscribeResponses(
         self,
@@ -274,7 +281,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         source_filters = list(request.source_filters) if request.source_filters else None
         include_immediate = request.include_immediate
 
-        logger.info(f"New response subscriber: {subscriber_id} (include_immediate={include_immediate})")
+        logger.info("New response subscriber", subscriber_id=subscriber_id, include_immediate=include_immediate)
 
         # Register response subscriber
         queue = self.router.add_response_subscriber(
@@ -298,7 +305,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                 )
         finally:
             self.router.remove_response_subscriber(subscriber_id)
-            logger.info(f"Response subscriber disconnected: {subscriber_id}")
+            logger.info("Response subscriber disconnected", subscriber_id=subscriber_id)
 
     def _routing_path_to_enum(self, path: str) -> int:
         """Convert routing path string to proto enum value."""
@@ -346,7 +353,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     ) -> orchestrator_pb2.CommandResponse:
         """Send a lifecycle command to a component."""
         # TODO: Implement command forwarding to target component
-        logger.info(f"Command {request.command} to {request.target_component_id}")
+        logger.info("Command received", command=request.command, target=request.target_component_id)
         return orchestrator_pb2.CommandResponse(success=True)
 
     # -------------------------------------------------------------------------
@@ -519,27 +526,27 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
     salience_client = SalienceMemoryClient(config.salience_memory_address)
     try:
         await salience_client.connect()
-        logger.info(f"Connected to Salience+Memory at {config.salience_memory_address}")
+        logger.info("Connected to Salience+Memory", address=config.salience_memory_address)
     except Exception as e:
-        logger.warning(f"Could not connect to Salience+Memory: {e}. Using graceful degradation.")
+        logger.warning("Could not connect to Salience+Memory, using graceful degradation", error=str(e))
         salience_client = None
 
     # Create and connect executive client
     executive_client = ExecutiveClient(config.executive_address)
     try:
         await executive_client.connect()
-        logger.info(f"Connected to Executive at {config.executive_address}")
+        logger.info("Connected to Executive", address=config.executive_address)
     except Exception as e:
-        logger.warning(f"Could not connect to Executive: {e}. Moments will be logged only.")
+        logger.warning("Could not connect to Executive, moments will be logged only", error=str(e))
         executive_client = None
 
     # Create and connect memory storage client
     memory_client = MemoryStorageClient(config.memory_storage_address)
     try:
         await memory_client.connect()
-        logger.info(f"Connected to Memory at {config.memory_storage_address}")
+        logger.info("Connected to Memory", address=config.memory_storage_address)
     except Exception as e:
-        logger.warning(f"Could not connect to Memory: {e}. Events will not be stored.")
+        logger.warning("Could not connect to Memory, events will not be stored", error=str(e))
         memory_client = None
 
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=config.max_workers))
@@ -560,7 +567,7 @@ async def serve(config: OrchestratorConfig | None = None) -> None:
     address = f"{config.host}:{config.port}"
     server.add_insecure_port(address)
 
-    logger.info(f"Starting Orchestrator server on {address}")
+    logger.info("Starting Orchestrator server", address=address)
     await server.start()
 
     try:

@@ -7,12 +7,13 @@ This is the "Outcome Evaluator" from Phase 2 of the Learning Closure Plan.
 """
 
 import asyncio
-import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+from gladys_common import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -101,7 +102,7 @@ class OutcomeWatcher:
                 self._condition_text_cache[heuristic_id] = condition_text
                 return condition_text
         except Exception as e:
-            logger.warning(f"OutcomeWatcher: Failed to fetch heuristic {heuristic_id}: {e}")
+            logger.warning("OutcomeWatcher: Failed to fetch heuristic", heuristic_id=heuristic_id, error=str(e))
 
         return ""
 
@@ -130,10 +131,10 @@ class OutcomeWatcher:
         if not condition_text:
             condition_text = await self._get_condition_text(heuristic_id)
             if not condition_text:
-                logger.debug(f"OutcomeWatcher: No condition_text for heuristic {heuristic_id}")
+                logger.debug("OutcomeWatcher: No condition_text for heuristic", heuristic_id=heuristic_id)
                 return False
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Find matching pattern (specific outcome to watch for)
         for pattern in self.patterns:
@@ -151,8 +152,10 @@ class OutcomeWatcher:
                 async with self._lock:
                     self._pending.append(pending)
                 logger.info(
-                    f"OutcomeWatcher: Registered expectation for heuristic {heuristic_id}: "
-                    f"waiting for '{pattern.outcome_pattern}' within {pattern.timeout_sec}s"
+                    "OutcomeWatcher: Registered expectation",
+                    heuristic_id=heuristic_id,
+                    outcome_pattern=pattern.outcome_pattern,
+                    timeout_sec=pattern.timeout_sec,
                 )
                 return True
 
@@ -171,8 +174,9 @@ class OutcomeWatcher:
         async with self._lock:
             self._pending.append(pending)
         logger.info(
-            f"OutcomeWatcher: Registered default timeout for heuristic {heuristic_id}: "
-            f"{self._default_timeout_sec}s (no complaint = positive)"
+            "OutcomeWatcher: Registered default timeout",
+            heuristic_id=heuristic_id,
+            timeout_sec=self._default_timeout_sec,
         )
         return True
 
@@ -214,11 +218,12 @@ class OutcomeWatcher:
         """Send implicit feedback for a resolved outcome."""
         positive = pending.is_success_outcome
 
-        elapsed = (datetime.utcnow() - pending.fire_time).total_seconds()
+        elapsed = (datetime.now(UTC) - pending.fire_time).total_seconds()
         logger.info(
-            f"OutcomeWatcher: Outcome detected for heuristic {pending.heuristic_id} "
-            f"after {elapsed:.1f}s. Sending {'positive' if positive else 'negative'} "
-            f"implicit feedback."
+            "OutcomeWatcher: Outcome detected",
+            heuristic_id=pending.heuristic_id,
+            elapsed_sec=round(elapsed, 1),
+            feedback="positive" if positive else "negative",
         )
 
         if not self._memory_client:
@@ -234,18 +239,22 @@ class OutcomeWatcher:
             )
             if result and result.get("success"):
                 logger.info(
-                    f"OutcomeWatcher: Confidence updated for {pending.heuristic_id}: "
-                    f"{result.get('old_confidence', 0):.2f} → {result.get('new_confidence', 0):.2f} "
-                    f"(delta={result.get('delta', 0):.3f}, td_error={result.get('td_error', 0):.3f})"
+                    "OutcomeWatcher: Confidence updated",
+                    heuristic_id=pending.heuristic_id,
+                    old_confidence=round(result.get("old_confidence", 0), 2),
+                    new_confidence=round(result.get("new_confidence", 0), 2),
+                    delta=round(result.get("delta", 0), 3),
+                    td_error=round(result.get("td_error", 0), 3),
                 )
                 return True
             else:
                 logger.error(
-                    f"OutcomeWatcher: Failed to update confidence: {result.get('error')}"
+                    "OutcomeWatcher: Failed to update confidence",
+                    error=result.get("error"),
                 )
                 return False
         except Exception as e:
-            logger.error(f"OutcomeWatcher: Error sending feedback: {e}")
+            logger.error("OutcomeWatcher: Error sending feedback", error=str(e))
             return False
 
     async def get_expired_items(self) -> list[tuple[str, str]]:
@@ -253,7 +262,7 @@ class OutcomeWatcher:
 
         Does NOT remove them — call cleanup_expired() after processing.
         """
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         async with self._lock:
             return [
                 (p.heuristic_id, p.event_id)
@@ -267,7 +276,7 @@ class OutcomeWatcher:
 
         Returns count of expired expectations removed.
         """
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         async with self._lock:
             expired = [p for p in self._pending if p.timeout_at < now]
@@ -275,8 +284,9 @@ class OutcomeWatcher:
 
         for p in expired:
             logger.debug(
-                f"OutcomeWatcher: Expectation expired for heuristic {p.heuristic_id} "
-                f"(waited for '{p.expected_pattern}')"
+                "OutcomeWatcher: Expectation expired",
+                heuristic_id=p.heuristic_id,
+                expected_pattern=p.expected_pattern,
             )
 
         return len(expired)

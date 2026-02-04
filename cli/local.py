@@ -34,6 +34,7 @@ SERVICES = {
         port=LOCAL_PORTS.executive,
         group="executive",
     ),
+    # Dashboard excluded - started separately via `make dashboard` (uvicorn with --reload)
 }
 
 def main():

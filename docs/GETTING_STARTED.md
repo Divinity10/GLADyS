@@ -252,7 +252,7 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 ## Common Tasks
 
   - [Running the full stack](#running-the-full-stack)
-  - [Running the Evaluation Lab Bench](#running-the-evaluation-lab-bench)
+  - [Running the Dashboard](#running-the-dashboard)
   - [Development workflow](#development-workflow)
 
 ### Running the full stack

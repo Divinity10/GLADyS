@@ -111,6 +111,7 @@ class PortConfig:
     memory_rust: int
     executive: int
     db: int
+    dashboard: int
 
 
 # Environment port configurations
@@ -120,6 +121,7 @@ LOCAL_PORTS = PortConfig(
     memory_rust=50052,
     executive=50053,
     db=5432,
+    dashboard=int(os.environ.get("DASHBOARD_PORT", 8502)),
 )
 
 DOCKER_PORTS = PortConfig(
@@ -128,6 +130,7 @@ DOCKER_PORTS = PortConfig(
     memory_rust=50062,
     executive=50063,
     db=5433,
+    dashboard=8502,
 )
 
 # Service descriptions (shared between local and docker)
@@ -138,6 +141,7 @@ SERVICE_DESCRIPTIONS = {
     "orchestrator": "Event routing and priority queue",
     "executive": "Executive stub (LLM planning)",
     "db": "PostgreSQL + pgvector",
+    "dashboard": "Web Dashboard (FastAPI + htmx)",
 }
 
 

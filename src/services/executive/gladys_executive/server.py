@@ -476,10 +476,11 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
                 and request.suggestion.confidence >= heuristic_threshold):
             suggestion = request.suggestion
             logger.info(
-                f"HEURISTIC_FASTPATH: event={event.id}, "
-                f"heuristic={suggestion.heuristic_id}, "
-                f"confidence={suggestion.confidence:.3f}, "
-                f"threshold={heuristic_threshold}"
+                "HEURISTIC_FASTPATH",
+                event_id=event.id,
+                heuristic_id=suggestion.heuristic_id,
+                confidence=round(suggestion.confidence, 3),
+                threshold=heuristic_threshold,
             )
             response_id = self._store_trace(
                 event_id=event.id,
@@ -495,12 +496,18 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
                 response_text=suggestion.suggested_action,
                 predicted_success=suggestion.confidence,
                 prediction_confidence=suggestion.confidence,
+                prompt_text="",
+                decision_path="heuristic",
+                matched_heuristic_id=suggestion.heuristic_id,
             )
 
         response_id = ""
         response_text = ""
         predicted_success = 0.0
         prediction_confidence = 0.0
+        prompt_text = ""
+        decision_path = ""
+        matched_heuristic_id_for_response = ""
 
         if self.ollama and request.immediate:
             logger.info("LLM_PATH", event_id=event.id)
@@ -525,6 +532,10 @@ Consider this suggestion in your response.
                     confidence=round(suggestion.confidence, 2),
                 )
             prompt += "How should I respond?"
+            prompt_text = prompt
+            decision_path = "llm"
+            if request.suggestion and request.suggestion.heuristic_id:
+                matched_heuristic_id_for_response = request.suggestion.heuristic_id
             llm_response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
             if llm_response:
                 response_text = llm_response.strip()
@@ -549,7 +560,7 @@ Consider this suggestion in your response.
                         predicted_success = 0.5
                         prediction_confidence = 0.5
 
-                matched_heuristic = getattr(event, "matched_heuristic_id", "") or ""
+                matched_heuristic = request.suggestion.heuristic_id if request.HasField("suggestion") else ""
                 response_id = self._store_trace(
                     event_id=event.id,
                     context=event_context,
@@ -565,6 +576,9 @@ Consider this suggestion in your response.
             response_text=response_text,
             predicted_success=predicted_success,
             prediction_confidence=prediction_confidence,
+            prompt_text=prompt_text,
+            decision_path=decision_path,
+            matched_heuristic_id=matched_heuristic_id_for_response,
         )
 
     async def ProvideFeedback(
@@ -585,7 +599,7 @@ Consider this suggestion in your response.
             trace = self.reasoning_traces.get(request.response_id)
             if not trace:
                 return executive_pb2.ProvideFeedbackResponse(
-                    accepted=True,
+                    accepted=False,
                     error_message="Reasoning trace not found or expired",
                 )
             if trace.matched_heuristic_id and self.memory_client:
@@ -595,21 +609,22 @@ Consider this suggestion in your response.
                 )
                 if success:
                     logger.info(
-                        f"TD_LEARNING: Negative feedback decreased confidence: "
-                        f"{old_conf:.3f} -> {new_conf:.3f}"
+                        "TD_LEARNING: Negative feedback decreased confidence",
+                        old_confidence=round(old_conf, 3),
+                        new_confidence=round(new_conf, 3),
                     )
             return executive_pb2.ProvideFeedbackResponse(accepted=True)
 
         trace = self.reasoning_traces.get(request.response_id)
         if not trace:
             return executive_pb2.ProvideFeedbackResponse(
-                accepted=True,
+                accepted=False,
                 error_message="Reasoning trace not found or expired",
             )
 
         if not self.ollama:
             return executive_pb2.ProvideFeedbackResponse(
-                accepted=True,
+                accepted=False,
                 error_message="LLM not available for pattern extraction",
             )
 
@@ -620,7 +635,7 @@ Consider this suggestion in your response.
         pattern_json = await self.ollama.generate(extraction_prompt, format="json")
         if not pattern_json:
             return executive_pb2.ProvideFeedbackResponse(
-                accepted=True,
+                accepted=False,
                 error_message="Pattern extraction failed",
             )
 
@@ -639,7 +654,7 @@ Consider this suggestion in your response.
             logger.info("Extracted pattern", condition=condition)
         except (json.JSONDecodeError, ValueError) as e:
             return executive_pb2.ProvideFeedbackResponse(
-                accepted=True,
+                accepted=False,
                 error_message=f"Pattern parsing failed: {e}",
             )
 
@@ -648,7 +663,7 @@ Consider this suggestion in your response.
         if gate_error:
             logger.warning("QUALITY_GATE: Rejected heuristic", reason=gate_error)
             return executive_pb2.ProvideFeedbackResponse(
-                accepted=True,
+                accepted=False,
                 error_message=f"Quality gate: {gate_error}",
             )
 
@@ -668,7 +683,7 @@ Consider this suggestion in your response.
                         existing_heuristic_id=heuristic_id,
                     )
                     return executive_pb2.ProvideFeedbackResponse(
-                        accepted=True,
+                        accepted=False,
                         error_message=f"Near-duplicate of existing heuristic (similarity={similarity:.2f})",
                     )
 

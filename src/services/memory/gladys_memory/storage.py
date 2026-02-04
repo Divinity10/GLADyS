@@ -31,6 +31,10 @@ class EpisodicEvent:
     prediction_confidence: Optional[float] = None  # LLM's confidence in that prediction
     response_id: Optional[str] = None  # Links to executive response/reasoning trace
     response_text: Optional[str] = None  # Actual LLM response (for fine-tuning datasets)
+    llm_prompt_text: Optional[str] = None  # Full prompt sent to LLM
+    decision_path: Optional[str] = None  # "heuristic" or "llm"
+    matched_heuristic_id: Optional[UUID] = None  # Heuristic involved in processing
+    episode_id: Optional[UUID] = None  # FK to episodes table
 
 
 # Keep StorageConfig as alias for backwards compatibility
@@ -87,8 +91,9 @@ class MemoryStorage:
             INSERT INTO episodic_events (
                 id, timestamp, source, raw_text, embedding,
                 salience, structured, entity_ids,
-                predicted_success, prediction_confidence, response_id, response_text
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                predicted_success, prediction_confidence, response_id, response_text,
+                llm_prompt_text, decision_path, matched_heuristic_id, episode_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             """,
             event.id,
             event.timestamp,
@@ -102,6 +107,10 @@ class MemoryStorage:
             event.prediction_confidence,
             event.response_id,
             event.response_text,
+            event.llm_prompt_text,
+            event.decision_path,
+            event.matched_heuristic_id,
+            event.episode_id,
         )
 
     async def query_by_time(
@@ -225,7 +234,8 @@ class MemoryStorage:
                    e.id, e.timestamp, e.source, e.raw_text,
                    e.salience, e.response_text, e.response_id,
                    e.predicted_success, e.prediction_confidence,
-                   hf.heuristic_id AS matched_heuristic_id
+                   COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
+                   e.llm_prompt_text, e.decision_path, e.episode_id
             FROM episodic_events e
             LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
         """
@@ -264,9 +274,94 @@ class MemoryStorage:
                    e.id, e.timestamp, e.source, e.raw_text,
                    e.salience, e.response_text, e.response_id,
                    e.predicted_success, e.prediction_confidence,
-                   hf.heuristic_id AS matched_heuristic_id
+                   COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
+                   e.llm_prompt_text, e.decision_path, e.episode_id
             FROM episodic_events e
             LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+            WHERE e.id = $1
+            ORDER BY e.id, hf.fired_at DESC NULLS LAST
+            """,
+            uuid.UUID(event_id),
+        )
+        return dict(row) if row else None
+
+    async def list_responses(
+        self,
+        *,
+        decision_path: Optional[str] = None,
+        source: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict]:
+        """List events with decision chain data for Response tab."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        inner = """
+            SELECT DISTINCT ON (e.id)
+                   e.id, e.timestamp, e.source, e.raw_text,
+                   e.decision_path, e.response_text,
+                   COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
+                   h.condition->>'text' AS matched_heuristic_condition
+            FROM episodic_events e
+            LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+            LEFT JOIN heuristics h ON h.id = COALESCE(e.matched_heuristic_id, hf.heuristic_id)
+        """
+        conditions = ["e.archived = false"]
+        params: list = []
+        idx = 1
+
+        if decision_path == "no_response":
+            conditions.append("e.decision_path IS NULL")
+        elif decision_path == "timed_out":
+            conditions.append("(e.decision_path = 'llm' AND e.response_text IS NULL)")
+        elif decision_path:
+            conditions.append(f"e.decision_path = ${idx}")
+            params.append(decision_path)
+            idx += 1
+
+        if source:
+            conditions.append(f"e.source = ${idx}")
+            params.append(source)
+            idx += 1
+
+        if search:
+            # Escape wildcards for ILIKE
+            # We use backslash as escape character
+            safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            conditions.append(f"(e.raw_text ILIKE ${idx} ESCAPE '\\' OR e.response_text ILIKE ${idx} ESCAPE '\\')")
+            params.append(f"%{safe_search}%")
+            idx += 1
+
+        inner += " WHERE " + " AND ".join(conditions)
+        inner += " ORDER BY e.id, hf.fired_at DESC NULLS LAST"
+
+        query = f"SELECT * FROM ({inner}) sub ORDER BY sub.timestamp DESC LIMIT ${idx} OFFSET ${idx + 1}"
+        params.extend([limit, offset])
+
+        rows = await self._pool.fetch(query, *params)
+        return [dict(row) for row in rows]
+
+    async def get_response_detail(self, event_id: str) -> Optional[dict]:
+        """Get full detail for one event including heuristic and fire data."""
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        row = await self._pool.fetchrow(
+            """
+            SELECT DISTINCT ON (e.id)
+                   e.id, e.timestamp, e.source, e.raw_text,
+                   e.decision_path, e.llm_prompt_text, e.response_text,
+                   COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
+                   h.condition->>'text' AS matched_heuristic_condition,
+                   h.confidence AS matched_heuristic_confidence,
+                   hf.id AS fire_id,
+                   hf.feedback_source,
+                   hf.outcome
+            FROM episodic_events e
+            LEFT JOIN heuristic_fires hf ON hf.episodic_event_id = e.id
+            LEFT JOIN heuristics h ON h.id = COALESCE(e.matched_heuristic_id, hf.heuristic_id)
             WHERE e.id = $1
             ORDER BY e.id, hf.fired_at DESC NULLS LAST
             """,
@@ -388,7 +483,7 @@ class MemoryStorage:
             """
             SELECT id, name, condition, action, confidence,
                    source_pattern_ids, last_fired, fire_count, success_count,
-                   frozen, created_at, updated_at
+                   frozen, origin, origin_id, created_at, updated_at
             FROM heuristics
             WHERE confidence >= $1
               AND frozen = false
@@ -442,7 +537,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -464,7 +559,7 @@ class MemoryStorage:
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -536,7 +631,7 @@ class MemoryStorage:
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
@@ -556,7 +651,7 @@ class MemoryStorage:
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
@@ -780,6 +875,63 @@ class MemoryStorage:
             )
 
         return [dict(row) for row in rows]
+
+    async def list_fires(
+        self,
+        *,
+        outcome: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """List heuristic fires with optional filtering.
+
+        Returns (fires, total_count).
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        # Build query with parameterized placeholders ($1, $2, etc.)
+        conditions = []
+        params: list = []
+        idx = 1
+
+        if outcome:
+            conditions.append(f"hf.outcome = ${idx}")
+            params.append(outcome)
+            idx += 1
+
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+
+        # Count query (without limit/offset)
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM heuristic_fires hf
+            WHERE {where_clause}
+        """
+        total = await self._pool.fetchval(count_query, *params)
+
+        # Main query with JOINs and pagination
+        query = f"""
+            SELECT
+                hf.id,
+                hf.heuristic_id,
+                hf.episodic_event_id as event_id,
+                hf.outcome,
+                hf.feedback_source,
+                hf.fired_at,
+                h.name as heuristic_name,
+                h.condition->>'text' as condition_text,
+                h.confidence
+            FROM heuristic_fires hf
+            LEFT JOIN heuristics h ON hf.heuristic_id = h.id
+            WHERE {where_clause}
+            ORDER BY hf.fired_at DESC NULLS LAST
+            LIMIT ${idx} OFFSET ${idx + 1}
+        """
+        params.extend([limit, offset])
+
+        rows = await self._pool.fetch(query, *params)
+        return [dict(row) for row in rows], total or 0
 
     async def _update_most_recent_fire(
         self,

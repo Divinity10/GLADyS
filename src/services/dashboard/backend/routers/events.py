@@ -16,6 +16,7 @@ from sse_starlette.sse import EventSourceResponse
 import structlog
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
+from backend.utils import format_relative_time
 
 logger = structlog.get_logger()
 
@@ -35,31 +36,13 @@ FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
 
 
-def _format_relative_time(ts) -> str:
-    """Format a timestamp as relative time."""
-    if ts is None:
-        return ""
-    now = datetime.now(timezone.utc)
-    if ts.tzinfo is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    delta = now - ts
-    seconds = int(delta.total_seconds())
-    if seconds < 60:
-        return f"{seconds}s ago"
-    elif seconds < 3600:
-        return f"{seconds // 60}m ago"
-    elif seconds < 86400:
-        return f"{seconds // 3600}h ago"
-    else:
-        return f"{seconds // 86400}d ago"
-
-
 def _make_event_dict(event_id: str, source: str, text: str,
                      timestamp=None, salience: dict = None,
                      response_text: str = "", response_id: str = "",
                      predicted_success: float = None,
                      prediction_confidence: float = None,
-                     matched_heuristic_id: str = "") -> dict:
+                     matched_heuristic_id: str = "",
+                     decision_path: str = "") -> dict:
     """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
@@ -70,11 +53,15 @@ def _make_event_dict(event_id: str, source: str, text: str,
     else:
         status = "queued"
 
-    path = ""
-    if matched_heuristic_id:
+    # Use stored decision_path when available; fall back to derivation for old data
+    if decision_path:
+        path = decision_path.upper()
+    elif matched_heuristic_id:
         path = "HEURISTIC"
     elif response_text or response_id:
         path = "LLM"
+    else:
+        path = ""
 
     salience_breakdown = {}
     if isinstance(salience, dict):
@@ -84,7 +71,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
                 salience_breakdown[key] = f"{salience[key]:.2f}"
 
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
-    time_rel = _format_relative_time(timestamp) if timestamp else "just now"
+    time_rel = format_relative_time(timestamp) if timestamp else "just now"
 
     salience_score = "\u2014"
     if predicted_success is not None:
@@ -136,6 +123,7 @@ def _proto_event_to_dict(ev) -> dict:
         predicted_success=ps,
         prediction_confidence=pc,
         matched_heuristic_id=ev.matched_heuristic_id or "",
+        decision_path=ev.decision_path or "",
     )
 
 
@@ -198,8 +186,8 @@ async def submit_event(request: Request):
                 yield event
             for _ack in stub.PublishEvents(event_gen()):
                 break
-        except grpc.RpcError:
-            pass
+        except grpc.RpcError as e:
+            logger.error("PublishEvents gRPC failed", event_id=event_id, error=str(e))
 
     threading.Thread(target=_publish, daemon=True).start()
 

@@ -1,0 +1,28 @@
+<!-- Update line count -->
+<script>
+    document.getElementById('logs-count').textContent = 'Showing {{ count }} lines';
+</script>
+
+{% if error %}
+<div class="p-4 text-red-500">{{ error }}</div>
+{% else %}
+{% for line in lines %}
+<div data-log-line class="whitespace-pre-wrap break-all border-l-2 pl-3 mb-0.5 hover:bg-gray-800/30 transition-colors
+    {% if line.level == 'error' %}border-red-600 text-red-300 bg-red-900/10
+    {% elif line.level == 'warn' %}border-yellow-600 text-yellow-200 bg-yellow-900/10
+    {% elif line.level == 'info' %}border-blue-600 text-blue-300
+    {% else %}border-gray-700 text-gray-300{% endif %}">{{ line.text }}</div>
+{% endfor %}
+
+{% if not lines %}
+<div class="h-full flex items-center justify-center text-gray-600 italic">
+    No log output available for this service.
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Scroll to bottom on initial load -->
+<script>
+    const container = document.getElementById('logs-container');
+    if (container) container.scrollTop = container.scrollHeight;
+</script>

@@ -1,0 +1,66 @@
+<div class="p-4 text-sm space-y-3">
+    <!-- Event ID (clickable link to Events tab) -->
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-center">
+        <span class="text-xs font-bold text-gray-500 uppercase">Event ID:</span>
+        <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer font-mono text-xs"
+              @click="$dispatch('switch-tab', { tab: 'lab', filter: 'search', value: '{{ detail.event_id }}' })">
+            {{ detail.event_id }}
+        </span>
+    </div>
+
+    <!-- Heuristic ID (clickable link to Heuristics tab) -->
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-center">
+        <span class="text-xs font-bold text-gray-500 uppercase">Heuristic:</span>
+        {% if detail.matched_heuristic_id %}
+        <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer font-mono text-xs"
+              @click="$dispatch('switch-tab', { tab: 'heuristics', filter: 'id', value: '{{ detail.matched_heuristic_id }}' })">
+            {{ detail.matched_heuristic_id }}
+        </span>
+        {% else %}
+        <span class="text-gray-500 text-xs">—</span>
+        {% endif %}
+    </div>
+
+    <!-- Event Text -->
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-start">
+        <span class="text-xs font-bold text-gray-500 uppercase pt-1">Event:</span>
+        <div class="font-mono text-gray-200 bg-gray-800 p-2 rounded border border-gray-700 whitespace-pre-wrap">{{ detail.raw_text }}</div>
+    </div>
+
+    <!-- Prompt Row (only if LLM prompt exists) -->
+    {% if detail.llm_prompt_text %}
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-start">
+        <span class="text-xs font-bold text-gray-500 uppercase pt-1">Prompt:</span>
+        <div class="font-mono text-xs text-gray-300 bg-gray-900 p-2 rounded border border-gray-700 whitespace-pre-wrap max-h-32 overflow-y-auto">{{ detail.llm_prompt_text }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Response Row -->
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-start">
+        <span class="text-xs font-bold text-gray-500 uppercase pt-1">Response:</span>
+        {% if detail.response_text %}
+            <div class="text-gray-200 bg-gray-800 p-2 rounded border border-gray-700 whitespace-pre-wrap">{{ detail.response_text }}</div>
+        {% else %}
+            <span class="text-gray-500 italic pt-1">(no response)</span>
+        {% endif %}
+    </div>
+
+    <!-- Outcome Row (only if fire_id exists) -->
+    {% if detail.fire_id %}
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-start">
+        <span class="text-xs font-bold text-gray-500 uppercase pt-1">Outcome:</span>
+        <div class="pt-1">
+            {% if detail.outcome == 'success' %}
+                <span class="text-green-400 font-bold">Success</span>
+            {% elif detail.outcome == 'fail' %}
+                <span class="text-red-400 font-bold">Fail</span>
+            {% else %}
+                <span class="text-gray-400">Unknown</span>
+            {% endif %}
+            {% if detail.feedback_source %}
+            <span class="text-gray-500 text-xs ml-2">({{ detail.feedback_source }})</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>

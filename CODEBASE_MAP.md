@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-01-30 (updated: directory restructure complete)
+**Last verified**: 2026-02-03 (updated: dashboard dual-router architecture, heuristic gaps)
 
 ---
 
@@ -193,7 +193,22 @@
         │
         ▼
 9. Confidence updated, heuristic becomes more/less trusted
+
+--- Heuristic deletion (KNOWN GAP) ---
+
+10. Dashboard calls DELETE /api/heuristics/{id}
+        │
+        ▼
+11. fun_api/heuristics.py → Direct DB delete (bypasses gRPC, tech debt #83)
+        │
+        ▼
+12. Heuristic removed from PostgreSQL
+        │
+        ✗ Rust SalienceGateway NOT notified
+        ✗ Stale heuristic may remain in Rust LRU cache
 ```
+
+**BUG**: Deleting a heuristic via dashboard does not call `NotifyHeuristicChange` to invalidate Rust cache. The deleted heuristic may continue to match events until cache TTL expires or cache is flushed.
 
 ---
 
@@ -345,6 +360,15 @@ No external message queues (Redis, RabbitMQ, etc.) are used. All queues are in-p
 | `confidence` | 0.0-1.0, updated via TD learning |
 | `origin` | `'learned'`, `'user'`, `'pack'`, `'built_in'` |
 
+### Heuristic Field Gaps (Proto vs DB)
+
+| Field | DB Column | Proto Field | Notes |
+|-------|-----------|-------------|-------|
+| Active status | `frozen` (BOOLEAN) | **NOT IN PROTO** | DB uses `frozen=false` for active. Code uses `getattr(h, "active") else True` |
+| Origin ID | `origin_id` | `origin_id` | In proto but `_heuristic_to_dict` may not include it |
+
+**Impact**: Dashboard filtering by "active" status requires workaround since proto doesn't have the field.
+
 ### SalienceVector Fields
 All float 0.0-1.0:
 - `threat`, `opportunity`, `humor`, `novelty`, `goal_relevance`, `social`, `emotional`, `actionability`, `habituation`
@@ -392,13 +416,14 @@ GLADys/
 │   │   ├── executive/          # ExecutiveService stub (port 50053)
 │   │   │   └── gladys_executive/
 │   │   │
-│   │   ├── fun_api/            # REST/JSON API (separated from dashboard HTMX)
-│   │   │   └── routers/        # Pure REST routers (cache, fires, heuristics, etc.)
+│   │   ├── fun_api/            # JSON API (imported by dashboard, see Dual-Router below)
+│   │   │   └── routers/        # REST/JSON routers: cache, fires, heuristics, llm, logs, etc.
 │   │   │
 │   │   └── dashboard/          # Dashboard V2 (FastAPI + htmx + Alpine.js)
-│   │       ├── backend/        # FastAPI routers, env management
+│   │       ├── backend/        # HTMX routers + env management
+│   │       │   └── routers/    # HTML routers: events, heuristics, fires, logs, etc.
 │   │       ├── frontend/       # HTML/CSS/JS, Jinja2 components
-│   │       └── tests/          # API tests (44 tests)
+│   │       └── tests/          # API tests (52 tests)
 │   │
 │   └── db/
 │       └── migrations/         # PostgreSQL schema (shared, not memory-owned)
@@ -579,28 +604,122 @@ Internal dependency of LearningModule. Watches for pattern-based outcome events 
 **Location**: `src/services/dashboard/`
 **Framework**: FastAPI + htmx + Alpine.js
 **Port**: 8502
-**Design doc**: `docs/design/DASHBOARD_V2.md`
+**Design docs**:
+- `docs/design/DASHBOARD_V2.md` — overall design
+- `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` — rendering patterns
 
-The dashboard provides a dev/debug interface for GLADyS with tabs for event simulation (Lab), heuristic management (Knowledge), fire history (Learning), LLM testing (LLM), log viewing (Logs), and configuration (Settings). Uses Server-Sent Events (SSE) for real-time event updates.
+The dashboard provides a dev/debug interface for GLADyS with tabs for event simulation (Lab), response history (Response), heuristic management (Heuristics), fire history (Learning), LLM testing (LLM), log viewing (Logs), and configuration (Settings). Uses Server-Sent Events (SSE) for real-time event updates.
 
-### Architecture
-- **Backend**: FastAPI (Python) serving REST APIs, SSE streams, and Jinja2 htmx partials
-- **Frontend**: Vanilla HTML/CSS/JS with htmx (async updates) and Alpine.js (client-side reactivity). No build step.
-- **DB access**: Centralized in `gladys_client.db` — routers are thin HTTP wrappers
-- **Management**: `tools/dashboard/dashboard.py` handles start/stop/restart
+### Dual-Router Architecture (CRITICAL)
+
+The dashboard has **two router layers** mounted in the same FastAPI app:
+
+| Layer | Location | Returns | Purpose |
+|-------|----------|---------|---------|
+| **HTMX routers** | `src/services/dashboard/backend/routers/` | HTML | Server-side rendered partials for htmx |
+| **JSON routers** | `src/services/fun_api/routers/` | JSON | REST API for programmatic access |
+
+**IMPORTANT**: `fun_api/` is a **separate directory** at `src/services/fun_api/` (sibling to `dashboard/`). The dashboard imports it via `from fun_api.routers import ...`.
+
+**Router Inventory**:
+
+```
+src/services/dashboard/backend/routers/   # HTML responses (htmx Pattern A)
+├── events.py              # Event table, SSE stream, feedback
+├── responses.py           # Response history table
+├── services.py            # Service health rows
+├── metrics.py             # Metrics strip
+├── heuristics.py          # Heuristic rows (HTML)
+├── fires.py               # Fire history rows (HTML)
+└── logs.py                # Log lines (HTML)
+
+src/services/fun_api/routers/             # JSON responses (REST API)
+├── heuristics.py          # Heuristic CRUD (JSON)
+├── cache.py               # Rust cache stats/flush
+├── fires.py               # Heuristic fire history (JSON)
+├── llm.py                 # Ollama status/test
+├── logs.py                # Service log retrieval (JSON)
+├── memory.py              # Memory probe
+├── config.py              # Environment config
+├── events.py              # Event operations (JSON)
+└── services.py            # Service status (JSON)
+```
+
+**main.py imports and mounts BOTH** (`src/services/dashboard/backend/main.py`):
+```python
+# HTMX routers (HTML) - from dashboard/backend/
+from backend.routers import events, fires, heuristics, logs, ...
+app.include_router(events.router)  # HTML
+
+# JSON routers - from sibling fun_api/ directory
+from fun_api.routers import heuristics, cache, fires, logs, ...
+app.include_router(heuristics.router)  # JSON
+```
+
+### Rendering Patterns
+
+See `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` for full details.
+
+**Pattern A (server-side rendering)** — for data lists:
+- Backend renders HTML with Jinja `{% for %}` loops
+- htmx fetches pre-rendered HTML
+- Alpine.js only for row-level interactivity (expansion, editing)
+- **Used by**: Lab tab (events), Response tab
+
+**Pattern B (Alpine-only)** — for UI controls:
+- Static HTML with Alpine.js reactivity
+- No data rendering, only toggles/modals/dropdowns
+- **Used by**: Toolbar filters, sidebar controls
+
+**Anti-pattern (DO NOT USE)**:
+- Alpine x-for for server data in htmx-loaded content
+- htmx + x-for doesn't work reliably (x-for may not render DOM)
+
+### Data Access Paths
+
+**JSON path** (for REST API consumers):
+```
+Dashboard UI → fun_api/routers/heuristics.py → gRPC QueryHeuristics → Memory → DB
+                                             ↘ Direct DB delete (tech debt #83)
+```
+
+**HTML path** (for htmx — Pattern A):
+```
+Dashboard UI → backend/routers/heuristics.py → gRPC QueryHeuristics → Memory → DB
+               (returns rendered HTML via Jinja templates)
+
+Dashboard UI → backend/routers/fires.py → gRPC ListFires → Memory → DB
+Dashboard UI → backend/routers/logs.py → file read (no gRPC)
+```
 
 ### Key Files
+
+**Dashboard (HTML routers)** — `src/services/dashboard/`:
 | File | Purpose |
 |------|---------|
+| `backend/main.py` | FastAPI app, mounts both router layers |
 | `backend/env.py` | Environment singleton, gRPC channel management |
-| `backend/routers/events.py` | Event CRUD, batch submit, SSE stream, feedback, delete |
-| `backend/routers/services.py` | Health checks, start/stop/restart |
-| `frontend/index.html` | Layout shell with static sidebar (env, controls) + htmx service list |
-| `frontend/components/sidebar.html` | Service rows only (htmx partial) |
-| `frontend/components/event_row.html` | Event row + drill-down with feedback + delete |
-| `frontend/js/app.js` | Alpine state, service actions with status messaging |
-| `frontend/js/events.js` | SSE handling, deleteEvent, clearAllEvents, queue polling |
-| `gladys_client/db.py` | All DB queries (events, heuristics, fires, metrics, delete) |
+| `backend/routers/events.py` | Event CRUD, SSE stream, feedback, delete (HTML) |
+| `backend/routers/responses.py` | Response history (HTML) |
+| `backend/routers/heuristics.py` | Heuristic rows (HTML) |
+| `backend/routers/fires.py` | Fire history rows (HTML) |
+| `backend/routers/logs.py` | Log lines (HTML) |
+| `frontend/index.html` | Layout shell with static sidebar |
+| `frontend/components/*.html` | Jinja2 partials for tabs |
+
+**FUN API (JSON routers)** — `src/services/fun_api/`:
+| File | Purpose |
+|------|---------|
+| `routers/heuristics.py` | Heuristic CRUD (JSON) |
+| `routers/fires.py` | Fire history (JSON) |
+| `routers/logs.py` | Log retrieval (JSON) |
+| `routers/cache.py` | Rust cache stats/flush |
+| `routers/llm.py` | Ollama status/test |
+
+**Shared** — `src/lib/gladys_client/`:
+| File | Purpose |
+|------|---------|
+| `db.py` | All DB queries (events, heuristics, fires, metrics) |
 
 ---
 
@@ -738,6 +857,10 @@ Python code changes are picked up WITHOUT rebuild. But:
 10. **Async lock scope**: If using `asyncio.Lock`, protect ALL access points, not just some
 11. **Adding gladys_common import without Dockerfile update**: If you add `from gladys_common import ...` to a service, the Dockerfile MUST be updated (see Docker Build Requirements above)
 12. **Using local context for services with shared deps**: docker-compose.yml must use project root context (`../..`) for any service that depends on gladys_common
+13. **Dashboard router confusion**: `dashboard/backend/routers/` returns HTML (htmx), `fun_api/routers/` returns JSON (REST API). Both are mounted in `main.py`. Check which you need before modifying.
+14. **Using Alpine x-for for server data in htmx content**: x-for doesn't reliably render when content is loaded via htmx. Use Jinja loops (Pattern A) instead. See `DASHBOARD_COMPONENT_ARCHITECTURE.md`.
+15. **fun_api location confusion**: `fun_api/` is at `src/services/fun_api/` (sibling to `dashboard/`), NOT inside the dashboard directory. The dashboard imports it via `from fun_api.routers import ...`.
+16. **JSON vs HTML endpoints**: Both exist for many entities. JSON: `fun_api/routers/heuristics.py`. HTML: `dashboard/backend/routers/heuristics.py`. htmx tabs need HTML routers.
 
 ---
 

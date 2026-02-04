@@ -4,11 +4,14 @@ import threading
 import uuid
 
 import grpc
+import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.env import env, PROTOS_AVAILABLE
+
+logger = structlog.get_logger()
 from gladys_client import db as _db
 
 if PROTOS_AVAILABLE:
@@ -41,7 +44,8 @@ async def submit_batch(request: Request):
     except Exception as e:
         return JSONResponse({"error": f"Validation error: {e}"}, status_code=400)
 
-    stub = env.orchestrator_stub()
+    # Use sync stub since _publish_all runs in a thread
+    stub = env.sync_orchestrator_stub()
     if not stub:
         return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
 
@@ -63,8 +67,8 @@ async def submit_batch(request: Request):
                     yield event
                 for _ack in stub.PublishEvents(gen()):
                     break
-            except grpc.RpcError:
-                pass
+            except grpc.RpcError as e:
+                logger.error("Batch PublishEvents gRPC failed", event_id=event.id, error=str(e))
 
     threading.Thread(target=_publish_all, daemon=True).start()
 
