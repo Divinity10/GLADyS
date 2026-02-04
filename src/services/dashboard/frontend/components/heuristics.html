@@ -1,135 +1,13 @@
-<div class="h-full flex flex-col" x-data="{ 
-    heuristics: [],
-    loading: true,
-    filterOrigin: '',
-    filterActive: 'all',
-    searchQuery: '',
-    selectedIds: [],
-    
-    async loadHeuristics() {
-        this.loading = true;
-        try {
-            const res = await fetch('/api/heuristics');
-            const data = await res.json();
-            this.heuristics = data.heuristics.map(h => ({
-                ...h, 
-                editingCondition: false, 
-                editingConfidence: false,
-                originalCondition: h.condition_text,
-                originalConfidence: h.confidence,
-                dirty: false
-            }));
-        } catch (e) {
-            console.error('Failed to load heuristics', e);
-        } finally {
-            this.loading = false;
-        }
-    },
+<div id="heuristics-tab" class="h-full flex flex-col"
+     x-data="heuristicsToolbar()"
+     x-init="checkPending()"
+     @tab-filter-update.window="handleTabSwitch">
 
-    get filteredHeuristics() {
-        return this.heuristics.filter(h => {
-            if (this.filterOrigin && h.origin !== this.filterOrigin) return false;
-            if (this.filterActive === 'active' && !h.active) return false;
-            if (this.filterActive === 'inactive' && h.active) return false;
-            if (this.searchQuery) {
-                const q = this.searchQuery.toLowerCase();
-                if (!h.id.includes(q) && !h.name?.toLowerCase().includes(q) && !h.condition_text?.toLowerCase().includes(q)) return false;
-            }
-            return true;
-        });
-    },
-
-    toggleSelectAll() {
-        const visibleIds = this.filteredHeuristics.map(h => h.id);
-        if (this.selectedIds.length === visibleIds.length && visibleIds.length > 0) {
-            this.selectedIds = [];
-        } else {
-            this.selectedIds = visibleIds;
-        }
-    },
-
-    async bulkDelete() {
-        if (!confirm(`Delete ${this.selectedIds.length} heuristics?`)) return;
-        
-        try {
-            const res = await fetch('/api/heuristics', {
-                method: 'DELETE',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ids: this.selectedIds})
-            });
-            const data = await res.json();
-            if (data.errors && data.errors.length > 0) {
-                alert(`Some deletions failed: ${data.errors.map(e => e.error).join(', ')}`);
-            }
-            this.loadHeuristics();
-            this.selectedIds = [];
-        } catch (e) {
-            alert('Bulk delete failed: ' + e);
-        }
-    },
-
-    async saveHeuristic(h) {
-        try {
-            const res = await fetch(`/api/heuristics/${h.id}`, {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    name: h.name,
-                    condition_text: h.condition_text,
-                    confidence: parseFloat(h.confidence),
-                    origin: h.origin,
-                    active: h.active
-                    // Note: effects_json is not editable in parent row, handled in detail if implemented
-                })
-            });
-            if (res.ok) {
-                h.dirty = false;
-                h.editingCondition = false;
-                h.editingConfidence = false;
-                h.originalCondition = h.condition_text;
-                h.originalConfidence = h.confidence;
-            } else {
-                alert('Save failed');
-            }
-        } catch (e) {
-            alert('Save failed: ' + e);
-        }
-    },
-
-    markDirty(h) {
-        h.dirty = true;
-    },
-
-    handleTabSwitch(e) {
-        if (e.detail.tab === 'heuristics') {
-            if (e.detail.filter === 'id') {
-                this.searchQuery = e.detail.value;
-                this.filterOrigin = ''; // Clear other filters to ensure visibility
-                this.filterActive = 'all';
-            }
-        }
-    },
-    checkPending() {
-        if (window.pendingTabFilter && window.pendingTabFilter.tab === 'heuristics') {
-            this.handleTabSwitch({ detail: window.pendingTabFilter });
-            window.pendingTabFilter = null;
-        }
-    },
-
-    prettyPrintJson(jsonStr) {
-        try {
-            return JSON.stringify(JSON.parse(jsonStr || '{}'), null, 2);
-        } catch (e) {
-            return jsonStr || '{}'; // Fallback to raw string or empty object
-        }
-    }
-
-}" x-init="loadHeuristics(); checkPending()" @tab-filter-update.window="handleTabSwitch">
-
-    <!-- Toolbar -->
+    <!-- Toolbar (Alpine for filter state, triggers htmx refresh) -->
     <div class="flex items-center gap-4 p-4 border-b border-gray-700 bg-gray-900">
-        <!-- Origin Filter -->
-        <select x-model="filterOrigin" 
+
+        <select x-model="filterOrigin"
+                @change="refresh()"
                 class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
             <option value="">All Origins</option>
             <option value="learned">Learned</option>
@@ -137,177 +15,242 @@
             <option value="built_in">Built-in</option>
         </select>
 
-        <!-- Active Filter -->
-        <select x-model="filterActive" 
+        <select x-model="filterActive"
+                @change="refresh()"
                 class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
             <option value="all">All Status</option>
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
         </select>
 
-        <!-- Search -->
         <div class="relative flex-1 max-w-md">
             <input type="text" x-model="searchQuery"
-                   placeholder="Search ID, name, or condition..." 
+                   @input.debounce.300ms="refresh()"
+                   placeholder="Search ID, name, or condition..."
                    class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-1 pl-8 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
             <svg class="w-4 h-4 absolute left-2 top-1.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
         </div>
-        
-        <button @click="loadHeuristics()" class="text-gray-400 hover:text-white" title="Refresh">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+
+        <button @click="refresh()" class="text-gray-400 hover:text-white" title="Refresh">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
         </button>
     </div>
-    
+
     <!-- Bulk Action Bar -->
-    <div x-show="selectedIds.length > 0" x-transition class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
-        <span class="text-blue-200"><span x-text="selectedIds.length"></span> selected</span>
-        <button @click="bulkDelete()" class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">Delete Selected</button>
+    <div id="bulk-action-bar" style="display: none"
+         class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
+        <span class="text-blue-200"><span id="selected-count">0</span> selected</span>
+        <button onclick="bulkDeleteHeuristics()"
+                class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">
+            Delete Selected
+        </button>
     </div>
 
     <!-- Header -->
-    <div class="grid grid-cols-[30px_20px_80px_80px_1fr_100px_60px_50px] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
-        <div><input type="checkbox" @click="toggleSelectAll()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0"></div>
-        <div></div>
+    <div class="grid grid-cols-[30px_80px_1fr_50px] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+        <div><input type="checkbox" onclick="toggleSelectAll()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0"></div>
         <div>Origin</div>
-        <div>ID</div>
         <div>Condition</div>
-        <div>Confidence</div>
-        <div>Fires</div>
         <div>Active</div>
     </div>
 
-    <!-- List -->
-    <div class="flex-1 overflow-y-auto">
-        <template x-for="h in filteredHeuristics" :key="h.id">
-            <div class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors group" x-data="{ expanded: false }">
-                <!-- Parent Row -->
-                <div class="grid grid-cols-[30px_20px_80px_80px_1fr_100px_60px_50px] gap-4 px-4 py-3 items-center text-sm">
-                    
-                    <!-- Checkbox -->
-                    <div><input type="checkbox" :value="h.id" x-model="selectedIds" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0"></div>
-
-                    <!-- Chevron -->
-                    <div class="text-gray-500 cursor-pointer" @click="expanded = !expanded" :class="{'rotate-90': expanded}">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                    </div>
-
-                    <!-- Origin -->
-                    <div>
-                        <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold"
-                              :class="{
-                                'bg-purple-900/50 text-purple-400 border border-purple-800': h.origin === 'learned',
-                                'bg-blue-900/50 text-blue-400 border border-blue-800': h.origin === 'user',
-                                'bg-gray-700 text-gray-300': h.origin === 'built_in' || h.origin === 'manual'
-                              }" x-text="h.origin"></span>
-                    </div>
-
-                    <!-- ID -->
-                    <div class="text-gray-500 font-mono text-xs truncate" :title="h.id" x-text="h.id.substring(0,8)"></div>
-
-                    <!-- Condition (Click to Edit) -->
-                    <div class="relative min-h-[24px]">
-                        <div x-show="!h.editingCondition" 
-                             @click="h.editingCondition = true; $nextTick(() => $refs.editCond.focus())"
-                             class="text-gray-300 font-mono text-xs truncate cursor-pointer hover:bg-gray-800 rounded px-1 -ml-1 border border-transparent hover:border-gray-600"
-                             :title="h.condition_text"
-                             x-text="h.condition_text || '(empty)'"></div>
-                        <textarea x-ref="editCond"
-                                  x-show="h.editingCondition"
-                                  x-model="h.condition_text"
-                                  @input="markDirty(h)"
-                                  @blur="h.editingCondition = false; if(!h.dirty) h.condition_text = h.originalCondition"
-                                  class="absolute top-0 left-0 w-full h-24 z-10 bg-gray-800 border border-blue-500 rounded p-2 text-xs font-mono text-gray-200 focus:outline-none shadow-lg"></textarea>
-                    </div>
-
-                    <!-- Confidence (Bar + Slider) -->
-                    <div class="relative group/conf">
-                        <div x-show="!h.editingConfidence" @click="h.editingConfidence = true" class="cursor-pointer">
-                            <div class="flex items-center gap-2">
-                                <div class="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
-                                    <div class="h-full bg-blue-500" :style="`width: ${h.confidence * 100}%`"></div>
-                                </div>
-                                <span class="text-xs text-gray-400 w-8 text-right" x-text="Math.round(h.confidence * 100) + '%'"></span>
-                            </div>
-                        </div>
-                        <div x-show="h.editingConfidence" @click.outside="h.editingConfidence = false" class="absolute top-0 left-0 w-full bg-gray-900 p-2 rounded border border-gray-600 z-10 shadow-xl">
-                            <input type="range" min="0" max="1" step="0.05" x-model="h.confidence" @input="markDirty(h)" class="w-full">
-                            <div class="text-center text-xs text-gray-300 mt-1" x-text="parseFloat(h.confidence).toFixed(2)"></div>
-                        </div>
-                    </div>
-
-                    <!-- Fires (Link to Response) -->
-                    <div>
-                        <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer text-xs"
-                              @click="$dispatch('switch-tab', { tab: 'response', filter: 'matched_heuristic_id', value: h.id })"
-                              x-text="h.fire_count || 0"></span>
-                    </div>
-
-                    <!-- Active Toggle / Save Button Stack -->
-                    <div class="flex flex-col items-center gap-2">
-                        <!-- Toggle -->
-                        <button @click="h.active = !h.active; markDirty(h)" 
-                                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none"
-                                :class="h.active ? 'bg-green-600' : 'bg-gray-700'">
-                            <span class="translate-x-1 inline-block h-3 w-3 transform rounded-full bg-white transition-transform"
-                                  :class="h.active ? 'translate-x-5' : 'translate-x-1'"></span>
-                        </button>
-                        
-                        <!-- Save Button (Only if dirty) -->
-                        <button x-show="h.dirty" @click.stop="saveHeuristic(h)" 
-                                class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm animate-pulse">
-                            Save
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Drill-down (Detail) -->
-                <div x-show="expanded" x-collapse class="bg-gray-900/50 border-t border-gray-800 p-6 space-y-6 text-sm shadow-inner">
-                    <!-- Metadata -->
-                    <div class="grid grid-cols-2 gap-4 text-xs text-gray-500">
-                        <div><span class="font-bold">Full ID:</span> <span class="font-mono text-gray-400" x-text="h.id"></span></div>
-                        <div><span class="font-bold">Created:</span> <span class="text-gray-400" x-text="h.created_at"></span></div>
-                        <div><span class="font-bold">Origin ID:</span> <span class="font-mono text-gray-400" x-text="h.origin_id || 'N/A'"></span></div>
-                        <div><span class="font-bold">Updated:</span> <span class="text-gray-400" x-text="h.updated_at || 'N/A'"></span></div>
-                        <div><span class="font-bold">Success Rate:</span> 
-                            <span class="text-gray-400" x-text="(h.fire_count > 0 ? Math.round((h.success_count / h.fire_count) * 100) + '%' : 'N/A')"></span>
-                        </div>
-                    </div>
-                    
-                    <!-- Editable Name -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Name</label>
-                        <input type="text" x-model="h.name" @input="markDirty(h)"
-                               class="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-200 focus:border-blue-500 focus:outline-none">
-                    </div>
-
-                    <!-- Full Condition Editor -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Condition</label>
-                        <textarea x-model="h.condition_text" @input="markDirty(h)"
-                                  class="w-full h-24 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-gray-200 font-mono text-xs focus:border-blue-500 focus:outline-none"></textarea>
-                    </div>
-                    
-                    <!-- Actions (Basic for now, prompt asks for Action Type dropdown but data structure is effects_json) -->
-                    <!-- Simulating action editing via raw JSON for now as effects_json structure varies -->
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Effects (JSON)</label>
-                        <div class="text-xs text-gray-500 mb-1">Raw JSON editing only for PoC</div>
-                        <pre class="bg-gray-800 p-3 rounded border border-gray-700 text-gray-400 font-mono text-xs overflow-x-auto" x-text="prettyPrintJson(h.effects_json)"></pre>
-                    </div>
-                    
-                    <div class="flex justify-end gap-2 pt-2 border-t border-gray-800">
-                        <button @click="if(confirm('Delete this heuristic?')) { selectedIds=[h.id]; bulkDelete(); }" 
-                                class="text-red-400 hover:text-red-300 text-xs font-bold px-3 py-1">Delete</button>
-                    </div>
-                </div>
-            </div>
-        </template>
-        
-        <div x-show="loading" class="p-8 text-center text-gray-500">Loading heuristics...</div>
-        <div x-show="!loading && filteredHeuristics.length === 0" class="p-8 text-center text-gray-500">No heuristics found.</div>
+    <!-- Rows (htmx loads, server renders) -->
+    <div id="heuristics-list" class="flex-1 overflow-y-auto"
+         hx-get="/api/heuristics/rows"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="p-8 text-center text-gray-500">Loading heuristics...</div>
     </div>
 </div>
+
+<!-- Helper functions (global scope for row templates) -->
+<script>
+function heuristicsToolbar() {
+    return {
+        filterOrigin: '',
+        filterActive: 'all',
+        searchQuery: '',
+
+        refresh() {
+            const params = new URLSearchParams();
+            if (this.filterOrigin) params.set('origin', this.filterOrigin);
+            if (this.filterActive !== 'all') params.set('active', this.filterActive);
+            if (this.searchQuery) params.set('search', this.searchQuery);
+            const url = '/api/heuristics/rows' + (params.toString() ? '?' + params.toString() : '');
+            htmx.ajax('GET', url, {target: '#heuristics-list'});
+        },
+
+        handleTabSwitch(e) {
+            if (e.detail.tab === 'heuristics') {
+                if (e.detail.filter === 'id') {
+                    this.searchQuery = e.detail.value;
+                    this.filterOrigin = '';
+                    this.filterActive = 'all';
+                    this.refresh();
+                }
+            }
+        },
+
+        checkPending() {
+            if (window.pendingTabFilter && window.pendingTabFilter.tab === 'heuristics') {
+                this.handleTabSwitch({ detail: window.pendingTabFilter });
+                window.pendingTabFilter = null;
+            }
+        }
+    };
+}
+
+// Selection state (global)
+window.heuristicsSelection = {
+    selected: new Set(),
+    toggle(id) {
+        if (this.selected.has(id)) {
+            this.selected.delete(id);
+        } else {
+            this.selected.add(id);
+        }
+        this.updateUI();
+    },
+    isSelected(id) {
+        return this.selected.has(id);
+    },
+    clear() {
+        this.selected.clear();
+        this.updateUI();
+    },
+    updateUI() {
+        const bar = document.getElementById('bulk-action-bar');
+        const count = document.getElementById('selected-count');
+        if (this.selected.size > 0) {
+            bar.style.display = '';
+            count.textContent = this.selected.size;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+};
+
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('#heuristics-list input[type="checkbox"]');
+    const allSelected = checkboxes.length > 0 && [...checkboxes].every(cb => cb.checked);
+    checkboxes.forEach(cb => {
+        cb.checked = !allSelected;
+        const id = cb.value;
+        if (!allSelected) {
+            window.heuristicsSelection.selected.add(id);
+        } else {
+            window.heuristicsSelection.selected.delete(id);
+        }
+    });
+    window.heuristicsSelection.updateUI();
+}
+
+async function bulkDeleteHeuristics() {
+    const ids = [...window.heuristicsSelection.selected];
+    if (!confirm(`Delete ${ids.length} heuristics?`)) return;
+
+    try {
+        const res = await fetch('/api/heuristics', {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: ids})
+        });
+        if (res.ok) {
+            window.heuristicsSelection.clear();
+            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
+        } else {
+            const data = await res.json();
+            if (data.errors && data.errors.length > 0) {
+                alert(`Some deletions failed: ${data.errors.map(e => e.error).join(', ')}`);
+            }
+        }
+    } catch (e) {
+        alert('Delete failed: ' + e);
+    }
+}
+
+async function deleteHeuristic(id) {
+    try {
+        const res = await fetch(`/api/heuristics/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
+        } else {
+            alert('Delete failed');
+        }
+    } catch (e) {
+        alert('Delete failed: ' + e);
+    }
+}
+
+async function saveHeuristic(id, conditionText) {
+    try {
+        const res = await fetch(`/api/heuristics/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ condition_text: conditionText })
+        });
+        if (!res.ok) alert('Save failed');
+    } catch (e) {
+        alert('Save failed: ' + e);
+    }
+}
+
+async function saveConfidence(id, confidence) {
+    try {
+        const res = await fetch(`/api/heuristics/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ confidence: parseFloat(confidence) })
+        });
+        if (!res.ok) alert('Save failed');
+    } catch (e) {
+        alert('Save failed: ' + e);
+    }
+}
+
+async function saveHeuristicFull(id, origin, conditionText, responseText, confidence) {
+    // Reconstruct effects_json from response text (use 'message' field - matches grpc_server.py)
+    const effectsJson = JSON.stringify({ action: "respond", message: responseText });
+    try {
+        const res = await fetch(`/api/heuristics/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                origin: origin,
+                condition_text: conditionText,
+                effects_json: effectsJson,
+                confidence: parseFloat(confidence)
+            })
+        });
+        if (!res.ok) {
+            alert('Save failed');
+            throw new Error('Save failed');
+        }
+    } catch (e) {
+        alert('Save failed: ' + e);
+        throw e;
+    }
+}
+
+async function toggleActive(id, currentState) {
+    try {
+        const res = await fetch(`/api/heuristics/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ active: !currentState })
+        });
+        if (res.ok) {
+            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
+        } else {
+            alert('Toggle failed');
+        }
+    } catch (e) {
+        alert('Toggle failed: ' + e);
+    }
+}
+</script>
