@@ -43,35 +43,6 @@
 </div>
 {% endmacro %}
 
-{# Info field - for displaying read-only data in drilldowns #}
-{% macro info_field(label, value, mono=false, link_dispatch=none) %}
-<div class="grid grid-cols-[80px_1fr] gap-2 items-center">
-    <span class="text-xs font-bold text-gray-500 uppercase">{{ label }}:</span>
-    {% if value %}
-        {% if link_dispatch %}
-        <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer {{ 'font-mono text-xs' if mono else 'text-sm' }}"
-              @click="{{ link_dispatch }}">{{ value }}</span>
-        {% else %}
-        <span class="{{ 'font-mono text-xs' if mono else 'text-sm' }} text-gray-200">{{ value }}</span>
-        {% endif %}
-    {% else %}
-    <span class="text-gray-500 text-xs">—</span>
-    {% endif %}
-</div>
-{% endmacro %}
-
-{# Info field with multiline content (for event text, responses, etc.) #}
-{% macro info_field_block(label, value, mono=false) %}
-<div class="grid grid-cols-[80px_1fr] gap-2 items-start">
-    <span class="text-xs font-bold text-gray-500 uppercase pt-1">{{ label }}:</span>
-    {% if value %}
-    <div class="{{ 'font-mono' if mono else '' }} text-gray-200 bg-gray-800 p-2 rounded border border-gray-700 whitespace-pre-wrap">{{ value }}</div>
-    {% else %}
-    <span class="text-gray-500 italic pt-1">(none)</span>
-    {% endif %}
-</div>
-{% endmacro %}
-
 {# Checkbox cell for selection #}
 {% macro checkbox_cell(item_id, selection_manager='window.selection') %}
 <div @click.stop>
@@ -79,13 +50,6 @@
            value="{{ item_id }}"
            onchange="{{ selection_manager }} && {{ selection_manager }}.toggle('{{ item_id }}')"
            class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
-</div>
-{% endmacro %}
-
-{# Timestamp cell #}
-{% macro timestamp_cell(timestamp, relative_time) %}
-<div class="text-gray-400 text-xs" title="{{ timestamp }}">
-    {{ relative_time }}
 </div>
 {% endmacro %}
 
@@ -201,5 +165,61 @@
           @click.stop="{{ dispatch_event }}">
         {{ text }}
     </span>
+</div>
+{% endmacro %}
+
+{# ========== DRILLDOWN LAYOUT MACROS ========== #}
+
+{# Two ID fields side by side, 50%/50% #}
+{% macro drilldown_id_row(left_label, left_value, right_label, right_value) %}
+<div class="grid grid-cols-2 gap-x-4 text-[11px] select-text">
+    <div>
+        <span class="text-gray-400 font-bold uppercase">{{ left_label }}:</span>
+        <span class="font-mono text-gray-300 break-all ml-1">{{ left_value or '—' }}</span>
+    </div>
+    <div>
+        <span class="text-gray-400 font-bold uppercase">{{ right_label }}:</span>
+        <span class="font-mono text-gray-300 break-all ml-1">{{ right_value or '—' }}</span>
+    </div>
+</div>
+{% endmacro %}
+
+{# Label on left, value extends to right edge #}
+{% macro drilldown_text_field(label, value, mono=false) %}
+<div class="flex items-start gap-2">
+    <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16">{{ label }}:</span>
+    <span class="flex-1 {{ 'font-mono text-sm' if mono else '' }} text-gray-200 select-text">{{ value or '—' }}</span>
+</div>
+{% endmacro %}
+
+{# Horizontal row of label:value pairs, spread across full width #}
+{% macro drilldown_stats_row(stats) %}
+{# stats = [{'label': 'Source', 'value': 'sudoku'}, ...] #}
+<div class="flex justify-between text-[11px] select-text">
+    {% for s in stats %}
+    <div>
+        <span class="text-gray-400 font-bold uppercase">{{ s.label }}:</span>
+        <span class="text-gray-300 ml-1">{{ s.value or '—' }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{# Vertical table: labels left column, values right column #}
+{% macro drilldown_info_grid(rows) %}
+{# rows = [{'label': 'Created', 'value': '...', 'mono': false}, ...] #}
+<div class="grid grid-cols-[80px_1fr] gap-x-2 gap-y-1 text-xs">
+    {% for r in rows %}
+    <span class="text-gray-400 font-bold uppercase">{{ r.label }}:</span>
+    <span class="{{ 'font-mono' if r.mono else '' }} text-gray-300">{{ r.value or '—' }}</span>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{# Label with boxed value (for responses, long text) #}
+{% macro drilldown_boxed_text(label, value) %}
+<div class="flex items-start gap-2">
+    <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16 pt-2">{{ label }}:</span>
+    <div class="flex-1 text-sm text-white select-text bg-gray-800/50 rounded p-2 min-h-[2.5rem]">{{ value or '—' }}</div>
 </div>
 {% endmacro %}

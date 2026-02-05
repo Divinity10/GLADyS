@@ -1,4 +1,4 @@
-{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, origin_badge_cell, condition_cell, active_toggle_cell %}
+{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, origin_badge_cell, condition_cell, active_toggle_cell, drilldown_info_grid %}
 
 {# Heuristics Row - Uses expandable_row macros for consistent structure #}
 {% set extra_state = "conditionText: `" ~ (h.condition_text|e) ~ "`, responseText: (function() { try { const json = JSON.parse(`" ~ (h.effects_json|e) ~ "`); return json.text || json.message || json.response || ''; } catch { return ''; } })(), confidence: " ~ h.confidence ~ ", dirty: false, saving: false, saved: false, deleting: false" %}
@@ -12,22 +12,23 @@
 
 {{ expandable_row_drilldown_start(h.id) }}
 
-    <!-- Info Section (read-only, 2 per row, 50%/50%) -->
+    <!-- Info Section (read-only) -->
     <div class="p-3 bg-gray-900/80 border-b border-gray-700">
-        <div class="grid grid-cols-[1fr_1fr] gap-x-8 gap-y-1 text-xs">
-            <div><span class="text-gray-400 font-bold uppercase">ID:</span> <span class="font-mono text-gray-300 ml-1">{{ h.id }}</span></div>
-            <div><span class="text-gray-400 font-bold uppercase">Origin:</span> <span class="text-gray-300 ml-1">{{ h.origin }}</span></div>
-            <div><span class="text-gray-400 font-bold uppercase">Created:</span> <span class="text-gray-300 ml-1">{{ h.created_at or 'N/A' }}</span></div>
-            <div><span class="text-gray-400 font-bold uppercase">Updated:</span> <span class="text-gray-300 ml-1">{{ h.updated_at or 'N/A' }}</span></div>
-            <div><span class="text-gray-400 font-bold uppercase">Origin ID:</span> <span class="font-mono text-gray-300 ml-1">{{ h.origin_id or 'N/A' }}</span></div>
-            <div>
-                <span class="text-gray-400 font-bold uppercase">Fires:</span>
-                <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer ml-1"
-                      onclick="window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'response', filter: 'matched_heuristic_id', value: '{{ h.id }}' } }))">
-                    {{ h.fire_count or 0 }}
-                </span>
-                <span class="text-gray-500 ml-1">({{ h.success_count or 0 }} successes)</span>
-            </div>
+        {{ drilldown_info_grid([
+            {'label': 'ID', 'value': h.id, 'mono': true},
+            {'label': 'Origin', 'value': h.origin},
+            {'label': 'Created', 'value': h.created_at or 'N/A'},
+            {'label': 'Updated', 'value': h.updated_at or 'N/A'},
+            {'label': 'Origin ID', 'value': h.origin_id or 'N/A', 'mono': true}
+        ]) }}
+        <!-- Fires link is custom, keep inline -->
+        <div class="text-xs mt-2">
+            <span class="text-gray-400 font-bold uppercase">Fires:</span>
+            <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer ml-1"
+                  onclick="window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'response', filter: 'matched_heuristic_id', value: '{{ h.id }}' } }))">
+                {{ h.fire_count or 0 }}
+            </span>
+            <span class="text-gray-500 ml-1">({{ h.success_count or 0 }} successes)</span>
         </div>
     </div>
 

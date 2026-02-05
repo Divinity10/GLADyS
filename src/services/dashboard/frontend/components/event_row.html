@@ -1,4 +1,4 @@
-{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, source_cell, text_cell, status_cell %}
+{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, source_cell, text_cell, status_cell, drilldown_text_field, drilldown_id_row, drilldown_stats_row, drilldown_boxed_text %}
 {% from 'components/widgets/feedback_actions.html' import feedback_buttons %}
 
 {# Event Row - Div-based expandable row for Lab tab
@@ -37,39 +37,19 @@
 {{ expandable_row_drilldown_start(event.id) }}
 
     <!-- Drilldown Content -->
-    <div class="p-3 text-sm space-y-3">
-        <!-- Full Event Text -->
-        <div class="flex items-start gap-2">
-            <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16">Event:</span>
-            <span class="text-white font-mono text-sm select-text">{{ event.text }}</span>
-        </div>
+    <div class="p-3 space-y-3">
+        {{ drilldown_text_field('Event', event.text, mono=true) }}
 
-        <!-- IDs (side by side, 50%/50%) -->
-        <div class="grid grid-cols-2 gap-x-4 text-[11px] select-text">
-            <div>
-                <span class="text-gray-400 font-bold uppercase">ID:</span>
-                <span class="font-mono text-gray-300 break-all ml-1">{{ event.id }}</span>
-            </div>
-            <div>
-                <span class="text-gray-400 font-bold uppercase">Response:</span>
-                <span class="font-mono text-gray-300 break-all ml-1">{{ event.response_id or '—' }}</span>
-            </div>
-        </div>
+        {{ drilldown_id_row('ID', event.id, 'Response ID', event.response_id) }}
 
-        <!-- Metadata (2 per row) -->
-        <div class="grid grid-cols-[80px_1fr_80px_1fr] gap-x-4 gap-y-1 text-[11px] select-text">
-            <span class="text-gray-400 font-bold uppercase">Source:</span>
-            <span class="text-gray-300">{{ event.source }}</span>
-            <span class="text-gray-400 font-bold uppercase">Path:</span>
-            <span class="text-gray-300">{{ event.path or '—' }}</span>
+        {{ drilldown_stats_row([
+            {'label': 'Source', 'value': event.source},
+            {'label': 'Path', 'value': event.path},
+            {'label': 'Salience', 'value': event.salience_score},
+            {'label': 'Confidence', 'value': event.confidence}
+        ]) }}
 
-            <span class="text-gray-400 font-bold uppercase">Salience:</span>
-            <span class="text-gray-300">{{ event.salience_score }}</span>
-            <span class="text-gray-400 font-bold uppercase">Confidence:</span>
-            <span class="text-gray-300">{{ event.confidence }}</span>
-        </div>
-
-        <!-- Salience Breakdown (aligned grid) -->
+        <!-- Salience Breakdown (unique to events, keep inline) -->
         {% if event.salience_breakdown %}
         <div class="border-t border-gray-700 pt-2">
             <div class="text-gray-400 font-bold uppercase text-[10px] mb-1">Salience Breakdown:</div>
@@ -82,13 +62,11 @@
         </div>
         {% endif %}
 
-        <!-- Response (label on left, value box on right) -->
-        <div class="flex items-start gap-2 border-t border-gray-700 pt-2">
-            <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16 pt-2">Response:</span>
-            <div class="flex-1 text-sm text-white select-text bg-gray-800/50 rounded p-2 min-h-[3rem]">{{ event.response_text or 'No response yet' }}</div>
+        <div class="border-t border-gray-700 pt-2">
+            {{ drilldown_boxed_text('Response', event.response_text or 'No response yet') }}
         </div>
 
-        <!-- Feedback Actions (own row at bottom, thumbs on left) -->
+        <!-- Feedback Actions -->
         <div class="flex items-center justify-between border-t border-gray-700 pt-2">
             {{ feedback_buttons(event.id, event.response_id, event.status, 'deleteEvent', show_delete=false) }}
             <div></div>
