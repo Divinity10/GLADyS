@@ -51,16 +51,10 @@
             <option value="timed_out">Timed Out</option>
         </select>
 
-        <!-- Source Filter (Dynamic in future, static for now as per prompt "dynamic from data" but usually implies backend generated options. I'll keep it simple input or basic select for now) -->
-        <!-- TODO: populate source filter dynamically from data -->
-        <select x-model="sourceFilter" @change="applyFilters()" 
-                class="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-            <option value="">All Sources</option>
-            <option value="sudoku">Sudoku</option>
-            <option value="melvor">Melvor</option>
-            <option value="calendar">Calendar</option>
-            <option value="minecraft">Minecraft</option>
-        </select>
+        <!-- Source Filter (prefix match) -->
+        <input type="text" x-model="sourceFilter" @input.debounce.300ms="applyFilters()" @keydown.enter="applyFilters()"
+               placeholder="Source prefix..."
+               class="w-28 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
 
         <!-- Search -->
         <div class="relative flex-1 max-w-md">

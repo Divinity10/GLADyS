@@ -120,25 +120,25 @@
         <main class="flex-1 flex flex-col overflow-hidden bg-dark">
             <!-- Tab Bar -->
             <nav class="flex border-b border-gray-700 bg-gray-900 text-xs">
-                <button @click="activeTab = 'lab'" :class="activeTab === 'lab' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Submit and monitor events">Events</button>
-                <button @click="activeTab = 'response'" :class="activeTab === 'response' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Event decision history">Response</button>
-                <button @click="activeTab = 'heuristics'" :class="activeTab === 'heuristics' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Manage heuristics">Heuristics</button>
-                <button @click="activeTab = 'learning'" :class="activeTab === 'learning' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Heuristic fire history">Learning</button>
-                <button @click="activeTab = 'llm'" :class="activeTab === 'llm' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Ollama status and testing">LLM</button>
-                <button @click="activeTab = 'logs'" :class="activeTab === 'logs' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Service log viewer">Logs</button>
+                <button @click="activeTab = 'lab'; htmx.trigger(document.body, 'refresh-lab')" :class="activeTab === 'lab' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Submit and monitor events">Events</button>
+                <button @click="activeTab = 'response'; htmx.trigger(document.body, 'refresh-response')" :class="activeTab === 'response' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Event decision history">Response</button>
+                <button @click="activeTab = 'heuristics'; htmx.trigger(document.body, 'refresh-heuristics')" :class="activeTab === 'heuristics' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Manage heuristics">Heuristics</button>
+                <button @click="activeTab = 'learning'; htmx.trigger(document.body, 'refresh-learning')" :class="activeTab === 'learning' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Heuristic fire history">Learning</button>
+                <button @click="activeTab = 'llm'; htmx.trigger(document.body, 'refresh-llm')" :class="activeTab === 'llm' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Ollama status and testing">LLM</button>
+                <button @click="activeTab = 'logs'; htmx.trigger(document.body, 'refresh-logs')" :class="activeTab === 'logs' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Service log viewer">Logs</button>
                 <div class="flex-1"></div>
-                <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Environment config and cache">Settings</button>
+                <button @click="activeTab = 'settings'; htmx.trigger(document.body, 'refresh-settings')" :class="activeTab === 'settings' ? 'nav-tab-active' : 'nav-tab'" class="px-4 py-2 outline-none" title="Environment config and cache">Settings</button>
             </nav>
 
             <!-- Tab Content -->
             <div class="flex-1 overflow-auto p-4">
-                <div x-show="activeTab === 'lab'" hx-get="/api/components/lab" hx-trigger="load" hx-swap="innerHTML" class="h-full"></div>
-                <div x-show="activeTab === 'response'" hx-get="/api/components/response" hx-trigger="load" hx-swap="innerHTML" class="h-full"></div>
-                <div x-show="activeTab === 'heuristics'" hx-get="/api/components/heuristics" hx-trigger="load" hx-swap="innerHTML" class="h-full"></div>
-                <div x-show="activeTab === 'learning'" hx-get="/api/components/learning" hx-trigger="load" hx-swap="innerHTML"></div>
-                <div x-show="activeTab === 'llm'" hx-get="/api/components/llm" hx-trigger="load" hx-swap="innerHTML"></div>
-                <div x-show="activeTab === 'logs'" hx-get="/api/components/logs" hx-trigger="load" hx-swap="innerHTML"></div>
-                <div x-show="activeTab === 'settings'" hx-get="/api/components/settings" hx-trigger="load" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'lab'" hx-get="/api/components/lab" hx-trigger="load, refresh-lab from:body" hx-swap="innerHTML" class="h-full"></div>
+                <div x-show="activeTab === 'response'" hx-get="/api/components/response" hx-trigger="load, refresh-response from:body" hx-swap="innerHTML" class="h-full"></div>
+                <div x-show="activeTab === 'heuristics'" hx-get="/api/components/heuristics" hx-trigger="load, refresh-heuristics from:body" hx-swap="innerHTML" class="h-full"></div>
+                <div x-show="activeTab === 'learning'" hx-get="/api/components/learning" hx-trigger="load, refresh-learning from:body" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'llm'" hx-get="/api/components/llm" hx-trigger="load, refresh-llm from:body" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'logs'" hx-get="/api/components/logs" hx-trigger="load, refresh-logs from:body" hx-swap="innerHTML"></div>
+                <div x-show="activeTab === 'settings'" hx-get="/api/components/settings" hx-trigger="load, refresh-settings from:body" hx-swap="innerHTML"></div>
             </div>
         </main>
     </div>

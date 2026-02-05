@@ -350,8 +350,8 @@ class MemoryStorage:
             idx += 1
 
         if source:
-            conditions.append(f"e.source = ${idx}")
-            params.append(source)
+            conditions.append(f"e.source ILIKE ${idx}")
+            params.append(f"{source}%")
             idx += 1
 
         if search:

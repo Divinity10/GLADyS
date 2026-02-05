@@ -93,7 +93,8 @@ async def list_heuristics_rows(
         if search:
             q = search.lower()
             heuristics = [h for h in heuristics if
-                q in (h["condition_text"] or "").lower()]
+                q in (h["condition_text"] or "").lower() or
+                q in (h["id"] or "").lower()]
 
         return templates.TemplateResponse(request, "components/heuristics_rows.html", {
             "heuristics": heuristics
