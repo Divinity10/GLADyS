@@ -1,5 +1,13 @@
 <div id="logs-tab" class="flex flex-col h-full gap-4"
      x-data="{
+         // CONFIG: Add new log sources here (id must match ~/.gladys/logs/{id}.log)
+         logSources: [
+             { id: 'orchestrator', name: 'Orchestrator' },
+             { id: 'memory-python', name: 'Memory (Python)' },
+             { id: 'memory-rust', name: 'Salience (Rust)' },
+             { id: 'executive-stub', name: 'Executive' },
+         ],
+
          service: 'orchestrator',
          tail: 100,
          searchQuery: '',
@@ -53,10 +61,9 @@
             <div class="flex items-center gap-2">
                 <span class="text-[10px] text-secondary uppercase font-bold">Service</span>
                 <select x-model="service" @change="refresh()" class="input-dense bg-gray-900 text-xs h-7">
-                    <option value="orchestrator">Orchestrator</option>
-                    <option value="memory-python">Memory (Python)</option>
-                    <option value="memory-rust">Salience (Rust)</option>
-                    <option value="executive-stub">Executive</option>
+                    <template x-for="src in logSources" :key="src.id">
+                        <option :value="src.id" x-text="src.name"></option>
+                    </template>
                 </select>
             </div>
 
