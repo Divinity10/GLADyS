@@ -36,7 +36,7 @@ def pytest_collection_modifyitems(config, items):
     if _DB_AVAILABLE:
         return
 
-    skip_db = pytest.mark.skip(reason="PostgreSQL not available on port 5433")
+    skip_db = pytest.mark.skip(reason="Docker PostgreSQL not available on port 5433")
     for item in items:
         # Skip tests in test_storage.py and test_grpc.py (integration tests)
         # but not test_grpc_events.py (uses mocks)
