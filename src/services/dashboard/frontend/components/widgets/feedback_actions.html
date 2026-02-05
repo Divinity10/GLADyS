@@ -1,0 +1,57 @@
+{# Feedback Actions Widget Macro
+   Provides 👍/👎 feedback buttons + Delete button for Events and Response tabs.
+#}
+
+{#
+   Feedback action buttons for events with responses.
+
+   Parameters:
+   - event_id: The event ID
+   - response_id: The response ID (needed for feedback API)
+   - status: Event status (buttons only shown if 'responded')
+   - delete_handler: JS function name for delete action (e.g., 'deleteEvent')
+   - status_id: Optional custom ID for the status span (defaults to feedback-status-{event_id})
+#}
+{% macro feedback_buttons(event_id, response_id, status, delete_handler='deleteEvent', status_id=none, show_delete=true) %}
+{% set sid = status_id or ('feedback-status-' ~ event_id) %}
+<div class="flex gap-2 items-center shrink-0">
+    {% if status == 'responded' %}
+    <button hx-post="/api/feedback"
+            hx-vals='{"event_id": "{{ event_id }}", "response_id": "{{ response_id }}", "feedback": "good"}'
+            hx-target="#{{ sid }}"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#{{ sid }}"
+            class="btn text-green-400 hover:text-green-300 text-xs px-2 py-1"
+            title="Good response">&#128077;</button>
+    <button hx-post="/api/feedback"
+            hx-vals='{"event_id": "{{ event_id }}", "response_id": "{{ response_id }}", "feedback": "bad"}'
+            hx-target="#{{ sid }}"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#{{ sid }}"
+            class="btn text-red-400 hover:text-red-300 text-xs px-2 py-1"
+            title="Bad response">&#128078;</button>
+    {% endif %}
+    {% if show_delete %}
+    <button onclick="if(confirm('Delete this event?')) {{ delete_handler }}('{{ event_id }}')"
+            class="btn text-[10px] text-gray-400 hover:text-red-300 px-2 py-1"
+            title="Delete event">Del</button>
+    {% endif %}
+    <span id="{{ sid }}" class="text-xs whitespace-nowrap"><span class="htmx-indicator text-secondary">...</span></span>
+</div>
+{% endmacro %}
+
+{#
+   Simple delete-only button (for rows that don't need feedback).
+
+   Parameters:
+   - item_id: The item ID to delete
+   - delete_handler: JS function name for delete action
+   - confirm_msg: Confirmation message
+#}
+{% macro delete_button(item_id, delete_handler, confirm_msg='Delete this item?') %}
+<button onclick="if(confirm('{{ confirm_msg }}')) {{ delete_handler }}('{{ item_id }}')"
+        class="btn text-[10px] text-gray-400 hover:text-red-300 px-2 py-1"
+        title="Delete">Del</button>
+{% endmacro %}

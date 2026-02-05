@@ -1,83 +1,98 @@
-<!-- Main Row -->
-<tr id="event-{{ event.id }}"
-    class="parent-row cursor-pointer transition-colors border-b border-gray-800 hover:bg-gray-800"
-    onclick="var d=document.getElementById('detail-{{ event.id }}'); d.style.display = d.style.display === 'none' ? '' : 'none'; this.classList.toggle('row-expanded')">
-    <td class="text-secondary text-[11px] truncate">{{ event.time_relative }} ({{ event.time_absolute }})</td>
-    <td class="truncate"><span class="px-1 bg-gray-700 rounded text-[11px]">{{ event.source }}</span></td>
-    <td class="truncate max-w-xs" title="{{ event.text }}">{{ event.text }}</td>
-    <td>
-        <span class="px-1 rounded text-[10px] uppercase font-bold
-            {% if event.status == 'responded' %}bg-green-900 text-green-300
-            {% elif event.status == 'processing' %}bg-yellow-900 text-yellow-300
-            {% elif event.status == 'queued' %}bg-blue-900 text-blue-300
-            {% else %}bg-red-900 text-red-300{% endif %}">
-            {{ event.status }}
-        </span>
-    </td>
-    <td class="text-[11px] truncate">{{ event.path or '—' }}</td>
-    <td class="truncate max-w-md text-secondary" title="{{ event.response_text }}">{{ event.response_text or '—' }}</td>
-</tr>
+{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, source_cell, text_cell, status_cell %}
+{% from 'components/widgets/feedback_actions.html' import feedback_buttons %}
 
-<!-- Detail Row (Hidden by default) -->
-<tr id="detail-{{ event.id }}" class="child-row border-b border-gray-600" style="display: none;">
-    <td colspan="6" class="p-4" onclick="event.stopPropagation()">
-        <div class="grid grid-cols-2 gap-8">
+{# Event Row - Div-based expandable row for Lab tab
+   Grid: 7 columns - Checkbox | Time | Source | Event | Status | Path | Response
+   Must match header in lab.html
+#}
+
+{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_1fr_80px_70px_160px]') }}
+
+    {{ checkbox_cell(event.id, 'window.eventsSelection') }}
+
+    <!-- Time -->
+    <div class="text-gray-400 text-xs truncate" title="{{ event.time_absolute }}">
+        {{ event.time_relative }}
+    </div>
+
+    <!-- Source -->
+    {{ source_cell(event.source) }}
+
+    <!-- Event Text -->
+    {{ text_cell(event.text) }}
+
+    <!-- Status -->
+    {{ status_cell(event.status) }}
+
+    <!-- Path -->
+    <div class="text-xs truncate text-gray-400">
+        {{ event.path or '—' }}
+    </div>
+
+    <!-- Response (truncated) -->
+    <div class="text-xs truncate text-gray-300" title="{{ event.response_text }}">
+        {{ event.response_text or '—' }}
+    </div>
+
+{{ expandable_row_drilldown_start(event.id) }}
+
+    <!-- Drilldown Content -->
+    <div class="p-3 text-sm space-y-3">
+        <!-- Full Event Text -->
+        <div class="flex items-start gap-2">
+            <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16">Event:</span>
+            <span class="text-white font-mono text-sm select-text">{{ event.text }}</span>
+        </div>
+
+        <!-- IDs (side by side, 50%/50%) -->
+        <div class="grid grid-cols-2 gap-x-4 text-[11px] select-text">
             <div>
-                <h4 class="text-xs font-bold text-secondary uppercase mb-2">Event Detail</h4>
-                <p class="mb-4 text-sm text-white select-text">{{ event.text }}</p>
-
-                <h4 class="text-xs font-bold text-secondary uppercase mb-2">IDs &amp; Routing</h4>
-                <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs select-text">
-                    <span class="text-secondary">Event ID:</span> <span class="font-mono text-[11px]">{{ event.id }}</span>
-                    {% if event.response_id %}
-                    <span class="text-secondary">Response ID:</span> <span class="font-mono text-[11px]">{{ event.response_id }}</span>
-                    {% endif %}
-                    <span class="text-secondary">Source:</span> <span>{{ event.source }}</span>
-                    <span class="text-secondary">Path:</span> <span>{{ event.path or '—' }}</span>
-                    <span class="text-secondary">Salience:</span> <span>{{ event.salience_score }}</span>
-                    <span class="text-secondary">Confidence:</span> <span>{{ event.confidence }}</span>
-                </div>
+                <span class="text-gray-400 font-bold uppercase">ID:</span>
+                <span class="font-mono text-gray-300 break-all ml-1">{{ event.id }}</span>
             </div>
             <div>
-                <h4 class="text-xs font-bold text-secondary uppercase mb-2">Response</h4>
-                <p class="mb-4 text-sm text-white select-text">{{ event.response_text or 'No response yet' }}</p>
-
-                <div class="flex gap-2 items-center">
-                    {% if event.status == 'responded' %}
-                    <button hx-post="/api/feedback"
-                            hx-vals='{"event_id": "{{ event.id }}", "response_id": "{{ event.response_id }}", "feedback": "good"}'
-                            hx-target="#feedback-status-{{ event.id }}"
-                            hx-swap="innerHTML"
-                            hx-disabled-elt="this"
-                            hx-indicator="#feedback-status-{{ event.id }}"
-                            class="btn text-green-400">👍 Good</button>
-                    <button hx-post="/api/feedback"
-                            hx-vals='{"event_id": "{{ event.id }}", "response_id": "{{ event.response_id }}", "feedback": "bad"}'
-                            hx-target="#feedback-status-{{ event.id }}"
-                            hx-swap="innerHTML"
-                            hx-disabled-elt="this"
-                            hx-indicator="#feedback-status-{{ event.id }}"
-                            class="btn text-red-400">👎 Bad</button>
-                    {% endif %}
-                    <button onclick="if(confirm('Delete this event?')) deleteEvent('{{ event.id }}')"
-                            class="btn text-[10px] text-gray-400 hover:text-red-300 ml-auto">Delete</button>
-                    <span id="feedback-status-{{ event.id }}" class="text-[10px]"><span class="htmx-indicator text-secondary">Sending...</span></span>
-                </div>
+                <span class="text-gray-400 font-bold uppercase">Response:</span>
+                <span class="font-mono text-gray-300 break-all ml-1">{{ event.response_id or '—' }}</span>
             </div>
         </div>
 
+        <!-- Metadata (2 per row) -->
+        <div class="grid grid-cols-[80px_1fr_80px_1fr] gap-x-4 gap-y-1 text-[11px] select-text">
+            <span class="text-gray-400 font-bold uppercase">Source:</span>
+            <span class="text-gray-300">{{ event.source }}</span>
+            <span class="text-gray-400 font-bold uppercase">Path:</span>
+            <span class="text-gray-300">{{ event.path or '—' }}</span>
+
+            <span class="text-gray-400 font-bold uppercase">Salience:</span>
+            <span class="text-gray-300">{{ event.salience_score }}</span>
+            <span class="text-gray-400 font-bold uppercase">Confidence:</span>
+            <span class="text-gray-300">{{ event.confidence }}</span>
+        </div>
+
+        <!-- Salience Breakdown (aligned grid) -->
         {% if event.salience_breakdown %}
-        <div class="mt-4 pt-4 border-t border-gray-700">
-            <h4 class="text-xs font-bold text-secondary uppercase mb-2">Salience Breakdown</h4>
-            <div class="flex flex-wrap gap-4 text-[10px] select-text">
+        <div class="border-t border-gray-700 pt-2">
+            <div class="text-gray-400 font-bold uppercase text-[10px] mb-1">Salience Breakdown:</div>
+            <div class="grid grid-cols-[100px_40px_100px_40px_100px_40px_100px_40px_100px_40px] gap-x-1 gap-y-1 text-[10px] select-text">
                 {% for key, val in event.salience_breakdown.items() %}
-                <div class="flex flex-col items-center">
-                    <span class="text-secondary">{{ key.replace('_', ' ') }}</span>
-                    <span class="font-bold">{{ val }}</span>
-                </div>
+                <span class="text-gray-400 truncate">{{ key.replace('_', ' ') }}:</span>
+                <span class="font-bold text-gray-300 text-right">{{ val }}</span>
                 {% endfor %}
             </div>
         </div>
         {% endif %}
-    </td>
-</tr>
+
+        <!-- Response (label on left, value box on right) -->
+        <div class="flex items-start gap-2 border-t border-gray-700 pt-2">
+            <span class="text-xs font-bold text-gray-400 uppercase shrink-0 w-16 pt-2">Response:</span>
+            <div class="flex-1 text-sm text-white select-text bg-gray-800/50 rounded p-2 min-h-[3rem]">{{ event.response_text or 'No response yet' }}</div>
+        </div>
+
+        <!-- Feedback Actions (own row at bottom, thumbs on left) -->
+        <div class="flex items-center justify-between border-t border-gray-700 pt-2">
+            {{ feedback_buttons(event.id, event.response_id, event.status, 'deleteEvent', show_delete=false) }}
+            <div></div>
+        </div>
+    </div>
+
+{{ expandable_row_end() }}

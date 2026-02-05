@@ -1,0 +1,121 @@
+{# Data Table Widget Macros
+   Provides consistent table structure across tabs (Heuristics, Response, Learning).
+   Includes: toolbar, bulk action bar, column headers with filters, rows container.
+#}
+
+{#
+   Toolbar with optional create button and refresh button.
+
+   Parameters:
+   - create_button_text: Text for create button (optional, omit to hide)
+   - create_button_click: Alpine @click handler for create button
+   - refresh_fn: Alpine function name to call on refresh (e.g., 'refresh()')
+#}
+{% macro toolbar(create_button_text=none, create_button_click=none, refresh_fn='refresh()') %}
+<div class="flex items-center justify-between p-3 border-b border-gray-700 bg-gray-900">
+    {% if create_button_text %}
+    <button type="button"
+            @click="{{ create_button_click }}"
+            class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm font-bold">
+        {{ create_button_text }}
+    </button>
+    {% else %}
+    <div></div>
+    {% endif %}
+    <button type="button" @click="{{ refresh_fn }}" class="text-gray-400 hover:text-white p-1" title="Refresh">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+    </button>
+</div>
+{% endmacro %}
+
+{#
+   Bulk action bar (shown when items selected).
+
+   Parameters:
+   - bar_id: DOM id for the bar (e.g., 'bulk-action-bar')
+   - count_id: DOM id for the count span (e.g., 'selected-count')
+   - delete_fn: JS function to call on delete (e.g., 'bulkDeleteHeuristics()')
+#}
+{% macro bulk_action_bar(bar_id='bulk-action-bar', count_id='selected-count', delete_fn='bulkDelete()') %}
+<div id="{{ bar_id }}" style="display: none"
+     class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
+    <span class="text-blue-200"><span id="{{ count_id }}">0</span> selected</span>
+    <button onclick="{{ delete_fn }}"
+            class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">
+        Delete Selected
+    </button>
+</div>
+{% endmacro %}
+
+{#
+   Column header row with integrated filters.
+
+   Parameters:
+   - grid_cols: Tailwind grid-cols class (e.g., 'grid-cols-[30px_80px_1fr_60px]')
+   - columns: List of column configs, each with:
+       - label: Column header text
+       - filter_type: 'checkbox' | 'select' | 'search' | 'none'
+       - filter_model: Alpine x-model binding (e.g., 'filterOrigin')
+       - filter_options: For select type, list of {value, label} dicts
+       - filter_placeholder: For search type
+       - on_change: Alpine handler (e.g., 'refresh()')
+       - select_all_fn: For checkbox type, JS function name
+#}
+{% macro column_headers(grid_cols, columns) %}
+<!-- Filter Row -->
+<div class="grid {{ grid_cols }} gap-4 px-4 py-2 bg-gray-800 border-b border-gray-700">
+    {% for col in columns %}
+    <div{% if col.filter_type == 'checkbox' %} class="flex items-center"{% endif %}>
+        {% if col.filter_type == 'checkbox' %}
+        <input type="checkbox" onclick="{{ col.select_all_fn or 'toggleSelectAll()' }}"
+               class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
+        {% elif col.filter_type == 'select' %}
+        <select x-model="{{ col.filter_model }}"
+                @change="{{ col.on_change or 'refresh()' }}"
+                class="w-full bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
+            {% for opt in col.filter_options %}
+            <option value="{{ opt.value }}">{{ opt.label }}</option>
+            {% endfor %}
+        </select>
+        {% elif col.filter_type == 'search' %}
+        <div class="relative overflow-hidden">
+            <input type="text" x-model="{{ col.filter_model }}"
+                   @input.debounce.300ms="{{ col.on_change or 'refresh()' }}"
+                   placeholder="{{ col.filter_placeholder or 'Search...' }}"
+                   class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-0.5 pl-7 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
+            <svg class="w-3 h-3 absolute left-2 top-1.5 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Column Labels -->
+<div class="grid {{ grid_cols }} gap-4 px-4 py-1 bg-gray-850 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-700">
+    {% for col in columns %}
+    <div>{{ col.label or '' }}</div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{#
+   Rows container with htmx loading.
+
+   Parameters:
+   - container_id: DOM id for the container (e.g., 'heuristics-list')
+   - rows_endpoint: htmx endpoint to fetch rows (e.g., '/api/heuristics/rows')
+   - loading_text: Text to show while loading
+#}
+{% macro rows_container(container_id, rows_endpoint, loading_text='Loading...') %}
+<div id="{{ container_id }}" class="flex-1 overflow-y-auto"
+     hx-get="{{ rows_endpoint }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div class="p-8 text-center text-gray-500">{{ loading_text }}</div>
+</div>
+{% endmacro %}

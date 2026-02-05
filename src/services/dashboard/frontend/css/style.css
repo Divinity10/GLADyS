@@ -295,6 +295,18 @@ body {
 .grid { display: grid; }
 .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* 50%/50% two-column layout for detail sections */
+.grid-cols-\[1fr_1fr\] { grid-template-columns: 1fr 1fr; }
+
+/* Events detail metadata grid (label-value pairs, 2 per row) */
+.grid-cols-\[80px_1fr_80px_1fr\] { grid-template-columns: 80px 1fr 80px 1fr; }
+
+/* Salience breakdown grid (5 label-value pairs aligned) */
+.grid-cols-\[100px_40px_100px_40px_100px_40px_100px_40px_100px_40px\] {
+    grid-template-columns: 100px 40px 100px 40px 100px 40px 100px 40px 100px 40px;
+}
 
 /* Heuristics tab grid (simplified: checkbox, origin, condition, active) */
 .grid-cols-\[30px_80px_1fr_50px\] {
@@ -319,6 +331,11 @@ body {
 /* Response tab grid (checkbox, timestamp, source, event, path, heuristic) */
 .grid-cols-\[30px_120px_80px_1fr_90px_100px\] {
     grid-template-columns: 30px 120px 80px 1fr 90px 100px;
+}
+
+/* Events tab grid (checkbox, time, source, event, status, path, response) */
+.grid-cols-\[30px_90px_70px_1fr_80px_70px_160px\] {
+    grid-template-columns: 30px 90px 70px 1fr 80px 70px 160px;
 }
 
 /* Response detail grid (label: value) */

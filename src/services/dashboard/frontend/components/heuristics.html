@@ -1,190 +1,34 @@
-<div id="heuristics-tab" class="h-full flex flex-col"
-     x-data="{
-         filterOrigin: '',
-         filterActive: 'all',
-         searchQuery: '',
-         showNewForm: false,
-         creating: false,
-         refresh() {
-             const params = new URLSearchParams();
-             if (this.filterOrigin) params.set('origin', this.filterOrigin);
-             if (this.filterActive !== 'all') params.set('active', this.filterActive);
-             if (this.searchQuery) params.set('search', this.searchQuery);
-             const url = '/api/heuristics/rows' + (params.toString() ? '?' + params.toString() : '');
-             htmx.ajax('GET', url, {target: '#heuristics-list'});
-         },
-         async createHeuristic(form) {
-             if (this.creating) return;
-             this.creating = true;
-             try {
-                 const formData = new FormData(form);
-                 const res = await fetch('/api/heuristics/create', {
-                     method: 'POST',
-                     body: formData
-                 });
-                 if (res.ok) {
-                     const html = await res.text();
-                     document.getElementById('heuristics-list').innerHTML = html;
-                     this.showNewForm = false;
-                     form.reset();
-                 } else {
-                     alert('Failed to create heuristic');
-                 }
-             } catch (e) {
-                 alert('Error: ' + e);
-             } finally {
-                 this.creating = false;
-             }
-         },
-         handleTabSwitch(e) {
-             if (e.detail && e.detail.tab === 'heuristics' && e.detail.filter === 'id') {
-                 this.searchQuery = e.detail.value;
-                 this.filterOrigin = '';
-                 this.filterActive = 'all';
-                 this.refresh();
-             }
-         },
-         checkPending() {
-             if (window.pendingTabFilter && window.pendingTabFilter.tab === 'heuristics') {
-                 this.handleTabSwitch({ detail: window.pendingTabFilter });
-                 window.pendingTabFilter = null;
-             }
-         }
-     }"
-     x-init="checkPending()"
-     @tab-filter-update.window="handleTabSwitch($event)">
+{% from 'components/widgets/data_table.html' import toolbar, bulk_action_bar, column_headers, rows_container %}
+<div id="heuristics-tab" class="h-full flex flex-col" x-data="{
+    filterOrigin: '', filterActive: 'all', searchQuery: '', showNewForm: false, creating: false,
+    refresh() { const p = new URLSearchParams(); if (this.filterOrigin) p.set('origin', this.filterOrigin); if (this.filterActive !== 'all') p.set('active', this.filterActive); if (this.searchQuery) p.set('search', this.searchQuery); htmx.ajax('GET', '/api/heuristics/rows' + (p.toString() ? '?' + p : ''), {target: '#heuristics-list'}); },
+    async createHeuristic(form) { if (this.creating) return; this.creating = true; try { const r = await fetch('/api/heuristics/create', {method:'POST', body: new FormData(form)}); if (r.ok) { document.getElementById('heuristics-list').innerHTML = await r.text(); this.showNewForm = false; form.reset(); } else alert('Failed'); } catch(e) { alert(e); } finally { this.creating = false; } },
+    handleTabSwitch(e) { if (e.detail?.tab === 'heuristics' && e.detail.filter === 'id') { this.searchQuery = e.detail.value; this.filterOrigin = ''; this.filterActive = 'all'; this.refresh(); } },
+    checkPending() { if (window.pendingTabFilter?.tab === 'heuristics') { this.handleTabSwitch({detail: window.pendingTabFilter}); window.pendingTabFilter = null; } }
+}" x-init="checkPending()" @tab-filter-update.window="handleTabSwitch($event)">
 
-    <!-- Top Action Bar -->
-    <div class="flex items-center justify-between p-3 border-b border-gray-700 bg-gray-900">
-        <button type="button"
-                @click="showNewForm = !showNewForm"
-                class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm font-bold">
-            + New Heuristic
-        </button>
-        <button type="button" @click="refresh()" class="text-gray-400 hover:text-white p-1" title="Refresh">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-        </button>
-    </div>
+    {{ toolbar('+ New Heuristic', 'showNewForm = !showNewForm', 'refresh()') }}
 
-    <!-- New Heuristic Form (inline, hidden by default) -->
-    <div x-show="showNewForm" x-transition class="bg-gray-800 border-b border-gray-600 p-4">
-        <form id="new-heuristic-form" class="space-y-3"
-              @submit.prevent="createHeuristic($el)">
+    {% include 'components/heuristics_form.html' %}
 
-            <div class="grid grid-cols-[100px_1fr] gap-2 items-center">
-                <label class="text-xs text-gray-400 uppercase font-bold">Condition:</label>
-                <input type="text" name="condition_text" required
-                       placeholder="When the user asks about..."
-                       class="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-            </div>
+    {{ bulk_action_bar('bulk-action-bar', 'selected-count', 'bulkDeleteHeuristics()') }}
 
-            <div class="grid grid-cols-[100px_1fr] gap-2 items-start">
-                <label class="text-xs text-gray-400 uppercase font-bold pt-2">Response:</label>
-                <textarea name="response_text" required rows="2"
-                          placeholder="Respond with..."
-                          class="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"></textarea>
-            </div>
+    {{ column_headers('grid-cols-[30px_80px_1fr_60px]', [
+        {'filter_type': 'checkbox', 'select_all_fn': 'toggleSelectAll()', 'label': ''},
+        {'filter_type': 'select', 'filter_model': 'filterOrigin', 'on_change': 'refresh()',
+         'filter_options': [{'value': '', 'label': 'All'}, {'value': 'learned', 'label': 'Learned'}, {'value': 'user', 'label': 'User'}, {'value': 'built_in', 'label': 'Built-in'}],
+         'label': 'Origin'},
+        {'filter_type': 'search', 'filter_model': 'searchQuery', 'on_change': 'refresh()', 'filter_placeholder': 'Search condition...', 'label': 'Condition'},
+        {'filter_type': 'select', 'filter_model': 'filterActive', 'on_change': 'refresh()',
+         'filter_options': [{'value': 'all', 'label': 'All'}, {'value': 'active', 'label': 'On'}, {'value': 'inactive', 'label': 'Off'}],
+         'label': 'Active'}
+    ]) }}
 
-            <div class="grid grid-cols-[100px_1fr] gap-2 items-center">
-                <label class="text-xs text-gray-400 uppercase font-bold">Confidence:</label>
-                <div class="flex items-center gap-2">
-                    <input type="number" name="confidence" value="80" min="0" max="100"
-                           class="w-20 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                    <span class="text-gray-500 text-sm">%</span>
-                </div>
-            </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-                <button type="button" @click="showNewForm = false"
-                        :disabled="creating"
-                        class="px-4 py-2 text-gray-400 hover:text-white text-sm">
-                    Cancel
-                </button>
-                <button type="submit"
-                        :disabled="creating"
-                        :class="creating ? 'bg-gray-600 cursor-wait' : 'bg-blue-600 hover:bg-blue-500'"
-                        class="text-white px-4 py-2 rounded text-sm font-bold"
-                        x-text="creating ? 'Creating...' : 'Create Heuristic'">
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Bulk Action Bar -->
-    <div id="bulk-action-bar" style="display: none"
-         class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
-        <span class="text-blue-200"><span id="selected-count">0</span> selected</span>
-        <button onclick="bulkDeleteHeuristics()"
-                class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">
-            Delete Selected
-        </button>
-    </div>
-
-    <!-- Header with Column-Aligned Filters -->
-    <div class="grid grid-cols-[30px_80px_1fr_60px] gap-4 px-4 py-2 bg-gray-800 border-b border-gray-700">
-        <!-- Checkbox column -->
-        <div class="flex items-center">
-            <input type="checkbox" onclick="toggleSelectAll()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
-        </div>
-
-        <!-- Origin filter -->
-        <div>
-            <select x-model="filterOrigin"
-                    @change="refresh()"
-                    class="w-full bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
-                <option value="">All</option>
-                <option value="learned">Learned</option>
-                <option value="user">User</option>
-                <option value="built_in">Built-in</option>
-            </select>
-        </div>
-
-        <!-- Condition search -->
-        <div class="relative overflow-hidden">
-            <input type="text" x-model="searchQuery"
-                   @input.debounce.300ms="refresh()"
-                   placeholder="Search condition..."
-                   class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-0.5 pl-7 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
-            <svg class="w-3 h-3 absolute left-2 top-1.5 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-        </div>
-
-        <!-- Active filter -->
-        <div>
-            <select x-model="filterActive"
-                    @change="refresh()"
-                    class="w-full bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
-                <option value="all">All</option>
-                <option value="active">On</option>
-                <option value="inactive">Off</option>
-            </select>
-        </div>
-    </div>
-
-    <!-- Column Labels -->
-    <div class="grid grid-cols-[30px_80px_1fr_60px] gap-4 px-4 py-1 bg-gray-850 text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-700">
-        <div></div>
-        <div>Origin</div>
-        <div>Condition</div>
-        <div>Active</div>
-    </div>
-
-    <!-- Rows (htmx loads, server renders) -->
-    <div id="heuristics-list" class="flex-1 overflow-y-auto"
-         hx-get="/api/heuristics/rows"
-         hx-trigger="load"
-         hx-swap="innerHTML">
-        <div class="p-8 text-center text-gray-500">Loading heuristics...</div>
-    </div>
+    {{ rows_container('heuristics-list', '/api/heuristics/rows', 'Loading heuristics...') }}
 </div>
 
-<!-- Helper functions (global scope for row templates) -->
 <script>
-// Selection state (global)
+// Heuristics selection state (inline, like Response tab)
 window.heuristicsSelection = {
     selected: new Set(),
     toggle(id) {
@@ -202,20 +46,25 @@ window.heuristicsSelection = {
         this.selected.clear();
         this.updateUI();
     },
+    getSelected() {
+        return [...this.selected];
+    },
     updateUI() {
         const bar = document.getElementById('bulk-action-bar');
         const count = document.getElementById('selected-count');
         if (this.selected.size > 0) {
-            bar.style.display = '';
-            count.textContent = this.selected.size;
+            if (bar) bar.style.display = '';
+            if (count) count.textContent = this.selected.size;
         } else {
-            bar.style.display = 'none';
+            if (bar) bar.style.display = 'none';
         }
     }
 };
 
 function toggleSelectAll() {
-    const checkboxes = document.querySelectorAll('#heuristics-list input[type="checkbox"]');
+    const container = document.getElementById('heuristics-list');
+    if (!container) return;
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
     const allSelected = checkboxes.length > 0 && [...checkboxes].every(cb => cb.checked);
     checkboxes.forEach(cb => {
         cb.checked = !allSelected;
@@ -230,106 +79,39 @@ function toggleSelectAll() {
 }
 
 async function bulkDeleteHeuristics() {
-    const ids = [...window.heuristicsSelection.selected];
+    const ids = window.heuristicsSelection.getSelected();
     if (!confirm(`Delete ${ids.length} heuristics?`)) return;
-
     try {
-        const res = await fetch('/api/heuristics', {
-            method: 'DELETE',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ids: ids})
-        });
-        if (res.ok) {
-            window.heuristicsSelection.clear();
-            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
-        } else {
-            const data = await res.json();
-            if (data.errors && data.errors.length > 0) {
-                alert(`Some deletions failed: ${data.errors.map(e => e.error).join(', ')}`);
-            }
-        }
-    } catch (e) {
-        alert('Delete failed: ' + e);
-    }
+        const res = await fetch('/api/heuristics', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids}) });
+        if (res.ok) { window.heuristicsSelection.clear(); htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'}); }
+        else { const data = await res.json(); if (data.errors?.length) alert(`Some deletions failed: ${data.errors.map(e => e.error).join(', ')}`); }
+    } catch (e) { alert('Delete failed: ' + e); }
 }
 
 async function deleteHeuristic(id) {
     try {
         const res = await fetch(`/api/heuristics/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
-        } else {
-            alert('Delete failed');
-        }
-    } catch (e) {
-        alert('Delete failed: ' + e);
-    }
-}
-
-async function saveHeuristic(id, conditionText) {
-    try {
-        const res = await fetch(`/api/heuristics/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ condition_text: conditionText })
-        });
-        if (!res.ok) alert('Save failed');
-    } catch (e) {
-        alert('Save failed: ' + e);
-    }
-}
-
-async function saveConfidence(id, confidence) {
-    try {
-        const res = await fetch(`/api/heuristics/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ confidence: parseFloat(confidence) })
-        });
-        if (!res.ok) alert('Save failed');
-    } catch (e) {
-        alert('Save failed: ' + e);
-    }
+        if (res.ok) htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
+        else alert('Delete failed');
+    } catch (e) { alert('Delete failed: ' + e); }
 }
 
 async function saveHeuristicFull(id, origin, conditionText, responseText, confidence) {
-    // Reconstruct effects_json from response text (use 'message' field - matches grpc_server.py)
     const effectsJson = JSON.stringify({ action: "respond", message: responseText });
     try {
         const res = await fetch(`/api/heuristics/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                origin: origin,
-                condition_text: conditionText,
-                effects_json: effectsJson,
-                confidence: parseFloat(confidence)
-            })
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ origin, condition_text: conditionText, effects_json: effectsJson, confidence: parseFloat(confidence) })
         });
-        if (!res.ok) {
-            alert('Save failed');
-            throw new Error('Save failed');
-        }
-    } catch (e) {
-        alert('Save failed: ' + e);
-        throw e;
-    }
+        if (!res.ok) { alert('Save failed'); throw new Error('Save failed'); }
+    } catch (e) { alert('Save failed: ' + e); throw e; }
 }
 
 async function toggleActive(id, currentState) {
     try {
-        const res = await fetch(`/api/heuristics/${id}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ active: !currentState })
-        });
-        if (res.ok) {
-            htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
-        } else {
-            alert('Toggle failed');
-        }
-    } catch (e) {
-        alert('Toggle failed: ' + e);
-    }
+        const res = await fetch(`/api/heuristics/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ active: !currentState }) });
+        if (res.ok) htmx.ajax('GET', '/api/heuristics/rows', {target: '#heuristics-list'});
+        else alert('Toggle failed');
+    } catch (e) { alert('Toggle failed: ' + e); }
 }
 </script>

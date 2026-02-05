@@ -1,0 +1,205 @@
+{# Expandable Row Widget Macros
+   Provides consistent expandable row behavior across tabs (Response, Events, Heuristics, Learning).
+   Uses div-based layout with Alpine.js x-collapse for smooth animations.
+#}
+
+{# Start an expandable row container #}
+{% macro expandable_row_start(row_id, grid_cols='grid-cols-[30px_120px_80px_1fr_90px_100px]', extra_data='') %}
+<div class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors group"
+     x-data="{ expanded: false{{ ', ' + extra_data if extra_data else '' }} }">
+    <!-- Parent Row -->
+    <div class="grid {{ grid_cols }} gap-4 px-4 py-3 items-center cursor-pointer text-sm parent-row"
+         :class="{'bg-gray-800': expanded}"
+         @click="expanded = !expanded">
+{% endmacro %}
+
+{# End the parent row, start the drilldown container #}
+{% macro expandable_row_drilldown_start(row_id, detail_url=none) %}
+    </div>
+    <!-- Drill-down Container -->
+    <div x-show="expanded" x-collapse
+         class="child-row border-t border-gray-800 shadow-inner"
+         {% if detail_url %}
+         hx-get="{{ detail_url }}"
+         hx-trigger="intersect once"
+         hx-target="this"
+         {% endif %}>
+{% endmacro %}
+
+{# Loading spinner for lazy-loaded drilldowns #}
+{% macro drilldown_loading() %}
+<div class="p-4 flex items-center gap-2 text-gray-500 text-xs">
+    <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+    Loading details...
+</div>
+{% endmacro %}
+
+{# End the expandable row #}
+{% macro expandable_row_end() %}
+    </div>
+</div>
+{% endmacro %}
+
+{# Info field - for displaying read-only data in drilldowns #}
+{% macro info_field(label, value, mono=false, link_dispatch=none) %}
+<div class="grid grid-cols-[80px_1fr] gap-2 items-center">
+    <span class="text-xs font-bold text-gray-500 uppercase">{{ label }}:</span>
+    {% if value %}
+        {% if link_dispatch %}
+        <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer {{ 'font-mono text-xs' if mono else 'text-sm' }}"
+              @click="{{ link_dispatch }}">{{ value }}</span>
+        {% else %}
+        <span class="{{ 'font-mono text-xs' if mono else 'text-sm' }} text-gray-200">{{ value }}</span>
+        {% endif %}
+    {% else %}
+    <span class="text-gray-500 text-xs">—</span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Info field with multiline content (for event text, responses, etc.) #}
+{% macro info_field_block(label, value, mono=false) %}
+<div class="grid grid-cols-[80px_1fr] gap-2 items-start">
+    <span class="text-xs font-bold text-gray-500 uppercase pt-1">{{ label }}:</span>
+    {% if value %}
+    <div class="{{ 'font-mono' if mono else '' }} text-gray-200 bg-gray-800 p-2 rounded border border-gray-700 whitespace-pre-wrap">{{ value }}</div>
+    {% else %}
+    <span class="text-gray-500 italic pt-1">(none)</span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Checkbox cell for selection #}
+{% macro checkbox_cell(item_id, selection_manager='window.selection') %}
+<div @click.stop>
+    <input type="checkbox"
+           value="{{ item_id }}"
+           onchange="{{ selection_manager }} && {{ selection_manager }}.toggle('{{ item_id }}')"
+           class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
+</div>
+{% endmacro %}
+
+{# Timestamp cell #}
+{% macro timestamp_cell(timestamp, relative_time) %}
+<div class="text-gray-400 text-xs" title="{{ timestamp }}">
+    {{ relative_time }}
+</div>
+{% endmacro %}
+
+{# Source badge cell #}
+{% macro source_cell(source) %}
+<div>
+    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-gray-700 text-gray-300">
+        {{ source }}
+    </span>
+</div>
+{% endmacro %}
+
+{# Truncated text cell #}
+{% macro text_cell(text, max_width='max-w-xs') %}
+<div class="text-gray-200 font-mono truncate {{ max_width }}" title="{{ text }}">
+    {{ text }}
+</div>
+{% endmacro %}
+
+{# Decision path badge #}
+{% macro decision_path_cell(decision_path) %}
+<div>
+    {% if decision_path == 'HEURISTIC' %}
+        <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-green-900/50 text-green-400 border border-green-800">Heuristic</span>
+    {% elif decision_path == 'LLM' %}
+        <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-blue-900/50 text-blue-400 border border-blue-800">LLM</span>
+    {% elif decision_path == 'HEURISTIC_FALLBACK' %}
+        <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-yellow-900/50 text-yellow-400 border border-yellow-800">Fallback</span>
+    {% else %}
+        <span class="text-gray-600 text-xs">—</span>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Status badge (for events) #}
+{% macro status_cell(status) %}
+<div>
+    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold
+        {% if status == 'responded' %}bg-green-900 text-green-300
+        {% elif status == 'processing' %}bg-yellow-900 text-yellow-300
+        {% elif status == 'queued' %}bg-blue-900 text-blue-300
+        {% else %}bg-red-900 text-red-300{% endif %}">
+        {{ status }}
+    </span>
+</div>
+{% endmacro %}
+
+{# Origin badge cell (for heuristics) #}
+{% macro origin_badge_cell(origin) %}
+<div>
+    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold
+        {% if origin == 'learned' %}bg-purple-900/50 text-purple-400 border border-purple-800
+        {% elif origin == 'user' %}bg-blue-900/50 text-blue-400 border border-blue-800
+        {% else %}bg-gray-700 text-gray-300{% endif %}">
+        {{ origin }}
+    </span>
+</div>
+{% endmacro %}
+
+{# Active toggle cell (for heuristics) #}
+{% macro active_toggle_cell(item_id, is_active, toggle_fn='toggleActive') %}
+<div class="flex justify-center" @click.stop>
+    <button onclick="{{ toggle_fn }}('{{ item_id }}', {{ 'true' if is_active else 'false' }})"
+            class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none
+                   {% if is_active %}bg-green-600{% else %}bg-gray-700{% endif %}">
+        <span class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform
+                     {% if is_active %}translate-x-5{% else %}translate-x-1{% endif %}"></span>
+    </button>
+</div>
+{% endmacro %}
+
+{# Truncated condition text cell #}
+{% macro condition_cell(text, max_chars=80) %}
+<div class="text-gray-300 font-mono text-xs truncate" title="{{ text }}">
+    {{ text[:max_chars] if text else '(empty)' }}{% if text and text|length > max_chars %}...{% endif %}
+</div>
+{% endmacro %}
+
+{# Chevron cell (rotates when expanded) #}
+{% macro chevron_cell() %}
+<div class="text-gray-500 transition-transform" :class="{'rotate-90': expanded}">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+    </svg>
+</div>
+{% endmacro %}
+
+{# Outcome badge cell (for learning fires) #}
+{% macro outcome_badge_cell(outcome) %}
+<div>
+    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold
+        {% if outcome == 'success' %}bg-green-900/50 text-green-400 border border-green-800
+        {% elif outcome == 'failure' %}bg-red-900/50 text-red-400 border border-red-800
+        {% else %}bg-yellow-900/50 text-yellow-400 border border-yellow-800{% endif %}">
+        {% if outcome == 'unknown' %}PENDING{% else %}{{ outcome }}{% endif %}
+    </span>
+</div>
+{% endmacro %}
+
+{# Confidence cell with color coding #}
+{% macro confidence_cell(confidence) %}
+<div class="text-xs">
+    <span class="{% if confidence >= 0.7 %}text-green-400{% elif confidence >= 0.4 %}text-yellow-400{% else %}text-red-400{% endif %}">
+        {{ (confidence * 100)|int }}%
+    </span>
+</div>
+{% endmacro %}
+
+{# Linked text cell (for cross-tab navigation) #}
+{% macro linked_cell(text, dispatch_event) %}
+<div class="truncate">
+    <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer text-xs"
+          @click.stop="{{ dispatch_event }}">
+        {{ text }}
+    </span>
+</div>
+{% endmacro %}

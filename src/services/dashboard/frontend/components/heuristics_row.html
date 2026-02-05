@@ -1,152 +1,68 @@
-<div class="border-b border-gray-700 hover:bg-gray-800/50 transition-colors group"
-     x-data="{
-         expanded: false,
-         origin: '{{ h.origin }}',
-         conditionText: `{{ h.condition_text|e }}`,
-         responseText: (function() {
-             try {
-                 const json = JSON.parse(`{{ h.effects_json|e }}`);
-                 // Try multiple field names: text, message, response
-                return json.text || json.message || json.response || '';
-             } catch { return ''; }
-         })(),
-         confidence: {{ h.confidence }},
-         dirty: false,
-         saving: false,
-         saved: false,
-         deleting: false
-     }">
+{% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, origin_badge_cell, condition_cell, active_toggle_cell %}
 
-    <!-- Parent Row (simplified: checkbox, origin, condition, active) -->
-    <div class="grid grid-cols-[30px_80px_1fr_60px] gap-4 px-4 py-3 items-center text-sm parent-row cursor-pointer"
-         :class="{'bg-gray-800': expanded}"
-         @click="expanded = !expanded">
+{# Heuristics Row - Uses expandable_row macros for consistent structure #}
+{% set extra_state = "conditionText: `" ~ (h.condition_text|e) ~ "`, responseText: (function() { try { const json = JSON.parse(`" ~ (h.effects_json|e) ~ "`); return json.text || json.message || json.response || ''; } catch { return ''; } })(), confidence: " ~ h.confidence ~ ", dirty: false, saving: false, saved: false, deleting: false" %}
 
-        <!-- Checkbox -->
-        <div @click.stop>
-            <input type="checkbox"
-                   value="{{ h.id }}"
-                   onchange="window.heuristicsSelection && window.heuristicsSelection.toggle('{{ h.id }}')"
-                   class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
-        </div>
+{{ expandable_row_start(h.id, 'grid-cols-[30px_80px_1fr_60px]', extra_state) }}
 
-        <!-- Origin Badge -->
-        <div>
-            <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold
-                {% if h.origin == 'learned' %}bg-purple-900/50 text-purple-400 border border-purple-800
-                {% elif h.origin == 'user' %}bg-blue-900/50 text-blue-400 border border-blue-800
-                {% else %}bg-gray-700 text-gray-300{% endif %}">
-                {{ h.origin }}
-            </span>
-        </div>
+    {{ checkbox_cell(h.id, 'window.heuristicsSelection') }}
+    {{ origin_badge_cell(h.origin) }}
+    {{ condition_cell(h.condition_text, 80) }}
+    {{ active_toggle_cell(h.id, h.active, 'toggleActive') }}
 
-        <!-- Condition (read-only, truncated) -->
-        <div class="text-gray-300 font-mono text-xs truncate" title="{{ h.condition_text }}">
-            {{ h.condition_text[:80] if h.condition_text else '(empty)' }}{% if h.condition_text and h.condition_text|length > 80 %}...{% endif %}
-        </div>
+{{ expandable_row_drilldown_start(h.id) }}
 
-        <!-- Active Toggle -->
-        <div class="flex justify-center" @click.stop>
-            <button onclick="toggleActive('{{ h.id }}', {{ 'true' if h.active else 'false' }})"
-                    class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none
-                           {% if h.active %}bg-green-600{% else %}bg-gray-700{% endif %}">
-                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform
-                             {% if h.active %}translate-x-5{% else %}translate-x-1{% endif %}"></span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Drill-down (Detail / Edit Area) -->
-    <div x-show="expanded" x-collapse class="child-row border-t border-gray-800 shadow-inner">
-
-        <!-- Info Section (read-only, darker shade) -->
-        <div class="p-3 bg-gray-900/80 border-b border-gray-700">
-            <div class="grid grid-cols-[70px_1fr] gap-1 text-xs">
-                <span class="text-gray-500 font-bold uppercase">ID:</span>
-                <span class="font-mono text-gray-400">{{ h.id }}</span>
-
-                <span class="text-gray-500 font-bold uppercase">Created:</span>
-                <span class="text-gray-400">{{ h.created_at or 'N/A' }}</span>
-
-                <span class="text-gray-500 font-bold uppercase">Updated:</span>
-                <span class="text-gray-400">{{ h.updated_at or 'N/A' }}</span>
-
-                <span class="text-gray-500 font-bold uppercase">Origin ID:</span>
-                <span class="font-mono text-gray-400">{{ h.origin_id or 'N/A' }}</span>
-
-                <span class="text-gray-500 font-bold uppercase">Fires:</span>
-                <span>
-                    <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
-                          onclick="window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'response', filter: 'matched_heuristic_id', value: '{{ h.id }}' } }))">
-                        {{ h.fire_count or 0 }}
-                    </span>
-                    <span class="text-gray-500 ml-2">({{ h.success_count or 0 }} successes)</span>
+    <!-- Info Section (read-only, 2 per row, 50%/50%) -->
+    <div class="p-3 bg-gray-900/80 border-b border-gray-700">
+        <div class="grid grid-cols-[1fr_1fr] gap-x-8 gap-y-1 text-xs">
+            <div><span class="text-gray-400 font-bold uppercase">ID:</span> <span class="font-mono text-gray-300 ml-1">{{ h.id }}</span></div>
+            <div><span class="text-gray-400 font-bold uppercase">Origin:</span> <span class="text-gray-300 ml-1">{{ h.origin }}</span></div>
+            <div><span class="text-gray-400 font-bold uppercase">Created:</span> <span class="text-gray-300 ml-1">{{ h.created_at or 'N/A' }}</span></div>
+            <div><span class="text-gray-400 font-bold uppercase">Updated:</span> <span class="text-gray-300 ml-1">{{ h.updated_at or 'N/A' }}</span></div>
+            <div><span class="text-gray-400 font-bold uppercase">Origin ID:</span> <span class="font-mono text-gray-300 ml-1">{{ h.origin_id or 'N/A' }}</span></div>
+            <div>
+                <span class="text-gray-400 font-bold uppercase">Fires:</span>
+                <span class="text-blue-400 hover:text-blue-300 hover:underline cursor-pointer ml-1"
+                      onclick="window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'response', filter: 'matched_heuristic_id', value: '{{ h.id }}' } }))">
+                    {{ h.fire_count or 0 }}
                 </span>
-            </div>
-        </div>
-
-        <!-- Editable Section (noticeably lighter) -->
-        <div class="p-3 bg-gray-600 space-y-2">
-            <!-- Origin -->
-            <div class="grid grid-cols-[70px_1fr] gap-1 items-center">
-                <label class="text-xs text-gray-300 font-bold uppercase">Origin:</label>
-                <select x-model="origin" @change="dirty = true"
-                        class="bg-gray-800 border border-gray-500 rounded px-2 py-1 text-sm text-gray-200 focus:outline-none focus:border-blue-500 w-32">
-                    <option value="learned">learned</option>
-                    <option value="user">user</option>
-                    <option value="built_in">built_in</option>
-                </select>
-            </div>
-
-            <!-- Condition -->
-            <div class="grid grid-cols-[70px_1fr] gap-1 items-center">
-                <label class="text-xs text-gray-300 font-bold uppercase">Condition:</label>
-                <input type="text" x-model="conditionText" @input="dirty = true"
-                       class="w-full bg-gray-800 border border-gray-500 rounded px-2 py-1 text-xs font-mono text-gray-200 focus:outline-none focus:border-blue-500">
-            </div>
-
-            <!-- Response (extracted from effects_json) -->
-            <div class="grid grid-cols-[70px_1fr] gap-1 items-start">
-                <label class="text-xs text-gray-300 font-bold uppercase pt-1">Response:</label>
-                <textarea x-model="responseText" @input="dirty = true"
-                          rows="2"
-                          placeholder="Enter the response text..."
-                          class="w-full bg-gray-800 border border-gray-500 rounded p-2 text-xs font-mono text-gray-200 focus:outline-none focus:border-blue-500"></textarea>
-            </div>
-
-            <!-- Confidence -->
-            <div class="grid grid-cols-[70px_1fr] gap-1 items-center">
-                <label class="text-xs text-gray-300 font-bold uppercase">Confidence:</label>
-                <div class="flex items-center gap-3">
-                    <input type="range" min="0" max="1" step="0.01" x-model="confidence" @input="dirty = true"
-                           class="flex-1 max-w-xs">
-                    <input type="number" min="0" max="100" step="1"
-                           :value="Math.round(confidence * 100)"
-                           @change="confidence = $event.target.value / 100; dirty = true"
-                           class="w-16 input-dense text-xs text-center">
-                    <span class="text-xs text-gray-400">%</span>
-                    <div class="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden max-w-[100px]">
-                        <div class="h-full bg-blue-500" :style="'width: ' + (confidence * 100) + '%'"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex justify-end items-center gap-2 pt-3 border-t border-gray-600">
-                <span x-show="dirty && !saving && !saved" class="text-yellow-400 text-xs mr-2">Unsaved</span>
-                <span x-show="saved" class="text-green-400 text-xs mr-2">Saved!</span>
-
-                <button @click="if(confirm('Delete this heuristic?')) { deleting = true; deleteHeuristic('{{ h.id }}'); }"
-                        :disabled="deleting"
-                        class="text-red-400 hover:text-red-300 text-xs font-bold px-3 py-1"
-                        x-text="deleting ? 'Deleting...' : 'Delete'"></button>
-
-                <button @click="saving = true; saved = false; saveHeuristicFull('{{ h.id }}', origin, conditionText, responseText, confidence).then(() => { dirty = false; saving = false; saved = true; setTimeout(() => saved = false, 2000); })"
-                        :disabled="!dirty || saving"
-                        :class="dirty && !saving ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'"
-                        class="px-4 py-1.5 rounded text-xs font-bold transition-colors"
-                        x-text="saving ? 'Saving...' : 'Save'"></button>
+                <span class="text-gray-500 ml-1">({{ h.success_count or 0 }} successes)</span>
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Editable Section -->
+    <div class="p-3 bg-gray-600 space-y-2">
+        <!-- Condition (full width) -->
+        <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-300 font-bold uppercase shrink-0 w-20">Condition:</label>
+            <input type="text" x-model="conditionText" @input="dirty = true"
+                   class="flex-1 bg-gray-800 border border-gray-500 rounded px-2 py-1 text-xs font-mono text-gray-200 focus:outline-none focus:border-blue-500">
+        </div>
+        <!-- Response (full width) -->
+        <div class="flex items-start gap-2">
+            <label class="text-xs text-gray-300 font-bold uppercase shrink-0 w-20 pt-1">Response:</label>
+            <textarea x-model="responseText" @input="dirty = true" rows="2" placeholder="Enter the response text..."
+                      class="flex-1 bg-gray-800 border border-gray-500 rounded p-2 text-xs font-mono text-gray-200 focus:outline-none focus:border-blue-500"></textarea>
+        </div>
+        <!-- Confidence (small input, 4 chars width) -->
+        <div class="flex items-center gap-2">
+            <label class="text-xs text-gray-300 font-bold uppercase shrink-0 w-20">Confidence:</label>
+            <input type="number" min="0" max="1" step="0.01" x-model="confidence" @input="dirty = true"
+                   class="w-14 bg-gray-800 border border-gray-500 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="flex justify-end items-center gap-2 pt-3 border-t border-gray-600">
+            <span x-show="dirty && !saving && !saved" class="text-yellow-400 text-xs mr-2">Unsaved</span>
+            <span x-show="saved" class="text-green-400 text-xs mr-2">Saved!</span>
+            <button @click="if(confirm('Delete this heuristic?')) { deleting = true; deleteHeuristic('{{ h.id }}'); }"
+                    :disabled="deleting" class="text-red-400 hover:text-red-300 text-xs font-bold px-3 py-1"
+                    x-text="deleting ? 'Deleting...' : 'Delete'"></button>
+            <button @click="saving = true; saved = false; saveHeuristicFull('{{ h.id }}', '{{ h.origin }}', conditionText, responseText, confidence).then(() => { dirty = false; saving = false; saved = true; setTimeout(() => saved = false, 2000); })"
+                    :disabled="!dirty || saving"
+                    :class="dirty && !saving ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'"
+                    class="px-4 py-1.5 rounded text-xs font-bold transition-colors"
+                    x-text="saving ? 'Saving...' : 'Save'"></button>
+        </div>
+    </div>
+
+{{ expandable_row_end() }}

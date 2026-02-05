@@ -1,3 +1,5 @@
+{% from 'components/widgets/data_table.html' import bulk_action_bar %}
+
 <div id="lab-tab" class="flex flex-col h-full gap-4">
     <!-- Event Submission Bar -->
     <div class="bg-gray-800 p-2 border border-gray-700 rounded sticky top-0 z-10">
@@ -53,79 +55,72 @@
         </div>
     </div>
 
-    <!-- Unified Event Table -->
+    {{ bulk_action_bar('events-bulk-action-bar', 'events-selected-count', 'bulkDeleteEvents()') }}
+
+    <!-- Event List (Div-based) -->
     <div class="flex-1 overflow-auto border border-gray-700 rounded bg-gray-900">
-        <table class="dense-table">
-            <thead class="sticky top-0 z-10 bg-sidebar shadow-md">
-                <tr>
-                    <th class="w-32 align-bottom pb-1">
-                        Time <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
-                    </th>
-                    <th class="w-24 align-bottom pb-1">
-                        Source <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
-                    </th>
-                    <th class="align-bottom pb-1">
-                        Event <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
-                    </th>
-                    <th class="w-24 align-bottom pb-1">
-                        Status <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
-                    </th>
-                    <th class="w-24 align-bottom pb-1">
-                        Path <div class="col-resizer" @mousedown.prevent="resizeColumn"></div>
-                    </th>
-                    <th class="align-bottom pb-1">
-                        Response
-                    </th>
-                </tr>
-                <!-- Filter Row -->
-                <tr class="bg-gray-800 border-b border-gray-700">
-                    <td class="p-1">
-                        <div class="flex flex-col gap-1">
-                            <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="After...">
-                            <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="Before...">
-                        </div>
-                    </td>
-                    <td class="p-1">
-                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter source..." data-filter-mode="contains">
-                    </td>
-                    <td class="p-1">
-                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event..." data-filter-mode="contains">
-                    </td>
-                    <td class="p-1">
-                        <select class="input-dense text-[10px] w-full" data-filter-mode="equals">
-                            <option value="">All</option>
-                            <option value="pending">Pending</option>
-                            <option value="processed">Processed</option>
-                            <option value="error">Error</option>
-                            <option value="timeout">Timeout</option>
-                        </select>
-                    </td>
-                    <td class="p-1">
-                        <select class="input-dense text-[10px] w-full" data-filter-mode="equals">
-                            <option value="">All</option>
-                            <option value="heuristic">Heuristic</option>
-                            <option value="llm">LLM</option>
-                            <option value="none">None</option>
-                        </select>
-                    </td>
-                    <td class="p-1">
-                        <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response..." data-filter-mode="contains">
-                    </td>
-                </tr>
-            </thead>
-            <tbody id="event-table-body"
-                   hx-ext="sse"
-                   sse-connect="/api/events/stream"
-                   sse-swap="message"
-                   hx-swap="afterbegin">
-                {% for event in initial_events %}
-                    {% include 'components/event_row.html' %}
-                {% endfor %}
-            </tbody>
-        </table>
+        <!-- Header -->
+        <div class="sticky top-0 z-10 bg-gray-800 shadow-md">
+            <!-- Column Headers -->
+            <div class="grid grid-cols-[30px_90px_70px_1fr_80px_70px_160px] gap-4 px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+                <div class="flex items-center">
+                    <input type="checkbox" onclick="toggleSelectAllEvents()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
+                </div>
+                <div>Time</div>
+                <div>Source</div>
+                <div>Event</div>
+                <div>Status</div>
+                <div>Path</div>
+                <div>Response</div>
+            </div>
+            <!-- Filter Row -->
+            <div class="grid grid-cols-[30px_90px_70px_1fr_80px_70px_160px] gap-4 px-4 py-1 bg-gray-850 border-b border-gray-700">
+                <div></div>
+                <div class="flex flex-col gap-1">
+                    <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="After..." data-filter-col="time-after">
+                    <input type="datetime-local" class="input-dense text-[10px] w-full" placeholder="Before..." data-filter-col="time-before">
+                </div>
+                <div>
+                    <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter..." data-filter-col="source" data-filter-mode="contains">
+                </div>
+                <div>
+                    <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event..." data-filter-col="event" data-filter-mode="contains">
+                </div>
+                <div>
+                    <select class="input-dense text-[10px] w-full" data-filter-col="status" data-filter-mode="equals">
+                        <option value="">All</option>
+                        <option value="queued">Queued</option>
+                        <option value="processing">Processing</option>
+                        <option value="responded">Responded</option>
+                    </select>
+                </div>
+                <div>
+                    <select class="input-dense text-[10px] w-full" data-filter-col="path" data-filter-mode="equals">
+                        <option value="">All</option>
+                        <option value="heuristic">Heuristic</option>
+                        <option value="llm">LLM</option>
+                        <option value="fallback">Fallback</option>
+                    </select>
+                </div>
+                <div>
+                    <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response..." data-filter-col="response" data-filter-mode="contains">
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Rows Container (SSE target) -->
+        <div id="event-table-body"
+             hx-ext="sse"
+             sse-connect="/api/events/stream"
+             sse-swap="message"
+             hx-swap="afterbegin">
+            {% for event in initial_events %}
+                {% include 'components/event_row.html' %}
+            {% endfor %}
+        </div>
     </div>
 
-    <!-- Load More / Clear -->
+    <!-- Load More -->
     <div class="flex justify-center gap-4 p-2">
         <button id="load-more-btn"
                 hx-get="/api/events/rows?offset=25&limit=25"
@@ -137,52 +132,138 @@
                     htmx.process(this);"
                 data-offset="25"
                 class="btn text-xs text-secondary">Load more&hellip;</button>
-        <button onclick="clearAllEvents()"
-                class="btn text-xs text-red-400 hover:text-red-200">Clear all</button>
     </div>
 </div>
 
 <script>
-(function() {
-    const filterRow = document.querySelector('#lab-tab thead tr.bg-gray-800');
-    if (!filterRow) return;
+// Events selection state (inline, like Response tab)
+window.eventsSelection = {
+    selected: new Set(),
+    toggle(id) {
+        if (this.selected.has(id)) {
+            this.selected.delete(id);
+        } else {
+            this.selected.add(id);
+        }
+        this.updateUI();
+    },
+    isSelected(id) {
+        return this.selected.has(id);
+    },
+    clear() {
+        this.selected.clear();
+        this.updateUI();
+    },
+    getSelected() {
+        return [...this.selected];
+    },
+    updateUI() {
+        const bar = document.getElementById('events-bulk-action-bar');
+        const count = document.getElementById('events-selected-count');
+        if (this.selected.size > 0) {
+            if (bar) bar.style.display = '';
+            if (count) count.textContent = this.selected.size;
+        } else {
+            if (bar) bar.style.display = 'none';
+        }
+    }
+};
 
-    const inputs = filterRow.querySelectorAll('input, select');
+function toggleSelectAllEvents() {
+    const container = document.getElementById('event-table-body');
+    if (!container) return;
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const allSelected = checkboxes.length > 0 && [...checkboxes].every(cb => cb.checked);
+    checkboxes.forEach(cb => {
+        cb.checked = !allSelected;
+        const id = cb.value;
+        if (!allSelected) {
+            window.eventsSelection.selected.add(id);
+        } else {
+            window.eventsSelection.selected.delete(id);
+        }
+    });
+    window.eventsSelection.updateUI();
+}
+</script>
+
+<script>
+(function() {
+    const filterContainer = document.querySelector('#lab-tab .bg-gray-850');
+    if (!filterContainer) return;
+
+    const inputs = filterContainer.querySelectorAll('input, select');
     inputs.forEach(el => el.addEventListener('input', applyEventFilters));
     inputs.forEach(el => el.addEventListener('change', applyEventFilters));
 
     function applyEventFilters() {
-        const cells = filterRow.querySelectorAll('td');
-        const filters = [];
-        cells.forEach(td => {
-            const inp = td.querySelector('input[type="text"], select');
-            const mode = inp ? (inp.dataset.filterMode || 'contains') : 'contains';
-            const val = inp ? inp.value.trim().toLowerCase() : '';
-            filters.push({ mode, val });
+        const filters = {};
+        filterContainer.querySelectorAll('[data-filter-col]').forEach(el => {
+            const col = el.dataset.filterCol;
+            const mode = el.dataset.filterMode || 'contains';
+            const val = el.value.trim().toLowerCase();
+            if (val) filters[col] = { mode, val };
         });
 
-        const tbody = document.getElementById('event-table-body');
-        if (!tbody) return;
-        const rows = tbody.querySelectorAll('tr');
+        const container = document.getElementById('event-table-body');
+        if (!container) return;
+
+        const rows = container.querySelectorAll(':scope > div');
 
         for (const row of rows) {
-            // Detail rows (id starts with "detail-") follow their parent's visibility
-            if (row.id && row.id.startsWith('detail-')) continue;
+            const grid = row.querySelector('.parent-row');
+            if (!grid) continue;
 
-            const tds = row.querySelectorAll('td');
+            const cells = grid.children;
             let visible = true;
-            for (let i = 0; i < filters.length && i < tds.length; i++) {
-                const f = filters[i];
-                if (!f.val) continue;
-                const text = (tds[i].textContent || '').trim().toLowerCase();
-                if (f.mode === 'equals' && text !== f.val) { visible = false; break; }
-                if (f.mode === 'contains' && !text.includes(f.val)) { visible = false; break; }
+
+            // Map columns by index: 0=checkbox, 1=time, 2=source, 3=event, 4=status, 5=path, 6=response
+            const colMap = { 'source': 2, 'event': 3, 'status': 4, 'path': 5, 'response': 6 };
+
+            for (const [col, filter] of Object.entries(filters)) {
+                if (col === 'time-after' || col === 'time-before') continue;
+                const idx = colMap[col];
+                if (idx === undefined || !cells[idx]) continue;
+                const text = (cells[idx].textContent || '').trim().toLowerCase();
+                if (filter.mode === 'equals' && text !== filter.val) { visible = false; break; }
+                if (filter.mode === 'contains' && !text.includes(filter.val)) { visible = false; break; }
             }
             row.style.display = visible ? '' : 'none';
-            // Hide associated detail row when parent is hidden
-            const detailRow = row.id ? document.getElementById('detail-' + row.id.replace('event-', '')) : null;
-            if (detailRow && !visible) detailRow.style.display = 'none';
         }
     }
+
+    window.deleteEvent = async function(eventId) {
+        try {
+            const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+            if (res.ok) {
+                const rows = document.querySelectorAll('#event-table-body > div');
+                for (const row of rows) {
+                    if (row.innerHTML.includes(eventId)) { row.remove(); break; }
+                }
+                window.eventsSelection?.selected.delete(eventId);
+                window.eventsSelection?.updateUI();
+            } else { alert('Delete failed'); }
+        } catch (e) { alert('Delete failed: ' + e); }
+    };
 })();
+
+async function bulkDeleteEvents() {
+    const ids = window.eventsSelection.getSelected();
+    if (!confirm(`Delete ${ids.length} events?`)) return;
+    try {
+        const res = await fetch('/api/events', { method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({event_ids: ids}) });
+        if (res.ok) {
+            window.eventsSelection.clear();
+            ids.forEach(id => {
+                const rows = document.querySelectorAll('#event-table-body > div');
+                for (const row of rows) {
+                    if (row.innerHTML.includes(id)) { row.remove(); break; }
+                }
+            });
+        } else {
+            const data = await res.json();
+            alert(`Delete failed: ${data.detail || 'Unknown error'}`);
+        }
+    } catch (e) { alert('Delete failed: ' + e); }
+}
 </script>
