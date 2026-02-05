@@ -1,5 +1,51 @@
 <div id="logs-tab" class="flex flex-col h-full gap-4"
-     x-data="logsToolbar()">
+     x-data="{
+         service: 'orchestrator',
+         tail: 100,
+         searchQuery: '',
+         matchCount: 0,
+
+         refresh() {
+             const url = `/api/logs/${this.service}/lines?tail=${this.tail}`;
+             htmx.ajax('GET', url, {target: '#logs-container'});
+             this.searchQuery = '';
+             this.matchCount = 0;
+         },
+
+         filterLines() {
+             const container = document.getElementById('logs-container');
+             const lines = container.querySelectorAll('[data-log-line]');
+             const query = this.searchQuery.toLowerCase();
+             let matches = 0;
+
+             lines.forEach(line => {
+                 const text = line.textContent.toLowerCase();
+                 const isMatch = query && text.includes(query);
+
+                 if (!query || isMatch) {
+                     line.style.display = '';
+                     if (isMatch) matches++;
+                 } else {
+                     line.style.display = 'none';
+                 }
+
+                 if (isMatch && query) {
+                     const original = line.getAttribute('data-original-text') || line.textContent;
+                     line.setAttribute('data-original-text', original);
+                     const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
+                     line.innerHTML = original.replace(regex, '<mark class=\"bg-yellow-500/40 text-yellow-200\">$1</mark>');
+                 } else if (line.getAttribute('data-original-text')) {
+                     line.textContent = line.getAttribute('data-original-text');
+                 }
+             });
+
+             this.matchCount = matches;
+         },
+
+         escapeRegex(str) {
+             return str.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+         }
+     }">
 
     <!-- Log Controls -->
     <div class="bg-gray-800 p-2 border border-gray-700 rounded flex justify-between items-center shadow-md">
@@ -53,57 +99,3 @@
     </div>
 </div>
 
-<script>
-function logsToolbar() {
-    return {
-        service: 'orchestrator',
-        tail: 100,
-        searchQuery: '',
-        matchCount: 0,
-
-        refresh() {
-            const url = `/api/logs/${this.service}/lines?tail=${this.tail}`;
-            htmx.ajax('GET', url, {target: '#logs-container'});
-            // Clear search on refresh (new content)
-            this.searchQuery = '';
-            this.matchCount = 0;
-        },
-
-        filterLines() {
-            const container = document.getElementById('logs-container');
-            const lines = container.querySelectorAll('[data-log-line]');
-            const query = this.searchQuery.toLowerCase();
-            let matches = 0;
-
-            lines.forEach(line => {
-                const text = line.textContent.toLowerCase();
-                const isMatch = query && text.includes(query);
-
-                // Show/hide based on search (show all if no query)
-                if (!query || isMatch) {
-                    line.style.display = '';
-                    if (isMatch) matches++;
-                } else {
-                    line.style.display = 'none';
-                }
-
-                // Highlight matches
-                if (isMatch && query) {
-                    const original = line.getAttribute('data-original-text') || line.textContent;
-                    line.setAttribute('data-original-text', original);
-                    const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
-                    line.innerHTML = original.replace(regex, '<mark class="bg-yellow-500/40 text-yellow-200">$1</mark>');
-                } else if (line.getAttribute('data-original-text')) {
-                    line.textContent = line.getAttribute('data-original-text');
-                }
-            });
-
-            this.matchCount = matches;
-        },
-
-        escapeRegex(str) {
-            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }
-    };
-}
-</script>
