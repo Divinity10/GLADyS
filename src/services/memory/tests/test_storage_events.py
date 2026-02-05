@@ -208,9 +208,9 @@ class TestListResponses:
         await storage.list_responses(source="melvor")
 
         query = storage._pool.fetch.call_args[0][0]
-        assert "e.source = $" in query
+        assert "e.source ILIKE $" in query
         args = storage._pool.fetch.call_args[0]
-        assert "melvor" in args
+        assert "melvor%" in args
 
     async def test_search_filter(self, storage):
         storage._pool.fetch.return_value = []
@@ -227,7 +227,7 @@ class TestListResponses:
 
         query = storage._pool.fetch.call_args[0][0]
         assert "e.decision_path = $" in query
-        assert "e.source = $" in query
+        assert "e.source ILIKE $" in query
         assert "ILIKE" in query
 
     async def test_pagination(self, storage):
