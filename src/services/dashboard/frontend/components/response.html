@@ -1,3 +1,5 @@
+{% from 'components/widgets/data_table.html' import bulk_action_bar %}
+
 <div class="h-full flex flex-col" x-data="{
     pathFilter: '',
     sourceFilter: '',
@@ -28,15 +30,7 @@
     }
 }" x-init="checkPending()" @tab-filter-update.window="handleTabSwitch">
 
-    <!-- Bulk Action Bar -->
-    <div id="response-bulk-action-bar" style="display: none"
-         class="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between text-sm">
-        <span class="text-blue-200"><span id="response-selected-count">0</span> selected</span>
-        <button onclick="bulkDeleteResponses()"
-                class="text-red-400 hover:text-red-300 font-bold px-3 py-1 rounded hover:bg-red-900/50">
-            Delete Selected
-        </button>
-    </div>
+    {{ bulk_action_bar('response-bulk-action-bar', 'response-selected-count', 'bulkDeleteResponses()') }}
 
     <!-- Header -->
     <div class="grid grid-cols-[30px_120px_80px_1fr_90px_100px] gap-4 px-4 py-2 bg-gray-800 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
