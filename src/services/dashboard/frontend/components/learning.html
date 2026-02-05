@@ -1,5 +1,30 @@
 <div id="learning-tab" class="h-full flex flex-col"
-     x-data="learningToolbar()"
+     x-data="{
+         filterOutcome: 'all',
+         searchQuery: '',
+         refresh() {
+             const params = new URLSearchParams();
+             if (this.filterOutcome !== 'all') params.set('outcome', this.filterOutcome);
+             if (this.searchQuery) params.set('search', this.searchQuery);
+             const url = '/api/fires/rows' + (params.toString() ? '?' + params : '');
+             htmx.ajax('GET', url, {target: '#fires-list'});
+         },
+         handleTabSwitch(e) {
+             if (e.detail.tab === 'learning') {
+                 if (e.detail.filter === 'heuristic_id') {
+                     this.searchQuery = e.detail.value;
+                     this.filterOutcome = 'all';
+                     this.refresh();
+                 }
+             }
+         },
+         checkPending() {
+             if (window.pendingTabFilter && window.pendingTabFilter.tab === 'learning') {
+                 this.handleTabSwitch({ detail: window.pendingTabFilter });
+                 window.pendingTabFilter = null;
+             }
+         }
+     }"
      x-init="checkPending()"
      @tab-filter-update.window="handleTabSwitch">
 
@@ -55,36 +80,3 @@
     </div>
 </div>
 
-<script>
-function learningToolbar() {
-    return {
-        filterOutcome: 'all',
-        searchQuery: '',
-
-        refresh() {
-            const params = new URLSearchParams();
-            if (this.filterOutcome !== 'all') params.set('outcome', this.filterOutcome);
-            if (this.searchQuery) params.set('search', this.searchQuery);
-            const url = '/api/fires/rows' + (params.toString() ? '?' + params.toString() : '');
-            htmx.ajax('GET', url, {target: '#fires-list'});
-        },
-
-        handleTabSwitch(e) {
-            if (e.detail.tab === 'learning') {
-                if (e.detail.filter === 'heuristic_id') {
-                    this.searchQuery = e.detail.value;
-                    this.filterOutcome = 'all';
-                    this.refresh();
-                }
-            }
-        },
-
-        checkPending() {
-            if (window.pendingTabFilter && window.pendingTabFilter.tab === 'learning') {
-                this.handleTabSwitch({ detail: window.pendingTabFilter });
-                window.pendingTabFilter = null;
-            }
-        }
-    };
-}
-</script>
