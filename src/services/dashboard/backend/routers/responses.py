@@ -223,26 +223,18 @@ class BulkDeleteRequest(BaseModel):
 
 @router.delete("/responses")
 async def bulk_delete_responses(request: Request, body: BulkDeleteRequest):
-    """Bulk delete responses by event_id.
+    """Bulk delete responses by event_id."""
+    stub = env.memory_stub()
+    if not stub:
+        return JSONResponse({"detail": "Proto stubs not available"}, status_code=500)
 
-    Note: This requires a DeleteResponses gRPC endpoint in the Memory service.
-    Currently returns a placeholder response.
-    """
-    # TODO: Implement once Memory service has DeleteResponses gRPC endpoint
-    # stub = env.memory_stub()
-    # if not stub:
-    #     return JSONResponse({"detail": "Proto stubs not available"}, status_code=500)
-    #
-    # try:
-    #     resp = await stub.DeleteResponses(memory_pb2.DeleteResponsesRequest(event_ids=body.event_ids))
-    #     if resp.error:
-    #         return JSONResponse({"detail": resp.error}, status_code=400)
-    #     return JSONResponse({"deleted": len(body.event_ids)})
-    # except grpc.RpcError as e:
-    #     return JSONResponse({"detail": f"gRPC error: {e.code().name}"}, status_code=500)
-
-    logger.warning("bulk_delete_responses called but gRPC endpoint not implemented", event_ids=body.event_ids)
-    return JSONResponse(
-        {"detail": "Delete not yet implemented - requires Memory service gRPC endpoint"},
-        status_code=501
-    )
+    try:
+        resp = await stub.DeleteResponses(memory_pb2.DeleteResponsesRequest(event_ids=body.event_ids))
+        if resp.error:
+            logger.error("DeleteResponses gRPC error", error=resp.error)
+            return JSONResponse({"detail": resp.error}, status_code=400)
+        logger.info("bulk_delete_responses success", deleted=resp.deleted_count, requested=len(body.event_ids))
+        return JSONResponse({"deleted": resp.deleted_count})
+    except grpc.RpcError as e:
+        logger.error("DeleteResponses gRPC call failed", error=str(e))
+        return JSONResponse({"detail": f"gRPC error: {e.code().name}"}, status_code=500)

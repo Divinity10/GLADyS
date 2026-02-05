@@ -113,6 +113,34 @@ class MemoryStorage:
             event.episode_id,
         )
 
+    async def delete_events(self, event_ids: list[UUID]) -> int:
+        """Delete multiple events by ID.
+
+        Args:
+            event_ids: List of event UUIDs to delete
+
+        Returns:
+            Number of events actually deleted
+        """
+        if not self._pool:
+            raise RuntimeError("Not connected to database")
+
+        if not event_ids:
+            return 0
+
+        # Delete from episodic_events table
+        # Also need to clean up related heuristic_fires records
+        result = await self._pool.execute(
+            """
+            DELETE FROM episodic_events
+            WHERE id = ANY($1::uuid[])
+            """,
+            event_ids,
+        )
+        # Result is like "DELETE 5" - extract the count
+        deleted_count = int(result.split()[-1]) if result else 0
+        return deleted_count
+
     async def query_by_time(
         self,
         start: datetime,

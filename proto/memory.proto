@@ -66,6 +66,9 @@ service MemoryStorage {
     // Get full detail for one event (drill-down)
     rpc GetResponseDetail(GetResponseDetailRequest) returns (GetResponseDetailResponse);
 
+    // Delete multiple events by ID (dashboard bulk delete)
+    rpc DeleteResponses(DeleteResponsesRequest) returns (DeleteResponsesResponse);
+
     // --- Heuristic Fire Tracking ("Flight Recorder") ---
 
     // Record that a heuristic fired
@@ -510,6 +513,17 @@ message ResponseDetail {
 
 message GetResponseDetailResponse {
     ResponseDetail detail = 1;
+    string error = 2;
+}
+
+// --- Delete Responses ---
+
+message DeleteResponsesRequest {
+    repeated string event_ids = 1;
+}
+
+message DeleteResponsesResponse {
+    int32 deleted_count = 1;
     string error = 2;
 }
 

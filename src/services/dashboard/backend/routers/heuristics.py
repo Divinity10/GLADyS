@@ -4,15 +4,20 @@ This router returns server-rendered HTML for htmx to swap into the DOM.
 The JSON API for programmatic access remains in fun_api/routers/heuristics.py.
 """
 
+import json
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 import grpc
-from fastapi import APIRouter, Request
+import structlog
+from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from backend.env import PROJECT_ROOT, env, PROTOS_AVAILABLE
+
+logger = structlog.get_logger()
 
 if PROTOS_AVAILABLE:
     from gladys_orchestrator.generated import memory_pb2
@@ -88,8 +93,6 @@ async def list_heuristics_rows(
         if search:
             q = search.lower()
             heuristics = [h for h in heuristics if
-                q in h["id"].lower() or
-                q in (h["name"] or "").lower() or
                 q in (h["condition_text"] or "").lower()]
 
         return templates.TemplateResponse(request, "components/heuristics_rows.html", {
@@ -97,4 +100,58 @@ async def list_heuristics_rows(
         })
 
     except grpc.RpcError as e:
+        return HTMLResponse(f'<div class="p-4 text-red-500">gRPC Error: {e.code().name}</div>')
+
+
+@router.post("/heuristics/create")
+async def create_heuristic(
+    request: Request,
+    condition_text: str = Form(...),
+    response_text: str = Form(...),
+    confidence: int = Form(80),  # Percentage 0-100
+):
+    """Create a new heuristic via gRPC StoreHeuristic.
+
+    Returns updated heuristics list HTML (for htmx swap).
+    """
+    stub = env.memory_stub()
+    if not stub:
+        return HTMLResponse('<div class="p-4 text-red-500">Proto stubs not available</div>')
+
+    try:
+        # Generate new UUID for the heuristic
+        heuristic_id = str(uuid.uuid4())
+
+        # Build the effects_json with 'message' field (canonical format per grpc_server.py)
+        effects_json = json.dumps({"message": response_text})
+
+        # Convert percentage to 0.0-1.0 confidence
+        confidence_float = max(0.0, min(1.0, confidence / 100.0))
+
+        # Create the heuristic proto
+        heuristic = memory_pb2.Heuristic(
+            id=heuristic_id,
+            name=f"user-{heuristic_id[:8]}",  # Auto-generated name
+            condition_text=condition_text,
+            effects_json=effects_json,
+            confidence=confidence_float,
+            origin="user",
+        )
+
+        resp = await stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
+            heuristic=heuristic,
+            generate_embedding=True,
+        ))
+
+        if not resp.success:
+            logger.error("create_heuristic failed", error=resp.error)
+            return HTMLResponse(f'<div class="p-4 text-red-500">Error: {resp.error}</div>')
+
+        logger.info("create_heuristic success", heuristic_id=heuristic_id)
+
+        # Return refreshed heuristics list
+        return await list_heuristics_rows(request)
+
+    except grpc.RpcError as e:
+        logger.error("create_heuristic gRPC error", error=str(e))
         return HTMLResponse(f'<div class="p-4 text-red-500">gRPC Error: {e.code().name}</div>')

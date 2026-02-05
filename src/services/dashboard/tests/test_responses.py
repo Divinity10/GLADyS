@@ -98,7 +98,7 @@ async def test_bulk_delete_responses_success():
     mock_resp.deleted_count = 3
 
     mock_stub = MagicMock()
-    mock_stub.DeleteEpisodicEvents = AsyncMock(return_value=mock_resp)
+    mock_stub.DeleteResponses = AsyncMock(return_value=mock_resp)
 
     with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
          patch("backend.routers.responses.memory_pb2", MagicMock(), create=True):
@@ -119,10 +119,13 @@ async def test_bulk_delete_responses_success():
 @pytest.mark.anyio
 async def test_bulk_delete_responses_grpc_error():
     """Test bulk delete returns error on gRPC failure."""
+    # Create a mock RpcError that has code() method
+    class MockRpcError(grpc.RpcError):
+        def code(self):
+            return grpc.StatusCode.INTERNAL
+
     mock_stub = MagicMock()
-    mock_stub.DeleteEpisodicEvents = AsyncMock(
-        side_effect=grpc.RpcError()
-    )
+    mock_stub.DeleteResponses = AsyncMock(side_effect=MockRpcError())
 
     with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
          patch("backend.routers.responses.memory_pb2", MagicMock(), create=True):

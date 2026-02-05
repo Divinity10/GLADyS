@@ -948,6 +948,27 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             logger.error("GetResponseDetail failed", error=str(e))
             await context.abort(grpc.StatusCode.INTERNAL, str(e))
 
+    async def DeleteResponses(self, request, context):
+        """Delete multiple events by ID (dashboard bulk delete)."""
+        self._setup_trace(context)
+        try:
+            if not request.event_ids:
+                return memory_pb2.DeleteResponsesResponse(deleted_count=0)
+
+            # Convert string IDs to UUIDs
+            event_uuids = [UUID(eid) for eid in request.event_ids]
+
+            deleted_count = await self.storage.delete_events(event_uuids)
+            logger.info("DeleteResponses success", count=deleted_count, requested=len(event_uuids))
+
+            return memory_pb2.DeleteResponsesResponse(deleted_count=deleted_count)
+        except ValueError as e:
+            logger.error("DeleteResponses invalid UUID", error=str(e))
+            return memory_pb2.DeleteResponsesResponse(deleted_count=0, error=f"Invalid event ID: {e}")
+        except Exception as e:
+            logger.error("DeleteResponses failed", error=str(e))
+            await context.abort(grpc.StatusCode.INTERNAL, str(e))
+
     # =========================================================================
     # Heuristic Fire Tracking ("Flight Recorder")
     # =========================================================================

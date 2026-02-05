@@ -127,6 +127,11 @@ class MemoryStorageStub(object):
                 request_serializer=memory__pb2.GetResponseDetailRequest.SerializeToString,
                 response_deserializer=memory__pb2.GetResponseDetailResponse.FromString,
                 _registered_method=True)
+        self.DeleteResponses = channel.unary_unary(
+                '/gladys.memory.MemoryStorage/DeleteResponses',
+                request_serializer=memory__pb2.DeleteResponsesRequest.SerializeToString,
+                response_deserializer=memory__pb2.DeleteResponsesResponse.FromString,
+                _registered_method=True)
         self.RecordHeuristicFire = channel.unary_unary(
                 '/gladys.memory.MemoryStorage/RecordHeuristicFire',
                 request_serializer=memory__pb2.RecordHeuristicFireRequest.SerializeToString,
@@ -295,6 +300,13 @@ class MemoryStorageServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def DeleteResponses(self, request, context):
+        """Delete multiple events by ID (dashboard bulk delete)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def RecordHeuristicFire(self, request, context):
         """--- Heuristic Fire Tracking ("Flight Recorder") ---
 
@@ -430,6 +442,11 @@ def add_MemoryStorageServicer_to_server(servicer, server):
                     servicer.GetResponseDetail,
                     request_deserializer=memory__pb2.GetResponseDetailRequest.FromString,
                     response_serializer=memory__pb2.GetResponseDetailResponse.SerializeToString,
+            ),
+            'DeleteResponses': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteResponses,
+                    request_deserializer=memory__pb2.DeleteResponsesRequest.FromString,
+                    response_serializer=memory__pb2.DeleteResponsesResponse.SerializeToString,
             ),
             'RecordHeuristicFire': grpc.unary_unary_rpc_method_handler(
                     servicer.RecordHeuristicFire,
@@ -950,6 +967,33 @@ class MemoryStorage(object):
             '/gladys.memory.MemoryStorage/GetResponseDetail',
             memory__pb2.GetResponseDetailRequest.SerializeToString,
             memory__pb2.GetResponseDetailResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteResponses(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.memory.MemoryStorage/DeleteResponses',
+            memory__pb2.DeleteResponsesRequest.SerializeToString,
+            memory__pb2.DeleteResponsesResponse.FromString,
             options,
             channel_credentials,
             insecure,

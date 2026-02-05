@@ -290,3 +290,200 @@ async def test_action_buttons_have_correct_ids(mock_heuristics):
             assert h["id"]
             # ID should be a string (used in JS function calls)
             assert isinstance(h["id"], str)
+
+
+@pytest.mark.anyio
+async def test_heuristics_rows_filters_by_active(mock_heuristics):
+    """Server-side filtering by active status works.
+
+    Note: The 'active' field is derived from the proto. Since our mock
+    doesn't set it, all heuristics default to active=True.
+    """
+    mock_stub = _make_mock_stub(mock_heuristics)
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.heuristics.memory_pb2", MagicMock(), create=True):
+        from backend.routers.heuristics import list_heuristics_rows
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        # Filter for active heuristics (default, all should be active)
+        response = await list_heuristics_rows(mock_request, active="active")
+        heuristics = response.context["heuristics"]
+        assert len(heuristics) == 3  # All default to active
+
+        # Filter for inactive (none in mock data)
+        response = await list_heuristics_rows(mock_request, active="inactive")
+        heuristics = response.context["heuristics"]
+        assert len(heuristics) == 0
+
+
+# --- Create Heuristic Tests ---
+
+@pytest.mark.anyio
+async def test_create_heuristic_success():
+    """Create heuristic returns refreshed list on success."""
+    # Mock successful StoreHeuristic response
+    mock_store_resp = MagicMock()
+    mock_store_resp.success = True
+    mock_store_resp.error = ""
+
+    # Mock QueryHeuristics for the refresh after create
+    mock_query_resp = MagicMock()
+    mock_query_resp.matches = []  # Empty list is fine for this test
+
+    mock_stub = MagicMock()
+    mock_stub.StoreHeuristic = AsyncMock(return_value=mock_store_resp)
+    mock_stub.QueryHeuristics = AsyncMock(return_value=mock_query_resp)
+
+    # Need to mock memory_pb2.Heuristic and memory_pb2.StoreHeuristicRequest
+    mock_pb2 = MagicMock()
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.heuristics.memory_pb2", mock_pb2, create=True):
+        from backend.routers.heuristics import create_heuristic
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        response = await create_heuristic(
+            mock_request,
+            condition_text="when user greets",
+            response_text="say hello back",
+            confidence=85
+        )
+
+        # Should call StoreHeuristic
+        mock_stub.StoreHeuristic.assert_called_once()
+
+        # Should return template response (refreshed list)
+        assert hasattr(response, "template")
+        assert response.template.name == "components/heuristics_rows.html"
+
+
+@pytest.mark.anyio
+async def test_create_heuristic_grpc_error():
+    """Create heuristic returns error HTML on gRPC failure."""
+    import grpc
+
+    class MockRpcError(grpc.RpcError):
+        def code(self):
+            return grpc.StatusCode.INTERNAL
+
+    mock_stub = MagicMock()
+    mock_stub.StoreHeuristic = AsyncMock(side_effect=MockRpcError())
+
+    mock_pb2 = MagicMock()
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.heuristics.memory_pb2", mock_pb2, create=True):
+        from backend.routers.heuristics import create_heuristic
+        from fastapi import Request
+        from fastapi.responses import HTMLResponse
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        response = await create_heuristic(
+            mock_request,
+            condition_text="test",
+            response_text="test",
+            confidence=80
+        )
+
+        assert isinstance(response, HTMLResponse)
+        assert "error" in response.body.decode().lower()
+
+
+@pytest.mark.anyio
+async def test_create_heuristic_no_stub():
+    """Create heuristic returns error when stub unavailable."""
+    with patch.object(env_module.env, "memory_stub", return_value=None):
+        from backend.routers.heuristics import create_heuristic
+        from fastapi import Request
+        from fastapi.responses import HTMLResponse
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        response = await create_heuristic(
+            mock_request,
+            condition_text="test",
+            response_text="test",
+            confidence=80
+        )
+
+        assert isinstance(response, HTMLResponse)
+        assert "not available" in response.body.decode().lower()
+
+
+@pytest.mark.anyio
+async def test_create_heuristic_store_failure():
+    """Create heuristic handles StoreHeuristic returning success=False."""
+    # Mock failed StoreHeuristic response
+    mock_store_resp = MagicMock()
+    mock_store_resp.success = False
+    mock_store_resp.error = "Duplicate heuristic"
+
+    mock_stub = MagicMock()
+    mock_stub.StoreHeuristic = AsyncMock(return_value=mock_store_resp)
+
+    mock_pb2 = MagicMock()
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.heuristics.memory_pb2", mock_pb2, create=True):
+        from backend.routers.heuristics import create_heuristic
+        from fastapi import Request
+        from fastapi.responses import HTMLResponse
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        response = await create_heuristic(
+            mock_request,
+            condition_text="test",
+            response_text="test",
+            confidence=80
+        )
+
+        assert isinstance(response, HTMLResponse)
+        assert "duplicate" in response.body.decode().lower()
+
+
+@pytest.mark.anyio
+async def test_create_heuristic_confidence_clamping():
+    """Create heuristic clamps confidence to 0.0-1.0 range."""
+    mock_store_resp = MagicMock()
+    mock_store_resp.success = True
+    mock_store_resp.error = ""
+
+    mock_query_resp = MagicMock()
+    mock_query_resp.matches = []
+
+    mock_stub = MagicMock()
+    mock_stub.StoreHeuristic = AsyncMock(return_value=mock_store_resp)
+    mock_stub.QueryHeuristics = AsyncMock(return_value=mock_query_resp)
+
+    mock_pb2 = MagicMock()
+
+    with patch.object(env_module.env, "memory_stub", return_value=mock_stub), \
+         patch("backend.routers.heuristics.memory_pb2", mock_pb2, create=True):
+        from backend.routers.heuristics import create_heuristic
+        from fastapi import Request
+
+        mock_request = MagicMock(spec=Request)
+        mock_request.headers = {}
+
+        # Test with over 100%
+        await create_heuristic(mock_request, "test", "test", confidence=150)
+        call_args = mock_pb2.Heuristic.call_args
+        # Confidence should be clamped to 1.0
+        assert call_args.kwargs.get("confidence", 1.0) <= 1.0
+
+        # Test with negative
+        await create_heuristic(mock_request, "test", "test", confidence=-10)
+        call_args = mock_pb2.Heuristic.call_args
+        assert call_args.kwargs.get("confidence", 0.0) >= 0.0
