@@ -1,4 +1,14 @@
 <div class="p-4 text-sm space-y-3">
+    <!-- Response ID -->
+    <div class="grid grid-cols-[80px_1fr] gap-2 items-center">
+        <span class="text-xs font-bold text-gray-500 uppercase">ID:</span>
+        {% if detail.response_id %}
+        <span class="font-mono text-xs text-gray-200">{{ detail.response_id }}</span>
+        {% else %}
+        <span class="text-gray-500 text-xs">—</span>
+        {% endif %}
+    </div>
+
     <!-- Event ID (clickable link to Events tab) -->
     <div class="grid grid-cols-[80px_1fr] gap-2 items-center">
         <span class="text-xs font-bold text-gray-500 uppercase">Event ID:</span>

@@ -380,7 +380,7 @@ class MemoryStorage:
             """
             SELECT DISTINCT ON (e.id)
                    e.id, e.timestamp, e.source, e.raw_text,
-                   e.decision_path, e.llm_prompt_text, e.response_text,
+                   e.decision_path, e.llm_prompt_text, e.response_text, e.response_id,
                    COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
                    h.condition->>'text' AS matched_heuristic_condition,
                    h.confidence AS matched_heuristic_confidence,

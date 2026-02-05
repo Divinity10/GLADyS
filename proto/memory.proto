@@ -509,6 +509,7 @@ message ResponseDetail {
     string fire_id = 11;              // empty if no fire
     string feedback_source = 12;
     string outcome = 13;
+    string response_id = 14;          // Links to executive response/reasoning trace
 }
 
 message GetResponseDetailResponse {

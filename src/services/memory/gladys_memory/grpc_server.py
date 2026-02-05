@@ -941,6 +941,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 fire_id=str(row["fire_id"]) if row.get("fire_id") else "",
                 feedback_source=row.get("feedback_source") or "",
                 outcome=row.get("outcome") or "",
+                response_id=row.get("response_id") or "",
             )
 
             return memory_pb2.GetResponseDetailResponse(detail=detail)

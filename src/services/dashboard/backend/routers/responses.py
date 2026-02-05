@@ -57,6 +57,7 @@ def _proto_detail_to_dict(d) -> dict:
     
     return {
         "event_id": d.event_id,
+        "response_id": d.response_id,
         "timestamp": ts,
         "time_relative": format_relative_time(ts),
         "source": d.source,
