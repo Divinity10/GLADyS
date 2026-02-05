@@ -21,37 +21,7 @@
          },
 
          filterLines() {
-             const container = document.getElementById('logs-container');
-             const lines = container.querySelectorAll('[data-log-line]');
-             const query = this.searchQuery.toLowerCase();
-             let matches = 0;
-
-             lines.forEach(line => {
-                 const text = line.textContent.toLowerCase();
-                 const isMatch = query && text.includes(query);
-
-                 if (!query || isMatch) {
-                     line.style.display = '';
-                     if (isMatch) matches++;
-                 } else {
-                     line.style.display = 'none';
-                 }
-
-                 if (isMatch && query) {
-                     const original = line.getAttribute('data-original-text') || line.textContent;
-                     line.setAttribute('data-original-text', original);
-                     const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
-                     line.innerHTML = original.replace(regex, '<mark class=\"bg-yellow-500/40 text-yellow-200\">$1</mark>');
-                 } else if (line.getAttribute('data-original-text')) {
-                     line.textContent = line.getAttribute('data-original-text');
-                 }
-             });
-
-             this.matchCount = matches;
-         },
-
-         escapeRegex(str) {
-             return str.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+             this.matchCount = window.filterLogLines(this.searchQuery);
          }
      }">
 
@@ -106,3 +76,39 @@
     </div>
 </div>
 
+<script>
+// Complex filtering logic with regex - kept in script to avoid escaping issues in x-data
+window.filterLogLines = function(searchQuery) {
+    const container = document.getElementById('logs-container');
+    const lines = container.querySelectorAll('[data-log-line]');
+    const query = searchQuery.toLowerCase();
+    let matches = 0;
+
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    lines.forEach(line => {
+        const text = line.textContent.toLowerCase();
+        const isMatch = query && text.includes(query);
+
+        if (!query || isMatch) {
+            line.style.display = '';
+            if (isMatch) matches++;
+        } else {
+            line.style.display = 'none';
+        }
+
+        if (isMatch && query) {
+            const original = line.getAttribute('data-original-text') || line.textContent;
+            line.setAttribute('data-original-text', original);
+            const regex = new RegExp('(' + escapeRegex(searchQuery) + ')', 'gi');
+            line.innerHTML = original.replace(regex, '<mark class="bg-yellow-500/40 text-yellow-200">$1</mark>');
+        } else if (line.getAttribute('data-original-text')) {
+            line.textContent = line.getAttribute('data-original-text');
+        }
+    });
+
+    return matches;
+};
+</script>
