@@ -66,6 +66,9 @@ nul
 *_logs.txt
 logs/
 
+# Sensor data (local runtime data, not committed)
+data/
+
 # OS files
 .DS_Store
 Thumbs.db
