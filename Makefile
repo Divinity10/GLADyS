@@ -59,6 +59,7 @@ proto:
 test:
 	cd src/services/memory && uv run pytest tests/ -v
 	cd src/services/orchestrator && uv run pytest tests/ -v
+	cd src/services/executive && uv run pytest tests/ -v
 	cd src/services/dashboard && uv run pytest tests/ -v
 	cd tests/unit && uv run pytest -v
 

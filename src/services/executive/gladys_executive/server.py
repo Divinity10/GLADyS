@@ -13,7 +13,7 @@ from concurrent import futures
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import sys
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import aiohttp
 
@@ -49,19 +49,57 @@ except ImportError:
 logger = get_logger(__name__)
 
 
-class OllamaClient:
-    """Simple async client for Ollama's HTTP API."""
+@dataclass
+class LLMRequest:
+    """Request to an LLM provider."""
+    prompt: str
+    system_prompt: str | None = None
+    format: str | None = None  # "json" for structured output
+    max_tokens: int | None = None
+    temperature: float | None = None
+
+
+@dataclass
+class LLMResponse:
+    """Response from an LLM provider."""
+    text: str
+    model: str
+    tokens_used: int | None = None
+    latency_ms: float | None = None
+    raw_response: dict[str, Any] | None = None
+
+
+@runtime_checkable
+class LLMProvider(Protocol):
+    """Interface for LLM text generation."""
+
+    async def generate(self, request: LLMRequest) -> LLMResponse | None:
+        """Generate a response. Returns None if unavailable."""
+        ...
+
+    async def check_available(self) -> bool:
+        """Check if the provider is reachable."""
+        ...
+
+    @property
+    def model_name(self) -> str:
+        """Return model identifier for logging."""
+        ...
+
+
+class OllamaProvider:
+    """LLM provider wrapping Ollama's HTTP API."""
 
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "gemma:2b"):
-        self.base_url = base_url.rstrip("/")
-        self.model = model
+        self._base_url = base_url.rstrip("/")
+        self._model = model
         self._available: bool | None = None
 
     async def check_available(self) -> bool:
         """Check if Ollama server is reachable."""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                async with session.get(f"{self._base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                     self._available = resp.status == 200
                     return self._available
         except Exception as e:
@@ -69,32 +107,54 @@ class OllamaClient:
             self._available = False
             return False
 
-    async def generate(self, prompt: str, system: str | None = None, format: str | None = None) -> str | None:
-        """Generate a response from the LLM."""
+    async def generate(
+        self,
+        request: LLMRequest | str,
+        system: str | None = None,
+        format: str | None = None,
+    ) -> LLMResponse | str | None:
+        """Generate a response. Supports both Protocol and legacy signatures."""
+        if isinstance(request, str):
+            # Legacy call: await generate(prompt, system=..., format=...)
+            llm_request = LLMRequest(prompt=request, system_prompt=system, format=format)
+            response = await self._generate_impl(llm_request)
+            return response.text if response else None
+
+        # Protocol call: await generate(LLMRequest(...))
+        return await self._generate_impl(request)
+
+    async def _generate_impl(self, request: LLMRequest) -> LLMResponse | None:
+        """Internal implementation of generation."""
         if self._available is False:
             return None
 
         payload = {
-            "model": self.model,
-            "prompt": prompt,
+            "model": self._model,
+            "prompt": request.prompt,
             "stream": False,
             "keep_alive": "30m",
         }
-        if system:
-            payload["system"] = system
-        if format:
-            payload["format"] = format
+        if request.system_prompt:
+            payload["system"] = request.system_prompt
+        if request.format:
+            payload["format"] = request.format
 
         try:
+            start = time.time()
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{self.base_url}/api/generate",
+                    f"{self._base_url}/api/generate",
                     json=payload,
                     timeout=aiohttp.ClientTimeout(total=60),
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("response", "")
+                        return LLMResponse(
+                            text=data.get("response", ""),
+                            model=self._model,
+                            latency_ms=(time.time() - start) * 1000,
+                            raw_response=data,
+                        )
                     else:
                         logger.warning("Ollama returned error status", status=resp.status)
                         return None
@@ -104,6 +164,21 @@ class OllamaClient:
         except Exception as e:
             logger.warning("Ollama request failed", error=str(e))
             return None
+
+    @property
+    def model_name(self) -> str:
+        """Return model identifier for logging."""
+        return f"ollama/{self._model}"
+
+
+def create_llm_provider(provider_type: str, **kwargs) -> LLMProvider | None:
+    """Factory function for LLM providers."""
+    if provider_type == "ollama":
+        return OllamaProvider(
+            base_url=kwargs.get("url", os.environ.get("OLLAMA_URL", "http://localhost:11434")),
+            model=kwargs.get("model", os.environ.get("OLLAMA_MODEL", "gemma:2b")),
+        )
+    return None
 
 
 class MemoryClient:
@@ -366,14 +441,14 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 
     def __init__(
         self,
-        ollama_client: OllamaClient | None = None,
+        llm_provider: LLMProvider | None = None,
         memory_client: MemoryClient | None = None,
         heuristic_store: HeuristicStore | None = None,
     ):
         self.events_received = 0
         self.moments_received = 0
         self.heuristics_created = 0
-        self.ollama = ollama_client
+        self.ollama = llm_provider  # Keep attribute name for backward compatibility
         self.memory_client = memory_client
         self.heuristic_store = heuristic_store or HeuristicStore()
         self.reasoning_traces: dict[str, ReasoningTrace] = {}
@@ -764,14 +839,19 @@ async def serve(
     """Start the Executive stub server."""
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=4))
 
-    ollama_client = None
+    llm_provider = None
     if ollama_url:
-        ollama_client = OllamaClient(base_url=ollama_url, model=ollama_model)
-        if await ollama_client.check_available():
-            logger.info("Connected to Ollama", url=ollama_url, model=ollama_model)
-        else:
-            logger.warning("Ollama not available", url=ollama_url)
-            ollama_client = None
+        provider_type = os.environ.get("EXECUTIVE_LLM_PROVIDER", "ollama")
+        llm_provider = create_llm_provider(
+            provider_type,
+            url=ollama_url,
+            model=ollama_model
+        )
+        if llm_provider and await llm_provider.check_available():
+            logger.info("Connected to LLM provider", provider=provider_type, model=ollama_model)
+        elif llm_provider:
+            logger.warning("LLM provider not available", provider=provider_type)
+            llm_provider = None
 
     memory_client = None
     if memory_address:
@@ -784,7 +864,7 @@ async def serve(
     heuristic_store = HeuristicStore(heuristic_store_path)
 
     servicer = ExecutiveServicer(
-        ollama_client=ollama_client,
+        llm_provider=llm_provider,
         memory_client=memory_client,
         heuristic_store=heuristic_store,
     )
