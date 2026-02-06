@@ -14,7 +14,7 @@
 #}
 {% macro feedback_buttons(event_id, response_id, status, delete_handler='deleteEvent', status_id=none, show_delete=true) %}
 {% set sid = status_id or ('feedback-status-' ~ event_id) %}
-<div class="flex gap-2 items-center shrink-0">
+<div class="flex gap-2 items-center flex-1">
     {% if status == 'responded' %}
     <button hx-post="/api/feedback"
             hx-vals='{"event_id": "{{ event_id }}", "response_id": "{{ response_id }}", "feedback": "good"}'
@@ -38,7 +38,7 @@
             class="btn text-[10px] text-gray-400 hover:text-red-300 px-2 py-1"
             title="Delete event">Del</button>
     {% endif %}
-    <span id="{{ sid }}" class="text-xs whitespace-nowrap"><span class="htmx-indicator text-secondary">...</span></span>
+    <span id="{{ sid }}" class="text-xs flex-1 pr-2"><span class="htmx-indicator text-secondary">...</span></span>
 </div>
 {% endmacro %}
 

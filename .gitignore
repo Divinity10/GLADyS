@@ -37,9 +37,8 @@ config/local.yaml
 .claude/hooks/archive_prefix.py
 .claude/hooks/__pycache__/
 
-# Personal working memory (per-user, not shared)
-claude_memory.md
-gemini_memory.md
+# Shared working memory (session state, not committed)
+working_memory.md
 **/memory-*.md
 
 # Reviews and transient reports

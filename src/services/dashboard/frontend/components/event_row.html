@@ -52,8 +52,8 @@
         <!-- Salience Breakdown (unique to events, keep inline) -->
         {% if event.salience_breakdown %}
         <div class="border-t border-gray-700 pt-2">
-            <div class="text-gray-400 font-bold uppercase text-[10px] mb-1">Salience Breakdown:</div>
-            <div class="grid grid-cols-[100px_40px_100px_40px_100px_40px_100px_40px_100px_40px] gap-x-1 gap-y-1 text-[10px] select-text">
+            <div class="text-gray-400 font-bold uppercase text-xs mb-1">Salience Breakdown:</div>
+            <div class="grid grid-cols-[100px_40px_100px_40px_100px_40px_100px_40px_100px_40px] gap-x-1 gap-y-1 text-xs select-text">
                 {% for key, val in event.salience_breakdown.items() %}
                 <span class="text-gray-400 truncate">{{ key.replace('_', ' ') }}:</span>
                 <span class="font-bold text-gray-300 text-right">{{ val }}</span>
