@@ -11,9 +11,12 @@ dependencies = [
     "python-dotenv>=1.0.0",
     # Shared logging
     "gladys-common",
-    # Testing
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
 ]
 
 [tool.uv.sources]
@@ -25,3 +28,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["gladys_executive"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from aiohttp import ClientResponseError, ClientConnectorError
 
-from gladys_executive.server import OllamaProvider, LLMRequest, LLMResponse
+from gladys_executive.server import OllamaProvider, LLMRequest, LLMResponse, create_llm_provider
 
 @pytest.mark.asyncio
 async def test_ollama_provider_check_available_success():
@@ -112,3 +112,12 @@ async def test_ollama_provider_generate_error_status():
 async def test_ollama_provider_model_name():
     provider = OllamaProvider(model="gemma:2b")
     assert provider.model_name == "ollama/gemma:2b"
+
+def test_create_llm_provider_ollama():
+    provider = create_llm_provider("ollama")
+    assert isinstance(provider, OllamaProvider)
+    assert provider._model == "gemma:2b"  # Default model
+
+def test_create_llm_provider_unknown():
+    provider = create_llm_provider("unknown")
+    assert provider is None
