@@ -18,7 +18,7 @@
 | A term definition | [GLOSSARY.md](design/GLOSSARY.md) |
 | Service topology, ports, data ownership | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
 | Setup/run instructions, dev environment | [GETTING_STARTED.md](GETTING_STARTED.md) |
-| Known shortcuts to fix post-PoC | [TECH_DEBT.md](TECH_DEBT.md) |
+| Known shortcuts to fix post-PoC | [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt) |
 
 If none of these fit, create a new doc — and add it to this table and the index below.
 
@@ -43,6 +43,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Truth** | [ADR-0013](adr/ADR-0013-Salience-Subsystem.md) | Salience vector definitions, Attention budget. |
 | **Truth** | [ADR-0001](adr/ADR-0001-GLADyS-Architecture.md) | High-level "Fast Path" (Rust) architecture. |
 | **Design** | [DESIGN.md#salience-subsystem](design/DESIGN.md#salience-subsystem) | **Current Implementation**: Rust Gateway, Heuristic matching. |
+| **Design** | [SALIENCE_MODEL.md](design/SALIENCE_MODEL.md) | **Salience Model Interface**: SalienceResult data object, threat/habituation separation, configurable weights. |
 | **Impl** | `src/services/salience/src/server.rs` | **SalienceGateway** implementation (Code). |
 | **Proto** | `proto/memory.proto` | Salience vector wire format. |
 
@@ -66,6 +67,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Interfaces** | [INTERFACES.md](design/INTERFACES.md) | **Plugin contracts**: BasePlugin, Sensor/Actuator/Skill interfaces, OutcomeEvaluation, pack manifest, directory structure. |
 | **Roadmap** | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) | **PoC phases**: what each phase proves, success criteria, abort signals, deferred items. |
 | **State** | [DESIGN.md](design/DESIGN.md) | **Current implementation**: per-subsystem status, PoC deviations, open questions. |
+| **Overview** | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) | Conceptual overview and onboarding guide for all subsystems. |
 
 ## 🛠️ Infrastructure & Ops
 *Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
@@ -122,7 +124,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 - **E2E Status**: [INTEGRATION_TEST_RESULTS.md](validation/INTEGRATION_TEST_RESULTS.md)
 - **LLM Quality**: [prediction_quality_report.md](validation/prediction_quality_report.md)
 - **Dictionary**: [GLOSSARY.md](design/GLOSSARY.md) (Definitions of Terms)
-- **Tech Debt**: [TECH_DEBT.md](TECH_DEBT.md) (Known shortcuts to revisit post-PoC)
+- **Tech Debt**: [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt)
 
 ---
 

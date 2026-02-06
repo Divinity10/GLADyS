@@ -70,7 +70,7 @@ Gemini generates the frontend from this spec. Claude builds the FastAPI backend.
 │  Fast Path: 76%  |  Cache Hit: 89%                      │
 ├──────────┬───────────────────────────────────────────────┤
 │ Sidebar  │  [Tab Bar]                                    │
-│          │  Lab | Knowledge | Learning | LLM | Logs | ⚙ │
+│          │  Lab | Response | Heuristics | Learning | LLM | Logs | ⚙ │
 │ ENV      │                                               │
 │ [Docker] │  ┌───────────────────────────────────────┐   │
 │ [Local]  │  │                                       │   │
@@ -232,9 +232,9 @@ Level 2 expansion (or detail pane):
 
 **Feedback indicators**: Good/Bad buttons disable during request (`hx-disabled-elt`) with "Sending..." indicator text.
 
-### Tab: Knowledge
+### Tab: Heuristics
 
-Three sections on one page.
+> **Note**: The original design called this "Knowledge" with three sections (heuristics, memory probe, cache inspector). The implementation split heuristics into its own tab. Memory probe and cache inspector are in the Settings tab.
 
 #### Heuristics table
 
@@ -279,7 +279,7 @@ Table of heuristic fires with learning detail.
 | Column | Content |
 |--------|---------|
 | Time | When fired |
-| Heuristic | Name (linked to Knowledge tab entry) |
+| Heuristic | Name (linked to Heuristics tab entry) |
 | Event | Event text preview |
 | Outcome | success / failure / pending |
 | Feedback | explicit / implicit / — |
@@ -537,7 +537,7 @@ src/services/dashboard/
 │       ├── lab.html         # Lab tab content
 │       ├── event_row.html   # Single event row + drill-down (reusable)
 │       ├── queue_row.html   # Queue panel row
-│       ├── knowledge.html   # Knowledge tab content
+│       ├── heuristics.html  # Heuristics tab content
 │       ├── learning.html    # Learning tab content
 │       ├── llm.html         # LLM tab content
 │       ├── logs.html        # Logs tab content

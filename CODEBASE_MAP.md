@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-02-03 (updated: dashboard dual-router architecture, heuristic gaps)
+**Last verified**: 2026-02-05 (updated: heuristic_fires schema, dashboard widget status, salience model spec)
 
 ---
 
@@ -493,11 +493,13 @@ GLADys/
 | Column | Type | Purpose |
 |--------|------|---------|
 | id | UUID | Primary key |
-| heuristic_id | UUID | FK to heuristics |
+| heuristic_id | UUID | FK to heuristics (CASCADE delete) |
 | event_id | TEXT | Triggering event |
-| fired_at | TIMESTAMPTZ | When fired |
-| outcome | TEXT | 'success', 'fail', NULL (pending) |
-| feedback_source | TEXT | 'explicit', 'implicit' |
+| fired_at | TIMESTAMPTZ | When fired (default NOW()) |
+| outcome | TEXT | 'success', 'fail', 'unknown' (default 'unknown') |
+| feedback_source | TEXT | 'explicit', 'implicit', NULL if no feedback yet |
+| feedback_at | TIMESTAMPTZ | When feedback was received |
+| episodic_event_id | UUID | FK to episodic_events (SET NULL on delete) |
 
 ---
 
@@ -664,7 +666,7 @@ See `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` for full details.
 - Backend renders HTML with Jinja `{% for %}` loops
 - htmx fetches pre-rendered HTML
 - Alpine.js only for row-level interactivity (expansion, editing)
-- **Used by**: Lab tab (events), Response tab
+- **Used by**: All tabs (Lab, Response, Heuristics, Learning, Logs, LLM, Settings)
 
 **Pattern B (Alpine-only)** — for UI controls:
 - Static HTML with Alpine.js reactivity
@@ -834,7 +836,7 @@ Python code changes are picked up WITHOUT rebuild. But:
 2. Use `IF NOT EXISTS` / `IF EXISTS` for idempotency
 3. Run `python cli/local.py migrate` to apply locally
 4. Run `python cli/docker.py migrate` to apply to Docker
-5. **Both environments must have the same schema** — if you skip one, document why in claude_memory.md
+5. **Both environments must have the same schema** — if you skip one, document why in working_memory.md
 
 ### Red Flags
 - Test fails with "column does not exist" → migration not applied

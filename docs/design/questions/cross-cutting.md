@@ -570,7 +570,6 @@ The PoC implementation uses simplified gRPC contracts compared to ADR-0005 speci
 
 See:
 - [SUBSYSTEM_OVERVIEW.md §3](../SUBSYSTEM_OVERVIEW.md)
-- [ORCHESTRATOR_IMPL_PROMPT.md](../ORCHESTRATOR_IMPL_PROMPT.md)
 
 Rationale: ML ecosystem, rapid prototyping, team familiarity. Performance-critical paths handled by Rust memory fast-path.
 

@@ -11,7 +11,7 @@
 - For **architectural decisions**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - For **interface contracts**: [INTERFACES.md](INTERFACES.md)
 - For **PoC phases and success criteria**: [POC_LIFECYCLE.md](POC_LIFECYCLE.md)
-- For session-specific decisions, see claude_memory.md
+- For session-specific decisions, see working_memory.md
 - For conceptual overview and onboarding, see [SUBSYSTEM_OVERVIEW.md](SUBSYSTEM_OVERVIEW.md)
 
 ---
@@ -93,6 +93,9 @@ The "attention filter" of the brain. Determines if an event is important enough 
 ### PoC Deviations
 - **Deep Evaluation**: Skipped. No secondary ML model for complex salience; relies purely on heuristics + novelty.
 - **Habituation**: Simple exponential decay based on repetition.
+
+### Planned: Salience Model Interface
+See [SALIENCE_MODEL.md](SALIENCE_MODEL.md) for the proposed refactoring of the salience vector into a structured `SalienceResult` (separate threat, habituation, and response-shaping vector with configurable weights).
 
 ### Open Questions
 - **Context Detection**: How to reliably detect "Context" (e.g., "Gaming" vs "Working") to switch active heuristic sets?
