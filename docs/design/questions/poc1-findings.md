@@ -81,21 +81,40 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-04: Low-confidence heuristics should be included in LLM prompt as options
 
-**Status**: open
+**Status**: resolved
 **Affects**: Decision strategy, executive prompt design
 
 **Observation**: When a low-confidence heuristic reasonably matches an event, its response should be presented to the LLM as a neutral option — not as the answer, but as "here's what was tried before."
 
 **Impact**: If the LLM independently generates a near-identical response to a low-confidence heuristic, that's strong evidence the heuristic is good. This creates a new implicit signal: "LLM convergence."
 
-**Design questions**:
-1. What similarity threshold qualifies as "reasonably matches" for inclusion?
-2. How are heuristic options presented in the prompt? As examples? As options to choose from?
-3. If LLM response is near-identical to a heuristic option, what's the confidence boost? (Small — the LLM agreed, but we didn't get user feedback yet)
-4. If LLM response diverges from all heuristic options, is that negative signal for those heuristics? (Probably not — LLM may have more context)
-5. How many heuristic options can we include before the prompt gets too long / quality degrades?
+**Design questions (all resolved)**:
 
-**Directly relevant to**: `impl-decision-strategy.md` (now unblocked)
+1. **What similarity threshold qualifies as "reasonably matches" for inclusion?**
+   **Resolved**: Cosine similarity confirmed as metric — the problem was embedding model (MiniLM-L6), not the distance function. Source filtering (F-01) is the biggest lever for match quality. Candidate inclusion threshold: **0.4** (configurable), applied after source filtering. Below the 0.7 heuristic firing threshold. Model upgrade deferred to PoC 2.
+
+2. **How are heuristic options presented in the prompt?**
+   **Resolved**: Show **condition text + action only**. No confidence scores, fire count, similarity scores, or age — all create anchoring bias. Candidates framed as "previous responses to similar situations (for context, not selection)." Order **randomized** to avoid positional bias. Explicit permission for LLM to ignore them.
+
+3. **If LLM response is near-identical to a heuristic option, what's the confidence boost?**
+   **Resolved**: **No direct confidence boost.** Record convergence in `DecisionResult.metadata` only. LLM saw the candidates, so agreement isn't fully independent (statistical contamination). Real confidence signal comes from user feedback. F-25 sleep-cycle provides clean convergence signals (no candidates shown). Metadata format: `{"convergence": {"converged_heuristic_id": "...", "similarity": 0.82}}`.
+
+4. **If LLM response diverges from all heuristic options, is that negative signal?**
+   **Resolved**: **No.** LLM has more context than the heuristic. A better response for this specific situation doesn't mean the general-purpose heuristic is wrong. Would create a ratchet effect (converge=boost, diverge=penalize → LLM becomes sole arbiter without user input).
+
+5. **How many heuristic options before prompt quality degrades?**
+   **Resolved**: **Max 5, default 3**, configurable via `HeuristicFirstConfig.max_candidates`. If more than max pass the inclusion threshold, take top N by similarity, then randomize order. Budget: ~30-50 tokens per candidate. With gemma:2b (~8k context), 5 candidates fit comfortably.
+
+**Prompt approach**: **Approach A** — generate with candidates as context, not as a selection menu. Candidates described as "previous responses to similar situations." LLM generates independently; post-processing compares for convergence via embedding similarity. Not Approach B (evaluate-then-generate) which creates anchoring and pollutes the convergence signal.
+
+**Personality in prompt**: Goes in **system prompt** (instruction), not alongside candidates (data). Clean separation between behavioral guidance and domain knowledge.
+
+**Data model changes for Decision Strategy:**
+- `DecisionContext.suggestion` → `DecisionContext.candidates: list[HeuristicCandidate]`
+- New `HeuristicCandidate` dataclass: `heuristic_id`, `condition_text`, `suggested_action`
+- `HeuristicFirstConfig` gains: `candidate_inclusion_threshold: float = 0.4`, `max_candidates: int = 3`
+
+**Directly relevant to**: `impl-decision-strategy.md`, `DECISION_STRATEGY.md`
 
 ---
 
@@ -117,18 +136,26 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-06: LLM-generated response confidence seems unusually high
 
-**Status**: open
+**Status**: resolved (PoC 2 implementation)
 **Affects**: Executive, decision strategy, confidence semantics
 
 **Observation**: The LLM reports high confidence in its responses, but it's unclear what "confidence" means in this context.
 
 **Impact**: If confidence means "how sure am I this text is grammatically correct" — of course it's high. If it means "how confident am I this response will produce the desired outcome for the user" — it should be much lower, especially for novel situations.
 
-**Design questions**:
-1. What should LLM response confidence measure? Proposed: "confidence that this response will produce the goal state (the desired outcome)."
-2. Should we calibrate LLM confidence externally (scale it down) rather than trusting the raw LLM self-assessment?
-3. Does the confidence definition need to be in the LLM prompt explicitly?
-4. How does this interact with heuristic initial confidence (currently 0.3)?
+**Design questions (all resolved)**:
+
+1. **What should LLM response confidence measure?**
+   **Resolved**: Two distinct measures: `predicted_success` = "probability this response leads to the goal state" (requires goal context — see F-07). `prediction_confidence` = "how much information do I have to make this prediction" (epistemic uncertainty). Both need goal context to be meaningful.
+
+2. **Should we calibrate LLM confidence externally?**
+   **Resolved**: Yes. Keep asking the LLM but improve the prompt (define "success" explicitly with goal context) and cap raw LLM confidence at **0.8** (`HeuristicFirstConfig.llm_confidence_ceiling`). No LLM response should claim >80% confidence without user validation.
+
+3. **Does the confidence definition need to be in the LLM prompt explicitly?**
+   **Resolved**: Yes. The prediction prompt must define success in terms of goals (F-07), ask "what could go wrong?" to force failure mode consideration, and specify the scale means "probability of achieving the stated goal." Improved prompt is a config value (`prediction_prompt_template`).
+
+4. **How does this interact with heuristic initial confidence (0.3)?**
+   **Resolved**: LLM-path responses that become heuristics (via positive feedback) start at 0.3 regardless of LLM self-assessment. The 0.3 reflects "never been validated by a user." LLM's prediction is stored in the trace for analytics but does NOT override the bootstrap value.
 
 ---
 
@@ -136,7 +163,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-07: Goal statement needed in LLM prompt
 
-**Status**: open
+**Status**: resolved (minimal for PoC 2, full design deferred to F-08)
 **Affects**: Executive, sensor contract (goal context), orchestrator context
 
 **Observation**: Without a goal statement, the LLM generates generic responses. Quality improves significantly when the system knows what the user is trying to achieve.
@@ -144,10 +171,20 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Impact**: This requires goals to be part of the system context. Where do goals come from? How are they selected per-event?
 
 **Design questions**:
-1. Where are goals stored? User profile? Active context? Per-domain config?
-2. How is a goal selected for a given event? Manual? Inferred from context? Domain-skill defined?
-3. Can multiple goals be active simultaneously? (Yes — "survive combat" AND "have fun" AND "level up")
-4. How are conflicting goals handled? (e.g., "maximize XP" vs "minimize risk")
+
+1. **Where are goals stored?**
+   **Resolved (PoC 2 minimal)**: Static per-domain goals via config file or environment variable (e.g., `EXECUTIVE_GOALS="Survive combat;Level up efficiently;Have fun"`). Or passed from orchestrator in ProcessEvent request (requires proto change). Full goal storage design deferred to F-08.
+
+2. **How is a goal selected for a given event?**
+   **Deferred to F-08**: For PoC 2, all active goals are included in every prompt. Dynamic goal selection per event is a dedicated design session (F-08).
+
+3. **Can multiple goals be active simultaneously?**
+   **Resolved**: Yes. `DecisionContext.goals: list[str]` supports multiple concurrent goals.
+
+4. **How are conflicting goals handled?**
+   **Deferred to F-08**: PoC 2 doesn't resolve conflicts — it includes all goals and lets the LLM balance them. Explicit priority/conflict resolution is PoC 3.
+
+**Decision Strategy impact**: Add `goals: list[str]` to `DecisionContext`. Goals are injected into the system prompt (after personality, before event data). The strategy doesn't care where goals come from — that's the caller's responsibility.
 
 **Related**: SUBSYSTEM_OVERVIEW.md §7 lists "Goal management — where do user goals come from?" as unspecified
 
@@ -621,6 +658,50 @@ Personality affects **selection among options**, not **what options exist** or *
 
 ---
 
+### F-25: Sleep-cycle heuristic re-evaluation with stratified random selection
+
+**Status**: captured (PoC 2 scope — Decision Strategy must not preclude it)
+**Affects**: Decision strategy, learning strategy, confidence model
+
+**Observation**: Creativity is how new solutions are found. A "sleep cycle" process could randomly select heuristics, send their context to an LLM without any candidate options, and ask for a suggested response. Because it's a sleep cycle (not real-time), enriched context can be provided.
+
+**Impact**: This produces a **clean convergence signal** — the LLM has no candidate anchoring, so if it independently generates something similar to the heuristic's action, that's genuine convergence evidence. Contrasts with real-time F-04 convergence which is contaminated by candidate exposure.
+
+**Stratified random selection by confidence tier:**
+
+| Tier | Selection | Benefit |
+|------|-----------|---------|
+| Low confidence | Random subset | Strengthen valid ones, generate new/better heuristics to replace weak ones |
+| Medium confidence | Random subset | Course correct before a heuristic becomes falsely strong |
+| High confidence | Random subset | Break out of overfitting, detect stale heuristics |
+
+Each tier provides different learning benefits. The number selected per tier (X from low, Y from medium, Z from high) is configurable.
+
+**Primary goal: creativity.** The sleep cycle is an exploration tool that also produces convergence signals as a side effect. LLM response variance is the feature, not noise — divergent responses are creative output that can improve or replace existing heuristics.
+
+**Enriched context = episodic memory.** During live processing, context is a single event. During sleep, context can be the episodic memory — the sequence of events that led to a heuristic firing. This is qualitatively different input. It also creates an opportunity for **episodic heuristics** — heuristics grounded in event sequences, not single events. (Requires episodes to be implemented first — later PoC work.)
+
+**Single LLM constraint.** For current and near-term PoCs, one reasoning LLM handles both live and sleep-cycle work. Accepted limitation. Using separate LLMs for independent validation is a potential future exploration.
+
+**Key properties:**
+- No candidates shown → clean convergence signal (unlike real-time F-04)
+- Enriched context (episodic memory) possible because not latency-bound
+- Divergence is productive — generates better responses, not just a measurement
+- Convergence is a side-effect signal, not the primary goal
+- Relates to existing deferred item (exploration epsilon) and PoC 2 W5 (sleep-mode consolidation)
+
+**Design questions:**
+1. What defines the confidence tier boundaries? (e.g., low < 0.4, medium 0.4-0.7, high > 0.7)
+2. How many heuristics per tier per sleep cycle?
+3. What enriched context is available? (Episodic memory, recent events from same source, related heuristics, user goals)
+4. How is the convergence/divergence signal fed back into the confidence model?
+5. How often does the sleep cycle run? (Nightly? After N events? Configurable?)
+6. How are episodic heuristics represented? (Depends on episode design — later PoC)
+
+**For Decision Strategy spec**: The Protocol must not preclude sleep-cycle evaluation. The `decide()` method should work for both real-time (with candidates) and sleep-cycle (without candidates, for re-evaluation). This is naturally satisfied by `candidates: list[HeuristicCandidate]` being an empty list.
+
+---
+
 ## Cross-Reference: Findings by Subsystem
 
 | Subsystem | Findings |
@@ -628,8 +709,8 @@ Personality affects **selection among options**, not **what options exist** or *
 | **Sensor Contract** | F-01, F-02, F-14, F-15, F-16, F-17, F-18, F-19, F-20, F-21 |
 | **Sensor Base Class** | F-14, F-15, F-16 |
 | **Salience Scorer** | F-01, F-02, F-16 |
-| **Learning Strategy** | F-03, F-04, F-05, F-11, F-23, F-24 |
-| **Decision Strategy** | F-04, F-09, F-10, F-13, F-24 |
+| **Learning Strategy** | F-03, F-04, F-05, F-11, F-23, F-24, F-25 |
+| **Decision Strategy** | F-04, F-09, F-10, F-13, F-24, F-25 |
 | **Executive** | F-06, F-07, F-08, F-12, F-13, F-19 |
 | **Router / Orchestrator** | F-08, F-18, F-20, F-21 |
 | **Proto / Schema** | F-01, F-05, F-19, F-20, F-23 |

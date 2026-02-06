@@ -1,9 +1,10 @@
 # Decision Strategy Interface Spec
 
-**Status**: Proposed
-**Date**: 2026-02-02
-**Implements**: Extensibility Review item #1 (partial)
+**Status**: Ready for implementation
+**Date**: 2026-02-02 (updated 2026-02-06)
+**Implements**: Extensibility Review item #2
 **Depends on**: [LLM_PROVIDER.md](LLM_PROVIDER.md)
+**Informed by**: PoC 1 findings F-04, F-06, F-07, F-25
 
 ## Purpose
 
@@ -25,7 +26,7 @@ Hardcoded elements:
 ## Protocol
 
 ```python
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, Any
 
@@ -39,14 +40,28 @@ class DecisionPath(Enum):
 
 
 @dataclass
+class HeuristicCandidate:
+    """A heuristic candidate for LLM prompt inclusion (F-04).
+
+    Deliberately minimal — only condition and action text.
+    No confidence scores, fire counts, or similarity scores (avoids anchoring bias).
+    """
+    heuristic_id: str
+    condition_text: str
+    suggested_action: str
+    confidence: float  # Used for heuristic-path threshold check, NOT shown to LLM
+
+
+@dataclass
 class DecisionContext:
     """Input to a decision strategy."""
     event_id: str
     event_text: str
     event_source: str
     salience: dict[str, float]
-    suggestion: dict[str, Any] | None  # {heuristic_id, confidence, condition_text, suggested_action}
+    candidates: list[HeuristicCandidate]  # Replaces single 'suggestion'. Best match first, then additional candidates.
     immediate: bool
+    goals: list[str] = field(default_factory=list)  # Active user goals (F-07). Injected into system prompt.
 
 
 @dataclass
@@ -59,7 +74,7 @@ class DecisionResult:
     predicted_success: float
     prediction_confidence: float
     prompt_text: str
-    metadata: dict[str, Any]
+    metadata: dict[str, Any]  # Includes convergence info (F-04 Q3) when detected
 
 
 class DecisionStrategy(Protocol):
@@ -70,7 +85,11 @@ class DecisionStrategy(Protocol):
         context: DecisionContext,
         llm: LLMProvider | None,
     ) -> DecisionResult:
-        """Decide how to respond to an event."""
+        """Decide how to respond to an event.
+
+        Works for both real-time decisions (candidates populated) and
+        sleep-cycle re-evaluation (candidates empty, F-25).
+        """
         ...
 
     def get_trace(self, response_id: str) -> ReasoningTrace | None:
@@ -89,24 +108,32 @@ class DecisionStrategy(Protocol):
 @dataclass
 class HeuristicFirstConfig:
     confidence_threshold: float = 0.7
+    max_candidates: int = 3          # Max candidates in LLM prompt (F-04 Q5)
+    llm_confidence_ceiling: float = 0.8  # Cap LLM self-reported confidence (F-06)
     system_prompt: str = EXECUTIVE_SYSTEM_PROMPT
     prediction_prompt_template: str = PREDICTION_PROMPT
 
 
 class HeuristicFirstStrategy:
-    """Use heuristic if confident, else LLM."""
+    """Use heuristic if confident, else LLM.
+
+    Decision flow:
+    1. If best candidate confidence >= threshold → heuristic fast-path
+    2. If LLM available and immediate → LLM path (remaining candidates shown as neutral context)
+    3. Otherwise → rejected
+    """
 
     def __init__(self, config: HeuristicFirstConfig | None = None):
         self._config = config or HeuristicFirstConfig()
         self._trace_store: dict[str, ReasoningTrace] = {}
 
     async def decide(self, context: DecisionContext, llm: LLMProvider | None) -> DecisionResult:
-        # Path 1: High-confidence heuristic
-        if (context.suggestion
-                and context.suggestion.get("confidence", 0) >= self._config.confidence_threshold):
-            return self._heuristic_path(context)
+        # Path 1: High-confidence heuristic (best candidate above threshold)
+        best = context.candidates[0] if context.candidates else None
+        if best and best.confidence >= self._config.confidence_threshold:
+            return self._heuristic_path(context, best)
 
-        # Path 2: LLM reasoning
+        # Path 2: LLM reasoning (with remaining candidates as neutral context)
         if llm and context.immediate:
             return await self._llm_path(context, llm)
 
@@ -122,31 +149,37 @@ class HeuristicFirstStrategy:
             metadata={"reason": "llm_unavailable" if not llm else "not_immediate"},
         )
 
-    def _heuristic_path(self, context: DecisionContext) -> DecisionResult:
-        suggestion = context.suggestion
+    def _heuristic_path(self, context: DecisionContext, candidate: HeuristicCandidate) -> DecisionResult:
         response_id = self._store_trace(
             event_id=context.event_id,
             context_text=context.event_text,
-            response=suggestion["suggested_action"],
-            matched_heuristic_id=suggestion["heuristic_id"],
-            predicted_success=suggestion["confidence"],
+            response=candidate.suggested_action,
+            matched_heuristic_id=candidate.heuristic_id,
+            predicted_success=candidate.confidence,
         )
         return DecisionResult(
             path=DecisionPath.HEURISTIC,
-            response_text=suggestion["suggested_action"],
+            response_text=candidate.suggested_action,
             response_id=response_id,
-            matched_heuristic_id=suggestion["heuristic_id"],
-            predicted_success=suggestion["confidence"],
-            prediction_confidence=suggestion["confidence"],
+            matched_heuristic_id=candidate.heuristic_id,
+            predicted_success=candidate.confidence,
+            prediction_confidence=candidate.confidence,
             prompt_text="",
             metadata={"threshold": self._config.confidence_threshold},
         )
 
     async def _llm_path(self, context: DecisionContext, llm: LLMProvider) -> DecisionResult:
         prompt = self._build_prompt(context)
+
+        # Compose system prompt with goals (F-07)
+        system_prompt = self._config.system_prompt
+        if context.goals:
+            goals_text = "\n".join(f"- {g}" for g in context.goals)
+            system_prompt += f"\n\nCurrent user goals:\n{goals_text}"
+
         llm_response = await llm.generate(LLMRequest(
             prompt=prompt,
-            system_prompt=self._config.system_prompt,
+            system_prompt=system_prompt,
         ))
 
         if not llm_response:
@@ -162,43 +195,70 @@ class HeuristicFirstStrategy:
             )
 
         response_text = llm_response.text.strip()
-        predicted_success, prediction_confidence = await self._get_prediction(llm, context, response_text)
+        predicted_success, prediction_confidence = await self._get_prediction(
+            llm, context, response_text
+        )
+
+        # Cap LLM self-reported confidence (F-06)
+        predicted_success = min(predicted_success, self._config.llm_confidence_ceiling)
+        prediction_confidence = min(prediction_confidence, self._config.llm_confidence_ceiling)
+
+        # Determine matched heuristic (best candidate if present)
+        matched_id = context.candidates[0].heuristic_id if context.candidates else None
 
         response_id = self._store_trace(
             event_id=context.event_id,
             context_text=context.event_text,
             response=response_text,
-            matched_heuristic_id=context.suggestion.get("heuristic_id") if context.suggestion else None,
+            matched_heuristic_id=matched_id,
             predicted_success=predicted_success,
         )
+
+        metadata: dict[str, Any] = {"model": llm.model_name}
+        # Note: Convergence detection (comparing LLM response to candidate actions
+        # via embedding similarity) is deferred to PoC 2. When implemented, add:
+        # metadata["convergence"] = {"converged_heuristic_id": "...", "similarity": 0.82}
 
         return DecisionResult(
             path=DecisionPath.LLM,
             response_text=response_text,
             response_id=response_id,
-            matched_heuristic_id=context.suggestion.get("heuristic_id") if context.suggestion else None,
+            matched_heuristic_id=matched_id,
             predicted_success=predicted_success,
             prediction_confidence=prediction_confidence,
             prompt_text=prompt,
-            metadata={"model": llm.model_name},
+            metadata=metadata,
         )
 
     def _build_prompt(self, context: DecisionContext) -> str:
+        """Build LLM prompt with neutral candidate presentation (F-04).
+
+        Candidates shown as "previous responses to similar situations" —
+        condition + action only, no scores, randomized order.
+        LLM given explicit permission to ignore them.
+        """
         prompt = f"URGENT event: [{context.event_source}]: {context.event_text}\n\n"
-        if context.suggestion:
-            prompt += f"""A learned pattern matched this situation:
-- Pattern: "{context.suggestion.get('condition_text', '')}"
-- Suggested action: "{context.suggestion.get('suggested_action', '')}"
-- Confidence: {context.suggestion.get('confidence', 0):.0%}
 
-Consider this suggestion in your response.
+        # Include candidates as neutral context (up to max_candidates)
+        display_candidates = context.candidates[:self._config.max_candidates]
+        if display_candidates:
+            # Randomize order to avoid positional bias
+            import random
+            shuffled = list(display_candidates)
+            random.shuffle(shuffled)
 
-"""
+            prompt += "Previous responses to similar situations (for context — you may ignore these):\n"
+            for i, c in enumerate(shuffled, 1):
+                prompt += f"{i}. Situation: \"{c.condition_text}\" → Response: \"{c.suggested_action}\"\n"
+            prompt += "\n"
+
         prompt += "How should I respond?"
         return prompt
 
     async def _get_prediction(self, llm: LLMProvider, context: DecisionContext, response_text: str) -> tuple[float, float]:
         # ... prediction logic (unchanged from current impl)
+        # F-06: Prediction prompt should define "success" in terms of goals when available.
+        # The raw values are capped by llm_confidence_ceiling in the caller.
         pass
 
     def _store_trace(self, **kwargs) -> str:
@@ -211,7 +271,12 @@ Consider this suggestion in your response.
 
     @property
     def config(self) -> dict[str, Any]:
-        return {"strategy": "heuristic_first", "confidence_threshold": self._config.confidence_threshold}
+        return {
+            "strategy": "heuristic_first",
+            "confidence_threshold": self._config.confidence_threshold,
+            "max_candidates": self._config.max_candidates,
+            "llm_confidence_ceiling": self._config.llm_confidence_ceiling,
+        }
 ```
 
 ## ExecutiveServicer Changes
@@ -222,13 +287,26 @@ Consider this suggestion in your response.
 async def ProcessEvent(self, request, context) -> ProcessEventResponse:
     self._setup_trace(context)
 
+    # Build candidates list from request
+    # The orchestrator sends the best match as request.suggestion (current proto).
+    # Future: proto gains repeated candidates field for multiple matches.
+    candidates = []
+    if request.HasField("suggestion") and request.suggestion.heuristic_id:
+        candidates.append(HeuristicCandidate(
+            heuristic_id=request.suggestion.heuristic_id,
+            condition_text=request.suggestion.condition_text,
+            suggested_action=request.suggestion.suggested_action,
+            confidence=request.suggestion.confidence,
+        ))
+
     decision_context = DecisionContext(
         event_id=request.event.id,
         event_text=request.event.raw_text,
         event_source=request.event.source,
         salience=self._extract_salience(request.event.salience),
-        suggestion=self._extract_suggestion(request.suggestion) if request.HasField("suggestion") else None,
+        candidates=candidates,
         immediate=request.immediate,
+        goals=self._get_active_goals(),  # From config/env for PoC 2
     )
 
     result = await self._strategy.decide(decision_context, self._llm)
@@ -251,24 +329,25 @@ Environment variables:
 ```
 EXECUTIVE_DECISION_STRATEGY=heuristic_first  # "heuristic_first" | "always_llm" (future)
 EXECUTIVE_HEURISTIC_THRESHOLD=0.7
+EXECUTIVE_GOALS=                             # Semicolon-separated goal strings (F-07, optional)
 ```
 
 Factory:
 ```python
-def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy:
+def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy | None:
     if strategy_type == "heuristic_first":
         return HeuristicFirstStrategy(HeuristicFirstConfig(
             confidence_threshold=float(kwargs.get("threshold", 0.7)),
         ))
-    raise ValueError(f"Unknown decision strategy: {strategy_type}")
+    return None  # Unknown strategy type
 ```
 
 ## File Changes
 
 | File | Change |
 |------|--------|
-| `server.py` (executive) | Add `DecisionStrategy` Protocol, `DecisionContext`, `DecisionResult`, `DecisionPath` |
-| `server.py` (executive) | Add `HeuristicFirstStrategy` class |
+| `server.py` (executive) | Add `DecisionStrategy` Protocol, `DecisionContext`, `DecisionResult`, `DecisionPath`, `HeuristicCandidate` |
+| `server.py` (executive) | Add `HeuristicFirstStrategy` class with `HeuristicFirstConfig` |
 | `server.py` (executive) | Move `ReasoningTrace` and trace storage into strategy |
 | `server.py` (executive) | Refactor `ExecutiveServicer.ProcessEvent` to delegate |
 | `server.py` (executive) | Add `create_decision_strategy` factory |
@@ -278,9 +357,37 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy:
 
 - Unit test `HeuristicFirstStrategy.decide()` with various `DecisionContext` inputs
 - Mock `LLMProvider` for deterministic tests
-- Test heuristic path when confidence >= threshold
-- Test LLM path when confidence < threshold
+- Test heuristic path when best candidate confidence >= threshold
+- Test LLM path when confidence < threshold (verify candidates in prompt)
 - Test rejected path when no LLM and not immediate
+- Test fallback path when LLM returns None
+- Test confidence ceiling is applied (F-06)
+- Test empty candidates list (supports F-25 sleep-cycle re-evaluation)
+
+## Design Decisions (from PoC 1 findings)
+
+### F-04: Candidate presentation in LLM prompt
+- Candidates shown with **condition + action only** — no scores (avoids anchoring bias)
+- Order **randomized** (avoids positional bias)
+- Framed as "previous responses to similar situations" with explicit permission to ignore
+- **Approach A**: LLM generates independently; convergence detected in post-processing (not selection menu)
+- Max candidates: **configurable** (default 3, hard max 5)
+- Convergence recorded in `metadata`, **not** used to boost confidence directly
+
+### F-06: LLM confidence calibration
+- `predicted_success` = probability response leads to goal state
+- `prediction_confidence` = epistemic uncertainty (how much info available)
+- Raw LLM values **capped at 0.8** (`llm_confidence_ceiling`)
+- LLM-path heuristics still start at 0.3 regardless of LLM self-assessment
+
+### F-07: Goal context
+- `DecisionContext.goals` carries active goals
+- Goals injected into **system prompt** (after personality, before event data)
+- PoC 2: static per-domain goals from config. Dynamic selection deferred to F-08
+
+### F-25: Sleep-cycle compatibility
+- Protocol supports empty candidates list — `decide()` works for both real-time and sleep-cycle re-evaluation
+- Sleep-cycle provides clean convergence signal (no candidate contamination)
 
 ## Future: Feedback Handling
 
@@ -314,3 +421,5 @@ See also: `docs/design/questions/feedback-signal-decomposition.md`, `docs/design
 - Feedback handling details — deferred until feedback model is designed
 - Quality gate and dedup logic — stays in current `ProvideFeedback` for now
 - Alternative strategies — add in PoC 2
+- Convergence detection implementation — captured in metadata structure, actual embedding comparison deferred
+- Dynamic goal selection per event (F-08) — PoC 2 uses static goals
