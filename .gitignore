@@ -65,7 +65,7 @@ nul
 *_logs.txt
 logs/
 
-# Sensor data (local runtime data, not committed)
+# Sensor data (runtime output, not committed)
 data/
 
 # OS files
