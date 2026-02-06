@@ -173,7 +173,42 @@ All four workstreams converge on this scenario:
 
 ### Lessons Learned
 
-*(To be populated after PoC 1 convergence test passes. Run: `uv run cli/convergence_test.py`)*
+Detailed findings: [`docs/design/questions/poc1-findings.md`](../questions/poc1-findings.md) (F-01 through F-24).
+
+**Heuristic matching & source:**
+- Source must carry significant weight in matching — cross-domain false positives without it (F-01)
+- Matching quality is multi-causal: embedding model, source filtering, raw_text consistency, condition_text quality (F-02)
+
+**Learning & confidence:**
+- Positive feedback needs gradient scale (diminishing returns per heuristic) (F-03)
+- Low-confidence heuristics should appear as options in LLM prompt — LLM convergence is a signal (F-04)
+- Confidence must never reach 0 or 1 (F-05)
+- LLM self-reported confidence needs calibration — unclear what it measures (F-06)
+
+**Goals & response selection:**
+- Goal statement needed in LLM prompt for quality responses (F-07)
+- Goal-to-event matching is unresolved — needs design session (F-08)
+- Response selection may be combinatorial, not single-choice (F-09)
+- Multi-dimensional response scoring may be needed (F-10)
+
+**Feedback & timing:**
+- Feedback windows differ by type (manual vs implicit) and domain (F-11)
+- User 3-point + dev 5-point dual feedback design (F-23)
+- Pack heuristic constraints: locked, floor/ceiling, feedback_weight (F-24)
+
+**Executive architecture:**
+- Multi-threaded LLM exploration for complex scenarios (F-12)
+- LLM could return multiple ranked options instead of single response (F-13)
+
+**Sensor-specific:**
+- Test mode: capture events to JSON for replay (F-14)
+- Sensor metrics needed for health assessment (F-15)
+- Suppression: sensor-level vs salience-level architectural decision (F-16)
+- Streaming delivery pattern is confirmed real use case (F-17)
+- Overlapping/duplicate data across app events needs dedup strategy (F-18)
+- Solution/cheat data needs classification (evaluation_only) (F-19)
+- Initial connection event flood: informational vs actionable distinction needed (F-20)
+- App-buffered backfill events need historical flag (F-21)
 
 ---
 
