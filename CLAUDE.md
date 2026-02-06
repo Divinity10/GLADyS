@@ -174,13 +174,13 @@ Each dashboard tab should be:
 
 | Tab | Pattern | Status | Notes |
 |-----|---------|--------|-------|
-| Lab (events) | A + SSE | Working | |
-| Response | A | Working | |
-| Heuristics | A | Being fixed | Was broken (x-for) |
-| Learning | x-for | **BROKEN** | Needs Pattern A migration |
-| Logs | x-for | Needs audit | |
-| LLM | x-for | Needs audit | |
-| Settings | x-for | Needs audit | |
+| Lab (events) | A + SSE | Working | Widget macros |
+| Response | A | Working | Widget macros |
+| Heuristics | A | Working | Widget macros |
+| Learning | A | Working | Inline x-data, custom drilldown |
+| Logs | A | Working | Inline x-data, config-driven sources |
+| LLM | A | Working | Inline x-data (status/test UI) |
+| Settings | A | Working | Inline x-data (config/cache UI) |
 
 ## Mode Prefixes
 
@@ -195,9 +195,11 @@ The user may prefix messages with `!think`, `!plan`, `!do`, or `!review` to sign
 | `!archive` | Archive memory file, carry forward active work, start fresh. |
 | (none) | Consider whether this needs discussion before implementation. |
 
-## Working Memory (claude_memory.md)
+## Working Memory
 
-This file is your scratchpad for preserving context across compactions and sessions. It is **not** committed to git.
+**File**: `working_memory.md` (project root)
+
+This file is your scratchpad for preserving context across compactions and sessions. It is gitignored but still readable — use `Read` tool to access it. Always read this file at session start.
 
 ### Structure
 
@@ -222,6 +224,32 @@ This file is your scratchpad for preserving context across compactions and sessi
 - When starting a detour (push new item onto Work Stack)
 - When finishing a detour (pop it, update the item you're returning to)
 
+### Multi-Agent Collaboration
+
+`working_memory.md` is shared between Claude and Gemini. The **Handoff** section coordinates work:
+
+```
+## Handoff
+
+### Current Task
+[Task description and acceptance criteria]
+
+### Architect (Claude)
+- Status: [idle | assigned task | working | blocked]
+- Notes: [Context, decisions, handoff notes]
+
+### Investigator (Gemini)
+- Status: [idle | assigned task | working | blocked]
+- Findings: [Investigation results, recommendations]
+```
+
+**Rules:**
+- Read your assigned role in "Current Task" before starting
+- Only edit YOUR section (Architect or Investigator)
+- Write findings with specific file paths and line numbers
+- Set status to "idle" when done, leave findings for the other agent
+- Roles are assigned per-task — either agent may code or investigate
+
 ### Archiving
 
 Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory.py` which:
@@ -235,11 +263,11 @@ Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory
 
 When sources conflict, follow this order for **current implementation**:
 
-1. **claude_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
+1. **working_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
 2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
-**Rule**: ADRs describe where we're going. PoC may cut corners. If claude_memory.md says "skip pending_events table," that overrides any design doc that says otherwise.
+**Rule**: ADRs describe where we're going. PoC may cut corners. If working_memory.md says "skip pending_events table," that overrides any design doc that says otherwise.
 
 ### Navigation
 
@@ -247,13 +275,13 @@ When sources conflict, follow this order for **current implementation**:
 |------|---------|
 | **[docs/INDEX.md](docs/INDEX.md)** | Documentation map - find ADRs, design docs by concept |
 | **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Service topology, ports, troubleshooting |
-| **claude_memory.md** | Current session state, active decisions (gitignored) |
+| **working_memory.md** | Current session state, active decisions (gitignored) |
 
 ### Session Rules
 
-1. **At session start**: Read claude_memory.md first (current state), then CODEBASE_MAP.md if needed
+1. **At session start**: Read working_memory.md first (current state), then CODEBASE_MAP.md if needed
 2. **Finding docs**: Use `docs/INDEX.md` to locate ADRs and design docs by topic
-3. **Update claude_memory.md frequently** — after each decision, discovery, or task transition
+3. **Update working_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
 
 ### Critical ADRs (affect daily decisions)

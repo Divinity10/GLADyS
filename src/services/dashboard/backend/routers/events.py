@@ -361,13 +361,13 @@ async def submit_feedback(request: Request):
             response_id=response_id,
         ))
         if getattr(resp, "created_heuristic_id", ""):
-            label = f"\u2728 Created heuristic {resp.created_heuristic_id[:8]}\u2026"
+            label = f"\u2728 Created heuristic {resp.created_heuristic_id}"
         elif positive:
             label = "\U0001f44d Saved"
         else:
             label = "\U0001f44e Saved"
         if getattr(resp, "error_message", ""):
             label += f" ({resp.error_message})"
-        return HTMLResponse(f'<span class="text-green-400 text-[10px]">{label}</span>')
+        return HTMLResponse(f'<span class="text-green-400 text-xs">{label}</span>')
     except grpc.RpcError as e:
-        return HTMLResponse(f'<span class="text-red-400 text-[10px]">Error: {e.code().name}</span>', status_code=502)
+        return HTMLResponse(f'<span class="text-red-400 text-xs">Error: {e.code().name}</span>', status_code=502)
