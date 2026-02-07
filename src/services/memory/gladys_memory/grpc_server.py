@@ -577,8 +577,8 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             if not heuristic_id:
                 await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "No heuristic_id provided")
 
-            # Use provided learning_rate or None to use default
-            learning_rate = request.learning_rate if request.learning_rate > 0 else None
+            # Extract magnitude (added in F-03)
+            magnitude = request.magnitude
 
             # Check for TD learning mode (predicted_success provided)
             # In proto3, scalar fields always have a value (default 0.0).
@@ -595,7 +595,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             old_conf, new_conf, delta, td_error = await self.storage.update_heuristic_confidence(
                 heuristic_id=UUID(heuristic_id),
                 positive=request.positive,
-                learning_rate=learning_rate,
+                magnitude=magnitude,
                 predicted_success=predicted_success,
                 feedback_source=feedback_source,
             )
@@ -604,13 +604,13 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             if td_error is not None:
                 logger.info(
                     f"TD_LEARNING: heuristic={heuristic_id}, "
-                    f"positive={request.positive}, predicted={predicted_success:.3f}, "
+                    f"positive={request.positive}, magnitude={magnitude}, predicted={predicted_success:.3f}, "
                     f"td_error={td_error:.3f}, old={old_conf:.3f}, new={new_conf:.3f}"
                 )
             else:
                 logger.info(
                     f"TD_LEARNING (simple): heuristic={heuristic_id}, "
-                    f"positive={request.positive}, "
+                    f"positive={request.positive}, magnitude={magnitude}, "
                     f"old={old_conf:.3f}, new={new_conf:.3f}, delta={delta:.3f}"
                 )
 

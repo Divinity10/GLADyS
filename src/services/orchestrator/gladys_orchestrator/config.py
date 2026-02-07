@@ -89,3 +89,11 @@ class OrchestratorConfig(BaseSettings):
         default='[]',
         description="JSON array of outcome patterns for implicit feedback",
     )
+
+    # Learning Strategy settings
+    learning_strategy: str = "bayesian"
+    learning_undo_window_sec: float = 30.0
+    learning_ignored_threshold: int = 3
+    learning_undo_keywords: str = "undo,revert,cancel,rollback,nevermind,never mind"
+    learning_implicit_magnitude: float = 1.0
+    learning_explicit_magnitude: float = 0.8

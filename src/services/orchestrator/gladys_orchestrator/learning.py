@@ -14,21 +14,180 @@ Implicit feedback signals:
 
 import asyncio
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from enum import Enum, auto
+from typing import Any, Protocol, TYPE_CHECKING
 
 from gladys_common import get_logger
 
 from .outcome_watcher import OutcomeWatcher
 
+if TYPE_CHECKING:
+    from .config import OrchestratorConfig
+
 logger = get_logger(__name__)
 
-# How long after a fire an "undo" event counts as negative feedback
-UNDO_WINDOW_SEC = 60
 
-# How many consecutive ignores before sending negative feedback
-IGNORED_THRESHOLD = 3
+class SignalType(Enum):
+    """Types of feedback signals."""
+
+    POSITIVE = auto()
+    NEGATIVE = auto()
+    NEUTRAL = auto()
+
+
+@dataclass(frozen=True)
+class FeedbackSignal:
+    """A learning signal produced by a strategy."""
+
+    signal_type: SignalType
+    heuristic_id: str
+    event_id: str = ""
+    source: str = ""
+    magnitude: float = 1.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class LearningStrategy(Protocol):
+    """Protocol for learning strategies that interpret signals."""
+
+    def interpret_explicit_feedback(
+        self, event_id: str, heuristic_id: str, positive: bool, source: str
+    ) -> FeedbackSignal:
+        """Interpret explicit user feedback."""
+        ...
+
+    def interpret_timeout(
+        self, heuristic_id: str, event_id: str, elapsed_seconds: float
+    ) -> FeedbackSignal:
+        """Interpret an outcome expectation timeout."""
+        ...
+
+    def interpret_event_for_undo(
+        self, event_text: str, recent_fires: list[dict[str, str]]
+    ) -> list[FeedbackSignal]:
+        """Interpret an incoming event as a potential undo of recent actions."""
+        ...
+
+    def interpret_ignore(
+        self, heuristic_id: str, consecutive_count: int
+    ) -> FeedbackSignal:
+        """Interpret consecutive ignores of a heuristic."""
+        ...
+
+    @property
+    def config(self) -> dict[str, Any]:
+        """Return the strategy's current configuration."""
+        ...
+
+
+@dataclass
+class BayesianStrategyConfig:
+    """Configuration for Bayesian learning strategy."""
+
+    undo_window_sec: float = 30.0
+    ignored_threshold: int = 3
+    undo_keywords: tuple[str, ...] = (
+        "undo",
+        "revert",
+        "cancel",
+        "rollback",
+        "nevermind",
+        "never mind",
+    )
+    implicit_magnitude: float = 1.0
+    explicit_magnitude: float = 0.8
+
+
+class BayesianStrategy:
+    """Default Bayesian learning strategy using Beta-Binomial updates."""
+
+    def __init__(self, config: BayesianStrategyConfig):
+        self._config = config
+
+    def interpret_explicit_feedback(
+        self, event_id: str, heuristic_id: str, positive: bool, source: str
+    ) -> FeedbackSignal:
+        return FeedbackSignal(
+            signal_type=SignalType.POSITIVE if positive else SignalType.NEGATIVE,
+            heuristic_id=heuristic_id,
+            event_id=event_id,
+            source=source,
+            magnitude=self._config.explicit_magnitude,
+        )
+
+    def interpret_timeout(
+        self, heuristic_id: str, event_id: str, elapsed_seconds: float
+    ) -> FeedbackSignal:
+        return FeedbackSignal(
+            signal_type=SignalType.POSITIVE,
+            heuristic_id=heuristic_id,
+            event_id=event_id,
+            source="implicit_timeout",
+            magnitude=self._config.implicit_magnitude,
+        )
+
+    def interpret_event_for_undo(
+        self, event_text: str, recent_fires: list[dict[str, str]]
+    ) -> list[FeedbackSignal]:
+        text_lower = event_text.lower()
+        if not any(kw in text_lower for kw in self._config.undo_keywords):
+            return []
+
+        return [
+            FeedbackSignal(
+                signal_type=SignalType.NEGATIVE,
+                heuristic_id=fire["heuristic_id"],
+                event_id=fire["event_id"],
+                source="implicit_undo",
+                magnitude=self._config.implicit_magnitude,
+                metadata={"undo_text": event_text[:100]},
+            )
+            for fire in recent_fires
+        ]
+
+    def interpret_ignore(
+        self, heuristic_id: str, consecutive_count: int
+    ) -> FeedbackSignal:
+        if consecutive_count >= self._config.ignored_threshold:
+            return FeedbackSignal(
+                signal_type=SignalType.NEGATIVE,
+                heuristic_id=heuristic_id,
+                source="implicit_ignored",
+                magnitude=self._config.implicit_magnitude,
+            )
+        return FeedbackSignal(
+            signal_type=SignalType.NEUTRAL,
+            heuristic_id=heuristic_id,
+        )
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return {
+            "undo_window_sec": self._config.undo_window_sec,
+            "ignored_threshold": self._config.ignored_threshold,
+            "undo_keywords": self._config.undo_keywords,
+            "implicit_magnitude": self._config.implicit_magnitude,
+            "explicit_magnitude": self._config.explicit_magnitude,
+        }
+
+
+def create_learning_strategy(config: "OrchestratorConfig") -> LearningStrategy:
+    """Factory for learning strategies."""
+    if config.learning_strategy == "bayesian":
+        undo_keywords = tuple(
+            kw.strip() for kw in config.learning_undo_keywords.split(",")
+        )
+        strategy_config = BayesianStrategyConfig(
+            undo_window_sec=config.learning_undo_window_sec,
+            ignored_threshold=config.learning_ignored_threshold,
+            undo_keywords=undo_keywords,
+            implicit_magnitude=config.learning_implicit_magnitude,
+            explicit_magnitude=config.learning_explicit_magnitude,
+        )
+        return BayesianStrategy(strategy_config)
+    raise ValueError(f"Unknown learning strategy: {config.learning_strategy}")
 
 
 @dataclass
@@ -54,9 +213,11 @@ class LearningModule:
         self,
         memory_client: Any,  # TODO: add Protocol type when interface stabilizes
         outcome_watcher: OutcomeWatcher | None,
+        strategy: LearningStrategy,
     ) -> None:
         self._memory_client = memory_client
         self._outcome_watcher = outcome_watcher
+        self._strategy = strategy
 
         # Recent fires for undo and ignore detection
         self._recent_fires: list[FireRecord] = []
@@ -67,6 +228,30 @@ class LearningModule:
 
         # Ignore counter: heuristic_id -> consecutive ignore count
         self._ignore_counts: dict[str, int] = defaultdict(int)
+
+    async def _apply_signal(self, signal: FeedbackSignal) -> None:
+        """Apply a feedback signal to memory."""
+        if signal.signal_type == SignalType.NEUTRAL:
+            return
+
+        if not self._memory_client:
+            logger.warning("signal_skipped", reason="no memory client")
+            return
+
+        positive = signal.signal_type == SignalType.POSITIVE
+        result = await self._memory_client.update_heuristic_confidence(
+            heuristic_id=signal.heuristic_id,
+            positive=positive,
+            magnitude=signal.magnitude,
+            feedback_source=signal.source,
+        )
+
+        if not result or not result.get("success"):
+            logger.warning(
+                "confidence_update_failed",
+                heuristic_id=signal.heuristic_id,
+                error=result.get("error") if result else "no result",
+            )
 
     async def on_feedback(
         self,
@@ -84,22 +269,13 @@ class LearningModule:
             source=source,
         )
 
-        if not self._memory_client:
-            logger.warning("feedback_skipped", reason="no memory client")
-            return
-
-        result = await self._memory_client.update_heuristic_confidence(
+        signal = self._strategy.interpret_explicit_feedback(
+            event_id=event_id,
             heuristic_id=heuristic_id,
             positive=positive,
-            feedback_source=source,
+            source=source,
         )
-
-        if not result or not result.get("success"):
-            logger.warning(
-                "confidence_update_failed",
-                heuristic_id=heuristic_id,
-                error=result.get("error") if result else "no result",
-            )
+        await self._apply_signal(signal)
 
         # Mark this fire as acknowledged (not ignored)
         self._acknowledged_fires.add(event_id)
@@ -157,40 +333,6 @@ class LearningModule:
         async with self._fires_lock:
             self._recent_fires.append(record)
 
-    async def on_outcome(
-        self,
-        heuristic_id: str,
-        event_id: str,
-        outcome: str,
-    ) -> None:
-        """Handle implicit feedback signal. Calls confidence update."""
-        positive = outcome == "success"
-        logger.info(
-            "implicit_signal_detected",
-            signal_type="outcome",
-            heuristic_id=heuristic_id,
-            event_id=event_id,
-            outcome=outcome,
-            positive=positive,
-        )
-
-        if not self._memory_client:
-            logger.warning("outcome_skipped", reason="no memory client")
-            return
-
-        result = await self._memory_client.update_heuristic_confidence(
-            heuristic_id=heuristic_id,
-            positive=positive,
-            feedback_source="implicit",
-        )
-
-        if not result or not result.get("success"):
-            logger.warning(
-                "confidence_update_failed",
-                heuristic_id=heuristic_id,
-                error=result.get("error") if result else "no result",
-            )
-
     async def check_event_for_outcomes(self, event: Any) -> list[str]:
         """Check if incoming event resolves any pending outcomes.
 
@@ -235,18 +377,15 @@ class LearningModule:
             consecutive_count=count,
         )
 
-        if count >= IGNORED_THRESHOLD:
+        signal = self._strategy.interpret_ignore(heuristic_id, count)
+        if signal.signal_type != SignalType.NEUTRAL:
             logger.info(
                 "implicit_signal_detected",
-                signal_type="ignored_3x",
+                signal_type="ignored",
                 heuristic_id=heuristic_id,
                 count=count,
             )
-            await self.on_outcome(
-                heuristic_id=heuristic_id,
-                event_id="",
-                outcome="fail",
-            )
+            await self._apply_signal(signal)
             # Reset counter after sending feedback
             self._ignore_counts[heuristic_id] = 0
 
@@ -267,6 +406,7 @@ class LearningModule:
 
         # Send positive implicit feedback for each expired expectation
         # (timeout = positive: no complaint means heuristic was correct)
+        timeout_sec = self._strategy.config.get("outcome_timeout_sec", 120)
         for heuristic_id, event_id in expired_items:
             logger.info(
                 "implicit_signal_detected",
@@ -274,15 +414,15 @@ class LearningModule:
                 heuristic_id=heuristic_id,
                 event_id=event_id,
             )
-            await self.on_outcome(
-                heuristic_id=heuristic_id,
-                event_id=event_id,
-                outcome="success",
+            signal = self._strategy.interpret_timeout(
+                heuristic_id, event_id, float(timeout_sec)
             )
+            await self._apply_signal(signal)
 
         # Also clean up stale fire records (older than undo window)
         now = datetime.now(UTC)
-        cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
+        undo_window = self._strategy.config["undo_window_sec"]
+        cutoff = now - timedelta(seconds=undo_window)
         async with self._fires_lock:
             expired_event_ids = {
                 r.event_id for r in self._recent_fires if r.fire_time < cutoff
@@ -311,35 +451,34 @@ class LearningModule:
 
         Returns list of heuristic IDs that received negative feedback.
         """
-        undo_keywords = ["undo", "revert", "cancel", "rollback", "nevermind", "never mind"]
-        text_lower = raw_text.lower()
-
-        if not any(kw in text_lower for kw in undo_keywords):
-            return []
-
         now = datetime.now(UTC)
-        cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
-        affected: list[str] = []
+        undo_window = self._strategy.config["undo_window_sec"]
+        cutoff = now - timedelta(seconds=undo_window)
 
         async with self._fires_lock:
-            for record in self._recent_fires:
-                if record.fire_time >= cutoff:
-                    logger.info(
-                        "implicit_signal_detected",
-                        signal_type="undo",
-                        heuristic_id=record.heuristic_id,
-                        event_id=record.event_id,
-                        undo_text=raw_text[:100],
-                    )
-                    affected.append(record.heuristic_id)
+            # Filter fires within window
+            recent_dicts = [
+                {"heuristic_id": r.heuristic_id, "event_id": r.event_id}
+                for r in self._recent_fires
+                if r.fire_time >= cutoff
+            ]
 
-        # Send negative feedback for each affected heuristic
-        for heuristic_id in affected:
-            await self.on_outcome(
-                heuristic_id=heuristic_id,
-                event_id="",
-                outcome="fail",
+        if not recent_dicts:
+            return []
+
+        signals = self._strategy.interpret_event_for_undo(raw_text, recent_dicts)
+
+        affected: list[str] = []
+        for signal in signals:
+            logger.info(
+                "implicit_signal_detected",
+                signal_type="undo",
+                heuristic_id=signal.heuristic_id,
+                event_id=signal.event_id,
+                undo_text=raw_text[:100],
             )
+            await self._apply_signal(signal)
+            affected.append(signal.heuristic_id)
 
         return affected
 
@@ -351,7 +490,8 @@ class LearningModule:
         new event arrives from the same source, the user has moved on.
         """
         now = datetime.now(UTC)
-        cutoff = now - timedelta(seconds=UNDO_WINDOW_SEC)
+        undo_window = self._strategy.config["undo_window_sec"]
+        cutoff = now - timedelta(seconds=undo_window)
         ignored_heuristic_ids: list[str] = []
 
         async with self._fires_lock:
