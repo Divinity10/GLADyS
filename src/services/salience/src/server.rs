@@ -186,36 +186,39 @@ impl SalienceScorer for EmbeddingSimilarityScorer {
         }
 
         // Step 1: Generate embedding for the event text
-        let embedding = self.storage.generate_embedding(event_text, trace_id).await
-            .map_err(|e| ScoringError::EmbeddingError(e))?;
+        let embedding_result = self.storage.generate_embedding(event_text, trace_id).await;
 
-        // Step 2: Cache lookup using cosine similarity
-        let cache = self.cache.read().await;
-        let cache_matches = cache.find_matching_heuristics(
-            &embedding,
-            self.min_similarity,
-            self.min_confidence,
-            5,
-        );
-        drop(cache);
-
-        if !cache_matches.is_empty() {
+        if let Ok(embedding) = embedding_result {
+            // Step 2: Cache lookup using cosine similarity
             let cache = self.cache.read().await;
-            let results = cache_matches.into_iter().filter_map(|(h_id, sim)| {
-                cache.get_heuristic(&h_id).map(|h| ScoredMatch {
-                    heuristic_id: h.id.to_string(),
-                    similarity: sim,
-                    confidence: h.confidence,
-                    condition_text: h.condition.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    suggested_action: h.action.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    salience_boost: h.action.get("salience").cloned(),
-                })
-            }).collect();
-            return Ok(results);
+            let cache_matches = cache.find_matching_heuristics(
+                &embedding,
+                self.min_similarity,
+                self.min_confidence,
+                5,
+            );
+            drop(cache);
+
+            if !cache_matches.is_empty() {
+                let cache = self.cache.read().await;
+                let results = cache_matches.into_iter().filter_map(|(h_id, sim)| {
+                    cache.get_heuristic(&h_id).map(|h| ScoredMatch {
+                        heuristic_id: h.id.to_string(),
+                        similarity: sim,
+                        confidence: h.confidence,
+                        condition_text: h.condition.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                        suggested_action: h.action.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                        salience_boost: h.action.get("salience").cloned(),
+                    })
+                }).collect();
+                return Ok(results);
+            }
+        } else if let Err(e) = embedding_result {
+            warn!(trace_id = ?trace_id, error = %e, "Embedding failed, falling back to storage query");
         }
 
-        // Step 3: Cache miss - fall back to storage
-        debug!("Cache miss, querying storage for heuristic matching");
+        // Step 3: Cache miss or embedding failure - fall back to storage
+        debug!("Querying storage for heuristic matching");
         let heuristics = self.storage.query_matching_heuristics(
             event_text,
             self.min_confidence,
@@ -223,6 +226,14 @@ impl SalienceScorer for EmbeddingSimilarityScorer {
             None,
             trace_id
         ).await.map_err(|e| ScoringError::StorageError(e))?;
+
+        // Cache warming: add results to cache so future lookups find them locally
+        if !heuristics.is_empty() {
+            let mut cache = self.cache.write().await;
+            for h in &heuristics {
+                cache.add_heuristic(h.clone());
+            }
+        }
 
         Ok(heuristics.into_iter().map(|h| ScoredMatch {
             heuristic_id: h.id.to_string(),
@@ -714,6 +725,85 @@ mod tests {
         assert_eq!(results[0].heuristic_id, h_id.to_string());
         assert_eq!(results[0].similarity, 1.0); // Storage fallback uses 1.0
         assert_eq!(results[0].suggested_action, "storage action");
+    }
+
+    #[tokio::test]
+    async fn test_storage_match_warms_cache() {
+        let cache = Arc::new(RwLock::new(MemoryCache::new(crate::config::CacheConfig::default())));
+        
+        let h_id = Uuid::new_v4();
+        let storage_heuristic = CachedHeuristic {
+            id: h_id,
+            name: "storage_heuristic".to_string(),
+            condition: serde_json::json!({"text": "storage condition"}),
+            action: serde_json::json!({"message": "storage action"}),
+            confidence: 0.8,
+            condition_embedding: vec![1.0; 384],
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        };
+
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![storage_heuristic],
+            embedding: vec![1.0; 384],
+            should_fail_embedding: false,
+            should_fail_query: false,
+        });
+
+        let scorer = EmbeddingSimilarityScorer::new(cache.clone(), mock_storage, 0.7, 0.5);
+        
+        // 1. Initial check: cache is empty
+        {
+            let c = cache.read().await;
+            assert!(c.get_heuristic(&h_id).is_none());
+        }
+
+        // 2. Score (should hit storage and warm cache)
+        let _ = scorer.score("test event", "test", None).await.unwrap();
+
+        // 3. Verify cache is now warmed
+        {
+            let c = cache.read().await;
+            assert!(c.get_heuristic(&h_id).is_some());
+            assert_eq!(c.get_heuristic(&h_id).unwrap().name, "storage_heuristic");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_embedding_failure_falls_back_to_storage() {
+        let cache = Arc::new(RwLock::new(MemoryCache::new(crate::config::CacheConfig::default())));
+        
+        let h_id = Uuid::new_v4();
+        let storage_heuristic = CachedHeuristic {
+            id: h_id,
+            name: "storage_heuristic".to_string(),
+            condition: serde_json::json!({"text": "storage condition"}),
+            action: serde_json::json!({"message": "storage action"}),
+            confidence: 0.8,
+            condition_embedding: vec![],
+            last_accessed_ms: 0,
+            cached_at_ms: 0,
+            hit_count: 0,
+            last_hit_ms: 0,
+        };
+
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![storage_heuristic],
+            embedding: vec![],
+            should_fail_embedding: true, // Force embedding failure
+            should_fail_query: false,
+        });
+
+        let scorer = EmbeddingSimilarityScorer::new(cache, mock_storage, 0.7, 0.5);
+        
+        // Should NOT return error, should fall back to storage
+        let results = scorer.score("test event", "test", None).await.unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].heuristic_id, h_id.to_string());
+        assert_eq!(results[0].similarity, 1.0);
     }
 
     #[test]
