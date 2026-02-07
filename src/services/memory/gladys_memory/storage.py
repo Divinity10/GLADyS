@@ -11,7 +11,11 @@ import asyncpg
 import numpy as np
 from pgvector.asyncpg import register_vector
 
+from gladys_common import get_logger
+
 from .config import settings, StorageSettings
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -769,9 +773,10 @@ class MemoryStorage:
         if magnitude == 0.0:
             magnitude = 1.0
 
-        import logging
-        logging.getLogger(__name__).info(
-            f"Confidence update: magnitude={magnitude}, source={feedback_source}"
+        logger.info(
+            "Confidence update: magnitude=%s, source=%s",
+            magnitude,
+            feedback_source
         )
 
         # Get current state

@@ -263,7 +263,7 @@ message Heuristic {
     float similarity_threshold = 5;
     string effects_json = 6;
     float confidence = 7;
-    float learning_rate = 8;
+    reserved 8;
     string origin = 9;
     string origin_id = 10;
     repeated string next_heuristic_ids = 11;

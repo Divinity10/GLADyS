@@ -104,7 +104,8 @@ def test_create_bayesian_strategy():
     mock_config.learning_undo_keywords = "undo, stop"
     mock_config.learning_implicit_magnitude = 0.9
     mock_config.learning_explicit_magnitude = 0.7
-    
+    mock_config.outcome_timeout_sec = 150.0
+
     strategy = create_learning_strategy(mock_config)
     assert isinstance(strategy, BayesianStrategy)
     assert strategy.config["undo_window_sec"] == 45.0
@@ -112,7 +113,7 @@ def test_create_bayesian_strategy():
     assert strategy.config["undo_keywords"] == ("undo", "stop")
     assert strategy.config["implicit_magnitude"] == 0.9
     assert strategy.config["explicit_magnitude"] == 0.7
-
+    assert strategy.config["outcome_timeout_sec"] == 150.0
 
 def test_create_unknown_strategy():
     mock_config = MagicMock(spec=OrchestratorConfig)
@@ -124,7 +125,7 @@ def test_create_unknown_strategy():
 @pytest.mark.asyncio
 async def test_on_feedback_delegates_to_strategy():
     mock_memory = AsyncMock()
-    mock_memory.update_heuristic_confidence.return_return_value = {"success": True}
+    mock_memory.update_heuristic_confidence.return_value = {"success": True}
     mock_strategy = MagicMock()
     mock_strategy.interpret_explicit_feedback.return_value = FeedbackSignal(
         signal_type=SignalType.POSITIVE,

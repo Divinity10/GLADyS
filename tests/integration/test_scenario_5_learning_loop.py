@@ -323,7 +323,7 @@ class LearningLoopTest:
             memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=True,
-                learning_rate=0.3  # Boost by 0.3 -> 0.6
+                magnitude=0.3  # Boost by 0.3 -> 0.6
             )
         )
         
@@ -402,7 +402,7 @@ class LearningLoopTest:
             memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=False,
-                learning_rate=0.2  # Drop 0.6 -> 0.4
+                magnitude=0.2  # Drop 0.6 -> 0.4
             )
         )
         
@@ -529,7 +529,7 @@ class LearningLoopTest:
             memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=True,
-                learning_rate=0.1
+                magnitude=0.1
             )
         )
         assert resp.new_confidence == 1.0, f"Expected 1.0, got {resp.new_confidence}"

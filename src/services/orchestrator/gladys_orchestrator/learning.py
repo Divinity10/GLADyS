@@ -98,6 +98,7 @@ class BayesianStrategyConfig:
     )
     implicit_magnitude: float = 1.0
     explicit_magnitude: float = 0.8
+    outcome_timeout_sec: float = 120.0
 
 
 class BayesianStrategy:
@@ -170,6 +171,7 @@ class BayesianStrategy:
             "undo_keywords": self._config.undo_keywords,
             "implicit_magnitude": self._config.implicit_magnitude,
             "explicit_magnitude": self._config.explicit_magnitude,
+            "outcome_timeout_sec": self._config.outcome_timeout_sec,
         }
 
 
@@ -185,6 +187,7 @@ def create_learning_strategy(config: "OrchestratorConfig") -> LearningStrategy:
             undo_keywords=undo_keywords,
             implicit_magnitude=config.learning_implicit_magnitude,
             explicit_magnitude=config.learning_explicit_magnitude,
+            outcome_timeout_sec=config.outcome_timeout_sec,
         )
         return BayesianStrategy(strategy_config)
     raise ValueError(f"Unknown learning strategy: {config.learning_strategy}")
@@ -406,7 +409,7 @@ class LearningModule:
 
         # Send positive implicit feedback for each expired expectation
         # (timeout = positive: no complaint means heuristic was correct)
-        timeout_sec = self._strategy.config.get("outcome_timeout_sec", 120)
+        timeout_sec = self._strategy.config["outcome_timeout_sec"]
         for heuristic_id, event_id in expired_items:
             logger.info(
                 "implicit_signal_detected",

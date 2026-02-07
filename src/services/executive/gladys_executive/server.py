@@ -626,7 +626,6 @@ class MemoryClient:
         self,
         heuristic_id: str,
         positive: bool,
-        learning_rate: float | None = None,
     ) -> tuple[bool, str, float, float]:
         """Update heuristic confidence based on feedback."""
         if not self._available or not self._stub:
@@ -637,8 +636,6 @@ class MemoryClient:
                 heuristic_id=heuristic_id,
                 positive=positive,
             )
-            if learning_rate is not None:
-                request.learning_rate = learning_rate
             response = await self._stub.UpdateHeuristicConfidence(request)
             if response.success:
                 return True, "", response.old_confidence, response.new_confidence
