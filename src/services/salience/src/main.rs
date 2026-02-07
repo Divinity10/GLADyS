@@ -16,7 +16,10 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use gladys_memory::{CacheConfig, Config, MemoryCache, run_server, setup_logging};
+use gladys_memory::{
+    CacheConfig, Config, MemoryCache, run_server, setup_logging,
+    SalienceScorer, EmbeddingSimilarityScorer, GrpcStorageBackend
+};
 use tracing::info;
 
 #[tokio::main]
@@ -46,9 +49,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Wrap cache in Arc<RwLock> for shared access across async tasks
     let cache = Arc::new(RwLock::new(cache));
 
+    // Create the scoring strategy
+    let scorer = create_scorer(&config, cache.clone());
+
     info!(
         storage_address = %config.storage.address,
-        "Storage backend configured for cache-miss queries"
+        scorer = %config.scorer,
+        "Storage backend and scorer configured"
     );
 
     // Start the gRPC server
@@ -59,9 +66,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // This runs until the server is shut down (Ctrl+C)
-    // On cache miss, the server queries Python storage for matching heuristics
-    run_server(config.server, config.salience, config.storage, cache).await?;
+    // The scorer handles heuristic matching (with cache-first logic)
+    run_server(config.server, config.salience, scorer, cache).await?;
 
     info!("Memory Fast Path shutdown complete");
     Ok(())
+}
+
+/// Factory function to create the requested salience scorer.
+fn create_scorer(
+    config: &Config,
+    cache: Arc<RwLock<MemoryCache>>,
+) -> Box<dyn SalienceScorer> {
+    match config.scorer.as_str() {
+        "embedding" | "" => {
+            let backend = Box::new(GrpcStorageBackend::new(config.storage.clone()));
+            Box::new(EmbeddingSimilarityScorer::new(
+                cache,
+                backend,
+                config.salience.min_heuristic_similarity,
+                config.salience.min_heuristic_confidence,
+            ))
+        }
+        other => panic!("Unknown scorer implementation: {}", other),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gladys_memory::CacheConfig;
+
+    #[test]
+    fn test_create_scorer_default() {
+        let config = Config::default();
+        let cache = Arc::new(RwLock::new(MemoryCache::new(CacheConfig::default())));
+        let scorer = create_scorer(&config, cache);
+        assert_eq!(scorer.config()["scorer"], "embedding_similarity");
+    }
 }
