@@ -381,7 +381,6 @@ impl HeuristicBuilder {
                 similarity_threshold: 0.7,
                 effects_json: "{}".to_string(),
                 confidence: 0.5,
-                learning_rate: 0.1,
                 origin: "user".to_string(),
                 origin_id: String::new(),
                 next_heuristic_ids: Vec::new(),

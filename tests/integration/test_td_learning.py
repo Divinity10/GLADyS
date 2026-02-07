@@ -74,7 +74,6 @@ async def run_test():
         condition_text="test td learning confidence",
         effects_json='{"action": "test_action"}',
         confidence=initial_confidence,
-        learning_rate=0.1,  # 10% learning rate
         origin="test",
     )
 
@@ -144,7 +143,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=heuristic_id,
             positive=False,
-            learning_rate=0.5,  # Big decrease
+            magnitude=0.5,  # Big decrease
         )
     )
 
@@ -153,7 +152,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=heuristic_id,
             positive=False,
-            learning_rate=1.0,  # Try to drop by 1.0
+            magnitude=1.0,  # Try to drop by 1.0
         )
     )
 
@@ -177,7 +176,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=heuristic_id,
             positive=True,
-            learning_rate=1.0,  # Big increase
+            magnitude=1.0,  # Big increase
         )
     )
 
@@ -186,7 +185,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=heuristic_id,
             positive=True,
-            learning_rate=1.0,  # Try to add 1.0
+            magnitude=1.0,  # Try to add 1.0
         )
     )
 
@@ -239,7 +238,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=td_heuristic_id,
             positive=True,  # actual = 1.0 (success)
-            learning_rate=0.5,  # Use larger rate to make effect visible
+            magnitude=0.5,  # Use larger rate to make effect visible
             predicted_success=0.9,  # We predicted 90% success
         )
     )
@@ -273,7 +272,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=td_heuristic_id,
             positive=True,  # actual = 1.0 (success)
-            learning_rate=0.5,
+            magnitude=0.5,
             predicted_success=0.1,  # We predicted only 10% success
         )
     )
@@ -307,7 +306,7 @@ async def run_test():
         memory_pb2.UpdateHeuristicConfidenceRequest(
             heuristic_id=td_heuristic_id,
             positive=False,  # actual = 0.0 (failure)
-            learning_rate=0.5,
+            magnitude=0.5,
             predicted_success=0.9,  # We predicted 90% success
         )
     )

@@ -11,7 +11,11 @@ import asyncpg
 import numpy as np
 from pgvector.asyncpg import register_vector
 
+from gladys_common import get_logger
+
 from .config import settings, StorageSettings
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -732,7 +736,7 @@ class MemoryStorage:
         self,
         heuristic_id: UUID,
         positive: bool,
-        learning_rate: Optional[float] = None,
+        magnitude: float = 1.0,
         predicted_success: Optional[float] = None,
         feedback_source: str = "explicit",
     ) -> tuple[float, float, float, Optional[float]]:
@@ -750,7 +754,7 @@ class MemoryStorage:
         Args:
             heuristic_id: UUID of the heuristic to update
             positive: True for positive feedback, False for negative
-            learning_rate: Ignored (kept for API compatibility)
+            magnitude: Weight of the feedback signal (1.0 = default)
             predicted_success: Ignored (kept for API compatibility)
             feedback_source: 'explicit' (user feedback) or 'implicit' (outcome watcher)
 
@@ -764,6 +768,16 @@ class MemoryStorage:
         """
         if not self._pool:
             raise RuntimeError("Not connected to database")
+
+        # Handle 0.0 as 1.0 for backward compatibility
+        if magnitude == 0.0:
+            magnitude = 1.0
+
+        logger.info(
+            "Confidence update: magnitude=%s, source=%s",
+            magnitude,
+            feedback_source
+        )
 
         # Get current state
         row = await self._pool.fetchrow(

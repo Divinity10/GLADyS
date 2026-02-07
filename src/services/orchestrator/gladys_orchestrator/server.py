@@ -16,7 +16,7 @@ from .registry import ComponentRegistry
 from .router import EventRouter
 from .event_queue import EventQueue
 from .outcome_watcher import OutcomeWatcher, OutcomePattern
-from .learning import LearningModule
+from .learning import LearningModule, create_learning_strategy
 from .clients.executive_client import ExecutiveClient
 from .clients.salience_client import SalienceMemoryClient
 from .clients.memory_client import MemoryStorageClient
@@ -58,9 +58,11 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         self._outcome_watcher = self._create_outcome_watcher(config, memory_client)
 
         # Create LearningModule facade (W2)
+        strategy = create_learning_strategy(config)
         self._learning_module = LearningModule(
             memory_client=self._memory_client,
             outcome_watcher=self._outcome_watcher,
+            strategy=strategy,
         )
 
         self.router = EventRouter(

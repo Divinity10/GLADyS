@@ -176,7 +176,7 @@ class MemoryStorageClient:
         self,
         heuristic_id: str,
         positive: bool,
-        learning_rate: float = 0.0,
+        magnitude: float = 1.0,
         predicted_success: float = 0.0,
         feedback_source: str = "explicit",
     ) -> dict:
@@ -189,7 +189,7 @@ class MemoryStorageClient:
         Args:
             heuristic_id: UUID of the heuristic to update
             positive: True for positive feedback, False for negative
-            learning_rate: Optional override (0 = use default 0.1)
+            magnitude: Weight of the feedback signal (1.0 = default)
             predicted_success: LLM's prediction for TD learning
             feedback_source: "explicit" or "implicit"
 
@@ -204,7 +204,7 @@ class MemoryStorageClient:
             request = memory_pb2.UpdateHeuristicConfidenceRequest(
                 heuristic_id=heuristic_id,
                 positive=positive,
-                learning_rate=learning_rate,
+                magnitude=magnitude,
                 predicted_success=predicted_success,
                 feedback_source=feedback_source,
             )

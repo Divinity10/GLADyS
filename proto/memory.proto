@@ -263,7 +263,7 @@ message Heuristic {
     float similarity_threshold = 5;
     string effects_json = 6;
     float confidence = 7;
-    float learning_rate = 8;
+    reserved 8;
     string origin = 9;
     string origin_id = 10;
     repeated string next_heuristic_ids = 11;
@@ -326,9 +326,10 @@ message GetHeuristicResponse {
 message UpdateHeuristicConfidenceRequest {
     string heuristic_id = 1;
     bool positive = 2;
-    float learning_rate = 3;
+    reserved 3;
     float predicted_success = 4;
     string feedback_source = 5;
+    float magnitude = 6;
 }
 
 message UpdateHeuristicConfidenceResponse {
