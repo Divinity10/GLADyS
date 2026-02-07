@@ -7,10 +7,12 @@ for integration testing. The real Executive will be in C#/.NET.
 import asyncio
 import json
 import os
+import random
 import time
 import uuid
 from concurrent import futures
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
+from enum import Enum
 from pathlib import Path
 import sys
 from typing import Any, Protocol, runtime_checkable
@@ -85,6 +87,347 @@ class LLMProvider(Protocol):
     def model_name(self) -> str:
         """Return model identifier for logging."""
         ...
+
+
+class DecisionPath(Enum):
+    """Which path the decision took."""
+    HEURISTIC = "heuristic"
+    LLM = "llm"
+    FALLBACK = "fallback"
+    REJECTED = "rejected"
+
+
+@dataclass
+class HeuristicCandidate:
+    """A heuristic candidate for LLM prompt inclusion (F-04).
+
+    Deliberately minimal — only condition and action text.
+    No confidence scores, fire counts, or similarity scores (avoids anchoring bias).
+    """
+    heuristic_id: str
+    condition_text: str
+    suggested_action: str
+    confidence: float  # Used for heuristic-path threshold check, NOT shown to LLM
+
+
+@dataclass
+class DecisionContext:
+    """Input to a decision strategy."""
+    event_id: str
+    event_text: str
+    event_source: str
+    salience: dict[str, float]
+    candidates: list[HeuristicCandidate]  # Best match first, then additional candidates.
+    immediate: bool
+    goals: list[str] = field(default_factory=list)  # Active user goals (F-07). Injected into system prompt.
+
+
+@dataclass
+class DecisionResult:
+    """Output from a decision strategy."""
+    path: DecisionPath
+    response_text: str
+    response_id: str
+    matched_heuristic_id: str | None
+    predicted_success: float
+    prediction_confidence: float
+    prompt_text: str
+    metadata: dict[str, Any]  # Includes convergence info when detected
+
+
+@dataclass
+class ReasoningTrace:
+    """Stores context for pattern extraction when feedback is received."""
+    event_id: str
+    response_id: str
+    context: str
+    response: str
+    timestamp: float
+    matched_heuristic_id: str | None = None
+    predicted_success: float = 0.0
+    prediction_confidence: float = 0.0
+
+    def age_seconds(self) -> float:
+        return time.time() - self.timestamp
+
+
+TRACE_RETENTION_SECONDS = 300
+
+
+class DecisionStrategy(Protocol):
+    """Interface for event decision logic."""
+
+    async def decide(
+        self,
+        context: DecisionContext,
+        llm: LLMProvider | None,
+    ) -> DecisionResult:
+        """Decide how to respond to an event."""
+        ...
+
+    def get_trace(self, response_id: str) -> ReasoningTrace | None:
+        """Get reasoning trace for feedback handling."""
+        ...
+
+    def delete_trace(self, response_id: str) -> None:
+        """Delete trace after use."""
+        ...
+
+    @property
+    def trace_count(self) -> int:
+        """Return number of active traces."""
+        ...
+
+    @property
+    def config(self) -> dict[str, Any]:
+        """Return configuration for logging."""
+        ...
+
+
+EXECUTIVE_SYSTEM_PROMPT = """You are GLADyS, a helpful AI assistant observing events in a user's environment.
+
+When given events, briefly acknowledge what happened and suggest any relevant actions or responses.
+Keep responses concise (1-2 sentences). Focus on what's most important or actionable.
+
+If there's a high-threat event, prioritize addressing it.
+If events are routine, a brief acknowledgment is sufficient."""
+
+
+PREDICTION_PROMPT = """Given this situation and response:
+Situation: {context}
+Response: {response}
+
+Predict the probability this action will succeed (0.0-1.0) and your confidence in that prediction (0.0-1.0).
+Output ONLY valid JSON with no other text: {{"success": 0.X, "confidence": 0.Y}}"""
+
+
+@dataclass
+class HeuristicFirstConfig:
+    confidence_threshold: float = 0.7
+    max_candidates: int = 3          # Max candidates in LLM prompt (F-04 Q5)
+    llm_confidence_ceiling: float = 0.8  # Cap LLM self-reported confidence (F-06)
+    system_prompt: str = EXECUTIVE_SYSTEM_PROMPT
+    prediction_prompt_template: str = PREDICTION_PROMPT
+
+
+class HeuristicFirstStrategy:
+    """Use heuristic if confident, else LLM.
+
+    Decision flow:
+    1. If best candidate confidence >= threshold → heuristic fast-path
+    2. If LLM available and immediate → LLM path (remaining candidates shown as neutral context)
+    3. Otherwise → rejected
+    """
+
+    def __init__(self, config: HeuristicFirstConfig | None = None):
+        self._config = config or HeuristicFirstConfig()
+        self._trace_store: dict[str, ReasoningTrace] = {}
+
+    async def decide(self, context: DecisionContext, llm: LLMProvider | None) -> DecisionResult:
+        # Path 1: High-confidence heuristic (best candidate above threshold)
+        best = context.candidates[0] if context.candidates else None
+        if best and best.confidence >= self._config.confidence_threshold:
+            return self._heuristic_path(context, best)
+
+        # Path 2: LLM reasoning (with remaining candidates as neutral context)
+        if llm and context.immediate:
+            return await self._llm_path(context, llm)
+
+        # Path 3: Rejected
+        return DecisionResult(
+            path=DecisionPath.REJECTED,
+            response_text="",
+            response_id="",
+            matched_heuristic_id=None,
+            predicted_success=0.0,
+            prediction_confidence=0.0,
+            prompt_text="",
+            metadata={"reason": "llm_unavailable" if not llm else "not_immediate"},
+        )
+
+    def _heuristic_path(self, context: DecisionContext, candidate: HeuristicCandidate) -> DecisionResult:
+        response_id = self._store_trace(
+            event_id=context.event_id,
+            context_text=context.event_text,
+            response=candidate.suggested_action,
+            matched_heuristic_id=candidate.heuristic_id,
+            predicted_success=candidate.confidence,
+            prediction_confidence=candidate.confidence,
+        )
+        return DecisionResult(
+            path=DecisionPath.HEURISTIC,
+            response_text=candidate.suggested_action,
+            response_id=response_id,
+            matched_heuristic_id=candidate.heuristic_id,
+            predicted_success=candidate.confidence,
+            prediction_confidence=candidate.confidence,
+            prompt_text="",
+            metadata={"threshold": self._config.confidence_threshold},
+        )
+
+    async def _llm_path(self, context: DecisionContext, llm: LLMProvider) -> DecisionResult:
+        prompt = self._build_prompt(context)
+
+        # Compose system prompt with goals (F-07)
+        system_prompt = self._config.system_prompt
+        if context.goals:
+            goals_text = "\n".join(f"- {g}" for g in context.goals)
+            system_prompt += f"\n\nCurrent user goals:\n{goals_text}"
+
+        llm_response = await llm.generate(LLMRequest(
+            prompt=prompt,
+            system_prompt=system_prompt,
+        ))
+
+        if not llm_response:
+            return DecisionResult(
+                path=DecisionPath.FALLBACK,
+                response_text="",
+                response_id="",
+                matched_heuristic_id=None,
+                predicted_success=0.0,
+                prediction_confidence=0.0,
+                prompt_text=prompt,
+                metadata={"reason": "llm_no_response"},
+            )
+
+        response_text = llm_response.text.strip()
+        predicted_success, prediction_confidence = await self._get_prediction(
+            llm, context, response_text
+        )
+
+        # Cap LLM self-reported confidence (F-06)
+        predicted_success = min(predicted_success, self._config.llm_confidence_ceiling)
+        prediction_confidence = min(prediction_confidence, self._config.llm_confidence_ceiling)
+
+        # Determine matched heuristic (best candidate if present)
+        matched_id = context.candidates[0].heuristic_id if context.candidates else None
+
+        response_id = self._store_trace(
+            event_id=context.event_id,
+            context_text=context.event_text,
+            response=response_text,
+            matched_heuristic_id=matched_id,
+            predicted_success=predicted_success,
+            prediction_confidence=prediction_confidence,
+        )
+
+        metadata: dict[str, Any] = {"model": llm.model_name}
+
+        return DecisionResult(
+            path=DecisionPath.LLM,
+            response_text=response_text,
+            response_id=response_id,
+            matched_heuristic_id=matched_id,
+            predicted_success=predicted_success,
+            prediction_confidence=prediction_confidence,
+            prompt_text=prompt,
+            metadata=metadata,
+        )
+
+    def _build_prompt(self, context: DecisionContext) -> str:
+        """Build LLM prompt with neutral candidate presentation (F-04)."""
+        prompt = f"URGENT event: [{context.event_source}]: {context.event_text}\n\n"
+
+        # Include candidates as neutral context (up to max_candidates)
+        display_candidates = context.candidates[:self._config.max_candidates]
+        if display_candidates:
+            # Randomize order to avoid positional bias
+            shuffled = list(display_candidates)
+            random.shuffle(shuffled)
+
+            prompt += "Previous responses to similar situations (for context — you may ignore these):\n"
+            for i, c in enumerate(shuffled, 1):
+                prompt += f"{i}. Situation: \"{c.condition_text}\" → Response: \"{c.suggested_action}\"\n"
+            prompt += "\n"
+
+        prompt += "How should I respond?"
+        return prompt
+
+    async def _get_prediction(self, llm: LLMProvider, context: DecisionContext, response_text: str) -> tuple[float, float]:
+        prediction_prompt = self._config.prediction_prompt_template.format(
+            context=context.event_text,
+            response=response_text
+        )
+
+        if context.goals:
+            goals_text = "\n".join(f"- {g}" for g in context.goals)
+            prediction_prompt += f"\n\nSuccess should be evaluated against these goals:\n{goals_text}"
+
+        prediction_response = await llm.generate(LLMRequest(
+            prompt=prediction_prompt,
+            format="json",
+        ))
+
+        if not prediction_response:
+            return 0.5, 0.5
+
+        try:
+            clean_json = prediction_response.text.strip()
+            if clean_json.startswith("```"):
+                lines = clean_json.split("\n")
+                clean_json = "\n".join(
+                    line for line in lines if not line.startswith("```")
+                ).strip()
+            pred_data = json.loads(clean_json)
+            predicted_success = float(pred_data.get("success", 0.5))
+            prediction_confidence = float(pred_data.get("confidence", 0.5))
+            return predicted_success, prediction_confidence
+        except Exception:
+            return 0.5, 0.5
+
+    def _cleanup_old_traces(self) -> int:
+        old_ids = [
+            rid for rid, trace in self._trace_store.items()
+            if trace.age_seconds() > TRACE_RETENTION_SECONDS
+        ]
+        for rid in old_ids:
+            del self._trace_store[rid]
+        return len(old_ids)
+
+    def _store_trace(
+        self,
+        event_id: str,
+        context_text: str,
+        response: str,
+        matched_heuristic_id: str | None = None,
+        predicted_success: float = 0.0,
+        prediction_confidence: float = 0.0,
+    ) -> str:
+        response_id = str(uuid.uuid4())
+        self._trace_store[response_id] = ReasoningTrace(
+            event_id=event_id,
+            response_id=response_id,
+            context=context_text,
+            response=response,
+            timestamp=time.time(),
+            matched_heuristic_id=matched_heuristic_id,
+            predicted_success=predicted_success,
+            prediction_confidence=prediction_confidence,
+        )
+        if len(self._trace_store) > 100:
+            self._cleanup_old_traces()
+        return response_id
+
+    def get_trace(self, response_id: str) -> ReasoningTrace | None:
+        return self._trace_store.get(response_id)
+
+    def delete_trace(self, response_id: str) -> None:
+        if response_id in self._trace_store:
+            del self._trace_store[response_id]
+
+    @property
+    def trace_count(self) -> int:
+        return len(self._trace_store)
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return {
+            "strategy": "heuristic_first",
+            "confidence_threshold": self._config.confidence_threshold,
+            "max_candidates": self._config.max_candidates,
+            "llm_confidence_ceiling": self._config.llm_confidence_ceiling,
+        }
 
 
 class OllamaProvider:
@@ -323,15 +666,6 @@ def format_event_for_llm(event: Any) -> str:
     return f"[{event.source}]{salience_str}: {event.raw_text}"
 
 
-EXECUTIVE_SYSTEM_PROMPT = """You are GLADyS, a helpful AI assistant observing events in a user's environment.
-
-When given events, briefly acknowledge what happened and suggest any relevant actions or responses.
-Keep responses concise (1-2 sentences). Focus on what's most important or actionable.
-
-If there's a high-threat event, prioritize addressing it.
-If events are routine, a brief acknowledgment is sufficient."""
-
-
 PATTERN_EXTRACTION_PROMPT = """You just helped with this situation:
 
 Context: {context}
@@ -354,33 +688,6 @@ Bad examples (DO NOT generate these):
 - Too specific: {{"condition": "When John plays level 5 on Tuesday", "action": {{"type": "suggest", "message": "Press the blue button at coordinates 150 200"}}}}
 
 Output valid JSON: {{"condition": "...", "action": {{"type": "...", "message": "..."}}}}"""
-
-
-PREDICTION_PROMPT = """Given this situation and response:
-Situation: {context}
-Response: {response}
-
-Predict the probability this action will succeed (0.0-1.0) and your confidence in that prediction (0.0-1.0).
-Output ONLY valid JSON with no other text: {{"success": 0.X, "confidence": 0.Y}}"""
-
-
-@dataclass
-class ReasoningTrace:
-    """Stores context for pattern extraction when feedback is received."""
-    event_id: str
-    response_id: str
-    context: str
-    response: str
-    timestamp: float
-    matched_heuristic_id: str | None = None
-    predicted_success: float = 0.0
-    prediction_confidence: float = 0.0
-
-    def age_seconds(self) -> float:
-        return time.time() - self.timestamp
-
-
-TRACE_RETENTION_SECONDS = 300
 
 
 @dataclass
@@ -444,6 +751,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         llm_provider: LLMProvider | None = None,
         memory_client: MemoryClient | None = None,
         heuristic_store: HeuristicStore | None = None,
+        decision_strategy: DecisionStrategy | None = None,
     ):
         self.events_received = 0
         self.moments_received = 0
@@ -451,7 +759,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self.ollama = llm_provider  # Keep attribute name for backward compatibility
         self.memory_client = memory_client
         self.heuristic_store = heuristic_store or HeuristicStore()
-        self.reasoning_traces: dict[str, ReasoningTrace] = {}
+        self._strategy = decision_strategy or HeuristicFirstStrategy()
         self._started_at = time.time()
 
     @staticmethod
@@ -461,6 +769,25 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         trace_id = get_or_create_trace_id(metadata)
         bind_trace_id(trace_id)
         return trace_id
+
+    @staticmethod
+    def _get_active_goals() -> list[str]:
+        """Read active goals from environment (F-07)."""
+        goals_str = os.environ.get("EXECUTIVE_GOALS", "")
+        if not goals_str:
+            return []
+        return [g.strip() for g in goals_str.split(";") if g.strip()]
+
+    @staticmethod
+    def _extract_salience(salience_proto) -> dict[str, float]:
+        """Extract salience dimensions from proto."""
+        if not salience_proto:
+            return {}
+        return {
+            "threat": salience_proto.threat,
+            "opportunity": salience_proto.opportunity,
+            "novelty": salience_proto.novelty,
+        }
 
     @staticmethod
     def _check_heuristic_quality(condition: str, action: dict) -> str | None:
@@ -487,173 +814,54 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 
         return None
 
-    def _cleanup_old_traces(self) -> int:
-        old_ids = [
-            rid for rid, trace in self.reasoning_traces.items()
-            if trace.age_seconds() > TRACE_RETENTION_SECONDS
-        ]
-        for rid in old_ids:
-            del self.reasoning_traces[rid]
-        return len(old_ids)
-
-    def _store_trace(
-        self,
-        event_id: str,
-        context: str,
-        response: str,
-        matched_heuristic_id: str | None = None,
-        predicted_success: float = 0.0,
-        prediction_confidence: float = 0.0,
-    ) -> str:
-        response_id = str(uuid.uuid4())
-        self.reasoning_traces[response_id] = ReasoningTrace(
-            event_id=event_id,
-            response_id=response_id,
-            context=context,
-            response=response,
-            timestamp=time.time(),
-            matched_heuristic_id=matched_heuristic_id,
-            predicted_success=predicted_success,
-            prediction_confidence=prediction_confidence,
-        )
-        if len(self.reasoning_traces) > 100:
-            self._cleanup_old_traces()
-        return response_id
-
     async def ProcessEvent(
         self,
         request: executive_pb2.ProcessEventRequest,
         context: grpc.aio.ServicerContext,
     ) -> executive_pb2.ProcessEventResponse:
-        """Process an event, deciding between heuristic fast-path and LLM reasoning.
-
-        §30 boundary change: Executive now decides heuristic-vs-LLM.
-        If a high-confidence suggestion is attached, return the heuristic action
-        directly without calling the LLM.
-        """
+        """Process an event via DecisionStrategy Protocol."""
         self._setup_trace(context)
         self.events_received += 1
-        event = request.event
 
         logger.info(
             "ProcessEvent received",
-            event_id=event.id,
-            source=event.source,
+            event_id=request.event.id,
+            source=request.event.source,
             immediate=request.immediate,
-            threat=round(event.salience.threat, 2) if event.salience else 0.0,
-            text_preview=event.raw_text[:50] if event.raw_text else "",
+            text_preview=request.event.raw_text[:50] if request.event.raw_text else "",
         )
 
-        # §30 fast-path: high-confidence heuristic → return action without LLM
-        heuristic_threshold = float(os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7"))
-        if (request.suggestion
-                and request.suggestion.heuristic_id
-                and request.suggestion.confidence >= heuristic_threshold):
-            suggestion = request.suggestion
-            logger.info(
-                "HEURISTIC_FASTPATH",
-                event_id=event.id,
-                heuristic_id=suggestion.heuristic_id,
-                confidence=round(suggestion.confidence, 3),
-                threshold=heuristic_threshold,
-            )
-            response_id = self._store_trace(
-                event_id=event.id,
-                context=event.raw_text or "",
-                response=suggestion.suggested_action,
-                matched_heuristic_id=suggestion.heuristic_id,
-                predicted_success=suggestion.confidence,
-                prediction_confidence=suggestion.confidence,
-            )
-            return executive_pb2.ProcessEventResponse(
-                accepted=True,
-                response_id=response_id,
-                response_text=suggestion.suggested_action,
-                predicted_success=suggestion.confidence,
-                prediction_confidence=suggestion.confidence,
-                prompt_text="",
-                decision_path="heuristic",
-                matched_heuristic_id=suggestion.heuristic_id,
-            )
+        # Build candidates list
+        candidates = []
+        if request.HasField("suggestion") and request.suggestion.heuristic_id:
+            candidates.append(HeuristicCandidate(
+                heuristic_id=request.suggestion.heuristic_id,
+                condition_text=request.suggestion.condition_text,
+                suggested_action=request.suggestion.suggested_action,
+                confidence=request.suggestion.confidence,
+            ))
 
-        response_id = ""
-        response_text = ""
-        predicted_success = 0.0
-        prediction_confidence = 0.0
-        prompt_text = ""
-        decision_path = ""
-        matched_heuristic_id_for_response = ""
+        decision_context = DecisionContext(
+            event_id=request.event.id,
+            event_text=request.event.raw_text or "",
+            event_source=request.event.source,
+            salience=self._extract_salience(request.event.salience),
+            candidates=candidates,
+            immediate=request.immediate,
+            goals=self._get_active_goals(),
+        )
 
-        if self.ollama and request.immediate:
-            logger.info("LLM_PATH", event_id=event.id)
-            event_context = format_event_for_llm(event)
-
-            # Build prompt, including suggestion if present (Scenario 2)
-            prompt = f"URGENT event: {event_context}\n\n"
-            if request.suggestion and request.suggestion.heuristic_id:
-                # Include low-confidence heuristic suggestion for LLM to consider
-                suggestion = request.suggestion
-                prompt += f"""A learned pattern matched this situation:
-- Pattern: "{suggestion.condition_text}"
-- Suggested action: "{suggestion.suggested_action}"
-- Confidence: {suggestion.confidence:.0%}
-
-Consider this suggestion in your response.
-
-"""
-                logger.info(
-                    "Including suggestion in prompt",
-                    heuristic_id=suggestion.heuristic_id,
-                    confidence=round(suggestion.confidence, 2),
-                )
-            prompt += "How should I respond?"
-            prompt_text = prompt
-            decision_path = "llm"
-            if request.suggestion and request.suggestion.heuristic_id:
-                matched_heuristic_id_for_response = request.suggestion.heuristic_id
-            llm_response = await self.ollama.generate(prompt, system=EXECUTIVE_SYSTEM_PROMPT)
-            if llm_response:
-                response_text = llm_response.strip()
-                logger.info("GLADyS response", response_text=response_text)
-
-                prediction_json = await self.ollama.generate(
-                    PREDICTION_PROMPT.format(context=event_context, response=response_text),
-                    format="json",
-                )
-                if prediction_json:
-                    try:
-                        clean_json = prediction_json.strip()
-                        if clean_json.startswith("```"):
-                            lines = clean_json.split("\n")
-                            clean_json = "\n".join(
-                                line for line in lines if not line.startswith("```")
-                            ).strip()
-                        pred_data = json.loads(clean_json)
-                        predicted_success = float(pred_data.get("success", 0.5))
-                        prediction_confidence = float(pred_data.get("confidence", 0.5))
-                    except Exception:
-                        predicted_success = 0.5
-                        prediction_confidence = 0.5
-
-                matched_heuristic = request.suggestion.heuristic_id if request.HasField("suggestion") else ""
-                response_id = self._store_trace(
-                    event_id=event.id,
-                    context=event_context,
-                    response=response_text,
-                    matched_heuristic_id=matched_heuristic if matched_heuristic else None,
-                    predicted_success=predicted_success,
-                    prediction_confidence=prediction_confidence,
-                )
+        result = await self._strategy.decide(decision_context, self.ollama)
 
         return executive_pb2.ProcessEventResponse(
-            accepted=True,
-            response_id=response_id,
-            response_text=response_text,
-            predicted_success=predicted_success,
-            prediction_confidence=prediction_confidence,
-            prompt_text=prompt_text,
-            decision_path=decision_path,
-            matched_heuristic_id=matched_heuristic_id_for_response,
+            accepted=result.path != DecisionPath.REJECTED,
+            response_id=result.response_id,
+            response_text=result.response_text,
+            predicted_success=result.predicted_success,
+            prediction_confidence=result.prediction_confidence,
+            prompt_text=result.prompt_text,
+            decision_path=result.path.value,
+            matched_heuristic_id=result.matched_heuristic_id or "",
         )
 
     async def ProvideFeedback(
@@ -670,8 +878,8 @@ Consider this suggestion in your response.
             positive=request.positive,
         )
 
+        trace = self._strategy.get_trace(request.response_id)
         if not request.positive:
-            trace = self.reasoning_traces.get(request.response_id)
             if not trace:
                 return executive_pb2.ProvideFeedbackResponse(
                     accepted=False,
@@ -690,7 +898,6 @@ Consider this suggestion in your response.
                     )
             return executive_pb2.ProvideFeedbackResponse(accepted=True)
 
-        trace = self.reasoning_traces.get(request.response_id)
         if not trace:
             return executive_pb2.ProvideFeedbackResponse(
                 accepted=False,
@@ -789,7 +996,7 @@ Consider this suggestion in your response.
             self.heuristic_store.add(heuristic)
 
         self.heuristics_created += 1
-        del self.reasoning_traces[request.response_id]
+        self._strategy.delete_trace(request.response_id)
 
         return executive_pb2.ProvideFeedbackResponse(
             accepted=True,
@@ -820,13 +1027,22 @@ Consider this suggestion in your response.
             "events_received": str(self.events_received),
             "moments_received": str(self.moments_received),
             "heuristics_created": str(self.heuristics_created),
-            "active_traces": str(len(self.reasoning_traces)),
+            "active_traces": str(self._strategy.trace_count),
         }
         return types_pb2.GetHealthDetailsResponse(
             status=types_pb2.HEALTH_STATUS_HEALTHY,
             uptime_seconds=uptime,
             details=details,
         )
+
+
+def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy | None:
+    """Factory function for decision strategies."""
+    if strategy_type == "heuristic_first":
+        return HeuristicFirstStrategy(HeuristicFirstConfig(
+            confidence_threshold=float(kwargs.get("threshold", 0.7)),
+        ))
+    return None
 
 
 async def serve(
@@ -861,12 +1077,19 @@ async def serve(
         else:
             memory_client = None
 
+    strategy_type = os.environ.get("EXECUTIVE_DECISION_STRATEGY", "heuristic_first")
+    threshold = os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7")
+    decision_strategy = create_decision_strategy(strategy_type, threshold=threshold)
+    if decision_strategy:
+        logger.info("Decision strategy initialized", strategy=strategy_type, threshold=threshold)
+
     heuristic_store = HeuristicStore(heuristic_store_path)
 
     servicer = ExecutiveServicer(
         llm_provider=llm_provider,
         memory_client=memory_client,
         heuristic_store=heuristic_store,
+        decision_strategy=decision_strategy,
     )
     executive_pb2_grpc.add_ExecutiveServiceServicer_to_server(servicer, server)
 
