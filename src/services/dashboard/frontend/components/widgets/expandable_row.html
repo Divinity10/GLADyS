@@ -55,8 +55,8 @@
 
 {# Source badge cell #}
 {% macro source_cell(source) %}
-<div>
-    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-gray-700 text-gray-300">
+<div class="truncate" title="{{ source }}">
+    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-gray-700 text-gray-300 whitespace-nowrap">
         {{ source }}
     </span>
 </div>
