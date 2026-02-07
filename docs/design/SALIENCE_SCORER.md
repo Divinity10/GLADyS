@@ -1,8 +1,9 @@
 # Salience Scorer Trait Spec
 
 **Status**: Proposed
-**Date**: 2026-02-02
+**Date**: 2026-02-02 (updated 2026-02-06 with F-01)
 **Implements**: Extensibility Review item #3
+**Informed by**: PoC 1 finding F-01
 
 ## Purpose
 
@@ -66,6 +67,14 @@ pub trait SalienceScorer: Send + Sync {
     fn config(&self) -> serde_json::Value;
 }
 ```
+
+### Source Filtering (F-01)
+
+The `source` parameter enables domain-based heuristic filtering per F-01. Source filtering prevents cross-domain false matches (e.g., a Sudoku event matching a Melvor heuristic).
+
+**Current implementation**: Source filtering is delegated to Python storage — `QueryMatchingHeuristics` filters by source before returning results. The `EmbeddingSimilarityScorer` passes `source` through to the storage backend's `query_matching_heuristics` call. The cache-hit path does not currently filter by source (cache entries are domain-mixed).
+
+**Future**: A custom scorer could use source for local filtering (e.g., partitioning the cache by source, or applying source-specific similarity thresholds). The trait accepts `source` to support this without interface changes.
 
 ## Default Implementation: EmbeddingSimilarityScorer
 
@@ -268,6 +277,7 @@ pub trait StorageBackend: Send + Sync {
         event_text: &str,
         min_confidence: f32,
         limit: i32,
+        source: Option<&str>,  // F-01: domain filtering
         trace_id: Option<&str>,
     ) -> Result<Vec<CachedHeuristic>, String>;
 

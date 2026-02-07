@@ -4,6 +4,7 @@
 **Date**: 2026-02-05
 **Authors**: Scott Mulcahy, Claude (Architect)
 **Supersedes**: Partially supersedes SALIENCE_SCORER.md (which covers heuristic matching only)
+**Informed by**: PoC 1 finding F-20
 **Relates to**: ADR-0013 (Salience Subsystem), DECISION_STRATEGY.md, ROUTER_CONFIG.md
 
 ---
@@ -187,7 +188,7 @@ class SalienceModel(Protocol):
         self,
         event_text: str,
         source: str,
-        context: dict[str, Any],  # Active goals, recent events, user profile
+        context: dict[str, Any],  # Active goals, recent events, user profile, event intent (F-20)
     ) -> SalienceResult:
         """Evaluate salience for an event."""
         ...
@@ -239,6 +240,8 @@ async def route_event(self, event, salience: SalienceResult):
     # 4. Below attention budget
     return await self.store_only(event, salience)
 ```
+
+**Note**: Intent-based routing (F-20: skip pipeline for informational events) is a router concern, not a salience model concern. See `ROUTER_CONFIG.md` for intent routing. The salience model's role is to reflect intent in scoring — specifically, the `actionability` dimension should score low for informational events, since they don't warrant a response. Event intent is available to models via the `context` dict passed to `evaluate()`.
 
 ### Current Code Impact
 

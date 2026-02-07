@@ -1,8 +1,8 @@
 # Learning Strategy Interface Spec
 
 **Status**: Proposed
-**Date**: 2026-02-02
-**Implements**: Extensibility Review item #2
+**Date**: 2026-02-02 (updated 2026-02-06 with PoC 1 findings F-03, F-11, F-23, F-24)
+**Implements**: Extensibility Review item #3
 
 ## Purpose
 
@@ -43,7 +43,8 @@ class FeedbackSignal:
     signal_type: SignalType
     heuristic_id: str
     event_id: str
-    source: str  # "explicit", "implicit_timeout", "implicit_undo", "implicit_ignored"
+    source: str  # "user_explicit", "user_implicit", "dev", "implicit_timeout", "implicit_undo", "implicit_ignored"
+    magnitude: float  # Weight of this signal (default 1.0). Enables F-03 gradient decay and F-23 score magnitudes.
     metadata: dict[str, Any]
 
 
@@ -53,7 +54,8 @@ class LearningStrategy(Protocol):
     def interpret_explicit_feedback(
         self, event_id: str, heuristic_id: str, positive: bool, source: str
     ) -> FeedbackSignal:
-        """Interpret explicit user feedback (thumbs up/down)."""
+        """Interpret explicit feedback. For PoC 1: binary (positive: bool).
+        PoC 2 extends to granular scores via F-23 (3-point user, 5-point dev)."""
         ...
 
     def interpret_timeout(
@@ -85,9 +87,11 @@ class LearningStrategy(Protocol):
 ```python
 @dataclass
 class BayesianStrategyConfig:
-    undo_window_sec: float = 60.0
+    undo_window_sec: float = 30.0  # F-11: time-based implicit window, configurable per-domain
     ignored_threshold: int = 3
     undo_keywords: tuple[str, ...] = ("undo", "revert", "cancel", "rollback", "nevermind", "never mind")
+    implicit_magnitude: float = 1.0  # F-03: implicit > explicit (implicit is default weight)
+    explicit_magnitude: float = 0.8  # F-03: explicit feedback weighted lower than implicit
 
 
 class BayesianStrategy:
@@ -101,7 +105,8 @@ class BayesianStrategy:
             signal_type=SignalType.POSITIVE if positive else SignalType.NEGATIVE,
             heuristic_id=heuristic_id,
             event_id=event_id,
-            source="explicit",
+            source="user_explicit",
+            magnitude=self._config.explicit_magnitude,  # F-03: explicit weighted lower
             metadata={"original_source": source},
         )
 
@@ -111,6 +116,7 @@ class BayesianStrategy:
             heuristic_id=heuristic_id,
             event_id=event_id,
             source="implicit_timeout",
+            magnitude=self._config.implicit_magnitude,  # F-03: implicit is default weight
             metadata={"elapsed_seconds": elapsed_seconds},
         )
 
@@ -124,6 +130,7 @@ class BayesianStrategy:
                 heuristic_id=fire["heuristic_id"],
                 event_id=fire["event_id"],
                 source="implicit_undo",
+                magnitude=self._config.implicit_magnitude,
                 metadata={"undo_text": event_text[:100]},
             )
             for fire in recent_fires
@@ -136,6 +143,7 @@ class BayesianStrategy:
                 heuristic_id=heuristic_id,
                 event_id="",
                 source="implicit_ignored",
+                magnitude=self._config.implicit_magnitude,
                 metadata={"consecutive_count": consecutive_count},
             )
         return FeedbackSignal(
@@ -143,6 +151,7 @@ class BayesianStrategy:
             heuristic_id=heuristic_id,
             event_id="",
             source="implicit_ignored",
+            magnitude=0.0,  # Neutral signals are skipped anyway
             metadata={"consecutive_count": consecutive_count},
         )
 
@@ -185,6 +194,7 @@ class LearningModule:
             heuristic_id=signal.heuristic_id,
             positive=(signal.signal_type == SignalType.POSITIVE),
             feedback_source=signal.source,
+            magnitude=signal.magnitude,  # F-03: weight of this signal
         )
 ```
 
@@ -194,17 +204,21 @@ Add to `OrchestratorConfig` (pydantic-settings reads from env vars / `.env` file
 
 ```python
 learning_strategy: str = "bayesian"
-learning_undo_window_sec: float = 60.0
+learning_undo_window_sec: float = 30.0  # F-11: implicit timeout window
 learning_ignored_threshold: int = 3
 learning_undo_keywords: str = "undo,revert,cancel,rollback,nevermind,never mind"
+learning_implicit_magnitude: float = 1.0  # F-03: implicit signal weight
+learning_explicit_magnitude: float = 0.8  # F-03: explicit signal weight (lower than implicit)
 ```
 
 Corresponding environment variables (override defaults via `.env` or shell):
 ```
 LEARNING_STRATEGY=bayesian
-LEARNING_UNDO_WINDOW_SEC=60.0
+LEARNING_UNDO_WINDOW_SEC=30.0
 LEARNING_IGNORED_THRESHOLD=3
 LEARNING_UNDO_KEYWORDS=undo,revert,cancel,rollback,nevermind,never mind
+LEARNING_IMPLICIT_MAGNITUDE=1.0
+LEARNING_EXPLICIT_MAGNITUDE=0.8
 ```
 
 Factory:
@@ -218,18 +232,24 @@ def create_learning_strategy(config: OrchestratorConfig) -> LearningStrategy:
             undo_window_sec=config.learning_undo_window_sec,
             ignored_threshold=config.learning_ignored_threshold,
             undo_keywords=keywords,
+            implicit_magnitude=config.learning_implicit_magnitude,
+            explicit_magnitude=config.learning_explicit_magnitude,
         ))
     raise ValueError(f"Unknown learning strategy: {config.learning_strategy}")
 ```
 
-## Cleanup: Remove Unused Parameters
+## Proto Changes
 
-Memory's `update_heuristic_confidence` RPC accepts `learning_rate` and `predicted_success` that are ignored. Remove them:
+Memory's `update_heuristic_confidence` RPC needs changes:
+
+1. **Remove** unused `learning_rate` field
+2. **Keep** `predicted_success` — not yet incorporated but planned
+3. **Add** `magnitude` field (float, default 1.0) and `feedback_source` field (string)
 
 | File | Change |
 |------|--------|
-| `memory.proto` | Remove `learning_rate`, `predicted_success` from `UpdateHeuristicConfidenceRequest` |
-| `storage.py` | Remove unused params from `update_heuristic_confidence()` |
+| `memory.proto` | Remove `learning_rate`. Add `magnitude` (float) and `feedback_source` (string) to `UpdateHeuristicConfidenceRequest` |
+| `storage.py` | Remove `learning_rate` param, add `magnitude` and `feedback_source` to `update_heuristic_confidence()` |
 | `grpc_server.py` | Update RPC handler |
 
 ## File Changes
@@ -249,8 +269,36 @@ Memory's `update_heuristic_confidence` RPC accepts `learning_rate` and `predicte
 - Test ignore threshold boundary (2 ignores = NEUTRAL, 3 = NEGATIVE)
 - Regression test: default behavior unchanged
 
+## PoC 1 Findings Incorporated
+
+| Finding | What changed | Where |
+|---------|-------------|-------|
+| F-03 | `magnitude` field on `FeedbackSignal`. `implicit_magnitude` and `explicit_magnitude` config. Implicit > explicit weighting. | FeedbackSignal, BayesianStrategyConfig |
+| F-11 | Implicit timeout default changed 60s → 30s. Per-domain configurable. Explicit: unlimited, last click wins (no change to strategy — handled by caller). Both implicit and explicit are independent channels. | BayesianStrategyConfig.undo_window_sec |
+| F-23 | `source` field expanded to `user_explicit`, `user_implicit`, `dev`. Protocol signature unchanged for PoC 1 (binary). PoC 2 extends to granular scores. | FeedbackSignal.source |
+| F-24 | Not enforced in strategy — constraints (locked/floor/ceiling/feedback_weight) are enforced in `_apply_signal` or Memory. Strategy returns signals; LearningModule checks constraints before applying. | Documented, not implemented |
+
+### F-03 design: implicit > explicit
+
+Per F-03 Q3: "implicit feedback weighted higher than explicit (correctness > user happiness)." Implicit = "it worked in practice"; explicit = "user opinion" (noisy, biased negative). Both can coexist for the same event. The `magnitude` field carries this weight to Memory's update function.
+
+F-03 also resolved: decay function (`1 / (1 + k * n)`) for diminishing returns on repeated feedback. This is a **PoC 2 extension** — BayesianStrategy currently uses flat magnitudes.
+
+### F-24 design: constraint enforcement
+
+Pack constraints (`locked`, `floor`, `ceiling`, `feedback_weight`) are NOT checked in the strategy. The strategy is algorithm-agnostic — it interprets signals, not enforce policies. Enforcement goes in `_apply_signal` (LearningModule) or Memory's `update_heuristic_confidence`. For this extraction: pass `magnitude` through; constraint enforcement is a separate task.
+
+## PoC 2 Extensions (not built now, Protocol supports them)
+
+- **F-03 decay**: `BayesianStrategy.interpret_explicit_feedback` applies `magnitude *= 1 / (1 + k * n)` where n is observation count
+- **F-23 granular scores**: Protocol method signature changes to `interpret_explicit_feedback(event_id, heuristic_id, score: int, source: str)`. BayesianStrategy maps 3-point/5-point scores to magnitudes via config
+- **F-24 constraints**: `_apply_signal` checks constraints before calling Memory. `feedback_weight` multiplies `signal.magnitude`
+
 ## Out of Scope
 
 - RL strategy implementation — PoC 2
 - Per-heuristic strategy selection — all heuristics use same strategy
 - Custom confidence math — Memory's Bayesian update unchanged
+- F-03 decay function — PoC 2 (Protocol supports it via magnitude)
+- F-23 granular score mapping — PoC 2 (Protocol supports it via source field)
+- F-24 constraint enforcement — separate task (not a strategy concern)

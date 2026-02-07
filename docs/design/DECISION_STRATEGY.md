@@ -4,7 +4,7 @@
 **Date**: 2026-02-02 (updated 2026-02-06)
 **Implements**: Extensibility Review item #2
 **Depends on**: [LLM_PROVIDER.md](LLM_PROVIDER.md)
-**Informed by**: PoC 1 findings F-04, F-06, F-07, F-25
+**Informed by**: PoC 1 findings F-04, F-06, F-07, F-24, F-25
 
 ## Purpose
 
@@ -62,6 +62,7 @@ class DecisionContext:
     candidates: list[HeuristicCandidate]  # Replaces single 'suggestion'. Best match first, then additional candidates.
     immediate: bool
     goals: list[str] = field(default_factory=list)  # Active user goals (F-07). Injected into system prompt.
+    personality_biases: dict[str, float] = field(default_factory=dict)  # F-24: threshold adjustments per-domain/user
 
 
 @dataclass
@@ -128,9 +129,13 @@ class HeuristicFirstStrategy:
         self._trace_store: dict[str, ReasoningTrace] = {}
 
     async def decide(self, context: DecisionContext, llm: LLMProvider | None) -> DecisionResult:
+        # Apply personality bias to threshold (F-24)
+        threshold = self._config.confidence_threshold + context.personality_biases.get("confidence_threshold", 0.0)
+        threshold = max(0.3, min(0.95, threshold))  # Clamp to safe range
+
         # Path 1: High-confidence heuristic (best candidate above threshold)
         best = context.candidates[0] if context.candidates else None
-        if best and best.confidence >= self._config.confidence_threshold:
+        if best and best.confidence >= threshold:
             return self._heuristic_path(context, best)
 
         # Path 2: LLM reasoning (with remaining candidates as neutral context)
@@ -384,6 +389,13 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 - `DecisionContext.goals` carries active goals
 - Goals injected into **system prompt** (after personality, before event data)
 - PoC 2: static per-domain goals from config. Dynamic selection deferred to F-08
+
+### F-24: Personality bias as threshold modifier
+- Personality = bias (weighted preferences, threshold adjustments), NOT strategy override
+- `DecisionContext.personality_biases` carries named biases as float adjustments (e.g., `{"confidence_threshold": -0.05}` lowers the threshold by 0.05)
+- Strategies apply biases to their internal thresholds — e.g., `HeuristicFirstStrategy` adjusts `confidence_threshold` by `personality_biases.get("confidence_threshold", 0.0)`
+- Empty dict = no bias (default). Populated from user profile or domain config
+- Biases are bounded — strategies should clamp adjusted thresholds to safe ranges
 
 ### F-25: Sleep-cycle compatibility
 - Protocol supports empty candidates list — `decide()` works for both real-time and sleep-cycle re-evaluation
