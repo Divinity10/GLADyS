@@ -23,7 +23,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-01: Source must carry significant weight in heuristic selection
 
-**Status**: open
+**Status**: resolved
 **Affects**: Sensor contract, Salience scorer, proto schema, heuristic storage
 
 **Observation**: Heuristic matching without source context produces cross-domain false positives. A calendar event about "meeting in 5 minutes" should not match a gaming heuristic about "5 minutes until boss spawn." MiniLM-L6 embeddings alone can't distinguish these — they're semantically similar.
@@ -32,9 +32,13 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. Should source be a hard filter (only match heuristics from same source) or a weighted signal (prefer same-source, allow cross-source at high similarity)?
+   - **Resolved**: Hard filter for PoC 2 default. Config option for exact vs domain-level matching — domain-level match is genuinely new signal worth testing (distinct from PoC 1's "no filter"). Pluggable filter architecture so PoC 3 can swap in weighted/cross-domain matcher without architectural changes.
 2. How granular is "source"? Sensor ID? Domain? Pack? (e.g., `runescape-sensor` vs `gaming` vs `runescape-pack`)
+   - **Resolved**: Sensor decides source string per event. Flat string sufficient for PoC 2 (one sensor per domain). No proto changes needed.
 3. Does the heuristic store its source context? If so, at what granularity?
+   - **Resolved**: Already implemented. `HeuristicDetail.source` (memory.proto:417) and `QueryHeuristicsRequest.source_filter` (memory.proto:301) exist.
 4. How does this interact with cross-domain reasoning (PoC 3 goal)?
+   - **Resolved**: Cross-domain reasoning is context enrichment (executive having multi-source awareness), not heuristic matching. Hard filter doesn't conflict with PoC 3 goals.
 
 **Related**: working_memory.md discovery ("MiniLM-L6 similarity too coarse for cross-domain"), #56, #99
 
@@ -42,7 +46,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-02: Heuristic-to-event matching needs to improve
 
-**Status**: open
+**Status**: resolved
 **Affects**: Salience scorer, event contract (raw_text quality), embedding strategy
 
 **Observation**: Current matching quality is insufficient. Heuristics sometimes fire on wrong events or fail to fire on correct ones.
@@ -56,8 +60,11 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. How much of the matching problem is solvable by fixing source filtering (F-01) vs requiring a better embedding model?
+   - **Resolved**: Source filtering (F-01) first — it eliminates the biggest class of false positives (cross-domain). Defer embedding model changes. Measure matching quality after source filtering lands. If within-domain matching is still poor, revisit embedding model for PoC 3.
 2. Should `raw_text` generation follow a template/pattern per event type to improve embedding consistency?
+   - **Resolved**: Yes, as convention not enforcement. Document best practices in sensor base class docs: natural-language sentences, not key-value pairs. No proto validation or enforcement. Sensors that follow guidance get better matching.
 3. Should we log all candidate matches (not just winner) to diagnose matching quality? (POC_LIFECYCLE already suggests this)
+   - **Resolved**: Yes, in dev mode only (same opt-in pattern as F-14). Log all heuristics above a minimum threshold with similarity scores, source, and filter pass/fail. Essential for evaluating whether F-01 source filtering solves the matching problem.
 
 ---
 
@@ -65,7 +72,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-03: Positive feedback should increase confidence on a gradient scale
 
-**Status**: open
+**Status**: resolved
 **Affects**: Learning strategy, confidence update algorithm
 
 **Observation**: Liking a heuristic response should increase confidence, but by how much? First-time approval should count more than repeated approval of the same pattern.
@@ -74,8 +81,11 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. Is this a modification to the Beta-Binomial parameters, or a separate scaling function applied before the update?
+   - **Resolved**: Separate scaling function applied before the Beta-Binomial update. `effective_signal = raw_signal * decay(n)` where `n` is prior approvals. Composable, removable, doesn't complicate the core model. Decay function e.g. `1 / (1 + k * n)`.
 2. Should the gradient be per-heuristic (Nth approval of THIS heuristic) or per-event-type (Nth approval of this TYPE of response)?
+   - **Resolved**: Per-heuristic. Uses existing feedback history (alpha/beta counts). No new concepts or taxonomy required. Per-event-type would require defining event types, which doesn't exist yet.
 3. Does this interact with the implicit feedback timing (F-11)?
+   - **Resolved**: No architectural interaction — decay function is source-agnostic. Design principle: **implicit feedback weighted higher than explicit** (correctness > user happiness). Implicit = "it worked in practice"; explicit = "user opinion" (noisy, biased negative — users rarely give explicit feedback and when they do it skews negative). Each event allows **at most one implicit + one explicit** signal. Implicit is a single discrete signal (e.g., "user didn't undo within timeout"), NOT continuous accumulation (no "every second of non-complaint counts"). Both signals can coexist for the same event.
 
 ---
 
@@ -120,7 +130,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-05: Confidence must never reach 0 or 1
 
-**Status**: open (likely straightforward)
+**Status**: resolved
 **Affects**: Learning strategy, confidence update algorithm
 
 **Observation**: Nothing should ever be absolutely certain or absolutely impossible. A confidence of 1.0 means "this will always work" — which is never true. A confidence of 0.0 means "this will never work" — also never true (context might change).
@@ -129,8 +139,11 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. What are the hard bounds? `[0.05, 0.95]` seems reasonable.
+   - **Resolved**: `[0.05, 0.95]` as defaults. Configurable — we don't know what values produce best results yet. 0.05 floor preserves recoverability (~4-5 consecutive positives to climb back to 0.3). 0.95 ceiling consistent with LLM confidence ceiling of 0.8 (F-06).
 2. Should this be configurable or fixed?
+   - **Resolved**: Configurable. Answered together with Q1.
 3. Does this need to be in the proto definition or just enforced in the update logic?
+   - **Resolved**: Enforce in update logic only. Proto is a transport contract — clamping is a learning policy decision. Belongs where confidence is calculated, not where it's transmitted. Configurable bounds may change at runtime or per-domain in PoC 3. Proto allows full `[0.0, 1.0]` range for forward compatibility.
 
 ---
 
@@ -209,7 +222,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-09: Non-exclusive and combinatorial response selection
 
-**Status**: open — **needs dedicated design session**
+**Status**: captured — current Protocol accommodates future extension; **needs dedicated design session** for PoC 3
 **Affects**: Decision strategy, executive, response model
 
 **Observation**: Not all responses are mutually exclusive. Example scenario (wounded teammate):
@@ -232,7 +245,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-10: Multi-dimensional response scoring
 
-**Status**: open
+**Status**: captured — `metadata: dict[str, Any]` accommodates additional scoring dimensions without Protocol changes
 **Affects**: Decision strategy, executive, SalienceResult model
 
 **Observation**: Responses may need scoring on multiple dimensions, not just overall confidence. Example: option scoring 10% + 30% = 40% improvement vs single option at 35%.
@@ -250,7 +263,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-11: Feedback windows differ by type
 
-**Status**: open
+**Status**: resolved
 **Affects**: Learning strategy, implicit feedback design
 
 **Observation**: Manual feedback (user explicitly approves/rejects) needs a much longer window than implicit feedback (user undoes an action or ignores a suggestion). But what unit measures the window — time? Number of subsequent events? Some combination?
@@ -259,9 +272,13 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 **Design questions**:
 1. What's the manual feedback window? Time-based (e.g., 5 minutes)? Session-based? Unlimited until next event?
+   - **Resolved**: Unlimited window, last click wins. Corrections allowed — UI displays most recent submission. Confidence model uses latest value only (not cumulative). PoC 2: no anti-spam (trust devs). Production: revisit UX guardrails if needed. At most one explicit feedback *value* applies per event at any time (the latest).
 2. What's the implicit feedback window? Time-based? Event-count-based? Both?
+   - **Resolved**: Time-based only, configurable default (30 seconds). Event-count is unreliable across domains (3 events = 2 seconds in gaming, 3 hours in home automation). Time is intuitive to configure and reason about. Single mechanism = less to debug.
 3. Should the window vary by domain? (Gaming events are rapid — 3 events might be 2 seconds. Home automation events are sparse — 3 events might be 3 hours.)
+   - **Resolved**: Yes, via per-domain config. The configurable timeout from Q2 handles this — each domain sets its own implicit feedback timeout. No separate mechanism needed.
 4. How does this interact with the gradient confidence scale (F-03)?
+   - **Resolved**: No interaction with decay function (F-03 gradient is source-agnostic). Implicit and explicit are **independent channels** — both fire regardless of each other. Contradictory signals are expected and handled by weighting: implicit > explicit (F-03 Q3: correctness > user happiness). Example: user says "Bad" but doesn't undo → implicit positive + explicit negative. Both are true — "it worked but user didn't like it." The confidence model receives both and weights implicit higher. No timer cancellation, no coupling between feedback paths. For PoC 2, explicit feedback corrections (last click wins) simply overwrite the previous explicit value.
 
 **Related**: ADR-0010 §3.10 defines implicit signal types but not windows
 
@@ -271,18 +288,31 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-12: Multi-threaded LLM calls for scenario exploration
 
-**Status**: open
+**Status**: captured — deferred to PoC 3+, covered by F-04 and F-25
 **Affects**: Executive architecture, latency budget
 
 **Observation**: Sometimes the Executive should explore multiple scenarios simultaneously. If done serially, latency is too high (each LLM call is 500-2000ms).
 
 **Impact**: This is an architectural change. Currently the Executive processes one event with one LLM call. Parallel exploration means multiple concurrent LLM calls per event, then selecting among results.
 
+**Resolution**: Two distinct problems here — scenario exploration and concurrent event processing:
+
+**Scenario exploration** (multiple LLM calls per event): Deferred to PoC 3+.
+- **F-04** handles it in a single call — candidates as context, LLM considers multiple options without parallel calls
+- **F-25** sleep-cycle handles offline exploration with enriched context, no latency pressure
+- Parallel live LLM calls add resource management, result reconciliation, and cost complexity — especially on local hardware (local-first constraint)
+
+**Concurrent event processing** (multiple events in-flight simultaneously): **PoC 2 scope.**
+- Current `EventQueue._worker_loop()` processes events serially — dequeues one, awaits full processing (including LLM call), then dequeues next
+- With multiple sensors in PoC 2, events arrive simultaneously. Serial processing creates unacceptable latency (5 queued events × 2-5s LLM = 10-25s for last event)
+- Fix is at the orchestrator layer: multiple concurrent worker tasks or `asyncio.gather` with a semaphore. The executive already supports concurrency (gRPC server has 4 workers, LLM provider is async, decision strategy is async)
+- Concurrency limit should be configurable (default 3-4, bounded by local LLM throughput)
+
 **Design questions**:
-1. When should the Executive explore multiple scenarios vs commit to one? (Confidence threshold? Event complexity? User preference?)
-2. How many concurrent explorations? (Cost/latency tradeoff)
-3. Does this interact with F-04 (heuristic options in prompt)? If we're already providing heuristic options, maybe we don't need parallel LLM calls.
-4. Is this PoC 2 or PoC 3 scope?
+1. ~~When should the Executive explore multiple scenarios vs commit to one?~~ **Deferred**: F-04 single-call approach for PoC 2.
+2. ~~How many concurrent explorations?~~ **Deferred**: Moot until parallel calls are needed.
+3. ~~Does this interact with F-04?~~ **Resolved**: Yes — F-04 makes parallel calls redundant for the stated problem.
+4. ~~Is this PoC 2 or PoC 3 scope?~~ **Resolved**: PoC 3+ at earliest.
 
 **Related**: resource-allocation.md concurrent processing question
 
@@ -290,7 +320,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-13: Should LLM provide multiple response options with confidence levels?
 
-**Status**: open
+**Status**: captured — a future `MultiOptionStrategy` can implement this behind the current Protocol abstraction
 **Affects**: Executive, decision strategy, response model
 
 **Observation**: Instead of the LLM returning one response, it could return multiple options each with a confidence score. The system (not the LLM) then selects based on goals, risk tolerance, and response compatibility.
@@ -311,7 +341,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-14: Test mode that captures events to JSON
 
-**Status**: open
+**Status**: resolved
 **Affects**: Sensor base class, testing infrastructure
 
 **Observation**: Need test modes that capture data to JSON for replay at two distinct boundaries in the pipeline. Required for testing, development, and post-hoc analysis.
@@ -344,17 +374,20 @@ Capture is a **troubleshooting/dev mode**, not always-on. It must be explicitly 
 Both settings should be configurable. Capture stops automatically when either limit is reached.
 
 **Design questions**:
-1. Should capture/replay be a base class feature (all sensors get it for free)? (Likely yes — both levels are JSON in/out, replay is generic, no transport-specific logic needed)
+1. Should capture/replay be a base class feature (all sensors get it for free)?
+   - **Resolved**: Yes. Both capture levels are JSON in/out. The base class knows when data arrives from the driver (ingestion layer) and when normalized events are published. Replay reads JSON and feeds into the pipeline at the appropriate stage. No domain-specific logic needed — sensors get it for free.
 2. ~~Capture parameters: max events? max time? max file size?~~ **Resolved**: Time-based + record-count-based, whichever hits first. Must be explicitly enabled.
 3. File format: JSONL (one event per line, appendable) or JSON array (structured but harder to stream)?
+   - **Resolved**: JSONL. Each line includes a capture timestamp. Appendable (crash-safe — partial capture still has complete records), streamable (can `tail -f` during capture), trivial to parse line-by-line. JSON arrays require reading the entire file to parse and need closing bracket management if capture is interrupted.
 4. ~~For driver-level capture, who captures — the driver itself or the sensor's ingestion layer?~~ **Resolved**: Sensor's ingestion layer captures driver data. Drivers must stay lightweight — capture logic belongs in the sensor (Python), not duplicated across driver languages.
-5. Should replay support speed control? (1x realtime, fast-forward, step-through)
+5. Should replay support speed control?
+   - **Resolved**: Default is **original timing** — replay preserves the inter-event deltas from capture. Each JSONL record has a timestamp; replay computes the delta to the previous record and waits that duration before emitting. Optional `--replay-speed` multiplier (e.g., `2x` for double speed, `0.5x` for half speed). No "max speed" dump mode as default — flooding the orchestrator queue guarantees timeouts and produces unrealistic test conditions. The point of replay is realistic live testing.
 
 ---
 
 ### F-15: Sensor metrics for health and quality assessment
 
-**Status**: open
+**Status**: resolved
 **Affects**: Sensor base class, sensor dashboard (design question #62), manifest
 
 **Observation**: Need basic metrics to assess how a sensor is performing. Two levels:
@@ -363,17 +396,67 @@ Both settings should be configurable. Capture stops automatically when either li
 
 **Impact**: Without metrics, a misconfigured or degraded sensor is invisible. The sensor dashboard design question (#62) needs these metrics to display.
 
+#### Metrics schema
+
+**Sensor metrics** (base class maintains in-memory counters):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `events_received` | counter | Raw events from driver |
+| `events_published` | counter | Normalized events sent to orchestrator |
+| `events_filtered` | counter | Intentionally suppressed (F-16) |
+| `events_errored` | counter | Failed during processing |
+| `last_event_at` | timestamp | Most recent event received |
+| `started_at` | timestamp | Sensor start time |
+| `avg_latency_ms` | gauge | Rolling avg processing latency |
+| `error_count` | counter | Total errors (all types) |
+
+**Driver metrics** (driver reports to sensor, sensor aggregates):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `driver.events_handled` | counter | App events the driver captured |
+| `driver.events_dropped` | counter | App events the driver couldn't capture |
+| `driver.errors` | counter | Driver-side errors |
+| `driver.last_report_at` | timestamp | Last time driver sent metrics |
+
+Driver sends metrics to sensor via existing transport (HTTP POST, socket, etc.) — a different message type alongside events. Driver metrics stored as JSONB since different drivers report different things (RuneLite has app-specific categories, calendar sensor doesn't).
+
+#### Delivery: event subscription model
+
+Sensor emits metrics as `system.metrics` events through the existing `PublishEvents` path. These are tagged as `internal` (F-19 intent) — they never touch salience or executive. The orchestrator routes `system.*` events to system handlers, not the salience pipeline.
+
+**Subscription model**: Build event-subscription routing now. Orchestrator subscribes to `system.metrics` initially (writes to DB). Can move to a dedicated metrics service later without changing the sensor side.
+
+**Persistence**: `sensor_metrics` table. One row per metrics push (every 30s configurable via `heartbeat_interval_s`). Schema: sensor_id, timestamp, sensor counters as columns, `driver_metrics` as JSONB. Rolling retention (e.g., 7 days raw, aggregate to hourly after that).
+
+**Dashboard (#62)**: Queries `sensor_metrics` table directly.
+
+#### Manifest rate info
+
+**All rate settings are per-sensor, not global.** Each sensor has its own domain characteristics — a global rate would be meaningless across sensors with fundamentally different event patterns.
+
+**`heartbeat_interval_s`** (required, per-sensor): How often the sensor reports, even when idle. Dead sensor detection: no heartbeat within 2× interval = presumed dead. This is the only rate info with a PoC 2 consumer.
+
+**`poll_interval_s`** and **`driver_tick_rate_s`** (optional, per-sensor): Document sensor characteristics. No consumer in PoC 2. The orchestrator could use these for capacity planning later — that's PoC 3+ scope.
+
+**Anomaly detection**: Learned from historical data in `sensor_metrics`, not from declared rates. Actual event rates vary too much by context (combat vs idle, meeting time vs midnight). Simple threshold for PoC 2 (e.g., error rate > 3× rolling average).
+
 **Design questions**:
-1. What metrics should every sensor report? (Proposed minimum: events_received, events_published, events_dropped, last_event_timestamp, uptime, error_count)
-2. Should driver-level metrics be reported through the sensor, or is that driver-specific?
-3. How are metrics exposed? gRPC health endpoint? Periodic metric events? Dashboard polling?
-4. Should the manifest declare expected event rates so the system can detect anomalies?
+1. What metrics should every sensor report?
+   - **Resolved**: See metrics schema above. Split events_dropped into events_filtered (intentional, F-16) and events_errored (failures). Added avg_latency_ms as early warning for degradation.
+2. Should driver-level metrics be reported through the sensor?
+   - **Resolved**: Yes. Driver collects its own metrics (events handled, dropped, errors) and sends them to the sensor via existing transport. Sensor aggregates and reports everything. Drivers stay lightweight — collection logic in driver, aggregation/reporting in sensor.
+3. How are metrics exposed?
+   - **Resolved**: Event subscription model. Sensor emits `system.metrics` events via `PublishEvents`. Orchestrator subscribes and writes to `sensor_metrics` DB table. No polling. Sensor fires and forgets. Dashboard queries DB. Subscription model built now; orchestrator is first subscriber, can offload to dedicated service later.
+4. Should the manifest declare expected event rates?
+   - **Resolved**: `heartbeat_interval_s` required (dead sensor detection). `poll_interval_s` and `driver_tick_rate_s` optional (documentation only, no PoC 2 consumer). Anomaly detection uses learned baselines from historical metrics, not declared rates — variance is too high for static declarations to be useful.
 
 ---
 
 ### F-16: System-directed event type suppression at sensor level
 
-**Status**: open — **architectural decision needed**
+**Status**: resolved
 **Affects**: Sensor contract, orchestrator→sensor communication, habituation model
 
 **Observation**: The system should be able to tell a sensor to stop capturing specific event types. Example: RuneScape emits sound events, which are probably useless unless a future audio preprocessor exists.
@@ -383,14 +466,65 @@ Both settings should be configurable. Capture stops automatically when either li
 - **Sensor-level suppression**: Prevents the event from being recorded at all. Saves bandwidth, storage, and processing. But: we lose the ability to retroactively analyze suppressed events if we later decide they're useful.
 - **Salience-level suppression (habituation)**: Event is captured and stored but not routed to Executive. Preserves the data for future analysis. But: still costs bandwidth and storage for events we're ignoring.
 
-**Design questions**:
-1. Should there be two suppression layers — sensor-level (hard filter, event never emitted) and salience-level (soft filter, event stored but not acted on)?
-2. If sensor-level suppression exists, who controls it? Orchestrator config? User preference? Automatic based on salience feedback?
-3. Should the sensor manifest declare which event types are suppressible vs always-on?
-4. Does sensor-level suppression need to be reversible at runtime (orchestrator sends "start capturing sound events again")?
-5. Is this related to the RuneScape driver's per-category toggles (enabled/disabled by default)?
+#### Resolution: Three layers, each solving a different problem
 
-**Tension**: Suppressing at the sensor saves resources but loses data. The principle "measure before optimizing" (ADR-0004) suggests keeping data and suppressing at salience. But at PoC 2 event volumes, bandwidth may force sensor-level filtering.
+**Layer 1 — Capability suppression (static, config-driven):**
+"Can the system even process this event type?" Sound events with no audio preprocessor = useless. This is a configuration fact, not learned or adaptive. Sensor manifest declares event types with `enabled: true/false` defaults. Per-sensor config can override. Reversible via config change.
+
+```yaml
+event_types:
+  - type: "player.position"
+    enabled: true
+  - type: "player.combat"
+    enabled: true
+  - type: "audio.sound_effect"
+    enabled: false  # no audio preprocessor yet
+```
+
+"Measure before optimizing" (ADR-0004) doesn't conflict — this isn't optimization, it's capability. You don't measure to know sound events are useless without an audio processor. F-14 capture mode covers "record everything temporarily" when needed.
+
+**Layer 2 — Flow control / back-pressure (dynamic, automatic):**
+Inspired by TCP BBR (Bottleneck Bandwidth and Round-trip propagation time). Model-based, not loss-based — uses latency increase as early congestion signal, doesn't wait for events to be dropped/timed out.
+
+| TCP/BBR Concept | GLADyS Equivalent |
+|-----------------|-------------------|
+| Bandwidth | Orchestrator throughput (events/sec) |
+| RTT | `PublishEvents` response latency |
+| Queue buildup | Orchestrator event queue → latency increase |
+| Packet loss | Event timeout (too late — want to avoid) |
+| BDP (optimal point) | Keep orchestrator busy without queue buildup |
+
+**Sensor self-regulates using response latency:**
+- Base class tracks `PublishEvents` response time (rolling avg + min baseline)
+- Latency increase → orchestrator is queueing → reduce publish rate
+- Latency returns to baseline → increase rate (probe for available capacity)
+- Sensor decides HOW to throttle (domain-specific: gaming sensor drops position updates first, keeps combat events)
+- **No orchestrator→sensor communication needed** for primary flow control
+
+**Explicit orchestrator hints as secondary mechanism** for non-observable conditions (restart, maintenance). Piggybacked on `PublishEvents` response as a `throttle_hint` field.
+
+**PoC 2**: Simple threshold-based implementation (latency > N× baseline → reduce rate). Sensor base class provides default; subclasses override with domain-specific priority.
+
+**PoC 3+**: Full BBR-style probing phases, per-event-type priority during throttling, automatic congestion pattern learning from metrics history.
+
+**Layer 3 — Salience-level suppression (habituation):**
+"Is this event interesting right now?" Already designed in the salience model (habituation dimension). Learned, adaptive, operates on events that passed layers 1 and 2. Not changed by this finding.
+
+#### Driver event toggles
+
+The per-category toggle pattern (e.g., RuneLite enabled/disabled event categories) is the driver-level equivalent of Layer 1 capability suppression. Applies to any event-driven driver, not RuneScape-specific. For event-driven drivers, the sensor can send a control message via existing transport ("stop sending audio events"). For poll-based sensors, the sensor skips polling suppressed categories. F-15 `events_filtered` metric tracks suppression volume.
+
+**Design questions**:
+1. Should there be two suppression layers?
+   - **Resolved**: Three layers. (1) Capability suppression: static, config/manifest-driven. (2) Flow control: dynamic, BBR-inspired, automatic using `PublishEvents` response latency. (3) Salience habituation: learned, adaptive (already designed).
+2. Who controls sensor-level suppression?
+   - **Resolved**: Layer 1 (capability) — sensor manifest + config. Layer 2 (flow control) — sensor self-regulates using response latency (BBR-style), with orchestrator hints as secondary mechanism. Orchestrator-driven automatic suppression of specific event types based on observed patterns is PoC 3.
+3. Should the manifest declare suppressible event types?
+   - **Resolved**: Yes. Manifest declares all event types with `enabled: true/false` defaults. Serves as both documentation and suppression config.
+4. Is suppression reversible at runtime?
+   - **Resolved**: Layer 1 — reversible via config change, sensor restart. Layer 2 — automatic (self-regulating, adjusts continuously).
+5. Related to driver per-category toggles?
+   - **Resolved**: Yes — same concept, general pattern for any event-driven driver. Not RuneScape-specific.
 
 ---
 
@@ -414,8 +548,9 @@ Both settings should be configurable. Capture stops automatically when either li
 
 ### F-18: Overlapping/duplicate data across app events
 
-**Status**: open
-**Affects**: Sensor contract, dedup strategy, preprocessor design
+**Status**: resolved
+**Affects**: Sensor contract, orchestrator caching, salience habituation
+**Consolidates**: `cross-cutting.md` §36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
 
 **Observation**: Game events often contain overlapping data. RuneScape example:
 - Position event fires every game tick (contains entity position)
@@ -424,41 +559,77 @@ Both settings should be configurable. Capture stops automatically when either li
 
 Other overlapping patterns exist across event types.
 
-**Impact**: Two problems:
-1. **App-level dedup**: The driver/sensor must decide which event is the authoritative source for a given piece of data. This is domain-specific.
-2. **GLADyS-level dedup**: Even after normalization, the orchestrator may see semantically redundant events. Needs a dedup strategy.
-3. **Cross-event relationships**: Some overlapping data implies a relationship between events (e.g., "this movement event is related to that position update"). How is this captured?
+**Resolution**: Three enforcement points at different pipeline stages. Not semantic dedup — each layer solves a different sub-problem.
 
-**Design questions**:
-1. Where does dedup happen? Driver? Sensor? Preprocessor? Orchestrator?
-2. Should the event contract support explicit event relationships (e.g., `related_event_ids`, `supersedes_event_id`)?
-3. Should there be a concept of "authoritative source" for a data field when multiple events carry it?
-4. Is this a sensor-specific preprocessor concern (domain logic for which events to keep) or a generic platform concern?
+**1. Sensor emit schedule (rate control, not semantic dedup)**
+The sensor controls its own emit cadence, independent of the driver's event rate. The sensor buffers driver events and emits consolidated events on a timer or on meaningful change (domain-specific). This is rate control — the sensor decides *how often* to emit, not *what* to emit.
+
+- Example: Driver fires position every tick (600ms). Sensor emits position every 5s unless movement exceeds a threshold.
+- Authoritative source is domain-specific: the sensor's domain logic decides which event type owns which data fields.
+- No `supersedes_event_id` needed — the sensor emit schedule eliminates the need for explicit event relationships.
+
+**2. Orchestrator event-response cache (memoization, not buffering)**
+A lightweight cache in the orchestrator maps `(event_type, source, content_hash) → response`. Before sending an event to the salience pipeline, the orchestrator checks the cache. Cache hit = return the cached response without re-evaluation. TTL-based invalidation.
+
+- No event buffering or holding — events are processed immediately or served from cache.
+- Simple TTL for PoC 2. Context-aware cache invalidation (e.g., invalidate position cache when movement event arrives) deferred to PoC 3.
+
+**3. Salience habituation (already designed)**
+Catches remaining redundancy that passes through the first two layers. Repeated similar events naturally score lower on novelty and higher on habituation.
+
+**Observability at every layer**:
+- Sensor: tracks events_received vs events_emitted (consolidation ratio)
+- Orchestrator: tracks cache hits/misses per event type
+- Salience: tracks habituation scores (existing)
+
+**Design question answers**:
+1. **Where does dedup happen?** All three layers, each solving a different problem. Sensor = rate control. Orchestrator = memoization. Salience = learned suppression.
+2. **Event relationships?** No explicit `supersedes_event_id` or `related_event_ids`. Sensor emit schedule handles consolidation; cross-event relationships are implicit via temporal proximity and shared context.
+3. **Authoritative source?** Domain-specific, handled by sensor domain logic. The sensor decides which event type is authoritative for each data field.
+4. **Sensor-specific or platform?** Sensor emit schedule is domain-specific. Orchestrator cache and salience habituation are platform-level.
+
+**Scope**: Sensor emit schedule + simple TTL cache in PoC 2. Context-aware cache invalidation in PoC 3.
 
 ---
 
 ### F-19: Solution/cheat data — flagging data not for normal use
 
-**Status**: open
-**Affects**: Sensor contract, event interface model, executive prompt design
+**Status**: resolved
+**Affects**: Sensor contract, event interface model, orchestrator stripping
 
 **Observation**: Some apps contain both state and solution. Sudoku exposes the solution in the DOM. Math apps might show answers. Capturing this data helps GLADyS evaluate its own responses (was the hint correct?) but using it in a response would be cheating, not helping.
 
 **Impact**: The event contract needs a way to flag data as "available for evaluation/learning but not for response generation." This is a data classification concern.
 
-**Design questions**:
-1. Should this be a field-level annotation (specific fields marked as restricted) or an event-level flag?
-2. Proposed: `visibility` or `usage` field on data elements: `normal` (use freely), `evaluation_only` (learning/scoring but not response text), `internal` (sensor bookkeeping, don't forward)
-3. Who enforces this — the sensor (marks the data), the orchestrator (strips it before Executive), or the Executive (respects the flag in prompts)?
-4. Can this classification change over time? (User might say "I'm done trying, show me the answer")
-5. Does this interact with the audit system? (Solution data shouldn't appear in user-visible logs but might be in audit logs)
+**Resolution**: Two-bucket model on the event. No per-field annotations — the event structure *is* the classification.
+
+- **`data`**: Normal event data. Forwarded everywhere (salience, executive, learning, storage).
+- **`evaluation_data`** (optional): Solution/answer data. Stored for learning and evaluation, stripped by the orchestrator before the executive sees it.
+
+This replaces the proposed `visibility` enum. The structure itself encodes the classification — no metadata annotations needed. Sensor developers put data in the right bucket; the orchestrator enforces the boundary.
+
+**`internal`** (sensor bookkeeping) is not a data classification — it's an event routing concern, already handled by F-15's `system.*` event routing. System events never enter the salience pipeline.
+
+**Design question answers**:
+1. **Field-level or event-level?**
+   - **Resolved**: Two-bucket model — coarse-grained field-level. `data` + optional `evaluation_data` on the event. No per-attribute annotations (too complex, nesting problems, heavy burden on sensor devs). Not pure event-level either (avoids splitting one observation into two events).
+2. **Classification values?**
+   - **Resolved**: Two buckets replace the enum. `normal` → `data`, `evaluation_only` → `evaluation_data`, `internal` → already handled by F-15 (`system.*` routing).
+3. **Who enforces?**
+   - **Resolved**: Sensor labels (puts data in the right bucket). Orchestrator enforces (strips `evaluation_data` before passing to executive, stores both). Executive never sees it — defense in depth. Single enforcement point, easy to audit.
+4. **Can classification change over time?**
+   - **Resolved**: No runtime reclassification. "Show me the answer" is a user command — the executive handles it as a request, not a data visibility change. The solution data stays in `evaluation_data` forever. What changes is the user explicitly asking for it.
+5. **Audit interaction?**
+   - **Resolved**: No new audit system needed. Existing logging standard (`LOGGING_STANDARD.md`) covers it. Implementation guidance: log `evaluation_data_present: true/false` in structured context, never log `evaluation_data` content. The DB stores both buckets — that's the audit source if needed (PoC 3+), not logs.
+
+**Scope**: Contract definition in PoC 2 (add `evaluation_data` field). Simple orchestrator strip before executive context. No runtime reclassification.
 
 ---
 
 ### F-20: Initial connection event flood — informational vs actionable
 
-**Status**: open — **important for PoC 2 volume management**
-**Affects**: Sensor contract, event interface model, orchestrator buffering
+**Status**: resolved — mostly covered by F-16 (flow control) and F-18 (emit schedule)
+**Affects**: Sensor contract (new `intent` field), orchestrator routing
 
 **Observation**: When a driver connects, there's often an initial flood of events that then become sparse. Much of the flood is informational — no action needed. RuneScape example: user logs in → character appears → burst of inventory events. Only the login might need a response; the inventory events are context.
 
@@ -468,18 +639,34 @@ Two sub-problems:
 
 **Impact**: Without this distinction, the orchestrator will try to route every burst event through salience → executive, creating a processing storm on connect.
 
-**Design questions**:
-1. Should the event contract include a `response_expected` or `intent` field? Proposed values: `actionable` (may need response), `informational` (context only, no response expected), `unknown` (let salience decide)
-2. Should sensors support event bundling (combining multiple app events into one GLADyS event)?
-3. Should sensors signal "burst incoming" to the orchestrator? Or should the orchestrator detect bursts automatically?
-4. Does the sensor or a preprocessor handle the bundle→single-event compression?
-5. How does informational data get into context without triggering the Executive? (Store in memory, available for retrieval, but don't route through salience→executive)
+**Resolution**: One new contract element (`intent` field). Bundling and burst handling are already solved by F-16 and F-18.
+
+**`intent` field on event contract:**
+- `actionable`: May need a response. Routed through full pipeline (salience → executive).
+- `informational`: Context only. Orchestrator stores in memory for future retrieval but does not route through salience → executive.
+- `unknown` (default): Let salience decide. Sensors that don't know don't need to decide.
+
+The sensor knows best whether an event expects a response. Inventory dump on login = `informational`. User takes an action = `actionable`. New sensor that hasn't classified its events yet = `unknown`.
+
+**Design question answers**:
+1. **Intent field?**
+   - **Resolved**: Yes. `intent` with three values: `actionable`, `informational`, `unknown` (default). Lightweight — one field. Sensor sets it based on domain knowledge.
+2. **Event bundling?**
+   - **Resolved**: Already handled by F-18's sensor emit schedule. The sensor controls its own emit cadence and can consolidate multiple driver events into one emitted event. No new mechanism needed — bundling *is* the emit schedule applied to burst conditions.
+3. **Burst signaling?**
+   - **Resolved**: Neither explicit sensor signaling nor orchestrator detection needed. F-16's BBR flow control handles volume automatically (latency-based back-pressure). The `intent: informational` field prevents unnecessary executive calls. The sensor emit schedule (F-18) naturally consolidates burst events. No explicit burst protocol needed.
+4. **Who handles bundling?**
+   - **Resolved**: Sensor domain logic, per F-18. Not a separate preprocessor.
+5. **Informational data into context?**
+   - **Resolved**: Orchestrator stores `informational` events in memory (available for retrieval by the executive when processing a future `actionable` event) but does not route them through salience → executive. Same routing concept as F-15's `system.*` events generalized — different intents get different routing.
+
+**Scope**: Add `intent` field to event contract in PoC 2. Orchestrator routing logic for `informational` events (store only, no pipeline).
 
 ---
 
 ### F-21: App-buffered events released on mod connect
 
-**Status**: captured (specific case of F-20)
+**Status**: resolved — specific case of F-20, one additional contract field
 **Affects**: Sensor contract, driver design
 
 **Observation**: Some apps (RuneScape) buffer events during startup before mods are allowed to receive them. Once the mod becomes live, all buffered events are sent in a flood. This is a specific case of F-20 but with an additional nuance: these events occurred BEFORE the driver was active, so timestamps may not be accurate, and the events represent pre-existing state, not changes.
@@ -488,10 +675,22 @@ Two sub-problems:
 - **Live events**: Happened while sensor was active (accurate timestamps, represents changes)
 - **Backfill events**: Buffered from before sensor was active (may have inaccurate timestamps, represents initial state)
 
-**Design questions**:
-1. Should the event contract include a `backfill` or `historical` flag?
-2. Should backfill events use a different delivery pattern (e.g., treated as `poll`/state-snapshot rather than `event`/change)?
-3. How does the orchestrator handle backfill events differently? (Don't trigger responses, just store as context?)
+**Resolution**: One boolean flag (`backfill: true`) on the event contract. Combined with F-20's `intent: informational`, this fully handles backfill events.
+
+- **`backfill`** (boolean, default `false`): Marks events as pre-existing state dumped on connect. Signals to downstream consumers that timestamps may be inaccurate and the data represents initial state, not real-time changes.
+- Backfill events are implicitly `intent: informational` — pre-existing state doesn't need a response. The sensor should set both fields.
+- Orchestrator stores backfill events as context (available for retrieval) but does not route through the pipeline. Same routing as F-20's `informational` events.
+- Learning system should not treat backfill events as missed response opportunities — GLADyS wasn't active when they occurred.
+
+**Design question answers**:
+1. **Backfill flag?**
+   - **Resolved**: Yes. `backfill: true` boolean on the event. Lightweight, one field. Sensor sets it when it detects the driver is dumping buffered state (e.g., burst of events with identical or near-identical timestamps on connect).
+2. **Different delivery pattern?**
+   - **Resolved**: No. Same `PublishEvents` path. The `backfill` flag + `intent: informational` tells the orchestrator how to handle them. No separate delivery mechanism needed.
+3. **Orchestrator handling?**
+   - **Resolved**: Store as context, don't trigger pipeline. Same as F-20's `informational` routing. The `backfill` flag additionally signals "don't trust timestamps" and "not a missed opportunity" for learning.
+
+**Scope**: Add `backfill` boolean to event contract in PoC 2 alongside F-20's `intent` field.
 
 ---
 
@@ -507,7 +706,7 @@ Sudoku and Melvor were exploratory sensors with near-identical HTTP Bridge archi
 
 ### F-23: Granular feedback — user scale + dev dual rating
 
-**Status**: open
+**Status**: resolved
 **Affects**: Learning strategy, dashboard UI, feedback proto, pack development tooling
 
 **Observation**: Binary good/bad feedback is too coarse. Users and developers need different feedback interfaces, both feeding the same confidence model.
@@ -572,17 +771,41 @@ All magnitudes are **configurable tuning parameters**, not constants. Constraint
 - Interact with F-03 gradient (1st feedback counts more than Nth for same heuristic)
 
 **Design questions**:
-1. Should dev and user feedback be shown in the same dashboard view or separate tabs?
-2. Should dev feedback include a free-text notes field for pack development context?
-3. How does the 5-point score map to update magnitude? Linear or non-linear? (1→-large, 3→~0, 5→+large)
-4. Can dev feedback override user feedback? (e.g., dev re-rates a heuristic that users have been rating poorly)
+
+**Q1: Should dev and user feedback be shown in the same dashboard view or separate tabs?**
+
+Same view, mode toggle via settings. Dev feedback is for pack development prior to release. User feedback is for production use. A settings toggle switches which scale is displayed — only one scale is visible at a time. No need to show both simultaneously.
+
+**Q2: Should dev feedback include a free-text notes field?**
+
+Yes. Optional free-text notes field on dev feedback for pack development context (e.g., "fired correctly but response tone is too aggressive for this game state"). Stored alongside the feedback record. Not consumed by the learning system — purely for pack author reference and development history.
+
+**Q3: How does the 5-point score map to update magnitude?**
+
+Linear mapping centered at score 3 (neutral). Magnitudes are explicit per-score configuration values, independently configurable for rule and response scales:
+
+```yaml
+dev_feedback_magnitudes:
+  rule: [-0.4, -0.2, 0.05, 0.2, 0.4]     # scores 1-5
+  response: [-0.4, -0.2, 0.05, 0.2, 0.4]  # scores 1-5
+```
+
+Score 3 maps to a tiny positive (0.05) — "adequate" means the heuristic didn't hurt. Independent config allows tuning rule confidence updates separately from response confidence updates. Values are starting defaults; pack authors and operators tune via config.
+
+**Q4: Can dev feedback override user feedback?**
+
+No explicit override mechanism. Both dev and user feedback are observations feeding the same Beta-Binomial model. Dev uses F-24 pack constraints (`locked`, `floor`, `ceiling`) for guardrails when "I know better" than accumulated feedback.
+
+In practice, dev and user feedback are temporally separated: dev feedback happens during pack development (pre-release), user feedback happens during production use (post-release). The settings toggle (Q1) reflects this — the active feedback mode matches the deployment phase.
+
+**Scope**: PoC 2. Feedback proto changes, dashboard UI mode toggle, learning strategy config for magnitudes.
 
 ---
 
 ### F-24: Pack constraints on heuristic learning
 
-**Status**: open — **SDK design, some YAGNI-ignoring warranted**
-**Affects**: Learning strategy, heuristic storage, pack manifest, decision strategy
+**Status**: resolved — **SDK design, some YAGNI-ignoring warranted**
+**Affects**: Learning strategy, heuristic storage, pack manifest, decision strategy, dashboard (heuristic detail view)
 
 **Observation**: Packs that ship heuristics need control over how the learning system treats those heuristics. Different heuristics have different certainty levels and different tolerance for user-driven change.
 
@@ -649,12 +872,49 @@ Personality affects **selection among options**, not **what options exist** or *
 - Factoring out personality: keep domain knowledge, discard behavioral bias
 
 **Design questions**:
-1. Where do heuristic constraints live — in the heuristic definition (per-heuristic) or in the pack manifest (pack-wide defaults)?
-2. Should locked heuristics be completely immutable, or should they allow dev feedback overrides?
-3. Should feedback_weight be per-heuristic or per-pack?
-4. How do pack response biases interact with user preferences? (Additive? Pack sets base, user adjusts within range?)
-5. Should constraints be visible to the user? ("This response confidence is locked by the Minecraft skill pack")
-6. What's the boundary between "personality bias" and "personality decision override"? Where exactly is the line?
+
+**Q1: Where do heuristic constraints live — per-heuristic or pack manifest?**
+
+Per-heuristic is the primary mechanism. Pack manifest provides defaults as a convenience layer (since this is SDK design, the layering is worth building even if pack-level defaults aren't immediately needed):
+
+```yaml
+# Pack manifest (defaults for all heuristics in this pack)
+defaults:
+  constraints:
+    floor: 0.3
+    feedback_weight: 1.0
+
+# Per-heuristic override
+heuristics:
+  - condition: "creeper near player"
+    action: "sprint, turn, hit"
+    constraints:
+      locked: true   # overrides pack default
+```
+
+Per-heuristic wins over pack default. If no per-heuristic constraints, pack defaults apply. If no pack defaults, system defaults apply (`locked: false`, no floor/ceiling, `feedback_weight: 1.0`).
+
+**Q2: Should locked heuristics allow dev feedback overrides?**
+
+No. Locked means locked — no confidence changes from any feedback source. To change a locked heuristic, the dev updates the pack definition (change `locked: false`, edit the condition/action, adjust constraints). This is a source control operation, not a runtime operation. "Locked but overridable" creates confusing semantics.
+
+**Q3: Should feedback_weight be per-heuristic or per-pack?**
+
+Per-heuristic, with pack-level default (same layering as Q1). A pack's stable heuristics and experimental heuristics live side-by-side — they need different learning rates.
+
+**Q4: How do pack response biases interact with user preferences?**
+
+Deferred. Response biases require the multi-response selection system (F-09, PoC 3). Designing the interaction model now risks YAGNI. The body text captures the concept and the bias-vs-strategy boundary well enough for future design work.
+
+**Q5: Should constraints be visible to the user?**
+
+Yes, in the dashboard heuristic detail view. Users should understand why a heuristic doesn't change confidence. Simple labels: "Locked by [pack name]", "Floor: 0.6 (set by [pack name])". Not in the response UI — users don't need to see this during normal interaction.
+
+**Q6: Personality bias vs strategy override boundary?**
+
+Already resolved in body text above ("Resolved: Personality affects bias, not strategy"). The boundary is confirmed: bias affects **selection weights among existing options**, strategy controls **what options exist and how they're evaluated**. No additional design work needed.
+
+**Scope**: PoC 2 — per-heuristic constraints in heuristic storage, pack manifest defaults, learning strategy enforcement. Dashboard heuristic detail view shows constraint labels. Response biases deferred to PoC 3 (F-09 dependency).
 
 ---
 
