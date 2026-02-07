@@ -1,7 +1,9 @@
 """Tests for the EventRouter."""
 
 import pytest
+import asyncio
 from dataclasses import dataclass
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from gladys_orchestrator.router import EventRouter
@@ -135,3 +137,94 @@ class TestEventRouter:
 
         # Should be abs(-0.8) = 0.8, not 0.9 (habituation excluded)
         assert max_val == 0.8
+
+    @pytest.mark.asyncio
+    async def test_emergency_both_thresholds(self):
+        """Emergency fast-path fires when both thresholds exceeded."""
+        config = OrchestratorConfig(
+            emergency_confidence_threshold=0.9,
+            emergency_threat_threshold=0.8
+        )
+        # Mock memory client to return high confidence heuristic
+        memory_client = AsyncMock()
+        memory_client.get_heuristic.return_value = {
+            "id": "h1",
+            "confidence": 0.95,
+            "effects_json": '{"message": "Run!"}',
+            "condition_text": "Monster appeared"
+        }
+        
+        # Mock salience client to return high threat
+        salience_client = AsyncMock()
+        salience_client.evaluate_salience.return_value = {
+            "threat": 0.85,
+            "_matched_heuristic": "h1"
+        }
+
+        router = EventRouter(config, salience_client=salience_client, memory_client=memory_client)
+        
+        # Use a simple class for event that doesn't trigger _has_explicit_salience
+        class SimpleEvent:
+            def __init__(self):
+                self.id = "e1"
+                self.source = "test"
+                self.salience = None # No salience attribute or set to None
+
+        event = SimpleEvent()
+        result = await router.route_event(event)
+
+        assert result["response_text"] == "Run!"
+        assert result["queued"] is False
+
+    @pytest.mark.asyncio
+    async def test_emergency_one_threshold_not_enough(self):
+        """Emergency fast-path does NOT fire when only one threshold exceeded."""
+        config = OrchestratorConfig(
+            emergency_confidence_threshold=0.95,
+            emergency_threat_threshold=0.9
+        )
+        # High confidence, but low threat
+        memory_client = AsyncMock()
+        memory_client.get_heuristic.return_value = {
+            "id": "h1",
+            "confidence": 0.99,
+            "effects_json": '{"message": "Action"}',
+            "condition_text": "Condition"
+        }
+        
+        salience_client = AsyncMock()
+        salience_client.evaluate_salience.return_value = {
+            "threat": 0.5,
+            "_matched_heuristic": "h1"
+        }
+
+        router = EventRouter(config, salience_client=salience_client, memory_client=memory_client)
+        
+        class SimpleEvent:
+            def __init__(self):
+                self.id = "e1"
+                self.source = "test"
+                self.salience = None
+
+        event = SimpleEvent()
+        result = await router.route_event(event)
+
+        # Should be queued for Executive, not immediate response
+        assert result["accepted"] is True
+        assert result.get("response_text", "") == ""
+        assert result["queued"] is True
+
+    def test_default_salience_uses_config(self):
+        """_default_salience() uses config value."""
+        config = OrchestratorConfig(fallback_novelty=0.99)
+        router = EventRouter(config)
+        
+        salience = router._default_salience()
+        assert salience["novelty"] == 0.99
+        
+    def test_config_defaults(self):
+        """Verify new config fields have correct defaults."""
+        config = OrchestratorConfig()
+        assert config.emergency_confidence_threshold == 0.95
+        assert config.emergency_threat_threshold == 0.9
+        assert config.fallback_novelty == 0.8

@@ -36,6 +36,15 @@ class OrchestratorConfig(BaseSettings):
     # without calling LLM. Lower values = more aggressive use of learned responses.
     heuristic_confidence_threshold: float = 0.7
 
+    # Emergency fast-path thresholds (default values, override via env)
+    # When both conditions are met, Orchestrator bypasses Executive entirely
+    emergency_confidence_threshold: float = 0.95
+    emergency_threat_threshold: float = 0.9
+
+    # Fallback novelty when Salience service is unavailable
+    # Must be >= salience_threshold to ensure events still route
+    fallback_novelty: float = 0.8
+
     # Event queue settings (for events without high-confidence heuristics)
     event_timeout_ms: int = Field(
         default=30000,

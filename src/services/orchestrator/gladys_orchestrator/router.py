@@ -159,13 +159,18 @@ class EventRouter:
                     # Emergency fast-path: confidence >= 0.95 AND critical threat
                     # This is the only case where Orchestrator short-circuits Executive.
                     threat = salience.get("threat", 0.0)
-                    if confidence >= 0.95 and threat >= 0.9:
+                    if (confidence >= self.config.emergency_confidence_threshold
+                            and threat >= self.config.emergency_threat_threshold):
                         logger.info(
                             "EMERGENCY_FASTPATH",
                             event_id=event_id,
                             heuristic_id=matched_heuristic_id,
                             confidence=round(confidence, 3),
                             threat=round(threat, 3),
+                            thresholds={
+                                "confidence": self.config.emergency_confidence_threshold,
+                                "threat": self.config.emergency_threat_threshold,
+                            },
                         )
                         result["response_text"] = action_text
                         result["prediction_confidence"] = confidence
@@ -316,7 +321,7 @@ class EventRouter:
             "threat": 0.0,
             "opportunity": 0.0,
             "humor": 0.0,
-            "novelty": 0.8,  # High enough to trigger immediate routing (threshold is 0.7)
+            "novelty": self.config.fallback_novelty,  # High enough to trigger immediate routing (threshold is 0.7)
             "goal_relevance": 0.0,
             "social": 0.0,
             "emotional": 0.0,
