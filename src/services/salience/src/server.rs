@@ -178,7 +178,7 @@ impl SalienceScorer for EmbeddingSimilarityScorer {
     async fn score(
         &self,
         event_text: &str,
-        _source: &str,
+        source: &str,
         trace_id: Option<&str>,
     ) -> Result<Vec<ScoredMatch>, ScoringError> {
         if event_text.is_empty() {
@@ -223,7 +223,7 @@ impl SalienceScorer for EmbeddingSimilarityScorer {
             event_text,
             self.min_confidence,
             10,
-            None,
+            Some(source),
             trace_id
         ).await.map_err(|e| ScoringError::StorageError(e))?;
 
@@ -917,5 +917,49 @@ mod tests {
             let c = cache.read().await;
             assert_eq!(c.stats().heuristic_count, 0);
         }
+    }
+
+    /// Mock that captures the source_filter argument for verification.
+    struct SourceCapturingStorage {
+        captured_source: Arc<std::sync::Mutex<Option<Option<String>>>>,
+    }
+
+    #[tonic::async_trait]
+    impl StorageBackend for SourceCapturingStorage {
+        async fn query_matching_heuristics(
+            &self,
+            _text: &str,
+            _min_conf: f32,
+            _limit: i32,
+            source_filter: Option<&str>,
+            _trace_id: Option<&str>,
+        ) -> Result<Vec<CachedHeuristic>, String> {
+            *self.captured_source.lock().unwrap() = Some(source_filter.map(|s| s.to_string()));
+            Ok(vec![])
+        }
+
+        async fn generate_embedding(
+            &self,
+            _text: &str,
+            _trace_id: Option<&str>,
+        ) -> Result<Vec<f32>, String> {
+            // Fail embedding to force storage fallback path
+            Err("force storage fallback".into())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_source_passed_to_storage() {
+        let cache = Arc::new(RwLock::new(MemoryCache::new(crate::config::CacheConfig::default())));
+        let captured = Arc::new(std::sync::Mutex::new(None));
+        let storage = Box::new(SourceCapturingStorage {
+            captured_source: Arc::clone(&captured),
+        });
+        let scorer = EmbeddingSimilarityScorer::new(cache, storage, 0.7, 0.5);
+
+        let _ = scorer.score("test event", "test_domain", None).await;
+
+        let value = captured.lock().unwrap();
+        assert_eq!(*value, Some(Some("test_domain".to_string())));
     }
 }

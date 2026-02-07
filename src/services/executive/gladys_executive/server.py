@@ -120,6 +120,7 @@ class DecisionContext:
     candidates: list[HeuristicCandidate]  # Best match first, then additional candidates.
     immediate: bool
     goals: list[str] = field(default_factory=list)  # Active user goals (F-07). Injected into system prompt.
+    personality_biases: dict[str, float] = field(default_factory=dict)  # F-24: threshold adjustments per-domain/user
 
 
 @dataclass
@@ -224,10 +225,14 @@ class HeuristicFirstStrategy:
         self._trace_store: dict[str, ReasoningTrace] = {}
 
     async def decide(self, context: DecisionContext, llm: LLMProvider | None) -> DecisionResult:
+        # Apply personality bias to threshold (F-24)
+        threshold = self._config.confidence_threshold + context.personality_biases.get("confidence_threshold", 0.0)
+        threshold = max(0.3, min(0.95, threshold))  # Clamp to safe range
+
         # Path 1: High-confidence heuristic (best candidate above threshold)
         best = context.candidates[0] if context.candidates else None
-        if best and best.confidence >= self._config.confidence_threshold:
-            return self._heuristic_path(context, best)
+        if best and best.confidence >= threshold:
+            return self._heuristic_path(context, best, threshold)
 
         # Path 2: LLM reasoning (with remaining candidates as neutral context)
         if llm and context.immediate:
@@ -245,7 +250,7 @@ class HeuristicFirstStrategy:
             metadata={"reason": "llm_unavailable" if not llm else "not_immediate"},
         )
 
-    def _heuristic_path(self, context: DecisionContext, candidate: HeuristicCandidate) -> DecisionResult:
+    def _heuristic_path(self, context: DecisionContext, candidate: HeuristicCandidate, threshold: float) -> DecisionResult:
         response_id = self._store_trace(
             event_id=context.event_id,
             context_text=context.event_text,
@@ -262,7 +267,7 @@ class HeuristicFirstStrategy:
             predicted_success=candidate.confidence,
             prediction_confidence=candidate.confidence,
             prompt_text="",
-            metadata={"threshold": self._config.confidence_threshold},
+            metadata={"threshold": threshold},
         )
 
     async def _llm_path(self, context: DecisionContext, llm: LLMProvider) -> DecisionResult:

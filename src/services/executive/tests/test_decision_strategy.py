@@ -260,3 +260,94 @@ async def test_candidates_in_prompt_randomized(mock_llm):
     assert 'Situation: "cond1" → Response: "act1"' in request.prompt
     assert 'Situation: "cond2" → Response: "act2"' in request.prompt
     assert "Previous responses to similar situations" in request.prompt
+
+
+@pytest.mark.asyncio
+async def test_personality_bias_lowers_threshold(mock_llm):
+    """F-24: Personality bias can lower threshold to accept candidates that would otherwise be rejected."""
+    config = HeuristicFirstConfig(confidence_threshold=0.7)
+    strategy = HeuristicFirstStrategy(config)
+
+    candidate = HeuristicCandidate(
+        heuristic_id="h1",
+        condition_text="condition1",
+        suggested_action="action1",
+        confidence=0.65,  # Below default 0.7 threshold
+    )
+
+    context = DecisionContext(
+        event_id="e1",
+        event_text="event1",
+        event_source="src1",
+        salience={"threat": 0.1},
+        candidates=[candidate],
+        immediate=True,
+        personality_biases={"confidence_threshold": -0.1},  # Lowers threshold to 0.6
+    )
+
+    result = await strategy.decide(context, mock_llm)
+
+    assert result.path == DecisionPath.HEURISTIC
+    assert result.matched_heuristic_id == "h1"
+    assert result.metadata["threshold"] == pytest.approx(0.6)
+    mock_llm.generate.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_personality_bias_clamped():
+    """F-24: Extreme bias is clamped to safe range [0.3, 0.95]."""
+    config = HeuristicFirstConfig(confidence_threshold=0.7)
+    strategy = HeuristicFirstStrategy(config)
+
+    candidate = HeuristicCandidate(
+        heuristic_id="h1",
+        condition_text="condition1",
+        suggested_action="action1",
+        confidence=0.35,  # Above clamped floor of 0.3
+    )
+
+    context = DecisionContext(
+        event_id="e1",
+        event_text="event1",
+        event_source="src1",
+        salience={},
+        candidates=[candidate],
+        immediate=True,
+        personality_biases={"confidence_threshold": -0.9},  # Would be -0.2, clamped to 0.3
+    )
+
+    result = await strategy.decide(context, None)
+
+    # Should accept at clamped threshold of 0.3
+    assert result.path == DecisionPath.HEURISTIC
+    assert result.metadata["threshold"] == pytest.approx(0.3)
+
+
+@pytest.mark.asyncio
+async def test_no_personality_bias_default(mock_llm):
+    """F-24: Empty personality_biases preserves original behavior."""
+    config = HeuristicFirstConfig(confidence_threshold=0.7)
+    strategy = HeuristicFirstStrategy(config)
+
+    candidate = HeuristicCandidate(
+        heuristic_id="h1",
+        condition_text="condition1",
+        suggested_action="action1",
+        confidence=0.8,
+    )
+
+    context = DecisionContext(
+        event_id="e1",
+        event_text="event1",
+        event_source="src1",
+        salience={"threat": 0.1},
+        candidates=[candidate],
+        immediate=True,
+        # personality_biases defaults to empty dict
+    )
+
+    result = await strategy.decide(context, mock_llm)
+
+    assert result.path == DecisionPath.HEURISTIC
+    assert result.metadata["threshold"] == pytest.approx(0.7)
+    mock_llm.generate.assert_not_called()
