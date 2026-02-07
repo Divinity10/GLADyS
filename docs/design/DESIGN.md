@@ -11,7 +11,7 @@
 - For **architectural decisions**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - For **interface contracts**: [INTERFACES.md](INTERFACES.md)
 - For **PoC phases and success criteria**: [POC_LIFECYCLE.md](POC_LIFECYCLE.md)
-- For session-specific decisions, see working_memory.md
+- For session-specific decisions, see `efforts/working_memory.md`
 - For conceptual overview and onboarding, see [SUBSYSTEM_OVERVIEW.md](SUBSYSTEM_OVERVIEW.md)
 
 ---

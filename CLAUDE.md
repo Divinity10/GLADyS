@@ -182,88 +182,13 @@ Each dashboard tab should be:
 | LLM | A | Working | Inline x-data (status/test UI) |
 | Settings | A | Working | Inline x-data (config/cache UI) |
 
-## Mode Prefixes
-
-The user may prefix messages with `!think`, `!plan`, `!do`, or `!review` to signal what kind of work they want. A hook (`.claude/hooks/mode_prefix.py`) injects mode-specific instructions automatically.
-
-| Prefix | Meaning |
-|--------|---------|
-| `!think` | Critical analysis only. No code. Explore tradeoffs, identify gaps. |
-| `!plan` | Design the approach. Break into steps. Get approval before implementing. |
-| `!do` | Execute. The user has decided. Implement efficiently. |
-| `!review` | Evaluate existing code/design. Be thorough, cite specifics. |
-| `!archive` | Archive memory file, carry forward active work, start fresh. |
-| (none) | Consider whether this needs discussion before implementation. |
-
-## Working Memory
-
-**File**: `working_memory.md` (project root)
-
-This file is your scratchpad for preserving context across compactions and sessions. It is gitignored but still readable — use `Read` tool to access it. Always read this file at session start.
-
-### Structure
-
-```
-## Work Stack        — Tasks in progress (stack, not queue — detours go on top)
-## Decisions         — One-liners: "Decided X because Y"
-## Discoveries       — Things that contradicted assumptions
-## Open Questions    — Unresolved items
-## Completed         — Finished work (brief — detail is in archive)
-```
-
-### Work Stack Rules
-
-- **Stack, not queue**: Most recent/active task on top. Detours push onto the stack; when done, pop back to the previous task.
-- **Each item needs**: Why (context), State (what's done/remaining), Key Decisions, Returns-to (if this is a detour).
-- **Don't store thinking text**: No stream-of-consciousness. Store decisions, state, and facts.
-
-### When to Update
-
-- After making a decision or completing a task
-- When discovering something that contradicts assumptions
-- When starting a detour (push new item onto Work Stack)
-- When finishing a detour (pop it, update the item you're returning to)
-
-### Multi-Agent Collaboration
-
-`working_memory.md` is shared between Claude and Gemini. The **Handoff** section coordinates work:
-
-```
-## Handoff
-
-### Current Task
-[Task description and acceptance criteria]
-
-### Architect (Claude)
-- Status: [idle | assigned task | working | blocked]
-- Notes: [Context, decisions, handoff notes]
-
-### Investigator (Gemini)
-- Status: [idle | assigned task | working | blocked]
-- Findings: [Investigation results, recommendations]
-```
-
-**Rules:**
-- Read your assigned role in "Current Task" before starting
-- Only edit YOUR section (Architect or Investigator)
-- Write findings with specific file paths and line numbers
-- Set status to "idle" when done, leave findings for the other agent
-- Roles are assigned per-task — either agent may code or investigate
-
-### Archiving
-
-Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory.py` which:
-1. Moves current file to `docs/archive/claude-memory-YYYYMMDD-<description>.md`
-2. Creates fresh file with the standard template
-3. Carries forward: Work Stack, Decisions, Discoveries, Open Questions
-
 ## Documentation & Authority
 
 ### Authority Hierarchy (Most Recent Wins)
 
 When sources conflict, follow this order for **current implementation**:
 
-1. **working_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
+1. **efforts/working_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
 2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
@@ -273,16 +198,17 @@ When sources conflict, follow this order for **current implementation**:
 
 | File | Purpose |
 |------|---------|
-| **[docs/INDEX.md](docs/INDEX.md)** | Documentation map - find ADRs, design docs by concept |
-| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Service topology, ports, troubleshooting |
-| **working_memory.md** | Current session state, active decisions (gitignored) |
+| **[docs/INDEX.md](docs/INDEX.md)** | Documentation map — find ADRs, design docs by concept |
+| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Service topology, ports, cross-service dependencies |
+| **efforts/working_memory.md** | Effort index — read first, then the relevant `efforts/*.md` file (gitignored) |
 
 ### Session Rules
 
-1. **At session start**: Read working_memory.md first (current state), then CODEBASE_MAP.md if needed
+1. **At session start**: Read `efforts/working_memory.md` (effort index), then the active effort file from `efforts/`
 2. **Finding docs**: Use `docs/INDEX.md` to locate ADRs and design docs by topic
 3. **Update working_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
+5. **For multi-step or agent-coordinated work**: Read `docs/workflow/CLAUDE_WORKFLOW.md`
 
 ### Critical ADRs (affect daily decisions)
 

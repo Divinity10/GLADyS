@@ -37,8 +37,8 @@ config/local.yaml
 .claude/hooks/archive_prefix.py
 .claude/hooks/__pycache__/
 
-# Shared working memory (session state, not committed)
-working_memory.md
+# Working memory and effort state (session state, not committed)
+efforts/
 **/memory-*.md
 
 # Reviews and transient reports
