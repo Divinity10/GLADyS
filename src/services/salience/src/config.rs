@@ -139,18 +139,36 @@ impl Default for SalienceConfig {
 }
 
 /// Root configuration that aggregates all config sections.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub server: ServerConfig,
     pub storage: StorageConfig,
     pub cache: CacheConfig,
     pub salience: SalienceConfig,
+    /// Scorer implementation to use ("embedding" default)
+    pub scorer: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            server: ServerConfig::default(),
+            storage: StorageConfig::default(),
+            cache: CacheConfig::default(),
+            salience: SalienceConfig::default(),
+            scorer: "embedding".to_string(),
+        }
+    }
 }
 
 impl Config {
     /// Load configuration from environment variables.
     pub fn from_env() -> Self {
-        Self::default()
+        let mut config = Self::default();
+        if let Ok(s) = env::var("SALIENCE_SCORER") {
+            config.scorer = s;
+        }
+        config
     }
 
     /// Log current configuration values.
@@ -163,6 +181,7 @@ impl Config {
             cache_max_heuristics = self.cache.max_heuristics,
             novelty_threshold = self.cache.novelty_threshold,
             min_heuristic_confidence = self.salience.min_heuristic_confidence,
+            scorer = %self.scorer,
             "Configuration loaded"
         );
     }
@@ -178,5 +197,6 @@ mod tests {
         assert_eq!(config.server.port, 50052);
         assert_eq!(config.cache.max_events, 1000);
         assert!((config.cache.novelty_threshold - 0.7).abs() < 0.001);
+        assert_eq!(config.scorer, "embedding");
     }
 }

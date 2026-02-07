@@ -32,69 +32,39 @@ use crate::proto::gladys::types::{
     GetHealthRequest, GetHealthResponse, GetHealthDetailsRequest, GetHealthDetailsResponse,
     HealthStatus,
 };
-use crate::{CachedHeuristic, MemoryCache};
+use crate::{CachedHeuristic, MemoryCache, SalienceScorer, ScoredMatch, ScoringError, StorageBackend};
 
-/// The SalienceGateway service implementation.
-///
-/// This is the "amygdala" - it evaluates how important/urgent an event is
-/// by checking heuristics (learned rules) and novelty (is this new?).
-///
-/// On cache miss, queries Python storage for matching heuristics.
-pub struct SalienceService {
-    /// Shared reference to the in-memory LRU cache.
-    cache: Arc<RwLock<MemoryCache>>,
-    /// Configuration for salience evaluation
-    config: SalienceConfig,
-    /// Storage configuration for querying Python on cache miss
-    storage_config: Option<StorageConfig>,
-    /// When the service was started (for uptime tracking)
-    started_at: Instant,
+/// Default implementation of StorageBackend using gRPC to Python Memory service.
+pub struct GrpcStorageBackend {
+    config: StorageConfig,
 }
 
-impl SalienceService {
-    /// Create a new SalienceService with the given cache and config.
-    pub fn new(cache: Arc<RwLock<MemoryCache>>) -> Self {
-        Self::with_config(cache, SalienceConfig::default(), None)
+impl GrpcStorageBackend {
+    pub fn new(config: StorageConfig) -> Self {
+        Self { config }
     }
+}
 
-    /// Create a new SalienceService with explicit config.
-    pub fn with_config(
-        cache: Arc<RwLock<MemoryCache>>,
-        config: SalienceConfig,
-        storage_config: Option<StorageConfig>,
-    ) -> Self {
-        Self { cache, config, storage_config, started_at: Instant::now() }
-    }
-
-    /// Query Python storage for matching heuristics.
-    /// Returns a Result containing a vector of heuristics (empty if none found),
-    /// or an error message if the query failed.
-    async fn query_storage_for_heuristics(
+#[tonic::async_trait]
+impl StorageBackend for GrpcStorageBackend {
+    async fn query_matching_heuristics(
         &self,
         event_text: &str,
+        min_confidence: f32,
+        limit: i32,
         source_filter: Option<&str>,
         trace_id: Option<&str>,
     ) -> Result<Vec<CachedHeuristic>, String> {
-        let storage_config = match self.storage_config.as_ref() {
-            Some(cfg) => cfg,
-            None => {
-                warn!("No storage_config - cannot query Python for heuristics");
-                return Err("No storage config".to_string());
-            }
-        };
-
         let client_config = ClientConfig {
-            address: storage_config.address.clone(),
-            connect_timeout: storage_config.connect_timeout(),
-            request_timeout: storage_config.request_timeout(),
+            address: self.config.address.clone(),
+            connect_timeout: self.config.connect_timeout(),
+            request_timeout: self.config.request_timeout(),
         };
 
-        debug!(address = %storage_config.address, "Connecting to Python storage");
+        debug!(address = %self.config.address, "Connecting to Python storage");
 
-        let connect_result = StorageClient::connect(client_config).await;
-        match connect_result {
+        match StorageClient::connect(client_config).await {
             Ok(client) => {
-                // Add trace ID for request correlation
                 let mut client = if let Some(tid) = trace_id {
                     client.with_trace_id(tid.to_string())
                 } else {
@@ -102,8 +72,8 @@ impl SalienceService {
                 };
                 match client.query_matching_heuristics(
                     event_text,
-                    self.config.min_heuristic_confidence,
-                    10, // limit
+                    min_confidence,
+                    limit,
                     source_filter,
                 ).await {
                     Ok(matches) => {
@@ -131,7 +101,6 @@ impl SalienceService {
                                         serde_json::json!({})
                                     }
                                 };
-                                // Parse condition_embedding from proto bytes
                                 let condition_embedding = if !h.condition_embedding.is_empty() {
                                     crate::client::bytes_to_embedding(&h.condition_embedding)
                                 } else {
@@ -146,43 +115,30 @@ impl SalienceService {
                                     confidence: h.confidence,
                                     condition_embedding,
                                     last_accessed_ms: 0,
-                                    cached_at_ms: 0, // Will be set by add_heuristic
+                                    cached_at_ms: 0,
                                     hit_count: 0,
                                     last_hit_ms: 0,
                                 })
                             })
                             .collect();
-                        debug!(count = heuristics.len(), "Heuristics after conversion");
                         Ok(heuristics)
                     }
-                    Err(e) => {
-                        let err_msg = format!("Failed to query storage for heuristics: {}", e);
-                        warn!("{}", err_msg);
-                        Err(err_msg)
-                    }
+                    Err(e) => Err(format!("Failed to query storage for heuristics: {}", e)),
                 }
             }
-            Err(e) => {
-                let err_msg = format!("Failed to connect to Python storage: {}", e);
-                warn!("{}", err_msg);
-                Err(err_msg)
-            }
+            Err(e) => Err(format!("Failed to connect to Python storage: {}", e)),
         }
     }
 
-    /// Generate an embedding for event text by calling Python's GenerateEmbedding RPC.
-    /// Returns None if generation fails (graceful degradation → falls back to Python matching).
-    async fn generate_event_embedding(
+    async fn generate_embedding(
         &self,
         text: &str,
         trace_id: Option<&str>,
-    ) -> Option<Vec<f32>> {
-        let storage_config = self.storage_config.as_ref()?;
-
+    ) -> Result<Vec<f32>, String> {
         let client_config = ClientConfig {
-            address: storage_config.address.clone(),
-            connect_timeout: storage_config.connect_timeout(),
-            request_timeout: storage_config.request_timeout(),
+            address: self.config.address.clone(),
+            connect_timeout: self.config.connect_timeout(),
+            request_timeout: self.config.request_timeout(),
         };
 
         match StorageClient::connect(client_config).await {
@@ -190,51 +146,153 @@ impl SalienceService {
                 if let Some(tid) = trace_id {
                     client = client.with_trace_id(tid.to_string());
                 }
-                match client.generate_embedding(text).await {
-                    Ok(embedding) => {
-                        debug!(dims = embedding.len(), "Generated event embedding");
-                        Some(embedding)
-                    }
-                    Err(e) => {
-                        warn!("Failed to generate embedding: {}", e);
-                        None
-                    }
-                }
+                client.generate_embedding(text).await
+                    .map_err(|e| format!("Failed to generate embedding: {}", e))
             }
-            Err(e) => {
-                warn!("Failed to connect for embedding generation: {}", e);
-                None
-            }
+            Err(e) => Err(format!("Failed to connect for embedding generation: {}", e)),
         }
     }
+}
 
-    /// Apply salience boosts from a matched heuristic.
-    fn apply_heuristic_salience(salience: &mut SalienceVector, heuristic: &CachedHeuristic) {
-        if let Some(salience_boost) = heuristic.action.get("salience") {
-            if let Some(threat) = salience_boost.get("threat").and_then(|v| v.as_f64()) {
-                salience.threat = salience.threat.max(threat as f32);
-            }
-            if let Some(opportunity) = salience_boost.get("opportunity").and_then(|v| v.as_f64()) {
-                salience.opportunity = salience.opportunity.max(opportunity as f32);
-            }
-            if let Some(humor) = salience_boost.get("humor").and_then(|v| v.as_f64()) {
-                salience.humor = salience.humor.max(humor as f32);
-            }
-            if let Some(novelty) = salience_boost.get("novelty").and_then(|v| v.as_f64()) {
-                salience.novelty = salience.novelty.max(novelty as f32);
-            }
-            if let Some(goal_relevance) = salience_boost.get("goal_relevance").and_then(|v| v.as_f64()) {
-                salience.goal_relevance = salience.goal_relevance.max(goal_relevance as f32);
-            }
-            if let Some(social) = salience_boost.get("social").and_then(|v| v.as_f64()) {
-                salience.social = salience.social.max(social as f32);
-            }
-            if let Some(emotional) = salience_boost.get("emotional").and_then(|v| v.as_f64()) {
-                salience.emotional = salience.emotional.max(emotional as f32);
-            }
-            if let Some(actionability) = salience_boost.get("actionability").and_then(|v| v.as_f64()) {
-                salience.actionability = salience.actionability.max(actionability as f32);
-            }
+/// Current PoC 1 scorer — embedding + cosine similarity.
+pub struct EmbeddingSimilarityScorer {
+    cache: Arc<RwLock<MemoryCache>>,
+    storage: Box<dyn StorageBackend>,
+    min_similarity: f32,
+    min_confidence: f32,
+}
+
+impl EmbeddingSimilarityScorer {
+    pub fn new(
+        cache: Arc<RwLock<MemoryCache>>,
+        storage: Box<dyn StorageBackend>,
+        min_similarity: f32,
+        min_confidence: f32,
+    ) -> Self {
+        Self { cache, storage, min_similarity, min_confidence }
+    }
+}
+
+#[tonic::async_trait]
+impl SalienceScorer for EmbeddingSimilarityScorer {
+    async fn score(
+        &self,
+        event_text: &str,
+        _source: &str,
+        trace_id: Option<&str>,
+    ) -> Result<Vec<ScoredMatch>, ScoringError> {
+        if event_text.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Step 1: Generate embedding for the event text
+        let embedding = self.storage.generate_embedding(event_text, trace_id).await
+            .map_err(|e| ScoringError::EmbeddingError(e))?;
+
+        // Step 2: Cache lookup using cosine similarity
+        let cache = self.cache.read().await;
+        let cache_matches = cache.find_matching_heuristics(
+            &embedding,
+            self.min_similarity,
+            self.min_confidence,
+            5,
+        );
+        drop(cache);
+
+        if !cache_matches.is_empty() {
+            let cache = self.cache.read().await;
+            let results = cache_matches.into_iter().filter_map(|(h_id, sim)| {
+                cache.get_heuristic(&h_id).map(|h| ScoredMatch {
+                    heuristic_id: h.id.to_string(),
+                    similarity: sim,
+                    confidence: h.confidence,
+                    condition_text: h.condition.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    suggested_action: h.action.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    salience_boost: h.action.get("salience").cloned(),
+                })
+            }).collect();
+            return Ok(results);
+        }
+
+        // Step 3: Cache miss - fall back to storage
+        debug!("Cache miss, querying storage for heuristic matching");
+        let heuristics = self.storage.query_matching_heuristics(
+            event_text,
+            self.min_confidence,
+            10,
+            None,
+            trace_id
+        ).await.map_err(|e| ScoringError::StorageError(e))?;
+
+        Ok(heuristics.into_iter().map(|h| ScoredMatch {
+            heuristic_id: h.id.to_string(),
+            similarity: 1.0, // Storage returns pre-filtered matches
+            confidence: h.confidence,
+            condition_text: h.condition.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            suggested_action: h.action.get("message").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            salience_boost: h.action.get("salience").cloned(),
+        }).collect())
+    }
+
+    fn config(&self) -> serde_json::Value {
+        serde_json::json!({
+            "scorer": "embedding_similarity",
+            "min_similarity": self.min_similarity,
+            "min_confidence": self.min_confidence,
+        })
+    }
+}
+
+/// The SalienceGateway service implementation.
+///
+/// This is the "amygdala" - it evaluates how important/urgent an event is
+/// by checking heuristics (learned rules) and novelty (is this new?).
+pub struct SalienceService {
+    /// Shared reference to the in-memory LRU cache.
+    cache: Arc<RwLock<MemoryCache>>,
+    /// Scoring algorithm implementation.
+    scorer: Box<dyn SalienceScorer>,
+    /// Configuration for salience evaluation
+    config: SalienceConfig,
+    /// When the service was started (for uptime tracking)
+    started_at: Instant,
+}
+
+impl SalienceService {
+    /// Create a new SalienceService with a scorer and config.
+    pub fn with_scorer(
+        cache: Arc<RwLock<MemoryCache>>,
+        scorer: Box<dyn SalienceScorer>,
+        config: SalienceConfig,
+    ) -> Self {
+        Self { cache, scorer, config, started_at: Instant::now() }
+    }
+
+    /// Apply salience boosts from a scored match.
+    fn apply_salience_boost(salience: &mut SalienceVector, boost: &serde_json::Value) {
+        if let Some(threat) = boost.get("threat").and_then(|v| v.as_f64()) {
+            salience.threat = salience.threat.max(threat as f32);
+        }
+        if let Some(opportunity) = boost.get("opportunity").and_then(|v| v.as_f64()) {
+            salience.opportunity = salience.opportunity.max(opportunity as f32);
+        }
+        if let Some(humor) = boost.get("humor").and_then(|v| v.as_f64()) {
+            salience.humor = salience.humor.max(humor as f32);
+        }
+        if let Some(novelty) = boost.get("novelty").and_then(|v| v.as_f64()) {
+            salience.novelty = salience.novelty.max(novelty as f32);
+        }
+        if let Some(goal_relevance) = boost.get("goal_relevance").and_then(|v| v.as_f64()) {
+            salience.goal_relevance = salience.goal_relevance.max(goal_relevance as f32);
+        }
+        if let Some(social) = boost.get("social").and_then(|v| v.as_f64()) {
+            salience.social = salience.social.max(social as f32);
+        }
+        if let Some(emotional) = boost.get("emotional").and_then(|v| v.as_f64()) {
+            salience.emotional = salience.emotional.max(emotional as f32);
+        }
+        if let Some(actionability) = boost.get("actionability").and_then(|v| v.as_f64()) {
+            salience.actionability = salience.actionability.max(actionability as f32);
         }
     }
 }
@@ -279,90 +337,59 @@ impl SalienceGateway for SalienceService {
         let mut matched_heuristic_id = String::new();
         let mut heuristic_matched = false;
 
-        // Cache-first heuristic matching:
-        // 1. Generate embedding for event text (via Python)
-        // 2. Check local cache using cosine similarity
-        // 3. On cache miss, fall back to Python QueryMatchingHeuristics
+        // Delegate scoring to the strategy
         if !req.raw_text.is_empty() {
-            // Step 1: Generate embedding for the event text
-            let query_embedding = self.generate_event_embedding(&req.raw_text, Some(&trace_id)).await;
+            match self.scorer.score(&req.raw_text, &req.source, Some(&trace_id)).await {
+                Ok(matches) if !matches.is_empty() => {
+                    // Use the first (best) match
+                    let best = &matches[0];
+                    matched_heuristic_id = best.heuristic_id.clone();
+                    heuristic_matched = true;
 
-            // Step 2: Check cache if we have an embedding
-            if let Some(ref embedding) = query_embedding {
-                let cache = self.cache.read().await;
-                let cache_matches = cache.find_matching_heuristics(
-                    embedding,
-                    self.config.min_heuristic_similarity,
-                    self.config.min_heuristic_confidence,
-                    1, // Only need best match
-                );
-                drop(cache);
+                    info!(
+                        trace_id = %trace_id,
+                        heuristic_id = %best.heuristic_id,
+                        similarity = %best.similarity,
+                        "Heuristic matched"
+                    );
 
-                if let Some((h_id, similarity)) = cache_matches.first() {
-                    // Cache hit - use cached heuristic
-                    let mut cache = self.cache.write().await;
-                    cache.record_hit();
-                    cache.touch_heuristic(h_id);
+                    // Apply salience boost
+                    if let Some(boost) = &best.salience_boost {
+                        Self::apply_salience_boost(&mut salience, boost);
+                    }
 
-                    if let Some(cached_h) = cache.get_heuristic(h_id) {
-                        info!(
-                            trace_id = %trace_id,
-                            heuristic_id = %h_id,
-                            heuristic_name = %cached_h.name,
-                            similarity = %similarity,
-                            "Heuristic matched (cache hit)"
-                        );
-                        matched_heuristic_id = h_id.to_string();
-                        heuristic_matched = true;
-                        Self::apply_heuristic_salience(&mut salience, cached_h);
+                    // Cache bookkeeping:
+                    // If similarity is 1.0, it was a storage match that we should add to cache.
+                    // If similarity is < 1.0, it was likely a cache match (or we should check if it's in cache).
+                    let h_uuid = uuid::Uuid::parse_str(&best.heuristic_id).ok();
+                    if let Some(id) = h_uuid {
+                        let mut cache = self.cache.write().await;
+                        if best.similarity >= 1.0 {
+                            // Storage match
+                            cache.record_miss();
+                            cache.touch_heuristic(&id);
+                        } else {
+                            // Cache match
+                            cache.record_hit();
+                            cache.touch_heuristic(&id);
+                        }
                     }
                 }
-            }
-
-            // Step 3: Cache miss - fall back to Python storage
-            if !heuristic_matched {
-                debug!("Cache miss, querying Python storage for heuristic matching");
-                match self.query_storage_for_heuristics(&req.raw_text, None, Some(&trace_id)).await {
-                    Ok(heuristics_from_storage) => {
-                        let mut cache = self.cache.write().await;
-                        cache.record_miss();
-
-                        for h in heuristics_from_storage {
-                            let h_id = h.id;
-                            let h_name = h.name.clone();
-
-                            // Add/update cache
-                            if cache.get_heuristic(&h_id).is_some() {
-                                cache.touch_heuristic(&h_id);
-                            } else {
-                                cache.add_heuristic(h);
-                            }
-
-                            // Use the first (best) match
-                            if matched_heuristic_id.is_empty() {
-                                if let Some(cached_h) = cache.get_heuristic(&h_id) {
-                                    info!(
-                                        trace_id = %trace_id,
-                                        heuristic_id = %h_id,
-                                        heuristic_name = %h_name,
-                                        "Heuristic matched (storage fallback)"
-                                    );
-                                    matched_heuristic_id = h_id.to_string();
-                                    heuristic_matched = true;
-                                    Self::apply_heuristic_salience(&mut salience, cached_h);
-                                }
-                            }
-                        }
-                    },
-                    Err(e) => {
-                        return Ok(Response::new(EvaluateSalienceResponse {
-                            salience: Some(salience),
-                            from_cache: false,
-                            matched_heuristic_id: String::new(),
-                            error: e,
-                            novelty_detection_skipped: true,
-                        }));
-                    }
+                Ok(_) => {
+                    // No matches found
+                    salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+                }
+                Err(e) => {
+                    warn!(trace_id = %trace_id, error = %e, "Scoring failed");
+                    salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+                    
+                    return Ok(Response::new(EvaluateSalienceResponse {
+                        salience: Some(salience),
+                        from_cache: false,
+                        matched_heuristic_id: String::new(),
+                        error: e.to_string(),
+                        novelty_detection_skipped: true,
+                    }));
                 }
             }
         }
@@ -538,19 +565,17 @@ impl SalienceGateway for SalienceService {
 ///
 /// This function creates the tonic server, registers our SalienceGateway
 /// service, and listens for incoming connections.
-///
-/// The storage_config is used for cache-miss queries to Python storage.
 pub async fn run_server(
     server_config: ServerConfig,
     salience_config: SalienceConfig,
-    storage_config: StorageConfig,
+    scorer: Box<dyn SalienceScorer>,
     cache: Arc<RwLock<MemoryCache>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crate::proto::salience_gateway_server::SalienceGatewayServer;
     use tonic::transport::Server;
 
     let addr = format!("{}:{}", server_config.host, server_config.port).parse()?;
-    let service = SalienceService::with_config(cache, salience_config, Some(storage_config));
+    let service = SalienceService::with_scorer(cache, scorer, salience_config);
 
     info!("Starting SalienceGateway gRPC server on {}", addr);
 
@@ -565,34 +590,142 @@ pub async fn run_server(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
-    // NOTE: test_heuristic_keyword_matching was removed because
-    // heuristic matching is now done via Python's semantic similarity.
-    // Word overlap matching has been deprecated due to false positives.
+    struct MockStorageBackend {
+        heuristics: Vec<CachedHeuristic>,
+        embedding: Vec<f32>,
+        should_fail_embedding: bool,
+        should_fail_query: bool,
+    }
 
-    #[test]
-    fn test_apply_heuristic_salience() {
-        let heuristic = CachedHeuristic {
-            id: uuid::Uuid::new_v4(),
-            name: "threat_detector".to_string(),
-            condition: serde_json::json!({}),
-            action: serde_json::json!({
-                "salience": {
-                    "threat": 0.9,
-                    "opportunity": 0.3
-                }
-            }),
-            confidence: 0.95,
-            condition_embedding: Vec::new(),
+    #[tonic::async_trait]
+    impl StorageBackend for MockStorageBackend {
+        async fn query_matching_heuristics(
+            &self,
+            _text: &str,
+            _min_conf: f32,
+            _limit: i32,
+            _source: Option<&str>,
+            _trace_id: Option<&str>,
+        ) -> Result<Vec<CachedHeuristic>, String> {
+            if self.should_fail_query {
+                return Err("Mock query failure".into());
+            }
+            Ok(self.heuristics.clone())
+        }
+
+        async fn generate_embedding(
+            &self,
+            _text: &str,
+            _trace_id: Option<&str>,
+        ) -> Result<Vec<f32>, String> {
+            if self.should_fail_embedding {
+                return Err("Mock embedding failure".into());
+            }
+            Ok(self.embedding.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_scorer_empty_text() {
+        let cache = Arc::new(RwLock::new(MemoryCache::new(crate::config::CacheConfig::default())));
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![],
+            embedding: vec![],
+            should_fail_embedding: false,
+            should_fail_query: false,
+        });
+        let scorer = EmbeddingSimilarityScorer::new(cache, mock_storage, 0.7, 0.5);
+
+        let results = scorer.score("", "test", None).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_scorer_cache_hit() {
+        let cache_config = crate::config::CacheConfig::default();
+        let cache = Arc::new(RwLock::new(MemoryCache::new(cache_config)));
+        
+        let h_id = Uuid::new_v4();
+        let emb = vec![1.0; 384];
+        {
+            let mut c = cache.write().await;
+            c.add_heuristic(CachedHeuristic {
+                id: h_id,
+                name: "test_heuristic".to_string(),
+                condition: serde_json::json!({"text": "test condition"}),
+                action: serde_json::json!({"message": "test action", "salience": {"threat": 0.5}}),
+                confidence: 0.9,
+                condition_embedding: emb.clone(),
+                last_accessed_ms: 0,
+                cached_at_ms: 0,
+                hit_count: 0,
+                last_hit_ms: 0,
+            });
+        }
+
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![],
+            embedding: emb.clone(),
+            should_fail_embedding: false,
+            should_fail_query: false,
+        });
+
+        let scorer = EmbeddingSimilarityScorer::new(cache, mock_storage, 0.7, 0.5);
+        let results = scorer.score("test event", "test", None).await.unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].heuristic_id, h_id.to_string());
+        assert!(results[0].similarity > 0.99);
+        assert_eq!(results[0].suggested_action, "test action");
+    }
+
+    #[tokio::test]
+    async fn test_scorer_storage_fallback() {
+        let cache = Arc::new(RwLock::new(MemoryCache::new(crate::config::CacheConfig::default())));
+        
+        let h_id = Uuid::new_v4();
+        let emb = vec![1.0; 384];
+        let storage_heuristic = CachedHeuristic {
+            id: h_id,
+            name: "storage_heuristic".to_string(),
+            condition: serde_json::json!({"text": "storage condition"}),
+            action: serde_json::json!({"message": "storage action"}),
+            confidence: 0.8,
+            condition_embedding: vec![],
             last_accessed_ms: 0,
             cached_at_ms: 0,
             hit_count: 0,
             last_hit_ms: 0,
         };
 
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![storage_heuristic],
+            embedding: emb,
+            should_fail_embedding: false,
+            should_fail_query: false,
+        });
+
+        let scorer = EmbeddingSimilarityScorer::new(cache, mock_storage, 0.7, 0.5);
+        let results = scorer.score("test event", "test", None).await.unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].heuristic_id, h_id.to_string());
+        assert_eq!(results[0].similarity, 1.0); // Storage fallback uses 1.0
+        assert_eq!(results[0].suggested_action, "storage action");
+    }
+
+    #[test]
+    fn test_apply_salience_boost() {
+        let boost = serde_json::json!({
+            "threat": 0.9,
+            "opportunity": 0.3
+        });
+
         let mut salience = SalienceVector {
             threat: 0.1,
-            opportunity: 0.5, // Already higher than heuristic
+            opportunity: 0.5, // Already higher than boost
             humor: 0.0,
             novelty: 0.0,
             goal_relevance: 0.0,
@@ -602,7 +735,7 @@ mod tests {
             habituation: 0.0,
         };
 
-        SalienceService::apply_heuristic_salience(&mut salience, &heuristic);
+        SalienceService::apply_salience_boost(&mut salience, &boost);
 
         // Threat should be boosted to 0.9
         assert!((salience.threat - 0.9).abs() < 0.001);
@@ -619,7 +752,15 @@ mod tests {
             heuristic_ttl_ms: 0,
         };
         let cache = Arc::new(RwLock::new(MemoryCache::new(cache_config)));
-        let service = SalienceService::new(cache.clone());
+        
+        let mock_storage = Box::new(MockStorageBackend {
+            heuristics: vec![],
+            embedding: vec![],
+            should_fail_embedding: false,
+            should_fail_query: false,
+        });
+        let scorer = Box::new(EmbeddingSimilarityScorer::new(cache.clone(), mock_storage, 0.7, 0.5));
+        let service = SalienceService::with_scorer(cache.clone(), scorer, SalienceConfig::default());
 
         // 1. Add some heuristics to cache
         let id1 = uuid::Uuid::new_v4();

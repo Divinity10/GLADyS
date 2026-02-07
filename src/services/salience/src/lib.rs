@@ -42,7 +42,65 @@ pub mod proto {
 pub use client::{ClientConfig, ClientError, StorageClient, EventBuilder, HeuristicBuilder};
 pub use config::{Config, ServerConfig, StorageConfig, SalienceConfig};
 pub use logging::{setup_logging, LogGuard, generate_trace_id, get_or_create_trace_id, TRACE_ID_HEADER};
-pub use server::{SalienceService, run_server};
+pub use server::{SalienceService, run_server, EmbeddingSimilarityScorer, GrpcStorageBackend};
+
+/// Result of scoring an event against known heuristics.
+#[derive(Debug, Clone)]
+pub struct ScoredMatch {
+    pub heuristic_id: String,
+    pub similarity: f32,
+    pub confidence: f32,
+    pub condition_text: String,
+    pub suggested_action: String,
+    pub salience_boost: Option<serde_json::Value>,
+}
+
+/// Error type for scoring operations.
+#[derive(Debug, thiserror::Error)]
+pub enum ScoringError {
+    #[error("Embedding generation failed: {0}")]
+    EmbeddingError(String),
+    #[error("Storage query failed: {0}")]
+    StorageError(String),
+    #[error("No matches found")]
+    NoMatches,
+}
+
+/// Interface for salience scoring algorithms.
+#[tonic::async_trait]
+pub trait SalienceScorer: Send + Sync {
+    /// Score an event against known heuristics.
+    ///
+    /// Returns the best matching heuristic(s) with similarity scores.
+    async fn score(
+        &self,
+        event_text: &str,
+        source: &str,
+        trace_id: Option<&str>,
+    ) -> Result<Vec<ScoredMatch>, ScoringError>;
+
+    /// Return scorer configuration for logging.
+    fn config(&self) -> serde_json::Value;
+}
+
+/// Abstraction for the storage backend to enable unit testing.
+#[tonic::async_trait]
+pub trait StorageBackend: Send + Sync {
+    async fn query_matching_heuristics(
+        &self,
+        event_text: &str,
+        min_confidence: f32,
+        limit: i32,
+        source_filter: Option<&str>,
+        trace_id: Option<&str>,
+    ) -> Result<Vec<CachedHeuristic>, String>;
+
+    async fn generate_embedding(
+        &self,
+        text: &str,
+        trace_id: Option<&str>,
+    ) -> Result<Vec<f32>, String>;
+}
 
 // Note: CacheConfig, MemoryCache, CachedEvent, CachedHeuristic, CacheStats are already
 // defined as pub structs in this file, so they are automatically public exports.
@@ -72,6 +130,7 @@ pub struct CachedEvent {
 }
 
 /// Cached heuristic for fast lookup (with LRU tracking)
+#[derive(Debug, Clone)]
 pub struct CachedHeuristic {
     pub id: Uuid,
     pub name: String,
