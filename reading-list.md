@@ -188,6 +188,12 @@ These are specific to gaps identified in GLADyS design:
 **Why**: Working memory model. Relevant to L0/L1 cache design.
 - Classic cognitive psychology
 
+### Event Segmentation Theory - Zacks et al. (2007)
+**Why**: How the brain segments continuous experience into discrete episodes via prediction error. Directly relevant to episodic memory design — converting sensor streams into bounded episodes instead of storing events individually. Deep dive: `docs/research/event-segmentation-theory.md`.
+- Zacks, Speer, Swallow, Braver, & Reynolds (2007) — foundational paper
+- Franklin et al. (2020) — Structured Event Memory, computational model of episodic encoding
+- Also see applied papers (LangMem, RAG patterns) in the deep dive doc
+
 ---
 
 ## Papers to Find

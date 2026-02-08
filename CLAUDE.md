@@ -213,7 +213,7 @@ When sources conflict, follow this order for **current implementation**:
 2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
-**Rule**: ADRs describe where we're going. PoC may cut corners. If working_memory.md says "skip pending_events table," that overrides any design doc that says otherwise.
+**Rule**: ADRs describe the target architecture. PoC increments may reduce *scope* (fewer features, simpler flows) but not *standards* (code quality, separation of concerns, test coverage). If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
 
 ### Navigation
 

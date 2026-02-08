@@ -103,6 +103,14 @@ New events are stored immediately in the episodic store (hippocampal-like). Over
 - The "sleep cycle" is a simplified model of offline replay. Real hippocampal replay is selective and influenced by emotional salience. Should consolidation priority be salience-weighted?
 - How should we handle reconsolidation? When a retrieved memory is modified by new context, does the original change?
 
+## Event Segmentation Theory
+
+The brain doesn't store experience as a continuous stream — it segments it into discrete episodes. **Event Segmentation Theory** (Zacks et al., 2007) explains the mechanism: the brain maintains an **Event Model** (a running prediction of what happens next). When prediction error exceeds a threshold, the brain triggers an **Event Boundary**, flushes working memory into episodic storage, and starts a new model.
+
+For GLADyS, this means converting raw sensor streams into bounded episodes rather than storing events individually. Boundary detection, episode summarization, and cross-episode pattern extraction are all open design questions.
+
+**Deep dive**: [Event Segmentation Theory](event-segmentation-theory.md) — detailed mapping to GLADyS, implementation strategy, open questions, and research papers.
+
 ## Salience and Attention (The "Amygdala")
 
 The Salience Gateway determines what deserves attention from a continuous stream of events. It's modeled on the brain's salience network (Seeley et al., 2007).
@@ -256,6 +264,10 @@ Transparency about the boundaries of our approach:
 - Kahneman, D. (2011). *Thinking, Fast and Slow*
 - McClelland, J. L., McNaughton, B. L., & O'Reilly, R. C. (1995). Why there are complementary learning systems in the hippocampus and neocortex
 - Seeley, W. W., et al. (2007). Dissociable intrinsic connectivity networks for salience processing and executive control
+
+### Event Segmentation
+- Zacks, J. M., Speer, N. K., Swallow, K. M., Braver, T. S., & Reynolds, J. R. (2007). Event Segmentation in Perception and Memory
+- Franklin, N. T., Norman, K. A., Ranganath, C., Zacks, J. M., & Gershman, S. J. (2020). Structured Event Memory: A neuro-symbolic model of event cognition
 
 ### Reinforcement Learning
 - Sutton, R. S., & Barto, A. G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.)

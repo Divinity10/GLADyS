@@ -4,6 +4,10 @@
 **Status**: Living document
 **Owners**: Mike Mulcahy, Scott Mulcahy
 
+## Terminology Note
+
+"PoC" in this project means **incremental development with a proof obligation** — not throwaway code. Each PoC limits *scope* (what we build) but not *standards* (how we build it). Code written in a PoC is production-quality code with tests, proper separation of concerns, and clean interfaces. The difference from a full release is that we're building fewer features per cycle, not that we're building them worse.
+
 ## Purpose
 
 This document defines the PoC phases for GLADyS — what each phase proves, its success criteria, abort signals, and deferred items with triggers. This is NOT an implementation plan. Each PoC gets its own planning session before implementation begins, incorporating lessons learned from the previous phase.
@@ -431,6 +435,7 @@ Items explicitly out of scope for all PoC phases, with conditions that would bri
 | **Context/Mode detection** | Needs an owner (Orchestrator or Salience). Design not started. | Second domain sensor added — system needs to distinguish contexts. | PoC 2 (multiple sensors/domains) |
 | **Configuration subsystem** | Runtime config changes beyond .env-at-startup. Dashboard Settings tab needs a backend. | Settings tab is needed for practical use during testing. | PoC 1 or PoC 2 |
 | **Plugin behavior enforcement** | "Immune system" for plugins. We control all plugins during PoC. | Third-party or community plugins considered. | Post-PoC 3 |
+| **Episodic memory / EST** | Individual event storage is sufficient for PoC 2. Episode segmentation (boundary detection, episode summarization, cross-episode pattern extraction) layers on top of events, doesn't replace them. Research: `docs/research/event-segmentation-theory.md`. | PoC 2 W5 (volume management) reveals that individual event storage doesn't scale, OR heuristic extraction needs temporal context that single events don't provide. | Post-PoC 2 |
 | **Brain subsystem audit** | Systematic review of brain regions mapped to GLADyS functions. Worth doing deliberately. | After PoC 1 when the learning system exists and we can compare design to implementation. | PoC 2 planning session |
 | **Linux/WSL readiness** | Audit for Windows path assumptions. | Directory restructure (prerequisite phase). | Prerequisite phase |
 | **Install package / dev setup** | Single-command setup. | New developer onboards, or setup friction slows iteration. | Any PoC |
