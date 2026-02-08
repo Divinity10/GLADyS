@@ -331,6 +331,9 @@ impl EventBuilder {
                 llm_prompt_text: String::new(),
                 decision_path: String::new(),
                 episode_id: String::new(),
+                // PoC 2 sensor contract extensions
+                intent: String::new(),
+                evaluation_data_json: String::new(),
             },
         }
     }

@@ -189,6 +189,10 @@ message EpisodicEvent {
     string llm_prompt_text = 14;         // Full LLM prompt (NULL for heuristic fast-path)
     string decision_path = 15;           // "heuristic" or "llm"
     string episode_id = 16;              // FK to episodes table (future use)
+
+    // PoC 2 sensor contract extensions
+    string intent = 17;                  // Event intent at time of submission
+    string evaluation_data_json = 18;    // Serialized evaluation data (JSON string)
 }
 
 message StoreEventRequest {

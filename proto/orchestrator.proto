@@ -14,8 +14,15 @@ service OrchestratorService {
     // Event Routing
     // --------------------------------------------------------------------
 
-    // Sensors publish events through this streaming RPC
-    rpc PublishEvents(stream Event) returns (stream EventAck);
+    // Publish a single event (unary — preferred for most sensors)
+    rpc PublishEvent(PublishEventRequest) returns (PublishEventResponse);
+
+    // Publish a batch of events (unary — for high-volume sensors)
+    rpc PublishEvents(PublishEventsRequest) returns (PublishEventsResponse);
+
+    // DEPRECATED: Use PublishEvent (single) or PublishEvents (batch) instead.
+    // Retained for backward compatibility during migration.
+    rpc StreamEvents(stream Event) returns (stream EventAck);
 
     // Components subscribe to receive events
     rpc SubscribeEvents(SubscribeRequest) returns (stream Event);
@@ -79,6 +86,24 @@ message EventAck {
     bool routed_to_llm = 8;
     string matched_heuristic_id = 9;
     bool queued = 10;  // True if event was queued for async processing
+}
+
+message PublishEventRequest {
+    Event event = 1;
+    RequestMetadata metadata = 15;
+}
+
+message PublishEventResponse {
+    EventAck ack = 1;
+}
+
+message PublishEventsRequest {
+    repeated Event events = 1;
+    RequestMetadata metadata = 15;
+}
+
+message PublishEventsResponse {
+    repeated EventAck acks = 1;
 }
 
 message SubscribeRequest {

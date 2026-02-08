@@ -43,8 +43,18 @@ class OrchestratorServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.PublishEvents = channel.stream_stream(
+        self.PublishEvent = channel.unary_unary(
+                '/gladys.v1.OrchestratorService/PublishEvent',
+                request_serializer=orchestrator__pb2.PublishEventRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.PublishEventResponse.FromString,
+                _registered_method=True)
+        self.PublishEvents = channel.unary_unary(
                 '/gladys.v1.OrchestratorService/PublishEvents',
+                request_serializer=orchestrator__pb2.PublishEventsRequest.SerializeToString,
+                response_deserializer=orchestrator__pb2.PublishEventsResponse.FromString,
+                _registered_method=True)
+        self.StreamEvents = channel.stream_stream(
+                '/gladys.v1.OrchestratorService/StreamEvents',
                 request_serializer=common__pb2.Event.SerializeToString,
                 response_deserializer=orchestrator__pb2.EventAck.FromString,
                 _registered_method=True)
@@ -120,8 +130,23 @@ class OrchestratorServiceServicer(object):
     --------------------------------------------------------------------
     """
 
-    def PublishEvents(self, request_iterator, context):
-        """Sensors publish events through this streaming RPC
+    def PublishEvent(self, request, context):
+        """Publish a single event (unary — preferred for most sensors)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def PublishEvents(self, request, context):
+        """Publish a batch of events (unary — for high-volume sensors)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StreamEvents(self, request_iterator, context):
+        """DEPRECATED: Use PublishEvent (single) or PublishEvents (batch) instead.
+        Retained for backward compatibility during migration.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -225,8 +250,18 @@ class OrchestratorServiceServicer(object):
 
 def add_OrchestratorServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'PublishEvents': grpc.stream_stream_rpc_method_handler(
+            'PublishEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.PublishEvent,
+                    request_deserializer=orchestrator__pb2.PublishEventRequest.FromString,
+                    response_serializer=orchestrator__pb2.PublishEventResponse.SerializeToString,
+            ),
+            'PublishEvents': grpc.unary_unary_rpc_method_handler(
                     servicer.PublishEvents,
+                    request_deserializer=orchestrator__pb2.PublishEventsRequest.FromString,
+                    response_serializer=orchestrator__pb2.PublishEventsResponse.SerializeToString,
+            ),
+            'StreamEvents': grpc.stream_stream_rpc_method_handler(
+                    servicer.StreamEvents,
                     request_deserializer=common__pb2.Event.FromString,
                     response_serializer=orchestrator__pb2.EventAck.SerializeToString,
             ),
@@ -309,7 +344,61 @@ class OrchestratorService(object):
     """
 
     @staticmethod
-    def PublishEvents(request_iterator,
+    def PublishEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/PublishEvent',
+            orchestrator__pb2.PublishEventRequest.SerializeToString,
+            orchestrator__pb2.PublishEventResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def PublishEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/gladys.v1.OrchestratorService/PublishEvents',
+            orchestrator__pb2.PublishEventsRequest.SerializeToString,
+            orchestrator__pb2.PublishEventsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StreamEvents(request_iterator,
             target,
             options=(),
             channel_credentials=None,
@@ -322,7 +411,7 @@ class OrchestratorService(object):
         return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/gladys.v1.OrchestratorService/PublishEvents',
+            '/gladys.v1.OrchestratorService/StreamEvents',
             common__pb2.Event.SerializeToString,
             orchestrator__pb2.EventAck.FromString,
             options,
