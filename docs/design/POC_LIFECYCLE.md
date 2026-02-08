@@ -267,6 +267,46 @@ These are architecture-level questions PoC 2 needs to resolve through implementa
 5. Does the browser extension driver model work for Gmail?
 6. Is the event schema (intent, evaluation_data, structured fields) adequate through the full pipeline?
 
+### Convergence Test
+
+All workstreams converge on this scenario:
+
+1. RuneScape sensor (Java, push pattern) and Gmail sensor (JS/TS, poll pattern) both register and start
+2. RuneScape emits game events at realistic volume (100+ events/tick via `PublishEvents`)
+3. Gmail sensor emits email events concurrently
+4. Events from both sensors are stored — event accounting balances (submitted = stored + timed-out, no unaccounted drops)
+5. RuneScape event matches a RuneScape-source heuristic — heuristic fires, LLM skipped
+6. Gmail event has no matching heuristic — routes to Executive (LLM path). Verify no RuneScape heuristics were considered.
+7. User gives positive feedback on Gmail LLM response → new heuristic created with email source
+8. Submit similar Gmail event → new email heuristic fires. Verify RuneScape heuristics unaffected.
+9. Give negative feedback on a RuneScape heuristic → confidence drops. Verify email heuristic confidence unchanged.
+10. Throughout: heuristic path <500ms p95, LLM path <10s p95, `QueryMatchingHeuristics` <20ms p95
+
+### Baseline Metrics (from PoC 1)
+
+Documented before PoC 2 implementation begins. These are the "before" numbers for comparison.
+
+| Metric | PoC 1 value | Notes |
+|--------|------------|-------|
+| Heuristic success rate | ~0-3% | Nearly all events routed to LLM. Source filtering not implemented. |
+| Heuristic count | Low (<20) | Single domain (Sudoku), manual event submission |
+| Cross-domain false positives | Not measurable | Single domain only |
+| Concurrent sensors | 0 | Single sensor, manual submission |
+| Event throughput | Manual | No sustained sensor output |
+| LLM concurrent requests | 1 | Serial processing only |
+
+### Definition of Done
+
+PoC 2 is done when:
+
+- All 8 claims have been tested (no untested claims)
+- No abort signals are active (an abort signal that fired, was addressed via design rethink, and the claim subsequently passed counts as resolved)
+- All 6 design questions have documented answers
+- Lessons learned section is populated
+- Convergence test passes
+
+An abort signal is not failure — it's a loop back to think → design → build (per PoC lifecycle process). PoC 2 only fails if a claim cannot pass after rethink, which becomes a lesson learned that reshapes the future roadmap.
+
 ### Deferred to Future PoC
 
 The following claims were in the original PoC 2 plan but require sustained operation and significant heuristic volume that PoC 2 won't achieve. PoC 2 builds the infrastructure; a future "Learning Maturity" PoC validates these.
@@ -275,9 +315,17 @@ The following claims were in the original PoC 2 plan but require sustained opera
 - **Sleep-mode consolidation**: Merge, demote, staleness decay (ADR-0010 §3.3.4)
 - **Heuristic scale at 100+**: Rank stability and query performance at large heuristic counts
 
-### Lessons Learned
+### What was proven
 
 *(To be populated after PoC 2 completes)*
+
+### What was NOT proven (known gaps)
+
+*(To be populated after PoC 2 completes. Be honest — see PoC 0 for the standard.)*
+
+### Lessons Learned
+
+*(To be populated after PoC 2 completes. Use F-XX format per PoC 1 convention. Organize by category.)*
 
 ---
 
