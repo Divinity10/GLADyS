@@ -212,11 +212,11 @@ Detailed findings: [`docs/design/questions/poc1-findings.md`](../questions/poc1-
 
 ---
 
-## PoC 2: Real-World Viability
+## PoC 2: Multi-Sensor Pipeline
 
 ### Question to answer
 
-Can the system handle real-world conditions — multiple sensors, concurrent events, acceptable latency, and heuristic scale?
+Can GLADyS operate as a multi-sensor system — multiple sensors from different domains, written in different languages, running concurrently with events processed correctly and learning scoped to domains?
 
 ### Prerequisites
 
@@ -229,27 +229,51 @@ Can the system handle real-world conditions — multiple sensors, concurrent eve
 
 Address the accuracy-latency tradeoff under real-world event volume. PoC 1 operates at manual/low volume; PoC 2 must handle sustained sensor output.
 
-Implements (selection based on PoC 1 lessons):
+Implements:
 - Concurrent event processing: configurable worker pool in orchestrator (N>1)
-- Event deduplication/suppression: mechanism to avoid re-processing redundant events within a time window
-- Dynamic heuristic behavior: meta-heuristics or conditional suppression ("if similar event processed recently, suppress unless key value changed significantly")
-- Preprocessor integration: if PoC 1 sensor data quality requires enrichment before evaluation
+- Event deduplication: 3 layers (sensor, orchestrator cache, habituation)
+- Suppression architecture: capability, flow control, habituation
+- Executive concurrent LLM request handling
 
 Design basis: `docs/design/questions/resource-allocation.md`
 
 #### W6: Second Sensor
 
-Add a sensor from a different domain than W1. Validates cross-domain behavior, event contract generality, and concurrent sensor handling.
+Add sensors from different domains. Validates protocol-first architecture, cross-domain behavior, event contract generality, and concurrent sensor handling. Protocol-first: language-agnostic contract with per-language SDKs (Python base class, Java SDK, JS/TS SDK).
+
+Design basis: `docs/design/SENSOR_ARCHITECTURE.md`
 
 ### What to Prove
 
 | # | Claim | How to test | Success criteria | Abort signal |
 |---|-------|------------|-----------------|--------------|
-| 1 | **Multiple concurrent sensors** | Add a second sensor from a different domain. Both emit events simultaneously. | Event count submitted = event count in `episodic_events` (stored) + events with timeout responses. No unaccounted events. Queue depth returns to 0 within 60s of last event. | asyncio single-threaded model can't keep up. Known fire-and-forget issues cause silent failures. |
-| 2 | **Latency is acceptable** | Measure end-to-end p50/p95/p99 under realistic load. | Heuristic path <500ms. LLM path <10s. Measured from `PublishEvents` call to response delivery, logged in structured logs with trace ID. | LLM path consistently >15s with no architectural fix available. |
-| 3 | **Heuristic scale** | Run system through extended real sessions. Track heuristic count, similarity space crowding, query time as count grows. | Same test events that matched correctly at 10 heuristics still match the correct heuristic at 100+ (no rank displacement). `QueryMatchingHeuristics` RPC latency stays under 20ms p95 per structured logs. | Embedding space gets crowded — too many false-positive near-matches. |
-| 4 | **Learning works over time** | Track heuristic hit rate, false positive rate, LLM fallback rate across sessions. | LLM fallback rate (events routed to Executive / total events) is lower in session N+1 than session 1. Stabilizes (varies <10% between consecutive sessions) after sufficient sessions. >50% of heuristics created in session N fire on a matching event in session N+1 — verified via `heuristic_fires` joined to `heuristics` by `created_at` window. | Heuristics are too specific (only fire on near-identical events) or too broad (fire on everything). |
-| 5 | **Sleep-mode consolidation** | Implement merge (similar conditions + similar effects → combine), demote (low confidence + sufficient evidence → frozen), staleness decay (ADR-0010 §3.3.4). Similarity and confidence thresholds are tuning parameters determined during implementation. | Heuristic count stabilizes over extended sessions. Merged heuristics retain matching accuracy — same events still trigger correct responses. Stale heuristics stop firing without manual intervention. Consolidation runs without degrading live pipeline performance. | Merging destroys nuance — consolidated heuristics produce worse responses than originals. Staleness decay removes heuristics that are still valid but infrequently triggered. |
+| 1 | **Multiple sensors operate concurrently** | RuneScape (game) + Gmail (email) sensors running simultaneously for extended session. Both emit events. | Event count submitted = event count in `episodic_events` (stored) + events with timeout responses. No unaccounted events. Queue depth returns to 0 within 60s of last event. | Pipeline can't keep up with concurrent sensor output. Silent event drops despite bug fixes (#93, #94). |
+| 2 | **Sensor protocol and SDKs are viable** | (a) Java sensor (RuneScape) registers and publishes. (b) JS/TS sensor (Gmail) registers and publishes. (c) Developer builds sensor from SDK + docs without needing GLADyS internals. | Two sensors in different languages running successfully. No unplanned protocol or proto changes required during implementation. Developer can build sensor from SDK + `SENSOR_ARCHITECTURE.md` alone. | SDK abstraction doesn't cover real sensor needs. Protocol requires fundamental redesign. Event schema inadequate at some pipeline stage. |
+| 3 | **Source-domain heuristic scoping** | (a) Submit RuneScape events, verify only RuneScape-source heuristics considered during matching. (b) Submit email events, verify only email-source heuristics considered. (c) Verify heuristics correctly fire within their own domain. | Zero cross-domain heuristic matches (RuneScape heuristic never fires on email event and vice versa). Within-domain: same test events that matched at 10 heuristics still match the correct heuristic at 50+. | Source filtering too coarse (still cross-matches) or too fine (legitimate within-domain matches blocked). |
+| 4 | **Source filtering improves heuristic success rate** | Run same event set with source filtering enabled vs disabled. Compare heuristic fire accuracy (correct match / total fires). | Measurably higher success rate with source filtering enabled. Fewer false positive matches. | No measurable difference — source filtering adds overhead without benefit. |
+| 5 | **Event volume is manageable** | RuneScape sensor at realistic volume (100+ events/tick). Measure end-to-end latency, throughput, salience scoring time. | Heuristic path <500ms p95. LLM path <10s p95. Salience scoring doesn't become pipeline bottleneck. `QueryMatchingHeuristics` latency <20ms p95. | Salience scoring scales linearly with heuristic count. Pipeline throughput insufficient for realistic sensor volume. |
+| 6 | **Executive handles concurrent LLM requests** | Multiple sensors trigger LLM-path decisions simultaneously. | Concurrent requests processed without serialization. Response quality comparable to serial processing. No request starvation. | Concurrent LLM requests cause errors, quality degradation, or deadlocks. |
+| 7 | **Feedback model works under multi-sensor load** | Submit events across domains, give positive/negative feedback. Verify confidence adjustments per heuristic, scoped to correct domain. | Positive feedback increases heuristic confidence. Negative feedback decreases it. Feedback from RuneScape events does not affect email heuristic confidence and vice versa. | Cross-contamination in confidence updates. Feedback from one domain inappropriately affects another. |
+| 8 | **Salience system performs under real load** | Run salience scoring against growing heuristic set with source filtering. Measure query latency and ranking quality. | `QueryMatchingHeuristics` <20ms p95. Correct heuristic ranked #1 for known test events. No rank displacement as heuristic set grows from 10 to 50+. | Embedding space crowded — false-positive near-matches dominate despite source filtering. |
+
+### Design Questions to Answer
+
+These are architecture-level questions PoC 2 needs to resolve through implementation experience:
+
+1. Does source-based filtering actually prevent cross-domain heuristic pollution, or does it need additional mechanisms?
+2. Can configuration-injected flow control work across language boundaries in practice?
+3. Is the sensor protocol contract sufficient, or does real implementation reveal gaps?
+4. Can the Executive handle concurrent LLM requests without response quality degradation?
+5. Does the browser extension driver model work for Gmail?
+6. Is the event schema (intent, evaluation_data, structured fields) adequate through the full pipeline?
+
+### Deferred to PoC 3
+
+The following claims were in the original PoC 2 plan but require sustained operation and significant heuristic volume that PoC 2 won't achieve. PoC 2 builds the infrastructure; PoC 3 validates maturity.
+
+- **Learning works over time**: LLM fallback rate decreasing across sessions, heuristic reuse >50% session-over-session
+- **Sleep-mode consolidation**: Merge, demote, staleness decay (ADR-0010 §3.3.4)
+- **Heuristic scale at 100+**: Rank stability and query performance at large heuristic counts
 
 ### Lessons Learned
 
@@ -265,7 +289,7 @@ Does this generalize beyond one domain, and would someone actually want to use i
 
 ### Prerequisites
 
-- PoC 2 demonstrates learning works at scale with real data
+- PoC 2 multi-sensor pipeline operational
 - Planning session incorporating PoC 2 lessons learned
 
 ### What to Prove
@@ -275,6 +299,9 @@ Does this generalize beyond one domain, and would someone actually want to use i
 | 1 | **Cross-domain reasoning** | Two sensors from different domains active. Query requiring information from both. | Executive response references entities or facts from both domains. Verified by inspecting logged LLM context window — retrieval included memories from both sensor sources. | Memory retrieval can't scope queries well enough, or Executive prompt can't handle multi-source context. |
 | 2 | **Domain skill plugins** | Build one real skill. Verify it loads, receives events, provides domain-specific confidence via `evaluate_outcome()`. | Compare confidence convergence rate: heuristics in the skill-equipped domain reach confidence >0.7 in fewer fires than heuristics in a domain without skills, using comparable event volume. Measured from `heuristic_fires` and `heuristics.confidence` time series. | Plugin interface too complex to implement practically, or skill overhead negates benefit. |
 | 3 | **Personality affects behavior** | Same events, two personality packs. Personality heuristics (tagged by origin) fire correctly under right personality, disable on swap. | Personality-tagged heuristics (`origin LIKE 'personality:%'`) fire only when their personality is active. After personality swap, previously-active personality heuristics have zero fires. Tone/reasoning difference validated by human review of response pairs (subjective — intentionally a UX judgment). | Personality is just prompt-prefix with no meaningful behavioral change. |
+| 4 | **Learning works over time** | Track heuristic hit rate, false positive rate, LLM fallback rate across sessions. (Deferred from PoC 2.) | LLM fallback rate lower in session N+1 than session 1. Stabilizes (varies <10% between consecutive sessions). >50% of heuristics created in session N fire on a matching event in session N+1. | Heuristics too specific (only fire on near-identical events) or too broad (fire on everything). |
+| 5 | **Sleep-mode consolidation** | Implement merge, demote, staleness decay (ADR-0010 §3.3.4). (Deferred from PoC 2.) | Heuristic count stabilizes over extended sessions. Merged heuristics retain matching accuracy. Stale heuristics stop firing without manual intervention. | Merging destroys nuance. Staleness decay removes valid but infrequent heuristics. |
+| 6 | **Heuristic scale at 100+** | Run system with 100+ heuristics. Track rank stability, query time, similarity space crowding. (Deferred from PoC 2.) | Same test events match correct heuristic at 100+ (no rank displacement). `QueryMatchingHeuristics` <20ms p95. | Embedding space too crowded at scale. |
 ### Lessons Learned
 
 *(To be populated after PoC 3 completes)*
@@ -317,28 +344,34 @@ The dashboard is a dev/QA tool that grows alongside the system. Each PoC introdu
 - Convergence test runner: submit event → give feedback → submit similar event → verify heuristic fired (automates the PoC 1 convergence scenario)
 - Heuristic inspector: query a heuristic's full history — creation source, fires, feedback, confidence trajectory
 
-### PoC 2: Scale and Performance Observability
+### PoC 2: Multi-Sensor Pipeline Observability
 
-- **Latency metrics**: p50/p95/p99 for heuristic path and LLM path, visible per-session (supports criterion #2)
-- **Event accounting**: Submitted vs stored vs timed-out counts — verifies no silent drops (supports criterion #1)
-- **Heuristic density**: Visualization of similarity space crowding — how close are heuristic embeddings to each other? (supports criterion #3)
-- **LLM fallback rate**: Per-session trend line — is the system learning? (supports criterion #4)
-- **Consolidation log**: What was merged/demoted/decayed during sleep mode (supports criterion #5)
+- **Event accounting**: Submitted vs stored vs timed-out counts per sensor — verifies no silent drops (supports claim #1)
+- **Latency metrics**: p50/p95/p99 for heuristic path and LLM path, visible per-session (supports claim #5)
+- **Source filtering metrics**: Cross-domain match attempts vs blocks, within-domain match accuracy (supports claims #3, #4)
+- **Concurrent LLM dashboard**: Outstanding request count, queue depth, per-request latency (supports claim #6)
+- **Feedback scoping**: Per-domain confidence adjustment history — verify feedback stays within domain (supports claim #7)
+- **Salience performance**: `QueryMatchingHeuristics` latency distribution, ranking quality metrics (supports claim #8)
+- **Sensor dashboard / control plane**: Sensor registration, health, activate/deactivate, capture control (supports claim #2)
 
 **CLI / scripts**:
 - Load test harness: submit N events from M sensors simultaneously, report event accounting (submitted vs stored vs timed out)
-- Rank stability checker: submit fixed test events at different heuristic counts, verify same heuristic wins each time
-- Session metrics reporter: compute LLM fallback rate, heuristic hit rate, false positive rate for a given time window
+- Source filtering comparison: run same events with/without source filtering, report accuracy difference
+- Session metrics reporter: compute heuristic fire accuracy, false positive rate, per-domain breakdown
 
-### PoC 3: Multi-Domain and Plugin Observability
+### PoC 3: Multi-Domain, Plugin, and Learning Maturity Observability
 
-- **Cross-domain retrieval**: Show which memory sources contributed to a response (supports criterion #1)
-- **Skill activity**: Which skills are loaded, which evaluated outcomes, what valence they returned (supports criterion #2)
-- **Personality state**: Active personality, which personality heuristics are enabled/disabled (supports criterion #3)
+- **Cross-domain retrieval**: Show which memory sources contributed to a response (supports claim #1)
+- **Skill activity**: Which skills are loaded, which evaluated outcomes, what valence they returned (supports claim #2)
+- **Personality state**: Active personality, which personality heuristics are enabled/disabled (supports claim #3)
+- **LLM fallback rate**: Per-session trend line — is the system learning over time? (supports claim #4, deferred from PoC 2)
+- **Consolidation log**: What was merged/demoted/decayed during sleep mode (supports claim #5, deferred from PoC 2)
+- **Heuristic density**: Similarity space crowding at 100+ heuristics (supports claim #6, deferred from PoC 2)
 
 **CLI / scripts**:
 - Cross-domain query test: submit events from two domains, issue a query requiring both, verify retrieval sources in logged context
 - Personality swap test: activate personality A, submit events, swap to B, verify A's heuristics stop firing
+- Rank stability checker: submit fixed test events at different heuristic counts, verify same heuristic wins each time
 
 Tooling for a PoC phase is scoped during that phase's planning session, not pre-committed here. The lists above are starting points — actual needs will be clearer once implementation begins.
 
