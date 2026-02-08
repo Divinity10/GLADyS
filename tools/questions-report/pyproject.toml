@@ -1,0 +1,21 @@
+[project]
+name = "questions-report"
+version = "0.1.0"
+description = "Scan and report status of design questions"
+authors = [
+    { name = "Gemini", email = "gemini@example.com" }
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+questions-report = "report:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
