@@ -20,9 +20,12 @@
 
 | What You Need | Where to Look |
 |---------------|---------------|
+| **Find any doc by topic** | [INDEX.md](INDEX.md) |
 | High-level system understanding | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) |
 | **Running services (local/Docker)** | [GETTING_STARTED.md](GETTING_STARTED.md#running-the-full-stack) |
 | Service ports & codebase layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
+| PoC phases & success criteria | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) |
+| Sensor protocol & SDK architecture | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |
 | Open design questions | [design/questions/](design/questions/README.md) |
 | Use cases and requirements | [USE_CASES.md](design/USE_CASES.md) |
@@ -51,7 +54,7 @@
 ### Building Features
 | I want to... | See |
 |--------------|-----|
-| Build a sensor | [ADR-0003](adr/ADR-0003-Plugin-Manifest-Specification.md), [GETTING_STARTED](GETTING_STARTED.md#i-want-to-build-a-sensor) |
+| Build a sensor | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md), [GETTING_STARTED](GETTING_STARTED.md#i-want-to-build-a-sensor) |
 | Build a skill/actuator | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) |
 | Add a database migration | [src/db/migrations/](../src/db/migrations/) |
 | Change a proto contract | [CONTRIBUTING.md](../CONTRIBUTING.md#regenerating-proto-stubs) |

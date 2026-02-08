@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-02-05 (updated: heuristic_fires schema, dashboard widget status, salience model spec)
+**Last verified**: 2026-02-07 (updated: sensor locations, ProcessEvent description, PoC 2 milestone boundary)
 
 ---
 
@@ -119,7 +119,7 @@
 
 | RPC | Purpose |
 |-----|---------|
-| `ProcessEvent` | Handle high-salience event with LLM |
+| `ProcessEvent` | Decide heuristic vs LLM path; generate response |
 | `SubmitFeedback` | User feedback for learning |
 | `GetHealth` | Basic health check (HEALTHY/UNHEALTHY) |
 | `GetHealthDetails` | Detailed health with uptime, ollama/memory status |
@@ -442,8 +442,14 @@ GLADys/
 │   ├── _gladys.py              # Shared config (ports, utils)
 │   └── convergence_test.py     # PoC 1 convergence test (10-step integration test)
 │
+├── src/sensors/
+│   └── runescape/              # RuneScape sensor driver (Java RuneLite plugin, 1596 test events)
+│
 ├── packs/                      # Plugin packs (formerly plugins/)
-│   ├── sensors/                # Sensor packs
+│   ├── sensors/                # Sensor packs (exploratory, pre-protocol — PoC 2 rewrites all)
+│   │   ├── calendar-sensor/    # Google Calendar (Python, exploratory)
+│   │   ├── melvor-sensor/      # Melvor Idle game (Python, exploratory)
+│   │   └── sudoku-sensor/      # Sudoku (Python, exploratory)
 │   ├── skills/                 # Skill packs
 │   ├── personalities/          # Personality packs
 │   └── outputs/                # Output/actuator packs
@@ -966,4 +972,5 @@ python cli/local.py query "SELECT * FROM heuristics LIMIT 5"
 - `src/services/executive/README.md` - LLM integration details
 - `docs/adr/` - Architecture decisions
 - `docs/design/questions/` - Active design discussions
+- `docs/design/SENSOR_ARCHITECTURE.md` - PoC 2 sensor protocol and SDK design
 - `docs/design/LOGGING_STANDARD.md` - Logging and observability specification
