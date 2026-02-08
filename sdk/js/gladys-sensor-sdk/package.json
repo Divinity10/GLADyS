@@ -1,0 +1,28 @@
+{
+  "name": "gladys-sensor-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for GLADyS sensor integration via gRPC",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "proto:generate": "node scripts/generate-protos.js",
+    "prebuild": "npm run proto:generate",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
+    "@grpc/grpc-js": "^1.10.0",
+    "ts-proto": "^2.6.1"
+  },
+  "devDependencies": {
+    "grpc-tools": "^1.12.4",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  },
+  "private": true
+}
