@@ -80,7 +80,7 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 2. **Routes events** to preprocessors based on plugin manifests
 3. **Executes the preprocessor DAG** - some run in parallel, others wait for dependencies
 4. **Synchronizes multi-modal inputs** - correlates audio with video with game state
-5. **Forwards processed events** to the Salience Gateway
+5. **Queries Salience+Memory** for salience score and heuristic match, then queues for Executive
 6. **Manages plugin lifecycle** - start, stop, health check, restart
 7. **Enforces latency budgets** - tracks time through pipeline, drops or degrades if over budget
 
@@ -88,7 +88,7 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 
 - Does NOT decide what's important (that's Salience)
 - Does NOT store data long-term (that's Memory)
-- Does NOT generate responses (that's Executive)
+- Does NOT generate LLM responses (that's Executive), though it returns responses in the emergency fast-path and broadcasts responses to subscribers
 - Does NOT contain ML models (those are in Sensors/Salience/Executive)
 
 ### Key Design Decisions
@@ -167,7 +167,7 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 2. **Orchestrator's actual job**:
    - Receives events from sensors/preprocessors
    - Queries Salience+Memory for salience score (I/O call)
-   - Routes based on score: HIGH → immediate to Executive, LOW → accumulate for next tick
+   - Queues all events for Executive by salience priority (emergency fast-path is the only bypass)
    - Manages clock ticks, plugin lifecycle, health checks
    - This is I/O + simple comparison, NOT compute-intensive
 
@@ -250,13 +250,13 @@ Sensors are **plugins that observe the world** and emit events. They:
 
 ### What It Does
 
-Salience is the **attention filter**. It decides what's worth forwarding to the Executive. It:
+Salience is the **attention filter**. It scores events for importance. The Orchestrator calls Salience as a service; Salience does not route events itself. It:
 
-1. **Receives processed events** from Orchestrator
-2. **Evaluates importance** across multiple dimensions
+1. **Evaluates events** on request from Orchestrator
+2. **Scores importance** across multiple dimensions
 3. **Manages attention budget** - can't process everything
 4. **Applies habituation** - repeated stimuli become less salient over time
-5. **Forwards salient events** to Executive
+5. **Returns scores and heuristic matches** to Orchestrator (which handles routing)
 
 ### Salience Dimensions (ADR-0013)
 
@@ -577,10 +577,12 @@ Audit is the **tamper-proof record**. It:
 ### Primary Pipeline (Event → Response)
 
 ```
-[Sensor] → [Orchestrator] → [Preprocessor DAG] → [Salience] → [Executive] → [Output/Actuator]
-              ↑                                      ↓
-              └────────────────────────────────────[Memory]
+[Sensor] → [Orchestrator] → [Preprocessor DAG] → [Orchestrator] → [Executive] → [Output/Actuator]
+                  ↑↓                                    ↑↓
+              [Salience+Memory]                     [Memory]
 ```
+
+Orchestrator is the central hub: it calls Salience+Memory for scoring, then queues events for Executive by priority. Salience does not forward events directly.
 
 ### Latency Budget (Conversational Profile)
 

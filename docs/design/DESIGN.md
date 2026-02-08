@@ -88,7 +88,7 @@ The "attention filter" of the brain. Determines if an event is important enough 
 - **Gateway**: Rust service (`SalienceGateway`) acting as the first line of defense.
 - **Heuristics**: Checks incoming events against cached heuristics (System 1).
 - **Novelty**: Computes embedding distance to recent events to detect anomalies.
-- **Scoring**: Calculates a `SalienceVector` (threat, opportunity, etc.). High scores trigger immediate routing.
+- **Scoring**: Calculates a `SalienceVector` (threat, opportunity, etc.). Scores determine priority in the EventQueue; emergency fast-path requires both high confidence and high threat.
 
 ### PoC Deviations
 - **Deep Evaluation**: Skipped. No secondary ML model for complex salience; relies purely on heuristics + novelty.
@@ -150,11 +150,11 @@ The central nervous system. Routes messages between Sensors, Salience, Executive
 **Source**: [ADR-0001](../adr/ADR-0001-GLADyS-Architecture.md)
 
 ### Current Implementation
-- **Language**: Python (Refactored from Rust per recent design change).
+- **Language**: Python.
 - **Protocol**: gRPC for all internal communication.
-- **Routing** (3-path model):
-    - **Heuristic Shortcut (System 1)**: Event matches heuristic with confidence >= 0.7 → return action immediately, no LLM.
-    - **Priority Queue**: No high-confidence match → queue by salience, process async via Executive.
+- **Routing** (2-path model):
+    - **Emergency Fast-Path**: Heuristic confidence >= 0.95 AND threat >= 0.9 → return action immediately, bypassing Executive. This is the only case where Orchestrator short-circuits.
+    - **Normal Path**: All other events → query Salience+Memory for salience score and heuristic match, then queue for Executive. The Executive decides heuristic-vs-LLM via its `DecisionStrategy`.
     - **Timeout**: Events expire after 30s (configurable) with error response.
 - **EventQueue**: Priority queue (heapq) ordered by salience. Background worker dequeues and calls Executive.
 
