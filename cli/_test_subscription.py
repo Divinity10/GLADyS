@@ -58,14 +58,10 @@ def send_event(address: str, text: str, low_salience: bool = False):
 
     print(f"[Sender] Sending event {event_id[:8]}... (low_salience={low_salience})")
 
-    def event_generator():
-        yield event
-
-    for ack in stub.PublishEvents(event_generator()):
-        print(f"[Sender] Ack: accepted={ack.accepted}, queued={ack.queued}, response_text={ack.response_text[:50] if ack.response_text else '(none)'}...")
-        return ack
-
-    return None
+    response = stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    ack = response.ack
+    print(f"[Sender] Ack: accepted={ack.accepted}, queued={ack.queued}, response_text={ack.response_text[:50] if ack.response_text else '(none)'}...")
+    return ack
 
 
 def main():

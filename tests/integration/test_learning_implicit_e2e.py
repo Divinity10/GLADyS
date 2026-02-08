@@ -196,12 +196,10 @@ class TestLearningImplicitE2E:
 
     async def send_event(self, event: common_pb2.Event) -> orchestrator_pb2.EventAck:
         """Send event through Orchestrator."""
-        async def event_generator():
-            yield event
-
-        async for ack in self.orch_stub.PublishEvents(event_generator()):
-            return ack
-        raise RuntimeError("No ack received")
+        response = await self.orch_stub.PublishEvent(
+            orchestrator_pb2.PublishEventRequest(event=event)
+        )
+        return response.ack
 
     async def run_test(self) -> bool:
         """Run the E2E test for implicit feedback via timeout."""

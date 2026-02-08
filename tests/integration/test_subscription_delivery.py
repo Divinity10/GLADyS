@@ -120,14 +120,9 @@ async def test_subscription_receives_queued_response(orchestrator_stub):
 
     print(f"[Test] Sending event {event_id[:8]} with low salience...")
 
-    async def event_generator():
-        yield event
-
     # Send event and verify it was queued
-    ack = None
-    async for a in orchestrator_stub.PublishEvents(event_generator()):
-        ack = a
-        break
+    response = await orchestrator_stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    ack = response.ack
 
     assert ack is not None, "No ack received"
     assert ack.accepted, f"Event not accepted: {ack.error_message}"
@@ -211,12 +206,9 @@ async def test_subscription_multiple_subscribers():
     )
     event.salience.novelty = 0.1
 
-    async def event_generator():
-        yield event
-
-    async for ack in stub.PublishEvents(event_generator()):
-        assert ack.queued, "Event should be queued"
-        break
+    response = await stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    ack = response.ack
+    assert ack.queued, "Event should be queued"
 
     # Wait for responses
     await asyncio.sleep(RESPONSE_TIMEOUT)

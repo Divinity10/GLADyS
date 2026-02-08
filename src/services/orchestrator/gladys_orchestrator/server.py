@@ -167,13 +167,88 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
     # Event Routing RPCs
     # -------------------------------------------------------------------------
 
+    async def PublishEvent(
+        self,
+        request: orchestrator_pb2.PublishEventRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> orchestrator_pb2.PublishEventResponse:
+        """Unary RPC: Publish a single event."""
+        event = request.event
+        try:
+            result = await self.router.route_event(event)
+
+            # If event was queued, add to EventQueue for async processing
+            if result.get("queued"):
+                salience = result.get("_salience", 0.5)
+                matched_heuristic_id = result.get("matched_heuristic_id", "")
+                suggestion = result.get("_suggestion", {})
+                self.event_queue.enqueue(
+                    event=event,
+                    salience=salience,
+                    matched_heuristic_id=matched_heuristic_id,
+                    suggested_action=suggestion.get("suggested_action", ""),
+                    heuristic_confidence=suggestion.get("confidence", 0.0),
+                    condition_text=suggestion.get("condition_text", ""),
+                )
+            else:
+                # Immediate response (heuristic shortcut) - store event now
+                if result.get("matched_heuristic_id") and self._memory_client:
+                    try:
+                        await self._memory_client.store_event(
+                            event=event,
+                            response_id=result.get("response_id", ""),
+                            response_text=result.get("response_text", ""),
+                            predicted_success=result.get("predicted_success", 0.0),
+                            prediction_confidence=result.get("prediction_confidence", 0.0),
+                            prompt_text=result.get("prompt_text", ""),
+                            decision_path=result.get("decision_path", ""),
+                            matched_heuristic_id=result.get("matched_heuristic_id", ""),
+                        )
+                    except Exception as store_err:
+                        logger.warning("Failed to store event", event_id=event.id, error=str(store_err))
+
+            ack = orchestrator_pb2.EventAck(
+                event_id=result["event_id"],
+                accepted=result["accepted"],
+                error_message=result.get("error_message", ""),
+                response_id=result.get("response_id", ""),
+                response_text=result.get("response_text", ""),
+                predicted_success=result.get("predicted_success", 0.0),
+                prediction_confidence=result.get("prediction_confidence", 0.0),
+                routed_to_llm=result.get("routed_to_llm", False),
+                matched_heuristic_id=result.get("matched_heuristic_id", ""),
+                queued=result.get("queued", False),
+            )
+            return orchestrator_pb2.PublishEventResponse(ack=ack)
+        except Exception as e:
+            logger.error("Error routing event", event_id=event.id, error=str(e))
+            ack = orchestrator_pb2.EventAck(
+                event_id=event.id,
+                accepted=False,
+                error_message=str(e),
+            )
+            return orchestrator_pb2.PublishEventResponse(ack=ack)
+
     async def PublishEvents(
+        self,
+        request: orchestrator_pb2.PublishEventsRequest,
+        context: grpc.aio.ServicerContext,
+    ) -> orchestrator_pb2.PublishEventsResponse:
+        """Unary RPC: Publish a batch of events."""
+        acks = []
+        for event in request.events:
+            single_request = orchestrator_pb2.PublishEventRequest(event=event)
+            single_response = await self.PublishEvent(single_request, context)
+            acks.append(single_response.ack)
+        return orchestrator_pb2.PublishEventsResponse(acks=acks)
+
+    async def StreamEvents(
         self,
         request_iterator: AsyncIterator[common_pb2.Event],
         context: grpc.aio.ServicerContext,
     ) -> AsyncIterator[orchestrator_pb2.EventAck]:
         """
-        Streaming RPC: Sensors publish events, Orchestrator routes them.
+        DEPRECATED streaming RPC (renamed from old PublishEvents).
 
         For each event:
         1. Query Salience+Memory for salience score and heuristic match

@@ -33,15 +33,12 @@ def publish_event(stub, event_id: str, source: str, text: str,
         event.salience.CopyFrom(salience)
 
     try:
-        def gen():
-            yield event
-        for ack in stub.PublishEvents(gen()):
-            return {
-                "event_id": ack.event_id,
-                "status": "queued" if ack.queued else "immediate",
-            }
-            break
-        return {"event_id": event_id, "error": "no_ack"}
+        response = stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+        ack = response.ack
+        return {
+            "event_id": ack.event_id,
+            "status": "queued" if ack.queued else "immediate",
+        }
     except grpc.RpcError as e:
         return {"event_id": event_id, "error": e.code().name}
 

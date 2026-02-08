@@ -161,7 +161,7 @@ async def submit_event(request: Request):
 
     event_id = str(uuid.uuid4())
 
-    # PublishEvents is a streaming RPC — must use sync stub in a thread
+    # PublishEvent is a unary RPC — use sync stub in a thread
     stub = env.sync_orchestrator_stub()
     if not stub:
         return HTMLResponse('<span class="text-red-400">Error: orchestrator not available (proto stubs missing)</span>', status_code=503)
@@ -182,12 +182,9 @@ async def submit_event(request: Request):
 
     def _publish():
         try:
-            def event_gen():
-                yield event
-            for _ack in stub.PublishEvents(event_gen()):
-                break
+            stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
         except grpc.RpcError as e:
-            logger.error("PublishEvents gRPC failed", event_id=event_id, error=str(e))
+            logger.error("PublishEvent gRPC failed", event_id=event_id, error=str(e))
 
     threading.Thread(target=_publish, daemon=True).start()
 

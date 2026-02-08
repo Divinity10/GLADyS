@@ -132,27 +132,21 @@ async def test_low_salience_event() -> bool:
         raw_text="Normal routine update",
     )
 
-    # Use unary call instead of stream for simple test
-    async def event_generator():
-        yield event
-
     try:
-        async for ack in stub.PublishEvents(event_generator()):
-            if ack.accepted:
-                print(f"[OK] Event accepted: {ack.event_id}")
-                await channel.close()
-                return True
-            else:
-                print(f"[FAIL] Event rejected: {ack.error_message}")
-                await channel.close()
-                return False
+        response = await stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+        ack = response.ack
+        if ack.accepted:
+            print(f"[OK] Event accepted: {ack.event_id}")
+            await channel.close()
+            return True
+        else:
+            print(f"[FAIL] Event rejected: {ack.error_message}")
+            await channel.close()
+            return False
     except grpc.RpcError as e:
         print(f"[FAIL] gRPC error: {e.code()} - {e.details()}")
         await channel.close()
         return False
-
-    await channel.close()
-    return False
 
 
 async def test_high_salience_event() -> bool:
@@ -173,28 +167,21 @@ async def test_high_salience_event() -> bool:
         raw_text="DANGER! Hostile player approaching!",
     )
 
-    async def event_generator():
-        yield event
-
     try:
-        async for ack in stub.PublishEvents(event_generator()):
-            if ack.accepted:
-                print(f"[OK] Event accepted: {ack.event_id}")
-                # Event accepted - salience evaluation happened
-                # (Would need to check logs or metrics to verify immediate routing)
-                await channel.close()
-                return True
-            else:
-                print(f"[FAIL] Event rejected: {ack.error_message}")
-                await channel.close()
-                return False
+        response = await stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+        ack = response.ack
+        if ack.accepted:
+            print(f"[OK] Event accepted: {ack.event_id}")
+            await channel.close()
+            return True
+        else:
+            print(f"[FAIL] Event rejected: {ack.error_message}")
+            await channel.close()
+            return False
     except grpc.RpcError as e:
         print(f"[FAIL] gRPC error: {e.code()} - {e.details()}")
         await channel.close()
         return False
-
-    await channel.close()
-    return False
 
 
 async def test_salience_evaluation_directly(test_heuristic_id):

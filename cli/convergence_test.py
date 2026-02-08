@@ -33,6 +33,7 @@ from gladys_orchestrator.generated import (
     common_pb2,
     executive_pb2,
     executive_pb2_grpc,
+    orchestrator_pb2,
     orchestrator_pb2_grpc,
 )
 
@@ -84,14 +85,10 @@ def _addr(host: str, port: int) -> str:
 
 
 def _publish_event(stub, event_id: str, source: str, raw_text: str):
-    """Publish one event via the streaming RPC and return the full EventAck."""
-
-    def gen():
-        yield common_pb2.Event(id=event_id, source=source, raw_text=raw_text)
-
-    for ack in stub.PublishEvents(gen()):
-        return ack
-    return None
+    """Publish one event via the unary RPC and return the full EventAck."""
+    event = common_pb2.Event(id=event_id, source=source, raw_text=raw_text)
+    response = stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    return response.ack
 
 
 def _get_heuristic_by_id(dsn: str, heuristic_id: str) -> dict | None:

@@ -30,7 +30,7 @@ class TestPublishEvent:
         ack = MagicMock()
         ack.event_id = "abc-123"
         ack.queued = True
-        stub.PublishEvents.return_value = iter([ack])
+        stub.PublishEvent.return_value = MagicMock(ack=ack)
 
         result = _orchestrator.publish_event(stub, "abc-123", "test", "hello")
         assert result["event_id"] == "abc-123"
@@ -41,29 +41,24 @@ class TestPublishEvent:
         ack = MagicMock()
         ack.event_id = "abc-123"
         ack.queued = False
-        stub.PublishEvents.return_value = iter([ack])
+        stub.PublishEvent.return_value = MagicMock(ack=ack)
 
         result = _orchestrator.publish_event(stub, "abc-123", "test", "hello")
         assert result["status"] == "immediate"
 
     def test_grpc_error_returns_error_dict(self):
         stub = MagicMock()
-        import grpc as grpc_mod
-        error = grpc_mod.RpcError()
+        # grpc is mocked in this test module, so create a real exception
+        # that the client code's except handler will catch
+        error = type("RpcError", (Exception,), {})()
         error.code = MagicMock(return_value=MagicMock(name="UNAVAILABLE"))
-        stub.PublishEvents.side_effect = error
+        # Patch grpc.RpcError to match the exception type
+        _orchestrator.grpc.RpcError = type(error)
+        stub.PublishEvent.side_effect = error
 
         result = _orchestrator.publish_event(stub, "abc-123", "test", "hello")
         assert "error" in result
         assert result["event_id"] == "abc-123"
-
-    def test_no_ack_returns_error(self):
-        stub = MagicMock()
-        stub.PublishEvents.return_value = iter([])
-
-        result = _orchestrator.publish_event(stub, "abc-123", "test", "hello")
-        assert result == {"event_id": "abc-123", "error": "no_ack"}
-
 
 class TestLoadFixture:
     def test_loads_and_publishes_events(self):
@@ -71,7 +66,7 @@ class TestLoadFixture:
         ack = MagicMock()
         ack.event_id = "test-id"
         ack.queued = True
-        stub.PublishEvents.return_value = iter([ack])
+        stub.PublishEvent.return_value = MagicMock(ack=ack)
 
         events = [
             {"source": "minecraft", "text": "Player joined"},
@@ -86,7 +81,7 @@ class TestLoadFixture:
         try:
             results = _orchestrator.load_fixture(stub, path)
             assert len(results) == 2
-            assert stub.PublishEvents.call_count == 2
+            assert stub.PublishEvent.call_count == 2
         finally:
             Path(path).unlink()
 
@@ -109,7 +104,7 @@ class TestLoadFixture:
         ack = MagicMock()
         ack.event_id = "custom-id"
         ack.queued = True
-        stub.PublishEvents.return_value = iter([ack])
+        stub.PublishEvent.return_value = MagicMock(ack=ack)
 
         events = [{"source": "test", "text": "hello", "id": "custom-id"}]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
@@ -132,7 +127,7 @@ class TestLoadFixture:
         ack = MagicMock()
         ack.event_id = "generated"
         ack.queued = True
-        stub.PublishEvents.return_value = iter([ack])
+        stub.PublishEvent.return_value = MagicMock(ack=ack)
 
         events = [{"source": "test", "text": "hello"}]
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json",

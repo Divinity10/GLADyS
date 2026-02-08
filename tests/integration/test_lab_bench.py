@@ -62,19 +62,14 @@ async def test_immediate_path_override(orchestrator_stub):
     event_text = f"URGENT: Server fire! {event_id}"
     
     # Force HIGH salience
-    # Send single event via generator
-    async def event_gen():
-        yield common_pb2.Event(
-            id=event_id,
-            source="test_bench",
-            raw_text=event_text,
-            salience=common_pb2.SalienceVector(novelty=0.9, threat=0.9)
-        )
-
-    ack = None
-    async for response in orchestrator_stub.PublishEvents(event_gen()):
-        ack = response
-        break # Only sent one
+    event = common_pb2.Event(
+        id=event_id,
+        source="test_bench",
+        raw_text=event_text,
+        salience=common_pb2.SalienceVector(novelty=0.9, threat=0.9)
+    )
+    response = await orchestrator_stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    ack = response.ack
     
     assert ack is not None
     assert ack.accepted
@@ -103,16 +98,13 @@ async def test_heuristic_metadata(orchestrator_stub, memory_stub):
     # 2. Trigger it
     # Use exact text match for robustness here (unless semantic is perfect)
     # The Rust engine might use semantic, but "lab bench test trigger" is unique enough.
-    async def event_gen():
-        yield common_pb2.Event(
-            id=str(uuid.uuid4()),
-            source="test",
-            raw_text="lab bench test trigger"
-        )
-        
-    ack = None
-    async for response in orchestrator_stub.PublishEvents(event_gen()):
-        ack = response
+    event = common_pb2.Event(
+        id=str(uuid.uuid4()),
+        source="test",
+        raw_text="lab bench test trigger"
+    )
+    response = await orchestrator_stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+    ack = response.ack
         
     assert ack is not None
     assert ack.matched_heuristic_id == h_id, f"Expected match {h_id}, got {ack.matched_heuristic_id}"

@@ -10,13 +10,19 @@ This directory organizes design questions and decisions by category. Each file c
 
 | Category | File | Open | Resolved | Gaps |
 |----------|------|------|----------|------|
-| Learning | [learning.md](learning.md) | 3 | 4 | 0 |
-| Memory | [memory.md](memory.md) | 1 | 1 | 0 |
-| Plugins & Skills | [plugins.md](plugins.md) | 3 | 2 | 0 |
-| Infrastructure | [infrastructure.md](infrastructure.md) | 1 | 1 | 1 |
-| Data Types | [data-types.md](data-types.md) | 1 | 0 | 0 |
-| Resource Allocation | [resource-allocation.md](resource-allocation.md) | 4 | 0 | 0 |
-| Cross-Cutting | [cross-cutting.md](cross-cutting.md) | 2 | 3 | 1 |
+| Learning | [learning.md](learning.md) | 5 | 5 | 0 |
+| Memory | [memory.md](memory.md) | 3 | 1 | 1 |
+| Plugins | [plugins.md](plugins.md) | 5 | 2 | 1 |
+| Infrastructure | [infrastructure.md](infrastructure.md) | 2 | 1 | 1 |
+| Data Types | [data-types.md](data-types.md) | 1 | 0 | 1 |
+| Resource Allocation | [resource-allocation.md](resource-allocation.md) | 4 | 0 | 1 |
+| Cross-Cutting | [cross-cutting.md](cross-cutting.md) | 8 | 3 | 2 |
+| Bootstrapping | [confidence-bootstrapping.md](confidence-bootstrapping.md) | 1 | 0 | 0 |
+| Feedback | [feedback-signal-decomposition.md](feedback-signal-decomposition.md) | 1 | 0 | 0 |
+| Calibration | [user-feedback-calibration.md](user-feedback-calibration.md) | 1 | 0 | 0 |
+| Analysis | [confidence-analysis-harness.md](confidence-analysis-harness.md) | 1 | 0 | 0 |
+| Dashboard | [sensor-dashboard.md](sensor-dashboard.md) | 1 | 0 | 0 |
+| PoC 1 Findings | [poc1-findings.md](poc1-findings.md) | 7 | 18 | 0 |
 
 **Legend**: Open = actively under discussion | Resolved = decision made (see ADR) | Gap = needs ADR
 

@@ -87,14 +87,11 @@ class TestOrchestratorFlow:
         # Force high salience to skip accumulator
         event.salience.novelty = 0.9
 
-        def event_generator():
-            yield event
-
         # Get the acknowledgment
-        acks = list(orchestrator_stub.PublishEvents(event_generator(), timeout=30))
-
-        assert len(acks) == 1, "Should get exactly one acknowledgment"
-        ack = acks[0]
+        response = orchestrator_stub.PublishEvent(
+            orchestrator_pb2.PublishEventRequest(event=event), timeout=30
+        )
+        ack = response.ack
 
         print(f"\n=== Orchestrator Response ===")
         print(f"event_id: {ack.event_id!r}")
@@ -160,26 +157,22 @@ if __name__ == "__main__":
     # Force high salience to skip accumulator
     event.salience.novelty = 0.9
 
-    def event_generator():
-        yield event
-
     try:
-        acks = list(orch_stub.PublishEvents(event_generator(), timeout=30))
-        if not acks:
-            print("*** PROBLEM: No acks returned from Orchestrator ***")
-        else:
-            ack = acks[0]
-            print(f"event_id: {ack.event_id!r}")
-            print(f"response_id: {ack.response_id!r}")
-            print(f"response_text: {ack.response_text!r}")
-            print(f"matched_heuristic_id: {ack.matched_heuristic_id!r}")
-            print(f"routed_to_llm: {ack.routed_to_llm}")
+        response = orch_stub.PublishEvent(
+            orchestrator_pb2.PublishEventRequest(event=event), timeout=30
+        )
+        ack = response.ack
+        print(f"event_id: {ack.event_id!r}")
+        print(f"response_id: {ack.response_id!r}")
+        print(f"response_text: {ack.response_text!r}")
+        print(f"matched_heuristic_id: {ack.matched_heuristic_id!r}")
+        print(f"routed_to_llm: {ack.routed_to_llm}")
 
-            if not ack.response_text and ack.routed_to_llm:
-                print("\n*** PROBLEM: Orchestrator returned empty response_text despite routed_to_llm=True ***")
-            elif ack.response_text:
-                print("\n*** SUCCESS: Orchestrator returned response_text ***")
-            else:
-                print("\n*** INFO: No response_text (may have matched heuristic or accumulated) ***")
+        if not ack.response_text and ack.routed_to_llm:
+            print("\n*** PROBLEM: Orchestrator returned empty response_text despite routed_to_llm=True ***")
+        elif ack.response_text:
+            print("\n*** SUCCESS: Orchestrator returned response_text ***")
+        else:
+            print("\n*** INFO: No response_text (may have matched heuristic or accumulated) ***")
     except Exception as e:
         print(f"Error calling Orchestrator: {e}")

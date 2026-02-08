@@ -63,12 +63,9 @@ async def submit_batch(request: Request):
     def _publish_all():
         for event in events:
             try:
-                def gen():
-                    yield event
-                for _ack in stub.PublishEvents(gen()):
-                    break
+                stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
             except grpc.RpcError as e:
-                logger.error("Batch PublishEvents gRPC failed", event_id=event.id, error=str(e))
+                logger.error("Batch PublishEvent gRPC failed", event_id=event.id, error=str(e))
 
     threading.Thread(target=_publish_all, daemon=True).start()
 

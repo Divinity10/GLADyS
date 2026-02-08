@@ -84,16 +84,13 @@ async def run_test():
         print("\n[Step 2] Triggering heuristic fire via Orchestrator...")
         event_id = str(uuid.uuid4())  # Must be valid UUID for memory service
         
-        async def event_gen():
-            yield common_pb2.Event(
-                id=event_id,
-                source="test",
-                raw_text="flight recorder test trigger"
-            )
-            
-        ack = None
-        async for response in orch_stub.PublishEvents(event_gen()):
-            ack = response
+        event = common_pb2.Event(
+            id=event_id,
+            source="test",
+            raw_text="flight recorder test trigger"
+        )
+        response = await orch_stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+        ack = response.ack
             
         if not ack or ack.matched_heuristic_id != h_id:
             print(f"FAILED: Heuristic did not match. Matched: {ack.matched_heuristic_id if ack else 'None'}")

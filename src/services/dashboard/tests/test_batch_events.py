@@ -46,8 +46,10 @@ def mock_protos():
     """Mock proto availability."""
     with patch.object(events_router, "PROTOS_AVAILABLE", True):
         with patch.object(events_router, "common_pb2") as mock_common:
-            mock_common.Event = MagicMock()
-            yield mock_common
+            with patch.object(events_router, "orchestrator_pb2") as mock_orch:
+                mock_common.Event = MagicMock()
+                mock_orch.PublishEventRequest = MagicMock()
+                yield mock_common
 
 
 class TestBatchSubmitErrorLogging:
@@ -58,7 +60,7 @@ class TestBatchSubmitErrorLogging:
         """gRPC errors during batch publish should be logged."""
         # Arrange
         mock_stub = MagicMock()
-        mock_stub.PublishEvents.side_effect = MockRpcError()
+        mock_stub.PublishEvent.side_effect = MockRpcError()
         mock_env.sync_orchestrator_stub.return_value = mock_stub
 
         mock_request = AsyncMock(spec=Request)
@@ -94,7 +96,7 @@ class TestBatchSubmitErrorLogging:
         The test verifies we return accepted count correctly.
         """
         mock_stub = MagicMock()
-        mock_stub.PublishEvents.return_value = iter([MagicMock()])
+        mock_stub.PublishEvent.return_value = MagicMock(ack=MagicMock())
         mock_env.sync_orchestrator_stub.return_value = mock_stub
 
         mock_request = AsyncMock(spec=Request)

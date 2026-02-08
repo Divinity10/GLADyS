@@ -45,6 +45,66 @@ evaluate_outcome(episode, outcome) → OutcomeEvaluation
 
 ---
 
+## OrchestratorService gRPC
+
+Event routing RPCs defined in `proto/orchestrator.proto`.
+
+### Event Routing
+
+| RPC | Type | Purpose |
+|-----|------|---------|
+| `PublishEvent(PublishEventRequest) → PublishEventResponse` | Unary | Publish a single event (preferred for most sensors) |
+| `PublishEvents(PublishEventsRequest) → PublishEventsResponse` | Unary | Publish a batch of events (high-volume sensors) |
+| `StreamEvents(stream Event) → stream EventAck` | Streaming | Deprecated — retained for backward compatibility |
+| `SubscribeEvents(SubscribeRequest) → stream Event` | Server-stream | Components subscribe to receive routed events |
+| `SubscribeResponses(SubscribeResponsesRequest) → stream EventResponse` | Server-stream | Subscribe to response notifications (for evaluation UI) |
+
+### Event Messages
+
+```protobuf
+message Event {
+    string id = 1;
+    google.protobuf.Timestamp timestamp = 2;
+    string source = 3;
+    string raw_text = 4;
+    google.protobuf.Struct structured = 5;
+    SalienceVector salience = 6;
+    repeated string entity_ids = 7;
+    repeated int32 tokens = 8;
+    string tokenizer_id = 9;
+    string matched_heuristic_id = 10;
+    string intent = 11;                         // "actionable", "informational", "unknown"
+    google.protobuf.Struct evaluation_data = 12; // Solution/cheat data (stripped before executive)
+    RequestMetadata metadata = 15;
+}
+
+message PublishEventRequest  { Event event = 1; RequestMetadata metadata = 15; }
+message PublishEventResponse { EventAck ack = 1; }
+message PublishEventsRequest  { repeated Event events = 1; RequestMetadata metadata = 15; }
+message PublishEventsResponse { repeated EventAck acks = 1; }
+```
+
+### EventAck
+
+Returned for each published event. Contains routing result and optional response data.
+
+```protobuf
+message EventAck {
+    string event_id = 1;
+    bool accepted = 2;
+    string error_message = 3;
+    string response_id = 4;
+    string response_text = 5;
+    float predicted_success = 6;
+    float prediction_confidence = 7;
+    bool routed_to_llm = 8;
+    string matched_heuristic_id = 9;
+    bool queued = 10;
+}
+```
+
+---
+
 ## OutcomeEvaluation
 
 Returned by `SkillPlugin.evaluate_outcome()`. Used by the learning module to weight Bayesian confidence updates.
