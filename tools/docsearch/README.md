@@ -24,6 +24,12 @@ python tools/docsearch/docsearch.py "memory" "learning"
 # Search for Intersection (AND)
 python tools/docsearch/docsearch.py "bayesian" "personality" --and
 
+# Audit documentation consistency
+python tools/docsearch/docsearch.py --audit
+
+# Interactively fix orphan docs found during audit
+python tools/docsearch/docsearch.py --audit --fix
+
 # Exclude topics
 python tools/docsearch/docsearch.py "learning" --exclude personality
 

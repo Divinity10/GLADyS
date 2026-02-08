@@ -255,6 +255,8 @@ DEPTH EXPLANATION:
     parser.add_argument("--force", action="store_true", help="Ignore size limits")
     parser.add_argument("--exclude", action="append", help="Exclude topics or paths matching this keyword")
     parser.add_argument("--and", action="store_true", dest="match_all", help="Match ALL topics (Intersection) instead of ANY (Union)")
+    parser.add_argument("--audit", action="store_true", help="Audit docs/INDEX.md for orphan docs and dead links")
+    parser.add_argument("--fix", action="store_true", help="When used with --audit, interactively fix orphan docs")
     
     args = parser.parse_args()
     
@@ -262,6 +264,17 @@ DEPTH EXPLANATION:
     # UPDATED ROOT CALCULATION: tools/context_packer/pack.py -> project_root (3 levels up)
     project_root = script_dir.parent.parent
     index_path = project_root / "docs" / "INDEX.md"
+
+    if args.audit:
+        try:
+            from audit import DocAudit
+        except ImportError:
+            # Handle cases where sys.path might not include current dir
+            sys.path.append(str(script_dir))
+            from audit import DocAudit
+            
+        auditor = DocAudit(project_root)
+        sys.exit(auditor.run_audit(fix=args.fix))
     
     if not index_path.exists():
         print(f"Error: Could not find {index_path}", file=sys.stderr)
