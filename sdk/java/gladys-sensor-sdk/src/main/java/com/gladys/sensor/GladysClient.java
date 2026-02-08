@@ -41,7 +41,7 @@ public class GladysClient implements AutoCloseable {
         return response.getAck();
     }
 
-    public List<Orchestrator.EventAck> publishEvents(List<Common.Event> events) {
+    public Orchestrator.PublishEventsResponse publishEvents(List<Common.Event> events) {
         Common.RequestMetadata metadata = Common.RequestMetadata.newBuilder()
                 .setRequestId(UUID.randomUUID().toString())
                 .setTimestampMs(System.currentTimeMillis())
@@ -51,8 +51,7 @@ public class GladysClient implements AutoCloseable {
                 .addAllEvents(events)
                 .setMetadata(metadata)
                 .build();
-        Orchestrator.PublishEventsResponse response = blockingStub.publishEvents(request);
-        return response.getAcksList();
+        return blockingStub.publishEvents(request);
     }
 
     public Orchestrator.RegisterResponse register(String sensorId, String sensorType,

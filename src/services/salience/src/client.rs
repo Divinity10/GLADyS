@@ -393,8 +393,14 @@ impl HeuristicBuilder {
                 success_count: 0,
                 created_at_ms: chrono_now_ms(),
                 updated_at_ms: chrono_now_ms(),
+                source: String::new(),
             },
         }
+    }
+
+    pub fn source(mut self, source: &str) -> Self {
+        self.heuristic.source = source.to_string();
+        self
     }
 
     pub fn condition_text(mut self, text: &str) -> Self {

@@ -434,6 +434,7 @@ class MemoryStorage:
         condition_embedding: Optional[np.ndarray] = None,
         origin: Optional[str] = None,
         origin_id: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Store a new heuristic.
 
@@ -447,14 +448,15 @@ class MemoryStorage:
             condition_embedding: Optional embedding for semantic matching (384-dim)
             origin: How this heuristic was created (built_in, pack, learned, user)
             origin_id: Reference to origin source (pack ID, trace ID, etc.)
+            source: Event source domain (e.g., "game-sensor", "email-sensor")
         """
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
         await self._pool.execute(
             """
-            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids, condition_embedding, origin, origin_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO heuristics (id, name, condition, action, confidence, source_pattern_ids, condition_embedding, origin, origin_id, source)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 condition = EXCLUDED.condition,
@@ -464,6 +466,7 @@ class MemoryStorage:
                 condition_embedding = COALESCE(EXCLUDED.condition_embedding, heuristics.condition_embedding),
                 origin = COALESCE(EXCLUDED.origin, heuristics.origin),
                 origin_id = COALESCE(EXCLUDED.origin_id, heuristics.origin_id),
+                source = COALESCE(EXCLUDED.source, heuristics.source),
                 updated_at = NOW()
             """,
             id,
@@ -475,6 +478,7 @@ class MemoryStorage:
             condition_embedding,
             origin or "learned",
             origin_id,
+            source,
         )
 
     async def get_heuristic(self, heuristic_id: UUID) -> dict | None:
@@ -485,7 +489,7 @@ class MemoryStorage:
         row = await self._pool.fetchrow(
             """
             SELECT id, name, condition, action, confidence, origin,
-                   fire_count, success_count, updated_at,
+                   fire_count, success_count, updated_at, source,
                    condition->>'text' as condition_text
             FROM heuristics
             WHERE id = $1
@@ -515,7 +519,7 @@ class MemoryStorage:
             """
             SELECT id, name, condition, action, confidence,
                    source_pattern_ids, last_fired, fire_count, success_count,
-                   frozen, origin, origin_id, created_at, updated_at
+                   frozen, origin, origin_id, created_at, updated_at, source
             FROM heuristics
             WHERE confidence >= $1
               AND frozen = false
@@ -546,8 +550,8 @@ class MemoryStorage:
             event_text: The event text to match against heuristic conditions
             min_confidence: Minimum confidence threshold
             limit: Maximum number of results
-            source_filter: If provided, only return heuristics whose condition
-                           text starts with this source/domain prefix
+            source_filter: If provided, only return heuristics with this exact
+                           source value. NULL-source heuristics are excluded.
             query_embedding: Pre-computed embedding for event_text (384-dim)
             min_similarity: Minimum cosine similarity threshold (uses config default)
 
@@ -564,19 +568,19 @@ class MemoryStorage:
         # Primary: Semantic similarity search (when embedding is available)
         if query_embedding is not None:
             if source_filter:
-                source_pattern = f"{source_filter}:%"
                 rows = await self._pool.fetch(
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, source,
+                           condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
                       AND 1 - (condition_embedding <=> $1) >= $2
                       AND confidence >= $3
                       AND frozen = false
-                      AND (condition->>'text') ILIKE $5
+                      AND source = $5
                     ORDER BY condition_embedding <=> $1
                     LIMIT $4
                     """,
@@ -584,14 +588,15 @@ class MemoryStorage:
                     min_similarity,
                     min_confidence,
                     limit,
-                    source_pattern,
+                    source_filter,
                 )
             else:
                 rows = await self._pool.fetch(
                     """
                     SELECT id, name, condition, action, confidence,
                            source_pattern_ids, last_fired, fire_count, success_count,
-                           frozen, origin, origin_id, created_at, updated_at, condition_embedding,
+                           frozen, origin, origin_id, created_at, updated_at, source,
+                           condition_embedding,
                            1 - (condition_embedding <=> $1) AS similarity
                     FROM heuristics
                     WHERE condition_embedding IS NOT NULL
@@ -658,32 +663,31 @@ class MemoryStorage:
         or_query = ' | '.join(filtered_words)
 
         if source_filter:
-            source_pattern = f"{source_filter}:%"
             rows = await self._pool.fetch(
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, origin, origin_id, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at, source,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)
                   AND confidence >= $2
                   AND frozen = false
-                  AND (condition->>'text') ILIKE $4
+                  AND source = $4
                 ORDER BY similarity DESC, confidence DESC
                 LIMIT $3
                 """,
                 or_query,
                 min_confidence,
                 limit,
-                source_pattern,
+                source_filter,
             )
         else:
             rows = await self._pool.fetch(
                 """
                 SELECT id, name, condition, action, confidence,
                        source_pattern_ids, last_fired, fire_count, success_count,
-                       frozen, origin, origin_id, created_at, updated_at,
+                       frozen, origin, origin_id, created_at, updated_at, source,
                        ts_rank(condition_tsv, to_tsquery('english', $1)) AS similarity
                 FROM heuristics
                 WHERE condition_tsv @@ to_tsquery('english', $1)

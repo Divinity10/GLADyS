@@ -144,6 +144,7 @@ class ReasoningTrace:
     context: str
     response: str
     timestamp: float
+    event_source: str = ""
     matched_heuristic_id: str | None = None
     predicted_success: float = 0.0
     prediction_confidence: float = 0.0
@@ -258,6 +259,7 @@ class HeuristicFirstStrategy:
             matched_heuristic_id=candidate.heuristic_id,
             predicted_success=candidate.confidence,
             prediction_confidence=candidate.confidence,
+            event_source=context.event_source,
         )
         return DecisionResult(
             path=DecisionPath.HEURISTIC,
@@ -315,6 +317,7 @@ class HeuristicFirstStrategy:
             matched_heuristic_id=matched_id,
             predicted_success=predicted_success,
             prediction_confidence=prediction_confidence,
+            event_source=context.event_source,
         )
 
         metadata: dict[str, Any] = {"model": llm.model_name}
@@ -398,6 +401,7 @@ class HeuristicFirstStrategy:
         matched_heuristic_id: str | None = None,
         predicted_success: float = 0.0,
         prediction_confidence: float = 0.0,
+        event_source: str = "",
     ) -> str:
         response_id = str(uuid.uuid4())
         self._trace_store[response_id] = ReasoningTrace(
@@ -406,6 +410,7 @@ class HeuristicFirstStrategy:
             context=context_text,
             response=response,
             timestamp=time.time(),
+            event_source=event_source,
             matched_heuristic_id=matched_heuristic_id,
             predicted_success=predicted_success,
             prediction_confidence=prediction_confidence,
@@ -584,6 +589,7 @@ class MemoryClient:
                 origin=heuristic.origin,
                 origin_id=heuristic.origin_id,
                 created_at_ms=int(heuristic.created_at * 1000),
+                source=heuristic.source,
             )
             request = memory_pb2.StoreHeuristicRequest(
                 heuristic=proto_heuristic,
@@ -703,6 +709,7 @@ class Heuristic:
     origin: str
     origin_id: str
     created_at: float
+    source: str = ""
 
 
 class HeuristicStore:
@@ -987,6 +994,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
             origin="learned",
             origin_id=trace.response_id,
             created_at=time.time(),
+            source=trace.event_source,
         )
 
         stored_via_memory = False

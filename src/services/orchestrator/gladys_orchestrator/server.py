@@ -234,13 +234,26 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         request: orchestrator_pb2.PublishEventsRequest,
         context: grpc.aio.ServicerContext,
     ) -> orchestrator_pb2.PublishEventsResponse:
-        """Unary RPC: Publish a batch of events."""
-        acks = []
+        """Unary RPC: Publish a batch of events.
+
+        Returns summary receipt: accepted count + error list (only failures).
+        """
+        accepted_count = 0
+        errors = []
         for event in request.events:
             single_request = orchestrator_pb2.PublishEventRequest(event=event)
             single_response = await self.PublishEvent(single_request, context)
-            acks.append(single_response.ack)
-        return orchestrator_pb2.PublishEventsResponse(acks=acks)
+            if single_response.ack.accepted:
+                accepted_count += 1
+            else:
+                errors.append(orchestrator_pb2.EventError(
+                    event_id=single_response.ack.event_id,
+                    error_message=single_response.ack.error_message,
+                ))
+        return orchestrator_pb2.PublishEventsResponse(
+            accepted_count=accepted_count,
+            errors=errors,
+        )
 
     async def StreamEvents(
         self,

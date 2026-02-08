@@ -49,6 +49,7 @@ def _heuristic_match_to_dict(match) -> dict:
         "confidence": h.confidence,
         "origin": h.origin,
         "origin_id": h.origin_id,
+        "source": h.source,
         # Proto doesn't have 'active' field — DB has 'frozen' (inverted).
         # Use fallback until proto exposes it.
         "active": getattr(h, "active", True) if hasattr(h, "active") else True,

@@ -103,7 +103,13 @@ message PublishEventsRequest {
 }
 
 message PublishEventsResponse {
-    repeated EventAck acks = 1;
+    int32 accepted_count = 1;
+    repeated EventError errors = 2;
+}
+
+message EventError {
+    string event_id = 1;
+    string error_message = 2;
 }
 
 message SubscribeRequest {

@@ -395,6 +395,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 condition_embedding=condition_embedding,
                 origin=h.origin or "learned",
                 origin_id=h.origin_id or None,
+                source=h.source or None,
             )
             logger.info("StoreHeuristic success", heuristic_id=h.id)
 
@@ -443,6 +444,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     success_count=h["success_count"],
                     created_at_ms=int(h["created_at"].timestamp() * 1000) if h.get("created_at") else 0,
                     updated_at_ms=int(h["updated_at"].timestamp() * 1000) if h.get("updated_at") else 0,
+                    source=h.get("source") or "",
                 )
 
                 # For now, similarity = 1.0 (all returned heuristics "match")
@@ -519,6 +521,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                     success_count=h["success_count"],
                     created_at_ms=int(h["created_at"].timestamp() * 1000) if h.get("created_at") else 0,
                     updated_at_ms=int(h["updated_at"].timestamp() * 1000) if h.get("updated_at") else 0,
+                    source=h.get("source") or "",
                 )
 
                 # Use semantic similarity (or text rank as fallback)
@@ -555,6 +558,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 confidence=float(heuristic["confidence"]),
                 origin=heuristic.get("origin") or "",
                 success_count=heuristic.get("success_count") or 0,
+                source=heuristic.get("source") or "",
             )
             return memory_pb2.GetHeuristicResponse(heuristic=proto_h)
         except Exception as e:

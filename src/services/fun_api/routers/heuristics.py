@@ -30,6 +30,7 @@ def _heuristic_to_dict(h) -> dict:
         "effects_json": h.effects_json,
         "confidence": h.confidence,
         "origin": h.origin,
+        "source": getattr(h, "source", ""),
         "active": h.active if hasattr(h, "active") else True,
         "fire_count": getattr(h, "fire_count", 0),
         "success_count": getattr(h, "success_count", 0),
@@ -75,6 +76,7 @@ async def create_heuristic(request: Request):
             effects_json=body.get("effects_json", "{}"),
             confidence=body.get("confidence", 0.5),
             origin=body.get("origin", "manual"),
+            source=body.get("source", ""),
         )
         resp = await stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
             heuristic=h,
@@ -102,6 +104,7 @@ async def update_heuristic(heuristic_id: str, request: Request):
             effects_json=body.get("effects_json", "{}"),
             confidence=body.get("confidence", 0.5),
             origin=body.get("origin", "manual"),
+            source=body.get("source", ""),
         )
         resp = await stub.StoreHeuristic(memory_pb2.StoreHeuristicRequest(
             heuristic=h,

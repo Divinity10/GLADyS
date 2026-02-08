@@ -13,7 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,15 +39,9 @@ class GladysClientTest {
                 @Override
                 public void publishEvents(Orchestrator.PublishEventsRequest request,
                                            StreamObserver<Orchestrator.PublishEventsResponse> responseObserver) {
-                    Orchestrator.PublishEventsResponse.Builder response =
-                            Orchestrator.PublishEventsResponse.newBuilder();
-                    for (Common.Event event : request.getEventsList()) {
-                        response.addAcks(Orchestrator.EventAck.newBuilder()
-                                .setEventId(event.getId())
-                                .setAccepted(true)
-                                .build());
-                    }
-                    responseObserver.onNext(response.build());
+                    responseObserver.onNext(Orchestrator.PublishEventsResponse.newBuilder()
+                            .setAcceptedCount(request.getEventsCount())
+                            .build());
                     responseObserver.onCompleted();
                 }
             };
@@ -90,7 +83,7 @@ class GladysClientTest {
     }
 
     @Test
-    void testPublishEventsReturnsBatchAcks() {
+    void testPublishEventsReturnsSummary() {
         Common.Event event1 = new EventBuilder("test-sensor")
                 .text("event one")
                 .build();
@@ -98,12 +91,9 @@ class GladysClientTest {
                 .text("event two")
                 .build();
 
-        List<Orchestrator.EventAck> acks = client.publishEvents(Arrays.asList(event1, event2));
+        Orchestrator.PublishEventsResponse response = client.publishEvents(Arrays.asList(event1, event2));
 
-        assertEquals(2, acks.size());
-        assertEquals(event1.getId(), acks.get(0).getEventId());
-        assertTrue(acks.get(0).getAccepted());
-        assertEquals(event2.getId(), acks.get(1).getEventId());
-        assertTrue(acks.get(1).getAccepted());
+        assertEquals(2, response.getAcceptedCount());
+        assertEquals(0, response.getErrorsCount());
     }
 }

@@ -46,19 +46,10 @@ function createTestHandlers(): Partial<OrchestratorServiceServer> {
       call: grpc.ServerUnaryCall<PublishEventsRequest, PublishEventsResponse>,
       callback: grpc.sendUnaryData<PublishEventsResponse>
     ) {
-      const acks = call.request.events.map((event) => ({
-        eventId: event.id,
-        accepted: true,
-        errorMessage: "",
-        responseId: "",
-        responseText: "",
-        predictedSuccess: 0,
-        predictionConfidence: 0,
-        routedToLlm: false,
-        matchedHeuristicId: "",
-        queued: false,
-      }));
-      callback(null, { acks });
+      callback(null, {
+        acceptedCount: call.request.events.length,
+        errors: [],
+      });
     },
     registerComponent(
       call: grpc.ServerUnaryCall<RegisterRequest, RegisterResponse>,
@@ -124,19 +115,16 @@ describe("GladysClient", () => {
     expect(ack.accepted).toBe(true);
   });
 
-  it("publishEvents returns batch acks", async () => {
+  it("publishEvents returns summary receipt", async () => {
     const events = [
       new EventBuilder("test-sensor").text("Event 1").build(),
       new EventBuilder("test-sensor").text("Event 2").build(),
       new EventBuilder("test-sensor").text("Event 3").build(),
     ];
 
-    const acks = await client.publishEvents(events);
+    const response = await client.publishEvents(events);
 
-    expect(acks).toHaveLength(3);
-    for (let i = 0; i < events.length; i++) {
-      expect(acks[i].eventId).toBe(events[i].id);
-      expect(acks[i].accepted).toBe(true);
-    }
+    expect(response.acceptedCount).toBe(3);
+    expect(response.errors).toHaveLength(0);
   });
 });

@@ -7,6 +7,7 @@ import {
   EventAck,
   PublishEventRequest,
   PublishEventsRequest,
+  PublishEventsResponse,
   RegisterRequest,
   RegisterResponse,
   HeartbeatRequest,
@@ -50,7 +51,7 @@ export class GladysClient {
     });
   }
 
-  async publishEvents(events: Event[]): Promise<EventAck[]> {
+  async publishEvents(events: Event[]): Promise<PublishEventsResponse> {
     const request: PublishEventsRequest = {
       events,
       metadata: this.createMetadata(),
@@ -58,7 +59,7 @@ export class GladysClient {
     return new Promise((resolve, reject) => {
       this.stub.publishEvents(request, (err, response) => {
         if (err) return reject(err);
-        resolve(response!.acks);
+        resolve(response!);
       });
     });
   }
