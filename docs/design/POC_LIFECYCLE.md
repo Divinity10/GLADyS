@@ -267,9 +267,9 @@ These are architecture-level questions PoC 2 needs to resolve through implementa
 5. Does the browser extension driver model work for Gmail?
 6. Is the event schema (intent, evaluation_data, structured fields) adequate through the full pipeline?
 
-### Deferred to PoC 3
+### Deferred to Future PoC
 
-The following claims were in the original PoC 2 plan but require sustained operation and significant heuristic volume that PoC 2 won't achieve. PoC 2 builds the infrastructure; PoC 3 validates maturity.
+The following claims were in the original PoC 2 plan but require sustained operation and significant heuristic volume that PoC 2 won't achieve. PoC 2 builds the infrastructure; a future "Learning Maturity" PoC validates these.
 
 - **Learning works over time**: LLM fallback rate decreasing across sessions, heuristic reuse >50% session-over-session
 - **Sleep-mode consolidation**: Merge, demote, staleness decay (ADR-0010 §3.3.4)
@@ -281,30 +281,30 @@ The following claims were in the original PoC 2 plan but require sustained opera
 
 ---
 
-## PoC 3: Product Viability
+## Future PoC Roadmap
 
-### Question to answer
+Each item below is a candidate for its own PoC. Ordering, scope, and claims are determined during each PoC's planning session, informed by lessons learned from the previous PoC. The PoC 0→1→2 pattern holds: plan, implement, validate, learn, then plan the next one.
 
-Does this generalize beyond one domain, and would someone actually want to use it?
+### PoC 3 (likely scope)
 
-### Prerequisites
+PoC 2 lessons learned impact + domain skills + orchestrator-executive improvements. Specific claims defined during PoC 3 planning session.
 
-- PoC 2 multi-sensor pipeline operational
-- Planning session incorporating PoC 2 lessons learned
+### Candidate PoC Topics
 
-### What to Prove
+Each of these is substantial enough to be its own PoC. Some may combine; others may split further based on what earlier PoCs reveal.
 
-| # | Claim | How to test | Success criteria | Abort signal |
-|---|-------|------------|-----------------|--------------|
-| 1 | **Cross-domain reasoning** | Two sensors from different domains active. Query requiring information from both. | Executive response references entities or facts from both domains. Verified by inspecting logged LLM context window — retrieval included memories from both sensor sources. | Memory retrieval can't scope queries well enough, or Executive prompt can't handle multi-source context. |
-| 2 | **Domain skill plugins** | Build one real skill. Verify it loads, receives events, provides domain-specific confidence via `evaluate_outcome()`. | Compare confidence convergence rate: heuristics in the skill-equipped domain reach confidence >0.7 in fewer fires than heuristics in a domain without skills, using comparable event volume. Measured from `heuristic_fires` and `heuristics.confidence` time series. | Plugin interface too complex to implement practically, or skill overhead negates benefit. |
-| 3 | **Personality affects behavior** | Same events, two personality packs. Personality heuristics (tagged by origin) fire correctly under right personality, disable on swap. | Personality-tagged heuristics (`origin LIKE 'personality:%'`) fire only when their personality is active. After personality swap, previously-active personality heuristics have zero fires. Tone/reasoning difference validated by human review of response pairs (subjective — intentionally a UX judgment). | Personality is just prompt-prefix with no meaningful behavioral change. |
-| 4 | **Learning works over time** | Track heuristic hit rate, false positive rate, LLM fallback rate across sessions. (Deferred from PoC 2.) | LLM fallback rate lower in session N+1 than session 1. Stabilizes (varies <10% between consecutive sessions). >50% of heuristics created in session N fire on a matching event in session N+1. | Heuristics too specific (only fire on near-identical events) or too broad (fire on everything). |
-| 5 | **Sleep-mode consolidation** | Implement merge, demote, staleness decay (ADR-0010 §3.3.4). (Deferred from PoC 2.) | Heuristic count stabilizes over extended sessions. Merged heuristics retain matching accuracy. Stale heuristics stop firing without manual intervention. | Merging destroys nuance. Staleness decay removes valid but infrequent heuristics. |
-| 6 | **Heuristic scale at 100+** | Run system with 100+ heuristics. Track rank stability, query time, similarity space crowding. (Deferred from PoC 2.) | Same test events match correct heuristic at 100+ (no rank displacement). `QueryMatchingHeuristics` <20ms p95. | Embedding space too crowded at scale. |
-### Lessons Learned
-
-*(To be populated after PoC 3 completes)*
+| Topic | Description | Key questions |
+|-------|-------------|---------------|
+| **Learning maturity** | Learning over time, sleep-mode consolidation (merge/demote/decay), heuristic scale at 100+. Deferred from PoC 2. | Does LLM fallback rate decrease across sessions? Does consolidation preserve accuracy? |
+| **Domain skills & pre-built heuristics** | Skill plugin interface, domain-specific confidence evaluation, pre-built heuristic packages. | Can skills accelerate learning? Is the plugin interface practical? |
+| **Skill packs** | Sensor + domain skill + heuristics as a deployable unit. | Does the pack abstraction work end-to-end? |
+| **Actuators** | The "doing" side — response execution, conflict resolution, output routing. | Can GLADyS take actions, not just observe? |
+| **Response modeling** | How responses are structured, selected, and delivered. | What does a "response" look like beyond text? |
+| **Personality** | Behavioral profiles that affect tone, reasoning style, response preference. | Does personality meaningfully change behavior, or is it just a prompt prefix? |
+| **Episodic memory** | Structured episode detection, storage, and retrieval beyond raw event storage. | Can the system reason about sequences of events? |
+| **Implicit feedback** | Feedback signals beyond explicit user input — behavioral, temporal, contextual. | Can the system learn without being told? |
+| **Tuning** | System optimization, threshold calibration, confidence bootstrapping refinement. | What are the right knobs, and what values work? |
+| **Cross-domain reasoning** | Executive responses that integrate information from multiple sensor domains. | Can retrieval scope queries across domains effectively? |
 
 ### Product Readiness (separate from technical PoC)
 
@@ -312,7 +312,7 @@ Does this generalize beyond one domain, and would someone actually want to use i
 |---|----------|------------|----------------------|
 | 1 | **Demonstrable to outsiders** | Someone outside the team watches the system handle a repeated scenario faster the second time, with a real sensor. | Observer understands what happened and finds it compelling without explanation of internals. |
 
-This is product validation, not a technical proof. It depends on PoC 3's technical criteria passing first.
+This is product validation, not a technical proof. It depends on sufficient technical PoCs passing first.
 
 ---
 
@@ -359,21 +359,9 @@ The dashboard is a dev/QA tool that grows alongside the system. Each PoC introdu
 - Source filtering comparison: run same events with/without source filtering, report accuracy difference
 - Session metrics reporter: compute heuristic fire accuracy, false positive rate, per-domain breakdown
 
-### PoC 3: Multi-Domain, Plugin, and Learning Maturity Observability
+### Future PoCs
 
-- **Cross-domain retrieval**: Show which memory sources contributed to a response (supports claim #1)
-- **Skill activity**: Which skills are loaded, which evaluated outcomes, what valence they returned (supports claim #2)
-- **Personality state**: Active personality, which personality heuristics are enabled/disabled (supports claim #3)
-- **LLM fallback rate**: Per-session trend line — is the system learning over time? (supports claim #4, deferred from PoC 2)
-- **Consolidation log**: What was merged/demoted/decayed during sleep mode (supports claim #5, deferred from PoC 2)
-- **Heuristic density**: Similarity space crowding at 100+ heuristics (supports claim #6, deferred from PoC 2)
-
-**CLI / scripts**:
-- Cross-domain query test: submit events from two domains, issue a query requiring both, verify retrieval sources in logged context
-- Personality swap test: activate personality A, submit events, swap to B, verify A's heuristics stop firing
-- Rank stability checker: submit fixed test events at different heuristic counts, verify same heuristic wins each time
-
-Tooling for a PoC phase is scoped during that phase's planning session, not pre-committed here. The lists above are starting points — actual needs will be clearer once implementation begins.
+Tooling for each PoC is scoped during that PoC's planning session. The pattern: each PoC's claims determine what needs to be observable, which determines what tooling to build. Not pre-committed here.
 
 ---
 
