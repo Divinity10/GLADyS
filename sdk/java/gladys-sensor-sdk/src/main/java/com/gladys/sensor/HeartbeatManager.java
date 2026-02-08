@@ -1,5 +1,7 @@
 package com.gladys.sensor;
 
+import gladys.v1.Common;
+
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -19,6 +21,7 @@ public class HeartbeatManager {
     private final int intervalSeconds;
     private final ScheduledExecutorService scheduler;
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private volatile Common.ComponentState state = Common.ComponentState.COMPONENT_STATE_ACTIVE;
 
     public HeartbeatManager(GladysClient client, String componentId, int intervalSeconds) {
         this.client = client;
@@ -55,9 +58,13 @@ public class HeartbeatManager {
         return running.get();
     }
 
+    public void setState(Common.ComponentState state) {
+        this.state = state;
+    }
+
     private void sendHeartbeat() {
         try {
-            client.heartbeat(componentId);
+            client.heartbeat(componentId, state);
         } catch (Exception e) {
             logger.log(Level.WARNING, "Heartbeat failed for " + componentId, e);
         }

@@ -76,9 +76,13 @@ public class GladysClient implements AutoCloseable {
     }
 
     public Orchestrator.HeartbeatResponse heartbeat(String componentId) {
+        return heartbeat(componentId, Common.ComponentState.COMPONENT_STATE_ACTIVE);
+    }
+
+    public Orchestrator.HeartbeatResponse heartbeat(String componentId, Common.ComponentState state) {
         Orchestrator.HeartbeatRequest request = Orchestrator.HeartbeatRequest.newBuilder()
                 .setComponentId(componentId)
-                .setState(Common.ComponentState.COMPONENT_STATE_ACTIVE)
+                .setState(state)
                 .setMetadata(Common.RequestMetadata.newBuilder()
                         .setRequestId(UUID.randomUUID().toString())
                         .setTimestampMs(System.currentTimeMillis())
