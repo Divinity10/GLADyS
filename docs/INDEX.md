@@ -71,6 +71,26 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Scenarios** | [USE_CASES.md](design/USE_CASES.md) | Use case catalog validating architectural decisions. |
 | **State** | [DESIGN.md](design/DESIGN.md) | **Current implementation**: per-subsystem status, PoC deviations, open questions. |
 | **Overview** | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) | Conceptual overview and onboarding guide for all subsystems. |
+| **Truth** | [ADR-0008](adr/ADR-0008-Security-and-Privacy.md) | **Security & Privacy**: permissions, sandboxing, age restrictions, data retention, fail-closed defaults. |
+| **Index** | [ADR README](adr/README.md) | ADR index with status, reading order, and dependency graph. |
+
+## 📋 Design Questions
+*Keywords: Open Questions, Decisions, Tradeoffs*
+
+| Type | File | Purpose |
+| :--- | :--- | :--- |
+| **Index** | [README.md](design/questions/README.md) | Status summary of all design questions. |
+| **Question** | [confidence-bootstrapping.md](design/questions/confidence-bootstrapping.md) | How new heuristics bootstrap from 0.3 to useful confidence. |
+| **Question** | [confidence-analysis-harness.md](design/questions/confidence-analysis-harness.md) | Tooling for analyzing confidence dynamics. |
+| **Question** | [feedback-signal-decomposition.md](design/questions/feedback-signal-decomposition.md) | Breaking feedback into component signals. |
+| **Question** | [user-feedback-calibration.md](design/questions/user-feedback-calibration.md) | Calibrating user feedback to learning rate. |
+| **Question** | [sensor-dashboard.md](design/questions/sensor-dashboard.md) | Sensor management dashboard design. |
+| **Question** | [resource-allocation.md](design/questions/resource-allocation.md) | Resource allocation across concurrent events. |
+| **Question** | [poc1-findings.md](design/questions/poc1-findings.md) | PoC 1 findings requiring PoC 2 action. |
+| **Question** | [cross-cutting.md](design/questions/cross-cutting.md) | Cross-cutting design concerns. |
+| **Question** | [data-types.md](design/questions/data-types.md) | Data type design questions. |
+| **Question** | [infrastructure.md](design/questions/infrastructure.md) | Infrastructure design questions. |
+| **Question** | [plugins.md](design/questions/plugins.md) | Plugin system design questions. |
 
 ## 🛠️ Infrastructure & Ops
 *Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
@@ -79,6 +99,11 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | :--- | :--- | :--- |
 | **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
+| **Conventions** | [CONVENTIONS.md](CONVENTIONS.md) | Code, testing, and dependency conventions across all services. |
+| **Guide** | [docs/README.md](README.md) | Documentation landing page with reading order and quick links. |
+| **Truth** | [ADR-0002](adr/ADR-0002-Hardware-Requirements.md) | **Hardware Requirements**: GPU/VRAM sizing, dual-GPU upgrade path, cloud/hybrid cost analysis. |
+| **Truth** | [ADR-0005](adr/ADR-0005-gRPC-Service-Contracts.md) | **gRPC Service Contracts**: proto definitions, transport strategies, timeout budgets, error handling. |
+| **Truth** | [ADR-0006](adr/ADR-0006-Observability-and-Monitoring.md) | **Observability & Monitoring**: Prometheus, Loki, Jaeger, Grafana stack, alerting rules. |
 | **Code** | `cli/_service_base.py` | Core automation framework (includes `queue watch`, `queue stats` CLI). |
 | **Lib** | `src/lib/gladys_client/` | Shared client library — DB queries, gRPC clients (orchestrator, cache, health). |
 | **Code** | `cli/_orchestrator.py` | Orchestrator CLI commands (thin wrapper over gladys_client). |
@@ -108,6 +133,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | :--- | :--- | :--- |
 | **Truth** | [ADR-0003](adr/ADR-0003-Plugin-Manifest-Specification.md) | `manifest.yaml` structure for Plugins. |
 | **Design** | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md) | **Sensor protocol**: multi-sensor pipeline, language-agnostic contract, per-language SDKs, delivery patterns, capture/replay. |
+| **SDK** | `sdk/java/gladys-sensor-sdk/` | Java sensor SDK -- gRPC client, event builder, heartbeat manager. |
+| **SDK** | `sdk/js/gladys-sensor-sdk/` | TypeScript sensor SDK -- same API surface, ts-proto generated stubs. |
 | **Truth** | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) | Actuator safety bounds and permissions. |
 | **Truth** | [ADR-0012](adr/ADR-0012-Audit-Logging.md) | Immutable audit logging requirements. |
 | **Design** | [DESIGN.md#orchestrator-subsystem](design/DESIGN.md#orchestrator-subsystem) | **Current Implementation**: Orchestrator routing and plugin mgmt. |
@@ -138,6 +165,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 - **Benchmarking**: [BENCHMARK_STRATEGY.md](design/BENCHMARK_STRATEGY.md) (polyglot architecture validation)
 - **E2E Status**: [INTEGRATION_TEST_RESULTS.md](validation/INTEGRATION_TEST_RESULTS.md)
 - **LLM Quality**: [prediction_quality_report.md](validation/prediction_quality_report.md)
+- **Heuristic Quality**: [heuristic_quality_report.md](validation/heuristic_quality_report.md) (LLM heuristic extraction validation across 8 domains)
+- **Integration Scenarios**: [integration_test_scenarios.md](validation/integration_test_scenarios.md) (7 learning loop scenarios: happy path, correction, fuzzy matching, domain safety)
 - **Dictionary**: [GLOSSARY.md](design/GLOSSARY.md) (Definitions of Terms)
 - **Tech Debt**: [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt)
 

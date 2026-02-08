@@ -2,7 +2,7 @@
 
 **Purpose**: AI-optimized source of truth to prevent hallucinations. Read this FIRST before making assumptions about the codebase.
 
-**Last verified**: 2026-02-07 (updated: sensor locations, ProcessEvent description, PoC 2 milestone boundary)
+**Last verified**: 2026-02-08 (updated: RPC tables synced to proto files, SDK directories, data flow)
 
 ---
 
@@ -60,7 +60,7 @@
 | MemoryStorage | 50051 | 50061 | `MemoryStorage` | Python |
 | SalienceGateway | 50052 | 50062 | `SalienceGateway` | Rust |
 | Executive | 50053 | 50063 | `ExecutiveService` | Python |
-| Dashboard (UI) | 8502 | 8502 | - | Python (FastAPI/htmx) |
+| Dashboard (UI) + fun_api | 8502 | 8502 | - | Python (FastAPI/htmx) |
 | PostgreSQL | 5432 | 5433 | - | - |
 
 **IMPORTANT**:
@@ -80,11 +80,28 @@
 | RPC | Purpose |
 |-----|---------|
 | `StoreEvent` | Persist episodic event with embedding |
+| `QueryByTime` | Query events by time range |
+| `QueryBySimilarity` | Query events by embedding similarity |
+| `ListEvents` | List recent events (newest first, paginated) |
+| `GetEvent` | Get a single event by ID |
+| `GenerateEmbedding` | Generate embedding for text |
 | `StoreHeuristic` | Create/update learned rule |
-| `QueryMatchingHeuristics` | Semantic search for heuristics (embedding similarity) |
+| `QueryHeuristics` | Query heuristics by condition match (embedding similarity) |
+| `QueryMatchingHeuristics` | Text search for heuristics (PostgreSQL tsvector, used by Rust on cache miss) |
+| `GetHeuristic` | Get a single heuristic by ID |
 | `UpdateHeuristicConfidence` | TD learning confidence update |
+| `StoreEntity` | Store or update a semantic entity |
+| `QueryEntities` | Query entities by name, type, or embedding |
+| `StoreRelationship` | Store a relationship between entities |
+| `GetRelationships` | Get relationships for an entity (1-hop context) |
+| `ExpandContext` | Get entity + relationships + related entities (for LLM prompts) |
+| `ListResponses` | List events with decision chain data (Response tab) |
+| `GetResponseDetail` | Get full detail for one event (drill-down) |
+| `DeleteResponses` | Delete multiple events by ID (dashboard bulk delete) |
 | `RecordHeuristicFire` | Track heuristic firing (flight recorder) |
 | `UpdateFireOutcome` | Record success/fail for learning |
+| `GetPendingFires` | Get fires awaiting feedback |
+| `ListFires` | List all heuristic fires with optional filtering |
 | `GetHealth` | Basic health check (HEALTHY/UNHEALTHY) |
 | `GetHealthDetails` | Detailed health with uptime, db status, etc. |
 
@@ -109,7 +126,19 @@
 
 | RPC | Purpose |
 |-----|---------|
-| `PublishEvents` | Receive sensor events (streaming) |
+| `PublishEvent` | Publish single sensor event (unary) |
+| `PublishEvents` | Publish batch of sensor events (unary) |
+| `StreamEvents` | Receive sensor events (streaming, deprecated) |
+| `RegisterComponent` | Register sensor/component with capabilities |
+| `Heartbeat` | Component heartbeat with state |
+| `ResolveComponent` | Look up component by ID |
+| `UnregisterComponent` | Remove component registration |
+| `SendCommand` | Send command to a component |
+| `SubscribeEvents` | Subscribe to event stream |
+| `SubscribeResponses` | Subscribe to response stream |
+| `ListQueuedEvents` | List events in processing queue |
+| `GetQueueStats` | Get queue statistics |
+| `GetSystemStatus` | Get overall system status |
 | `GetHealth` | Basic health check (HEALTHY/UNHEALTHY) |
 | `GetHealthDetails` | Detailed health with uptime, connected services |
 
@@ -120,7 +149,7 @@
 | RPC | Purpose |
 |-----|---------|
 | `ProcessEvent` | Decide heuristic vs LLM path; generate response |
-| `SubmitFeedback` | User feedback for learning |
+| `ProvideFeedback` | User feedback for heuristic formation |
 | `GetHealth` | Basic health check (HEALTHY/UNHEALTHY) |
 | `GetHealthDetails` | Detailed health with uptime, ollama/memory status |
 
@@ -132,7 +161,7 @@
 1. Sensor emits event
         │
         ▼
-2. Orchestrator.PublishEvents (50050)
+2. Orchestrator.PublishEvent (50050)
         │
         ▼
 3. Orchestrator calls SalienceGateway.EvaluateSalience (50052)
@@ -453,6 +482,10 @@ GLADys/
 │   ├── skills/                 # Skill packs
 │   ├── personalities/          # Personality packs
 │   └── outputs/                # Output/actuator packs
+│
+├── sdk/
+│   ├── java/gladys-sensor-sdk/   # Java sensor SDK (gRPC client, event builder, heartbeat)
+│   └── js/gladys-sensor-sdk/     # TypeScript sensor SDK (same API, ts-proto + grpc-tools)
 │
 ├── tests/
 │   ├── unit/                   # Unit tests
@@ -974,3 +1007,5 @@ python cli/local.py query "SELECT * FROM heuristics LIMIT 5"
 - `docs/design/questions/` - Active design discussions
 - `docs/design/SENSOR_ARCHITECTURE.md` - PoC 2 sensor protocol and SDK design
 - `docs/design/LOGGING_STANDARD.md` - Logging and observability specification
+- `sdk/java/gladys-sensor-sdk/README.md` - Java sensor SDK
+- `sdk/js/gladys-sensor-sdk/README.md` - TypeScript sensor SDK
