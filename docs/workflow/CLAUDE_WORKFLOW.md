@@ -101,7 +101,7 @@ Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory
 
 **INDEX.md**: Updated at **milestone boundaries**, not per-task. After creating or relocating a design doc, add it to INDEX.md.
 
-**CODEBASE_MAP.md**: Verify when touching cross-service code or proto definitions. Update when service topology, proto methods, or database schema changes.
+**CONCEPT_MAP.md**: Update when adding new services or brain-inspired concepts. For cross-service dependencies, run `codebase-info rpcs`. For topology changes, update `docs/codebase/SERVICE_TOPOLOGY.md`.
 
 ---
 
@@ -111,4 +111,4 @@ When closing a milestone:
 1. Archive working_memory.md (`!archive <description>`)
 2. Verify INDEX.md reflects all docs created during the milestone
 3. Review `docs/design/questions/` for resolved items to migrate to design docs
-4. Update CODEBASE_MAP.md if service topology changed
+4. Update CONCEPT_MAP.md if new concepts added; update SERVICE_TOPOLOGY.md if topology changed

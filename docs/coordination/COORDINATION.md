@@ -71,7 +71,7 @@ If you need to touch a file owned by the other AI:
 ## Shared Resources (Read-Only During Parallel Work)
 
 These files are for reading context only - do not edit during parallel work:
-- `CODEBASE_MAP.md`
+- `CONCEPT_MAP.md`
 - `docs/design/REFACTORING_PLAN.md`
 - `docs/design/questions/*.md`
 

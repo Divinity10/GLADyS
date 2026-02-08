@@ -115,7 +115,7 @@ Use `docs/prompts/TEMPLATE.md` as the base.
 ### 3.3 Required for Cross-Service Tasks (Add to Template)
 
 - **Blast Radius Checklist** -- list affected services and files
-- **CODEBASE_MAP.md reference** -- "consult CODEBASE_MAP.md Proto Services section for all consumers"
+- **Cross-service reference** -- "run `codebase-info rpcs` for all service consumers"
 
 ### 3.4 Optional
 
@@ -148,7 +148,7 @@ Most complex. Gemini's weakest area due to "local blinders."
 
 - Add **Blast Radius Checklist** listing all affected services
 - Add "grep codebase for modified symbols" instruction
-- Reference CODEBASE_MAP.md for service topology
+- Reference [SERVICE_TOPOLOGY.md](../codebase/SERVICE_TOPOLOGY.md) for service topology
 - Consider splitting into per-service sub-tasks if feasible
 - Example: T7 Learning Strategy
 
@@ -198,11 +198,11 @@ Most complex. Gemini's weakest area due to "local blinders."
 - After creating or relocating a design doc, add it to INDEX.md
 - Periodic validation: run `docsearch --validate` to find orphan docs and dead links (when available)
 
-### 6.3 CODEBASE_MAP.md Maintenance
+### 6.3 CONCEPT_MAP.md Maintenance
 
-- Verify when touching cross-service code or proto definitions
-- Update when service topology, proto methods, or database schema changes
-- Proto Services section serves as the cross-service dependency map for Gemini prompts
+- Update when adding new services or brain-inspired concepts
+- For cross-service dependencies, run `codebase-info rpcs` (live from source)
+- For service topology changes, update [SERVICE_TOPOLOGY.md](../codebase/SERVICE_TOPOLOGY.md)
 
 ### 6.4 Milestone Cleanup
 
@@ -211,5 +211,5 @@ When closing a milestone:
 1. Archive efforts/working_memory.md (`!archive <description>`)
 2. Verify INDEX.md reflects all docs created during the milestone
 3. Review `docs/design/questions/` for resolved items to migrate
-4. Update CODEBASE_MAP.md if service topology changed
+4. Update CONCEPT_MAP.md if new concepts added; update SERVICE_TOPOLOGY.md if service topology changed
 5. Prune MEMORY.md (Claude auto-memory) if approaching 200-line limit

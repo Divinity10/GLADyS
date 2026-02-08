@@ -100,6 +100,10 @@ feat(dev): add make setup and fix GETTING_STARTED.md paths
 - Naming: `ADR-XXXX-Title-With-Dashes.md`
 - Ownership: Both Mike and Scott as co-owners
 
+### File Encoding
+
+All files are UTF-8 without BOM. Line endings are LF (not CRLF). These are enforced by `.editorconfig` and `.vscode/settings.json`. When writing files, never include a byte order mark.
+
 ### Code Style
 
 - Rust: Standard conventions
@@ -137,6 +141,23 @@ taskkill /F /T /PID <pid>
 ```
 
 **If "Process not found" or OwningProcess = 0**: The socket is orphaned. **Close the PowerShell window that started the server.** The terminal holds the socket reference — closing it releases the port immediately. No command will work; you must close the original terminal.
+
+## Codebase Reference Tool
+
+`codebase-info` generates live reference data from source files. Prefer this over reading static docs -- it is always current.
+
+| Command | What it shows | Source files |
+|---------|--------------|-------------|
+| `rpcs` | gRPC service/RPC tables | `proto/*.proto` |
+| `ports` | Port assignments (local + Docker) | `cli/_gladys.py`, `docker/docker-compose.yml` |
+| `schema` | Database table summaries | `src/db/migrations/*.sql` |
+| `tree` | Annotated directory tree | Filesystem |
+| `routers` | Dashboard + API router inventory | `src/services/*/routers/` |
+| `all` | All of the above | All sources |
+
+Run via: `uv run codebase-info <command>`
+
+For conceptual/architectural docs (topology, concurrency, conventions, etc.), see `docs/codebase/` (linked from [docs/INDEX.md](docs/INDEX.md)).
 
 ## Dashboard (CRITICAL INFRASTRUCTURE)
 
@@ -199,7 +220,7 @@ When sources conflict, follow this order for **current implementation**:
 | File | Purpose |
 |------|---------|
 | **[docs/INDEX.md](docs/INDEX.md)** | Documentation map — find ADRs, design docs by concept |
-| **[CODEBASE_MAP.md](CODEBASE_MAP.md)** | Service topology, ports, cross-service dependencies |
+| **[CONCEPT_MAP.md](CONCEPT_MAP.md)** | Concept-to-code map. For live data (ports, RPCs, schema), run `codebase-info` |
 | **efforts/working_memory.md** | Effort index — read first, then the relevant `efforts/*.md` file (gitignored) |
 
 ### Session Rules
@@ -209,6 +230,7 @@ When sources conflict, follow this order for **current implementation**:
 3. **Update working_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
 5. **For multi-step or agent-coordinated work**: Read `docs/workflow/CLAUDE_WORKFLOW.md`
+6. **For live codebase data** (RPCs, ports, DB schema, directory tree, routers): run `uv run codebase-info <command>` via Bash instead of reading static docs. Available commands: `rpcs`, `ports`, `schema`, `tree`, `routers`, `all`.
 
 ### Critical ADRs (affect daily decisions)
 

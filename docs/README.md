@@ -23,7 +23,8 @@
 | **Find any doc by topic** | [INDEX.md](INDEX.md) |
 | High-level system understanding | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) |
 | **Running services (local/Docker)** | [GETTING_STARTED.md](GETTING_STARTED.md#running-the-full-stack) |
-| Service ports & codebase layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
+| Service ports | Run `codebase-info ports` |
+| Concept-to-code map | [CONCEPT_MAP.md](../CONCEPT_MAP.md) |
 | PoC phases & success criteria | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) |
 | Sensor protocol & SDK architecture | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |

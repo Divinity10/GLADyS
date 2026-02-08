@@ -16,7 +16,9 @@
 | A permanent, immutable decision | `docs/adr/` (new ADR) |
 | An open question or debate | `docs/design/questions/` |
 | A term definition | [GLOSSARY.md](design/GLOSSARY.md) |
-| Service topology, ports, data ownership | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
+| Service topology, data ownership | [SERVICE_TOPOLOGY.md](codebase/SERVICE_TOPOLOGY.md) |
+| Service ports | Run `codebase-info ports` |
+| Concept-to-code mapping | [CONCEPT_MAP.md](../CONCEPT_MAP.md) |
 | Setup/run instructions, dev environment | [GETTING_STARTED.md](GETTING_STARTED.md) |
 | Known shortcuts to fix post-PoC | [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt) |
 
@@ -97,7 +99,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
-| **Map** | [CODEBASE_MAP.md](../CODEBASE_MAP.md) | **Critical**: Ports, Service Topology, Directory Layout, Data Ownership. |
+| **Map** | [CONCEPT_MAP.md](../CONCEPT_MAP.md) | Concept-to-code map — brain-inspired concepts to implementing modules. For live data, run `codebase-info`. |
+| **Tool** | `tools/codebase-info/` | **codebase-info**: Live-generated codebase reference (RPCs, ports, schema, tree, routers). |
 | **Guide** | [GETTING_STARTED.md](GETTING_STARTED.md) | Setup and run instructions. |
 | **Conventions** | [CONVENTIONS.md](CONVENTIONS.md) | Code, testing, and dependency conventions across all services. |
 | **Guide** | [docs/README.md](README.md) | Documentation landing page with reading order and quick links. |
@@ -145,7 +148,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **UI** | [DASHBOARD_WIDGET_SPEC.md](design/DASHBOARD_WIDGET_SPEC.md) | Widget macro specification for self-contained, testable components. |
 | **UI** | [DASHBOARD_HEURISTICS_TAB.md](design/DASHBOARD_HEURISTICS_TAB.md) | Heuristics tab design (server-side rendering fix). |
 | **UI** | [DASHBOARD_RESPONSE_DATA.md](design/DASHBOARD_RESPONSE_DATA.md) | Response and Heuristics tab data model. |
-| **API** | `src/services/fun_api/` | JSON API routers (imported by dashboard). See [CODEBASE_MAP.md](../CODEBASE_MAP.md#dual-router-architecture-critical). |
+| **API** | `src/services/fun_api/` | JSON API routers (imported by dashboard). See [DASHBOARD.md](codebase/DASHBOARD.md). |
 | **UI (legacy)** | *(removed)* | Streamlit V1 dashboard deleted; replaced by V2 above. |
 
 ---
@@ -169,6 +172,23 @@ If none of these fit, create a new doc — and add it to this table and the inde
 - **Integration Scenarios**: [integration_test_scenarios.md](validation/integration_test_scenarios.md) (7 learning loop scenarios: happy path, correction, fuzzy matching, domain safety)
 - **Dictionary**: [GLOSSARY.md](design/GLOSSARY.md) (Definitions of Terms)
 - **Tech Debt**: [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt)
+
+---
+
+## Codebase Reference
+*Detailed codebase documentation split by topic. Read only what you need.*
+
+| File | Content |
+| :--- | :--- |
+| [SERVICE_TOPOLOGY.md](codebase/SERVICE_TOPOLOGY.md) | Architecture diagram, event/heuristic data flows, data ownership |
+| [CONCURRENCY.md](codebase/CONCURRENCY.md) | Per-service threading model, async boundaries, known race conditions |
+| [DOMAIN_CONVENTIONS.md](codebase/DOMAIN_CONVENTIONS.md) | Heuristic matching, field semantics, salience vector, proto vs DB gaps |
+| [DASHBOARD.md](codebase/DASHBOARD.md) | Dual-router architecture, rendering patterns, data access paths |
+| [DOCKER.md](codebase/DOCKER.md) | Build requirements, volume mounts, proto/build contexts |
+| [DB_MANAGEMENT.md](codebase/DB_MANAGEMENT.md) | Migration workflow, schema sync rules |
+| [LOGGING.md](codebase/LOGGING.md) | Trace ID propagation, log locations, env vars |
+| [LEARNING_MODULE.md](codebase/LEARNING_MODULE.md) | Implicit feedback, outcome watcher, LearningModule interface |
+| [TROUBLESHOOTING.md](codebase/TROUBLESHOOTING.md) | Common mistakes, diagnostic steps, quick commands |
 
 ---
 

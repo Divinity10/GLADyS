@@ -1,20 +1,12 @@
 [project]
-name = "codebase-drift"
+name = "codebase-info"
 version = "0.1.0"
-description = "Validates CONCEPT_MAP.md against the actual codebase"
-authors = [
-    { name = "Gemini", email = "gemini@example.com" }
-]
+description = "Generates live codebase reference data from source files"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-drift-check = "drift_check:main"
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-]
+codebase-info = "codebase_info:main"
 
 [build-system]
 requires = ["hatchling"]

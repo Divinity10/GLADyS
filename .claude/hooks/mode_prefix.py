@@ -57,7 +57,7 @@ MODES = {
         "\n"
         "BEFORE IMPLEMENTING:\n"
         "1. Verify what exists - read actual code, don't assume from task description\n"
-        "2. Check CODEBASE_MAP.md - especially 'Common Mistakes to Avoid' and data flows\n"
+        "2. Check docs/codebase/TROUBLESHOOTING.md for common mistakes, CONCEPT_MAP.md for concept-to-code mapping\n"
         "3. Verify API/RPC names in proto files - don't assume convention-based names\n"
         "4. Trace through all layers - Python services AND Rust components\n"
         "5. Ask clarifying questions before starting - scope, patterns, contradictions are valid\n"

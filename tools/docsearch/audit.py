@@ -2,7 +2,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Set, Dict, Tuple
+from typing import Dict, List, Set, Tuple
 
 class DocAudit:
     EXCLUDED_DIRS = {
@@ -62,6 +62,120 @@ class DocAudit:
                 continue
         
         return links
+
+    @staticmethod
+    def heading_to_anchor(heading_text: str) -> str:
+        """Convert a markdown heading to a GitHub-style anchor ID.
+
+        GitHub's algorithm: strip inline markdown, lowercase, remove
+        non-word/space/hyphen chars, replace each space with one hyphen.
+        Unlike many implementations, GitHub does NOT collapse whitespace —
+        ``Health & Wellness`` becomes ``health--wellness`` (& removed,
+        two spaces become two hyphens).
+        """
+        text = heading_text.lower()
+        # Strip inline markdown: **bold**, *italic*, `code`, [link](url)
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        text = re.sub(r'`(.+?)`', r'\1', text)
+        text = re.sub(r'\[(.+?)\]\(.*?\)', r'\1', text)
+        # Keep only word chars (letters, digits, underscore), spaces, hyphens
+        text = re.sub(r'[^\w\s-]', '', text)
+        text = text.strip()
+        # Each whitespace char becomes one hyphen (no collapse)
+        text = re.sub(r'\s', '-', text)
+        return text
+
+    def extract_anchors(self, file_path: Path) -> Set[str]:
+        """Extract all valid anchor IDs from a markdown file's headings."""
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except Exception:
+            return set()
+
+        anchors: Set[str] = set()
+        heading_re = re.compile(r'^#{1,6}\s+(.+)', re.MULTILINE)
+        counts: Dict[str, int] = {}
+
+        for match in heading_re.finditer(content):
+            raw = match.group(1).strip()
+            anchor = self.heading_to_anchor(raw)
+            if not anchor:
+                continue
+            # GitHub dedup: first is bare, subsequent get -1, -2, ...
+            if anchor in counts:
+                counts[anchor] += 1
+                anchors.add(f"{anchor}-{counts[anchor]}")
+            else:
+                counts[anchor] = 0
+                anchors.add(anchor)
+
+        return anchors
+
+    def check_broken_anchors(self) -> List[Tuple[Path, str, str]]:
+        """Find broken anchor links across all markdown files.
+
+        Scans docs/ (all subdirs) plus root-level .md files.
+        Returns list of (source_file, link_target, anchor) tuples.
+        """
+        broken: List[Tuple[Path, str, str]] = []
+        anchor_cache: Dict[Path, Set[str]] = {}
+
+        # Collect files to scan — docs/ fully (no exclusions) + root .md
+        scan_files: Set[Path] = set()
+        if self.docs_dir.exists():
+            for root, dirs, files in os.walk(self.docs_dir):
+                dirs[:] = [d for d in dirs if not d.startswith(".")]
+                for f in files:
+                    if f.endswith(".md"):
+                        scan_files.add((Path(root) / f).resolve())
+        for f in self.project_root.iterdir():
+            if f.is_file() and f.suffix == ".md":
+                scan_files.add(f.resolve())
+
+        for source in scan_files:
+            try:
+                content = source.read_text(encoding="utf-8")
+            except Exception:
+                continue
+
+            for match in self.link_pattern.finditer(content):
+                link_url = match.group(1)
+                if link_url.startswith(("http", "mailto:")):
+                    continue
+                if "#" not in link_url:
+                    continue
+
+                file_part, anchor = link_url.split("#", 1)
+                if not anchor:
+                    continue
+
+                # Skip GitHub line references (#L123 or #L10-L20)
+                if re.match(r'L\d+', anchor):
+                    continue
+
+                # Resolve target file
+                if file_part:
+                    target = (source.parent / file_part).resolve()
+                    if not target.exists():
+                        target = (self.project_root / file_part).resolve()
+                    if not target.exists():
+                        continue  # Dead link — reported by dead-link check
+                    # Only validate heading anchors in markdown files
+                    if target.suffix != ".md":
+                        continue
+                else:
+                    # Pure anchor (#section) — same file
+                    target = source
+
+                # Validate anchor against target headings
+                if target not in anchor_cache:
+                    anchor_cache[target] = self.extract_anchors(target)
+
+                if anchor not in anchor_cache[target]:
+                    broken.append((source, link_url, anchor))
+
+        return broken
 
     def get_sections(self) -> List[str]:
         """Get a list of ## sections in INDEX.md."""
@@ -136,6 +250,21 @@ class DocAudit:
                     print(f"  - {p}")
         else:
             print("\n[OK] No coverage gaps found.")
+
+        # 4. Broken Anchors: Links with #anchor where anchor doesn't resolve
+        broken_anchors = self.check_broken_anchors()
+
+        if broken_anchors:
+            issues_found = True
+            print(f"\n[!] Broken Anchors ({len(broken_anchors)}):")
+            for source, link, anchor in sorted(broken_anchors):
+                try:
+                    rel_source = source.relative_to(self.project_root)
+                except ValueError:
+                    rel_source = source
+                print(f"  - {rel_source} -> {link}")
+        else:
+            print("\n[OK] No broken anchors found.")
 
         if fix and orphan_docs:
             self.fix_orphans(orphan_docs)

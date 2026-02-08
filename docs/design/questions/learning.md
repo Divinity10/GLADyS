@@ -341,7 +341,7 @@ The current heuristic matching system uses word overlap to find relevant heurist
 
 Replace word overlap with vector similarity using embeddings. "killing neighbor" and "meeting at 1pm" will have very different vectors despite sharing structural words.
 
-**Implementation**: See [§22 Heuristic Data Structure](#r-heuristic-data-structure-cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
+**Implementation**: See [§22 Heuristic Data Structure](#r-heuristic-data-structure---cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
 
 **Status**: Migration 008 deployed, embeddings backfilled, semantic matching verified working.
 

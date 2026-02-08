@@ -126,5 +126,195 @@ class TestDocAudit(unittest.TestCase):
         # It should be added after Section 1
         self.assertTrue(content.find("## Section 1") < content.find("adr/new_doc.md"))
 
+    # --- Anchor link validation tests ---
+
+    def test_heading_to_anchor_basic(self):
+        """heading_to_anchor converts headings to GitHub-style anchors."""
+        self.assertEqual(DocAudit.heading_to_anchor("My Section"), "my-section")
+        self.assertEqual(
+            DocAudit.heading_to_anchor("ADR-0001: Architecture"),
+            "adr-0001-architecture",
+        )
+        self.assertEqual(DocAudit.heading_to_anchor("Step 1. Setup"), "step-1-setup")
+
+    def test_heading_to_anchor_inline_markdown(self):
+        """heading_to_anchor strips bold, italic, code, and links."""
+        self.assertEqual(
+            DocAudit.heading_to_anchor("Section with **bold**"),
+            "section-with-bold",
+        )
+        self.assertEqual(
+            DocAudit.heading_to_anchor("Has `code` in it"),
+            "has-code-in-it",
+        )
+        self.assertEqual(
+            DocAudit.heading_to_anchor("See [link](http://x.com) here"),
+            "see-link-here",
+        )
+
+    def test_heading_to_anchor_special_chars(self):
+        """heading_to_anchor strips special chars; each space becomes one hyphen."""
+        # & removed leaves two spaces → two hyphens (GitHub behavior)
+        self.assertEqual(
+            DocAudit.heading_to_anchor("Intelligence & Learning"),
+            "intelligence--learning",
+        )
+        self.assertEqual(
+            DocAudit.heading_to_anchor("Question: What?"),
+            "question-what",
+        )
+
+    def test_extract_anchors(self):
+        """extract_anchors finds all heading anchors in a file."""
+        doc = self.docs_dir / "anchored.md"
+        doc.write_text("# Top\n## Sub Section\n### Deep\n", encoding="utf-8")
+
+        auditor = DocAudit(self.root)
+        anchors = auditor.extract_anchors(doc)
+
+        self.assertIn("top", anchors)
+        self.assertIn("sub-section", anchors)
+        self.assertIn("deep", anchors)
+
+    def test_extract_anchors_dedup(self):
+        """Duplicate headings get -1, -2 suffixes (GitHub style)."""
+        doc = self.docs_dir / "dupes.md"
+        doc.write_text("## API\n## API\n## API\n", encoding="utf-8")
+
+        auditor = DocAudit(self.root)
+        anchors = auditor.extract_anchors(doc)
+
+        self.assertIn("api", anchors)
+        self.assertIn("api-1", anchors)
+        self.assertIn("api-2", anchors)
+
+    def test_anchor_check_valid(self):
+        """Valid anchor links are not reported as broken."""
+        target = self.docs_dir / "adr" / "doc1.md"
+        target.write_text("# Doc 1\n## My Section\nContent here.", encoding="utf-8")
+
+        self.index_path.write_text(
+            "# Index\n## Section 1\n- [Doc 1 Section](adr/doc1.md#my-section)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        self.assertEqual(broken, [])
+
+    def test_anchor_check_broken(self):
+        """Broken anchor links are detected."""
+        target = self.docs_dir / "adr" / "doc1.md"
+        target.write_text("# Doc 1\n## Real Section\nContent.", encoding="utf-8")
+
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [Doc 1](adr/doc1.md#nonexistent-section)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        self.assertEqual(len(broken), 1)
+        self.assertEqual(broken[0][2], "nonexistent-section")
+
+    def test_anchor_check_same_file_valid(self):
+        """Pure anchor links (#section) are validated within the same file."""
+        doc = self.docs_dir / "selfref.md"
+        doc.write_text(
+            "# Top\nSee [below](#bottom)\n## Bottom\nDone.", encoding="utf-8"
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        selfref_broken = [b for b in broken if "selfref" in str(b[0])]
+        self.assertEqual(selfref_broken, [])
+
+    def test_anchor_check_same_file_broken(self):
+        """Broken pure anchor links within the same file are detected."""
+        doc = self.docs_dir / "selfref.md"
+        doc.write_text(
+            "# Top\nSee [missing](#does-not-exist)\n", encoding="utf-8"
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        selfref_broken = [b for b in broken if "selfref" in str(b[0])]
+        self.assertEqual(len(selfref_broken), 1)
+        self.assertEqual(selfref_broken[0][2], "does-not-exist")
+
+    def test_anchor_check_skips_dead_links(self):
+        """Links to missing files don't trigger anchor check (dead-link check covers them)."""
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [Gone](missing.md#some-anchor)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        # missing.md doesn't exist — no anchor error (dead link is separate)
+        self.assertEqual(broken, [])
+
+    def test_anchor_check_skips_line_references(self):
+        """GitHub line references (#L123, #L10-L20) are not heading anchors."""
+        target = self.docs_dir / "adr" / "doc1.md"
+        target.write_text("# Doc 1\nContent.", encoding="utf-8")
+
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [Line ref](adr/doc1.md#L42)\n"
+            "- [Range ref](adr/doc1.md#L10-L20)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        self.assertEqual(broken, [])
+
+    def test_anchor_check_skips_non_markdown(self):
+        """Anchor links to non-.md files (e.g. .py, .rs) are not checked."""
+        py_file = self.docs_dir / "example.py"
+        py_file.write_text("# not a heading\ndef foo(): pass\n")
+
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [Code](example.py#L5)\n"
+            "- [Code 2](example.py#some-anchor)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        self.assertEqual(broken, [])
+
+    def test_anchor_check_ignores_external_links(self):
+        """External links with anchors are not checked."""
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [GH](https://github.com/foo#readme)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        broken = auditor.check_broken_anchors()
+        self.assertEqual(broken, [])
+
+    def test_broken_anchor_causes_audit_failure(self):
+        """run_audit returns 1 when broken anchors are found."""
+        target = self.docs_dir / "adr" / "doc1.md"
+        target.write_text("# Doc 1\nContent only.", encoding="utf-8")
+
+        self.index_path.write_text(
+            "# Index\n## Section 1\n"
+            "- [Doc 1](adr/doc1.md)\n"
+            "- [Bad anchor](adr/doc1.md#no-such-section)\n",
+            encoding="utf-8",
+        )
+
+        auditor = DocAudit(self.root)
+        self.assertEqual(auditor.run_audit(), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

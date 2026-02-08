@@ -11,7 +11,7 @@
 1. **Read** `docs/coordination/COORDINATION.md` for the coordination protocol
 2. **Check** `docs/coordination/MESSAGES.md` for any updates from Claude
 3. **Use** `gemini_memory.md` as your scratch pad for progress tracking
-4. **Reference** `CODEBASE_MAP.md` for codebase context (especially the Concurrency Model section)
+4. **Reference** [CONCURRENCY.md](../codebase/CONCURRENCY.md) for concurrency model and [CONCEPT_MAP.md](../../CONCEPT_MAP.md) for concept-to-code mapping
 
 ---
 

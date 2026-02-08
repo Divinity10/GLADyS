@@ -15,9 +15,7 @@ You're a contributor. Here's how to get productive.
 - [Common Tasks](#common-tasks)
   - [Running the full stack](#running-the-full-stack)
   - [Development workflow](#development-workflow)
-  - [Service Ports](#service-ports)
-  - [Configuration](#configuration)
-  - [Running locally](#running-services-locally-outside-docker)
+  - [Service Management](#service-management)
   - [Connecting to services](#connecting-to-running-services)
 - [Technical Notes: Heuristic Matching](#technical-notes-heuristic-matching)
 - [Where to Find Things](#where-to-find-things)
@@ -328,7 +326,7 @@ This script:
 
 ### Service Management
 
-For service ports, see **[CODEBASE_MAP.md](../CODEBASE_MAP.md#service-ports)**.
+For service ports, run `codebase-info ports`.
 
 Quick start:
 ```bash
@@ -404,7 +402,8 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 |------|-------|
 | Architecture decisions | [docs/adr/](adr/) |
 | Open design questions | [docs/design/questions/](design/questions/README.md) |
-| Service ports & layout | [CODEBASE_MAP.md](../CODEBASE_MAP.md) |
+| Service ports | Run `codebase-info ports` |
+| Concept-to-code map | [CONCEPT_MAP.md](../CONCEPT_MAP.md) |
 | Memory subsystem | [src/services/memory/](../src/services/memory/) |
 | Orchestrator subsystem | [src/services/orchestrator/](../src/services/orchestrator/) |
 | Executive stub | [src/services/executive/](../src/services/executive/) |

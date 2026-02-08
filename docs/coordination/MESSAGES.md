@@ -194,11 +194,11 @@ ModuleNotFoundError: No module named 'gladys_common'
 5. Added `requests>=2.28` to memory-python pyproject.toml (transitive dep issue)
 
 **For future reference**:
-When adding `from gladys_common import ...` to any service, you MUST update the Dockerfile. See the new **"Docker Build Requirements"** section in `CODEBASE_MAP.md` for the pattern.
+When adding `from gladys_common import ...` to any service, you MUST update the Dockerfile. See [DOCKER.md](../codebase/DOCKER.md) for the pattern.
 
 **Verification**: 25 of 30 integration tests now pass. The 3 failures in `test_lab_bench.py` are asyncio event loop issues in the test infrastructure, not related to bug fixes.
 
-**Action needed**: None - just be aware for future changes. Please read CODEBASE_MAP.md "Docker Build Requirements" section.
+**Action needed**: None - just be aware for future changes. Please read [DOCKER.md](../codebase/DOCKER.md).
 
 ---
 
