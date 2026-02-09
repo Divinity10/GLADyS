@@ -428,6 +428,41 @@ async def handle_feedback(
 
 See also: `docs/design/questions/feedback-signal-decomposition.md`, `docs/design/questions/user-feedback-calibration.md`
 
+## Selection Strategy (Design Direction)
+
+*Added 2026-02-08. Full design in [urgency-selection.md](questions/urgency-selection.md).*
+
+The current selection strategy is **similarity-dominant**: the heuristic with the highest condition-match similarity wins, with confidence used only as a pass/fail filter (>= threshold). This is correct for ranking but the binary threshold is too rigid.
+
+### Planned: Urgency-Modulated Threshold
+
+```
+effective_threshold = base_threshold - (urgency × threshold_reduction)
+```
+
+High urgency lowers the bar for heuristic firing. Low urgency keeps the baseline, preferring LLM. Three behavioral tiers:
+
+| Tier | Urgency | Data source | Behavior |
+|------|---------|-------------|----------|
+| Immediate | High | Cache first, DB fallback | Fire any reasonable match — speed over quality |
+| Soon | Moderate | DB always | Weighted selection from full candidate pool |
+| Not urgent | Low | DB + LLM preferred | Only fire singular high-match + high-confidence; otherwise LLM |
+
+**Selection ranking** within a tier: similarity-dominant, confidence as tiebreaker when similarities are close. A 0.3-confidence heuristic with 0.9 context match beats a 0.7-confidence with 0.6 match.
+
+### Heuristic Cache Decision (PoC 2)
+
+**No cache for PoC 2.** The Rust salience gateway's LRU cache exists but should be bypassed — DB is sole source of truth. Cache saves 1-10ms on local PostgreSQL queries; the real bottleneck is LLM latency. Cache coherence (syncing confidence updates) adds complexity without proportional benefit.
+
+If a cache is added later: read-through only (never write-back), domain-partitioned.
+
+### Three Measurement Dimensions
+
+The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) §Three Measurement Dimensions):
+- **Context match** (similarity) — primary selection criterion
+- **Confidence** (trust) — threshold gate, not ranking factor
+- **Success rate** (correctness) — not yet used in selection; future work may incorporate it
+
 ## Out of Scope
 
 - Feedback handling details — deferred until feedback model is designed
@@ -435,3 +470,4 @@ See also: `docs/design/questions/feedback-signal-decomposition.md`, `docs/design
 - Alternative strategies — add in PoC 2
 - Convergence detection implementation — captured in metadata structure, actual embedding comparison deferred
 - Dynamic goal selection per event (F-08) — PoC 2 uses static goals
+- Urgency implementation details — see [urgency-selection.md](questions/urgency-selection.md)

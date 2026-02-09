@@ -112,6 +112,16 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 
 **`evaluation_data`** — Optional second data bucket for solution/cheat data. Stored for learning and evaluation, stripped by orchestrator before executive sees it. Example: Sudoku solution visible in DOM — useful for evaluating response quality but must not appear in responses. The structure *is* the classification — sensor developers put data in the right bucket.
 
+### 2.2.1 Future field: Urgency metadata
+
+*Not implemented in PoC 2. Design direction captured in [urgency-selection.md](questions/urgency-selection.md).*
+
+Sensors are domain experts — they know whether an event needs immediate response (combat health critical) or can wait (newsletter arrived). A future `urgency` field would allow sensors to provide domain-specific urgency hints that the orchestrator uses to modulate heuristic selection strategy (cache-first vs DB-query vs LLM-preferred).
+
+Urgency is domain-specific: real-time games need sub-second response, email sensors can wait minutes. The sensor's urgency hint combined with the salience threat score provides "cheap" urgency for routing decisions before the executive's domain skill does deeper assessment.
+
+**PoC 2 approach**: No urgency field. All events use the default path. The design accommodates urgency without requiring it.
+
 ### 2.3 Delivery patterns
 
 Two patterns for PoC 2 (streaming deferred):

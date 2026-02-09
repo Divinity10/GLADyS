@@ -1,8 +1,10 @@
 # Confidence Bootstrapping: How Do New Heuristics Earn Trust?
 
 **Created**: 2026-02-01
-**Status**: Proposed (PoC 2 scope)
+**Status**: Resolved → [CONFIDENCE_BOOTSTRAPPING.md](../CONFIDENCE_BOOTSTRAPPING.md)
 **Related**: ADR-0010 (Learning), #55 (confidence catch-22), #56 (cross-domain filtering)
+
+> **Resolved 2026-02-08**: Design promoted to full design doc. See [CONFIDENCE_BOOTSTRAPPING.md](../CONFIDENCE_BOOTSTRAPPING.md) for the complete design including evaluation prompt specification, concurrency model, confidence update mechanics, and executive contract.
 
 ## Problem
 

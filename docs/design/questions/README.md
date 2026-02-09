@@ -17,12 +17,15 @@ This directory organizes design questions and decisions by category. Each file c
 | Data Types | [data-types.md](data-types.md) | 1 | 0 | 1 |
 | Resource Allocation | [resource-allocation.md](resource-allocation.md) | 4 | 0 | 1 |
 | Cross-Cutting | [cross-cutting.md](cross-cutting.md) | 8 | 3 | 2 |
-| Bootstrapping | [confidence-bootstrapping.md](confidence-bootstrapping.md) | 1 | 0 | 0 |
+| Bootstrapping | [confidence-bootstrapping.md](confidence-bootstrapping.md) | 0 | 1 | 0 |
 | Feedback | [feedback-signal-decomposition.md](feedback-signal-decomposition.md) | 1 | 0 | 0 |
 | Calibration | [user-feedback-calibration.md](user-feedback-calibration.md) | 1 | 0 | 0 |
 | Analysis | [confidence-analysis-harness.md](confidence-analysis-harness.md) | 1 | 0 | 0 |
 | Dashboard | [sensor-dashboard.md](sensor-dashboard.md) | 1 | 0 | 0 |
 | PoC 1 Findings | [poc1-findings.md](poc1-findings.md) | 7 | 18 | 0 |
+| Outcome Correlation | [outcome-correlation.md](outcome-correlation.md) | 2 | 0 | 0 |
+| Urgency & Selection | [urgency-selection.md](urgency-selection.md) | 1 | 1 | 0 |
+| Goal Identification | [goal-identification.md](goal-identification.md) | 1 | 0 | 0 |
 
 **Legend**: Open = actively under discussion | Resolved = decision made (see ADR) | Gap = needs ADR
 

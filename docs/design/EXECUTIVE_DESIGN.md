@@ -513,7 +513,7 @@ confidence = (1 + success_count) / (2 + fire_count)
 
 ## Open Questions
 
-1. **LLM Agreement Value**: Is there any value in recording when LLM agrees with a heuristic suggestion? (Currently: no automatic confidence update)
+1. ~~**LLM Agreement Value**: Is there any value in recording when LLM agrees with a heuristic suggestion?~~ **Resolved**: Yes. See [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) — LLM endorsement is a weighted confidence signal (default 0.5 weight) that bootstraps below-threshold heuristics toward the firing threshold.
 
 2. **Implicit Requests**: Are all heuristics implicit requests? (Heuristic condition = "what should I do about X?")
 
