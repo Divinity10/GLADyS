@@ -193,6 +193,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | [DB_MANAGEMENT.md](codebase/DB_MANAGEMENT.md) | Migration workflow, schema sync rules |
 | [LOGGING.md](codebase/LOGGING.md) | Trace ID propagation, log locations, env vars |
 | [LEARNING_MODULE.md](codebase/LEARNING_MODULE.md) | Implicit feedback, outcome watcher, LearningModule interface |
+| [TESTING.md](codebase/TESTING.md) | Testing strategy, priorities, patterns, coverage expectations |
 | [TROUBLESHOOTING.md](codebase/TROUBLESHOOTING.md) | Common mistakes, diagnostic steps, quick commands |
 
 ---

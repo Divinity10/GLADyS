@@ -73,6 +73,12 @@ A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use
 - **Status**: PoC implementation phase
 - **Philosophy**: Local-first, privacy-focused, user in control
 
+## Development Approach
+
+GLADyS uses **hypothesis-driven incremental development**. Each PoC cycle has a question to answer, observable success criteria, and abort signals. This is NOT prototyping -- PoC limits *scope* (what we build) but not *standards* (code quality, tests, separation of concerns). Code written in a PoC is production-quality code with fewer features per cycle, not lower-quality features.
+
+Between PoCs: evaluate lessons learned, identify the next question, close gaps (pre-req work). Tests exist to protect the validity of experimental results -- "can I trust the data flowing through this pipeline?" -- not to achieve a coverage percentage. See `docs/design/POC_LIFECYCLE.md` for the full framework and `docs/codebase/TESTING.md` for testing standards.
+
 ## Conventions
 
 ### Commits
