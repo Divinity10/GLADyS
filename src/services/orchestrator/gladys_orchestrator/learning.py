@@ -306,7 +306,7 @@ class LearningModule:
                 await self._memory_client.record_heuristic_fire(
                     heuristic_id=heuristic_id,
                     event_id=event_id,
-                    episodic_event_id=event_id,
+                    episodic_event_id="",
                 )
             except Exception as e:
                 logger.warning(
