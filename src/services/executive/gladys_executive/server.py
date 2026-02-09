@@ -385,15 +385,12 @@ class HeuristicFirstStrategy:
             f"Event from [{context.event_source}]: {context.event_text}",
             "",
             "Here are some possible responses to this situation:",
-            "Previous responses to similar situations (for context only):",
             "",
         ]
 
         for index, candidate in enumerate(display_candidates, 1):
             lines.append(f'{index}. Context: "{candidate.condition_text}"')
             lines.append(f'   Response: "{candidate.suggested_action}"')
-            # Backward-compatible formatting expected by existing strategy tests.
-            lines.append(f'   Situation: "{candidate.condition_text}" \u2192 Response: "{candidate.suggested_action}"')
             lines.append("")
 
         lines.append(

@@ -90,7 +90,8 @@ async def test_llm_path(mock_llm):
     
     # Verify candidates in prompt
     request = mock_llm.generate.call_args_list[0][0][0]
-    assert 'Situation: "condition1" → Response: "action1"' in request.prompt
+    assert 'Context: "condition1"' in request.prompt
+    assert 'Response: "action1"' in request.prompt
 
 @pytest.mark.asyncio
 async def test_rejected_path_no_llm():
@@ -233,34 +234,6 @@ def test_get_trace():
     
     strategy.delete_trace(trace_id)
     assert strategy.get_trace(trace_id) is None
-
-@pytest.mark.asyncio
-async def test_candidates_in_prompt_randomized(mock_llm):
-    strategy = HeuristicFirstStrategy()
-    c1 = HeuristicCandidate("h1", "cond1", "act1", 0.5)
-    c2 = HeuristicCandidate("h2", "cond2", "act2", 0.5)
-    
-    context = DecisionContext(
-        event_id="e1",
-        event_text="event1",
-        event_source="src1",
-        salience={},
-        candidates=[c1, c2],
-        immediate=True
-    )
-    
-    mock_llm.generate.side_effect = [
-        LLMResponse(text="llm_response", model="test-model"),
-        LLMResponse(text='{"success": 0.5, "confidence": 0.5}', model="test-model")
-    ]
-    
-    await strategy.decide(context, mock_llm)
-    
-    request = mock_llm.generate.call_args_list[0][0][0]
-    assert 'Situation: "cond1" → Response: "act1"' in request.prompt
-    assert 'Situation: "cond2" → Response: "act2"' in request.prompt
-    assert "Previous responses to similar situations" in request.prompt
-
 
 @pytest.mark.asyncio
 async def test_personality_bias_lowers_threshold(mock_llm):
