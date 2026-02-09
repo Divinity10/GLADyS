@@ -745,20 +745,21 @@ class MemoryStorage:
         feedback_source: str = "explicit",
     ) -> tuple[float, float, float, Optional[float]]:
         """
-        Update heuristic confidence using Bayesian Beta-Binomial model.
+        Update heuristic confidence using Bayesian Beta model with float pseudo-counts.
 
-        Uses Beta(1,1) prior (uniform) with posterior mean:
-            confidence = (1 + success_count) / (2 + fire_count)
+        Uses Beta(1.0, 1.0) prior (uniform):
+            - Positive feedback: alpha += magnitude
+            - Negative feedback: beta += magnitude
+            - confidence = alpha / (alpha + beta)
 
         Examples:
-            - New heuristic (0 fires): 1/2 = 0.5
-            - After 2 positive: 3/3 = 1.0
-            - After 2 positive, 1 negative: 3/4 = 0.75
+            - New heuristic: alpha=1.0, beta=1.0, confidence=0.5
+            - Positive magnitude 0.41: alpha=1.41, beta=1.0, confidence=1.41/2.41
 
         Args:
             heuristic_id: UUID of the heuristic to update
             positive: True for positive feedback, False for negative
-            magnitude: Weight of the feedback signal (1.0 = default)
+            magnitude: Weight of the feedback signal (0.0 maps to 1.0 for proto3 compat)
             predicted_success: Ignored (kept for API compatibility)
             feedback_source: 'explicit' (user feedback) or 'implicit' (outcome watcher)
 
@@ -786,7 +787,7 @@ class MemoryStorage:
         # Get current state
         row = await self._pool.fetchrow(
             """
-            SELECT confidence, fire_count, success_count
+            SELECT alpha, beta, confidence
             FROM heuristics
             WHERE id = $1
             """,
@@ -797,28 +798,31 @@ class MemoryStorage:
             raise ValueError(f"Heuristic not found: {heuristic_id}")
 
         old_confidence = float(row["confidence"])
-        fire_count = int(row["fire_count"])
-        success_count = int(row["success_count"])
+        alpha = float(row["alpha"])
+        beta = float(row["beta"])
 
-        # Update success_count if positive feedback
         if positive:
-            success_count += 1
+            alpha += magnitude
+        else:
+            beta += magnitude
 
-        # Bayesian Beta-Binomial: confidence = (1 + success_count) / (2 + fire_count)
-        # Note: fire_count was already incremented when the heuristic fired
-        new_confidence = (1.0 + success_count) / (2.0 + fire_count)
+        new_confidence = alpha / (alpha + beta)
         delta = new_confidence - old_confidence
 
         # Update database
         await self._pool.execute(
             """
             UPDATE heuristics
-            SET confidence = $2,
-                success_count = success_count + CASE WHEN $3 THEN 1 ELSE 0 END,
+            SET alpha = $2,
+                beta = $3,
+                confidence = $4,
+                success_count = success_count + CASE WHEN $5 THEN 1 ELSE 0 END,
                 updated_at = NOW()
             WHERE id = $1
             """,
             heuristic_id,
+            alpha,
+            beta,
             new_confidence,
             positive,
         )

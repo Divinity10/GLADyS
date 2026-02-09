@@ -344,70 +344,253 @@ class TestHeuristicStorage:
         assert row["success_count"] == 1
 
     async def test_bayesian_confidence_calculation(self, storage):
-        """Should calculate confidence using Bayesian Beta-Binomial formula.
-
-        Formula: confidence = (1 + success_count) / (2 + fire_count)
-        With Beta(1,1) prior (uniform).
-        """
+        """Should calculate confidence using float alpha/beta pseudo-counts."""
         heuristic_id = uuid4()
         await storage.store_heuristic(
             id=heuristic_id,
             name="test_bayesian_heuristic",
             condition={"text": "test condition"},
             action={"type": "suggestion", "message": "test response"},
-            confidence=0.5,  # Initial value (will be overwritten by Bayesian)
+            confidence=0.5,
         )
 
-        # Simulate heuristic firing once (fire_count = 1)
+        # Record a fire so confidence update also writes the outcome to fire record.
         await storage.update_heuristic_fired(heuristic_id, success=False)
 
-        # Get baseline: fire_count=1, success_count=0
-        # Expected confidence = (1 + 0) / (2 + 1) = 1/3 ≈ 0.333
+        old_conf, new_conf, delta, td_error = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+            magnitude=0.41,
+            feedback_source="llm_endorsement",
+        )
+
+        assert td_error is None
+        assert old_conf == pytest.approx(0.5)
+        assert new_conf == pytest.approx(1.41 / 2.41, rel=1e-6)
+        assert delta == pytest.approx(new_conf - old_conf, rel=1e-9)
+
         row = await storage._pool.fetchrow(
-            "SELECT fire_count, success_count, confidence FROM heuristics WHERE id = $1",
+            "SELECT alpha, beta, confidence, success_count FROM heuristics WHERE id = $1",
             heuristic_id
         )
-        assert row["fire_count"] == 1
-        assert row["success_count"] == 0
+        assert row["alpha"] == pytest.approx(1.41)
+        assert row["beta"] == pytest.approx(1.0)
+        assert row["confidence"] == pytest.approx(new_conf, rel=1e-9)
+        assert row["success_count"] == 1
 
-        # Positive feedback: success_count -> 1
-        # Expected: (1 + 1) / (2 + 1) = 2/3 ≈ 0.667
-        old_conf, new_conf, delta, td_error = await storage.update_heuristic_confidence(
+        fire_row = await storage._pool.fetchrow(
+            """
+            SELECT outcome, feedback_source
+            FROM heuristic_fires
+            WHERE heuristic_id = $1
+            ORDER BY fired_at DESC
+            LIMIT 1
+            """,
+            heuristic_id,
+        )
+        assert fire_row["outcome"] == "success"
+        assert fire_row["feedback_source"] == "llm_endorsement"
+
+    async def test_alpha_beta_default_confidence(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_default",
+            condition={"text": "default"},
+            action={"type": "suggestion", "message": "default"},
+            confidence=0.5,
+        )
+
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta, confidence FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert row["alpha"] == pytest.approx(1.0)
+        assert row["beta"] == pytest.approx(1.0)
+        assert row["confidence"] == pytest.approx(0.5)
+
+    async def test_alpha_beta_full_weight_positive(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_positive",
+            condition={"text": "positive"},
+            action={"type": "suggestion", "message": "positive"},
+            confidence=0.5,
+        )
+
+        _, new_conf, _, _ = await storage.update_heuristic_confidence(
             heuristic_id=heuristic_id,
             positive=True,
+            magnitude=1.0,
         )
-        assert td_error is None  # Bayesian doesn't use TD error
-        assert abs(new_conf - (2.0 / 3.0)) < 0.001
-        assert delta == new_conf - old_conf
 
-        # Fire again (fire_count = 2), then negative feedback
-        await storage.update_heuristic_fired(heuristic_id, success=False)
-        # Now: fire_count=2, success_count=1
-        # Negative feedback doesn't change success_count
-        # Expected: (1 + 1) / (2 + 2) = 2/4 = 0.5
-        old_conf, new_conf, delta, td_error = await storage.update_heuristic_confidence(
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert row["alpha"] == pytest.approx(2.0)
+        assert row["beta"] == pytest.approx(1.0)
+        assert new_conf == pytest.approx(2.0 / 3.0, rel=1e-6)
+
+    async def test_alpha_beta_full_weight_negative(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_negative",
+            condition={"text": "negative"},
+            action={"type": "suggestion", "message": "negative"},
+            confidence=0.5,
+        )
+
+        _, new_conf, _, _ = await storage.update_heuristic_confidence(
             heuristic_id=heuristic_id,
             positive=False,
+            magnitude=1.0,
         )
-        assert abs(new_conf - 0.5) < 0.001
 
-        # Two more positive feedbacks after firing
-        await storage.update_heuristic_fired(heuristic_id, success=False)
-        # fire_count=3, success_count=1
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert row["alpha"] == pytest.approx(1.0)
+        assert row["beta"] == pytest.approx(2.0)
+        assert new_conf == pytest.approx(1.0 / 3.0, rel=1e-6)
+
+    async def test_alpha_beta_fractional_magnitude(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_fractional",
+            condition={"text": "fractional"},
+            action={"type": "suggestion", "message": "fractional"},
+            confidence=0.5,
+        )
+
         _, new_conf, _, _ = await storage.update_heuristic_confidence(
             heuristic_id=heuristic_id,
             positive=True,
+            magnitude=0.41,
         )
-        # success_count -> 2
-        # Expected: (1 + 2) / (2 + 3) = 3/5 = 0.6
-        assert abs(new_conf - 0.6) < 0.001
 
-        await storage.update_heuristic_fired(heuristic_id, success=False)
-        # fire_count=4, success_count=2
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert row["alpha"] == pytest.approx(1.41)
+        assert row["beta"] == pytest.approx(1.0)
+        assert new_conf == pytest.approx(1.41 / 2.41, rel=1e-6)
+
+    async def test_alpha_beta_zero_magnitude_backward_compat(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_zero",
+            condition={"text": "zero"},
+            action={"type": "suggestion", "message": "zero"},
+            confidence=0.5,
+        )
+
         _, new_conf, _, _ = await storage.update_heuristic_confidence(
             heuristic_id=heuristic_id,
             positive=True,
+            magnitude=0.0,
         )
-        # success_count -> 3
-        # Expected: (1 + 3) / (2 + 4) = 4/6 ≈ 0.667
-        assert abs(new_conf - (4.0 / 6.0)) < 0.001
+
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert row["alpha"] == pytest.approx(2.0)
+        assert row["beta"] == pytest.approx(1.0)
+        assert new_conf == pytest.approx(2.0 / 3.0, rel=1e-6)
+
+    async def test_alpha_beta_bootstrapping_scenario(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_bootstrap",
+            condition={"text": "bootstrap"},
+            action={"type": "suggestion", "message": "bootstrap"},
+            confidence=0.5,
+        )
+
+        _, conf_1, _, _ = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+            magnitude=0.41,
+            feedback_source="llm_endorsement",
+        )
+        _, conf_2, _, _ = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+            magnitude=0.395,
+            feedback_source="llm_endorsement",
+        )
+        _, conf_3, _, _ = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+            magnitude=1.0,
+            feedback_source="explicit_positive",
+        )
+
+        row = await storage._pool.fetchrow(
+            "SELECT alpha, beta FROM heuristics WHERE id = $1",
+            heuristic_id,
+        )
+        assert conf_1 == pytest.approx(1.41 / 2.41, rel=1e-6)
+        assert conf_2 == pytest.approx(1.805 / 2.805, rel=1e-6)
+        assert conf_3 == pytest.approx(2.805 / 3.805, rel=1e-6)
+        assert row["alpha"] == pytest.approx(2.805)
+        assert row["beta"] == pytest.approx(1.0)
+
+    async def test_alpha_beta_confidence_bounds(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_bounds",
+            condition={"text": "bounds"},
+            action={"type": "suggestion", "message": "bounds"},
+            confidence=0.5,
+        )
+
+        confidence = 0.5
+        for _ in range(30):
+            _, confidence, _, _ = await storage.update_heuristic_confidence(
+                heuristic_id=heuristic_id,
+                positive=True,
+                magnitude=1.0,
+            )
+        assert 0.0 < confidence < 1.0
+        assert confidence != pytest.approx(1.0)
+
+        for _ in range(60):
+            _, confidence, _, _ = await storage.update_heuristic_confidence(
+                heuristic_id=heuristic_id,
+                positive=False,
+                magnitude=1.0,
+            )
+        assert 0.0 < confidence < 1.0
+        assert confidence != pytest.approx(0.0)
+
+    async def test_alpha_beta_return_signature(self, storage):
+        heuristic_id = uuid4()
+        await storage.store_heuristic(
+            id=heuristic_id,
+            name="test_alpha_beta_signature",
+            condition={"text": "signature"},
+            action={"type": "suggestion", "message": "signature"},
+            confidence=0.5,
+        )
+
+        result = await storage.update_heuristic_confidence(
+            heuristic_id=heuristic_id,
+            positive=True,
+            magnitude=1.0,
+        )
+        assert len(result) == 4
+        old_conf, new_conf, delta, td_error = result
+        assert old_conf == pytest.approx(0.5)
+        assert new_conf == pytest.approx(2.0 / 3.0, rel=1e-6)
+        assert delta == pytest.approx(new_conf - old_conf, rel=1e-9)
+        assert td_error is None
