@@ -674,6 +674,8 @@ def format_event_for_llm(event: Any) -> str:
     return f"[{event.source}]{salience_str}: {event.raw_text}"
 
 
+HEURISTIC_REINFORCE_THRESHOLD = 0.75
+
 PATTERN_EXTRACTION_PROMPT = """You just helped with this situation:
 
 Context: {context}
@@ -957,25 +959,29 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
                 accepted=False,
                 error_message=f"Quality gate: {gate_error}",
             )
-
-        # Dedup check: reject near-duplicates (similarity > 0.9)
-        # Note: event_text param name is misleading — the RPC generates an embedding
-        # and compares it against condition_embedding in the heuristics table (storage.py:378),
-        # so passing condition text here correctly does condition-to-condition similarity.
+        # Merge-or-create: reinforce similar heuristic or create new
         if self.memory_client:
             matches = await self.memory_client.query_matching_heuristics(
                 event_text=condition, min_confidence=0.0, limit=1,
             )
-            for heuristic_id, similarity in matches:
-                if similarity > 0.9:
-                    logger.warning(
-                        "QUALITY_GATE: Near-duplicate detected",
-                        similarity=round(similarity, 3),
-                        existing_heuristic_id=heuristic_id,
+            for existing_id, similarity in matches:
+                if similarity >= HEURISTIC_REINFORCE_THRESHOLD:
+                    # Reinforce existing heuristic instead of creating duplicate
+                    success, error, old_conf, new_conf = await self.memory_client.update_heuristic_confidence(
+                        heuristic_id=existing_id,
+                        positive=True,
                     )
+                    logger.info(
+                        "HEURISTIC_REINFORCED",
+                        existing_heuristic_id=existing_id,
+                        similarity=round(similarity, 3),
+                        old_confidence=round(old_conf, 3),
+                        new_confidence=round(new_conf, 3),
+                    )
+                    self._strategy.delete_trace(request.response_id)
                     return executive_pb2.ProvideFeedbackResponse(
-                        accepted=False,
-                        error_message=f"Near-duplicate of existing heuristic (similarity={similarity:.2f})",
+                        accepted=True,
+                        created_heuristic_id="",  # No new heuristic — reinforced existing
                     )
 
         if trace.matched_heuristic_id and self.memory_client:
