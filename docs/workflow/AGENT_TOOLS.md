@@ -174,6 +174,25 @@ After changing `.proto` files, regenerate stubs for each language:
 
 ---
 
+## Encoding Fix: `fix_encoding.py`
+
+Strips BOM and converts CRLF to LF. **Run after editing files** to ensure compliance with project encoding rules.
+
+```powershell
+# Fix specific files
+python cli/fix_encoding.py path/to/file1.py path/to/file2.py
+
+# Fix all modified (unstaged + untracked) files
+python cli/fix_encoding.py --modified
+
+# Fix all staged files (before commit)
+python cli/fix_encoding.py --staged
+```
+
+**When to use**: After creating or editing files, before committing. Especially important if your editor/tool writes BOM or CRLF by default.
+
+---
+
 ## Quick Reference: Which Tool When
 
 | Task | Tool | Not this |

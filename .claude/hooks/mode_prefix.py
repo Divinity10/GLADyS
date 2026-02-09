@@ -99,7 +99,7 @@ def main():
         sys.exit(0)
 
     # Check for !mode prefix
-    match = re.match(r"^!(\w+)\s", prompt)
+    match = re.match(r"^!(\w+)(?:\s|$)", prompt)
     if match:
         prefix = match.group(1).lower()
         if prefix in MODES:
