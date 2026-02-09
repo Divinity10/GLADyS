@@ -263,3 +263,56 @@ class MemoryStorageClient:
         except grpc.RpcError as e:
             logger.error("Failed to get heuristic", error=str(e))
             return None
+
+    async def query_matching_heuristics(
+        self,
+        event_text: str,
+        min_confidence: float = 0.0,
+        limit: int = 5,
+        source_filter: str = "",
+    ) -> list[dict]:
+        """
+        Query heuristics by semantic similarity against event text.
+
+        Args:
+            event_text: Event text to search against heuristic conditions
+            min_confidence: Minimum heuristic confidence to include
+            limit: Maximum number of matches to return
+            source_filter: Optional source/domain filter
+
+        Returns:
+            List of dicts with keys:
+            heuristic_id, condition_text, effects_json, confidence, similarity
+        """
+        if not self._stub:
+            logger.warning("MemoryStorage not connected")
+            return []
+
+        try:
+            request = memory_pb2.QueryMatchingHeuristicsRequest(
+                event_text=event_text,
+                min_confidence=min_confidence,
+                limit=limit,
+                source_filter=source_filter,
+            )
+            response = await self._stub.QueryMatchingHeuristics(request)
+
+            if response.error:
+                logger.warning("QueryMatchingHeuristics returned error", error=response.error)
+                return []
+
+            matches: list[dict] = []
+            for match in response.matches:
+                heuristic = match.heuristic
+                matches.append({
+                    "heuristic_id": heuristic.id,
+                    "condition_text": heuristic.condition_text,
+                    "effects_json": heuristic.effects_json,
+                    "confidence": heuristic.confidence,
+                    "similarity": match.similarity,
+                })
+            return matches
+
+        except grpc.RpcError as e:
+            logger.warning("Failed to query matching heuristics", error=str(e))
+            return []

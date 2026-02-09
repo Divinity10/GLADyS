@@ -26,7 +26,7 @@ from . import common_pb2 as common__pb2
 from . import types_pb2 as types__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x65xecutive.proto\x12\tgladys.v1\x1a\x0c\x63ommon.proto\x1a\x0btypes.proto\"q\n\x13HeuristicSuggestion\x12\x14\n\x0cheuristic_id\x18\x01 \x01(\t\x12\x18\n\x10suggested_action\x18\x02 \x01(\t\x12\x12\n\nconfidence\x18\x03 \x01(\x02\x12\x16\n\x0e\x63ondition_text\x18\x04 \x01(\t\"\xab\x01\n\x13ProcessEventRequest\x12\x1f\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x10.gladys.v1.Event\x12\x11\n\timmediate\x18\x02 \x01(\x08\x12\x32\n\nsuggestion\x18\x03 \x01(\x0b\x32\x1e.gladys.v1.HeuristicSuggestion\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"\xef\x01\n\x14ProcessEventResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12\x15\n\rresponse_text\x18\x04 \x01(\t\x12\x19\n\x11predicted_success\x18\x05 \x01(\x02\x12\x1d\n\x15prediction_confidence\x18\x06 \x01(\x02\x12\x13\n\x0bprompt_text\x18\x07 \x01(\t\x12\x15\n\rdecision_path\x18\x08 \x01(\t\x12\x1c\n\x14matched_heuristic_id\x18\t \x01(\t\"\x7f\n\x16ProvideFeedbackRequest\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x10\n\x08positive\x18\x02 \x01(\x08\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"`\n\x17ProvideFeedbackResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x1c\n\x14\x63reated_heuristic_id\x18\x03 \x01(\t2\xee\x02\n\x10\x45xecutiveService\x12O\n\x0cProcessEvent\x12\x1e.gladys.v1.ProcessEventRequest\x1a\x1f.gladys.v1.ProcessEventResponse\x12X\n\x0fProvideFeedback\x12!.gladys.v1.ProvideFeedbackRequest\x1a\".gladys.v1.ProvideFeedbackResponse\x12L\n\tGetHealth\x12\x1e.gladys.types.GetHealthRequest\x1a\x1f.gladys.types.GetHealthResponse\x12\x61\n\x10GetHealthDetails\x12%.gladys.types.GetHealthDetailsRequest\x1a&.gladys.types.GetHealthDetailsResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0f\x65xecutive.proto\x12\tgladys.v1\x1a\x0c\x63ommon.proto\x1a\x0btypes.proto\"q\n\x13HeuristicSuggestion\x12\x14\n\x0cheuristic_id\x18\x01 \x01(\t\x12\x18\n\x10suggested_action\x18\x02 \x01(\t\x12\x12\n\nconfidence\x18\x03 \x01(\x02\x12\x16\n\x0e\x63ondition_text\x18\x04 \x01(\t\"\xdf\x01\n\x13ProcessEventRequest\x12\x1f\n\x05\x65vent\x18\x01 \x01(\x0b\x32\x10.gladys.v1.Event\x12\x11\n\timmediate\x18\x02 \x01(\x08\x12\x32\n\nsuggestion\x18\x03 \x01(\x0b\x32\x1e.gladys.v1.HeuristicSuggestion\x12\x32\n\ncandidates\x18\x04 \x03(\x0b\x32\x1e.gladys.v1.HeuristicSuggestion\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"\xef\x01\n\x14ProcessEventResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12\x15\n\rresponse_text\x18\x04 \x01(\t\x12\x19\n\x11predicted_success\x18\x05 \x01(\x02\x12\x1d\n\x15prediction_confidence\x18\x06 \x01(\x02\x12\x13\n\x0bprompt_text\x18\x07 \x01(\t\x12\x15\n\rdecision_path\x18\x08 \x01(\t\x12\x1c\n\x14matched_heuristic_id\x18\t \x01(\t\"\x7f\n\x16ProvideFeedbackRequest\x12\x10\n\x08\x65vent_id\x18\x01 \x01(\t\x12\x10\n\x08positive\x18\x02 \x01(\x08\x12\x13\n\x0bresponse_id\x18\x03 \x01(\t\x12,\n\x08metadata\x18\x0f \x01(\x0b\x32\x1a.gladys.v1.RequestMetadata\"`\n\x17ProvideFeedbackResponse\x12\x10\n\x08\x61\x63\x63\x65pted\x18\x01 \x01(\x08\x12\x15\n\rerror_message\x18\x02 \x01(\t\x12\x1c\n\x14\x63reated_heuristic_id\x18\x03 \x01(\t2\xee\x02\n\x10\x45xecutiveService\x12O\n\x0cProcessEvent\x12\x1e.gladys.v1.ProcessEventRequest\x1a\x1f.gladys.v1.ProcessEventResponse\x12X\n\x0fProvideFeedback\x12!.gladys.v1.ProvideFeedbackRequest\x1a\".gladys.v1.ProvideFeedbackResponse\x12L\n\tGetHealth\x12\x1e.gladys.types.GetHealthRequest\x1a\x1f.gladys.types.GetHealthResponse\x12\x61\n\x10GetHealthDetails\x12%.gladys.types.GetHealthDetailsRequest\x1a&.gladys.types.GetHealthDetailsResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,13 +36,13 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_HEURISTICSUGGESTION']._serialized_start=57
   _globals['_HEURISTICSUGGESTION']._serialized_end=170
   _globals['_PROCESSEVENTREQUEST']._serialized_start=173
-  _globals['_PROCESSEVENTREQUEST']._serialized_end=344
-  _globals['_PROCESSEVENTRESPONSE']._serialized_start=347
-  _globals['_PROCESSEVENTRESPONSE']._serialized_end=586
-  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_start=588
-  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_end=715
-  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_start=717
-  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_end=813
-  _globals['_EXECUTIVESERVICE']._serialized_start=816
-  _globals['_EXECUTIVESERVICE']._serialized_end=1182
+  _globals['_PROCESSEVENTREQUEST']._serialized_end=396
+  _globals['_PROCESSEVENTRESPONSE']._serialized_start=399
+  _globals['_PROCESSEVENTRESPONSE']._serialized_end=638
+  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_start=640
+  _globals['_PROVIDEFEEDBACKREQUEST']._serialized_end=767
+  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_start=769
+  _globals['_PROVIDEFEEDBACKRESPONSE']._serialized_end=865
+  _globals['_EXECUTIVESERVICE']._serialized_start=868
+  _globals['_EXECUTIVESERVICE']._serialized_end=1234
 # @@protoc_insertion_point(module_scope)

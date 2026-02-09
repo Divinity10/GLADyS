@@ -43,7 +43,12 @@ class ExecutiveClient:
             self._channel = None
             self._stub = None
 
-    async def send_event_immediate(self, event: Any, suggestion: dict | None = None) -> dict:
+    async def send_event_immediate(
+        self,
+        event: Any,
+        suggestion: dict | None = None,
+        candidates: list[dict] | None = None,
+    ) -> dict:
         """
         Send a high-salience event immediately (bypass moment accumulation).
 
@@ -51,6 +56,7 @@ class ExecutiveClient:
             event: The event to process
             suggestion: Optional suggestion context from low-conf heuristic (Scenario 2)
                        with keys: heuristic_id, suggested_action, confidence, condition_text
+            candidates: Optional additional below-threshold heuristic candidates
 
         Returns dict with response data from Executive:
         - accepted: bool
@@ -80,10 +86,22 @@ class ExecutiveClient:
                     confidence=round(suggestion.get("confidence", 0), 2),
                 )
 
+            candidate_protos = []
+            for candidate in candidates or []:
+                candidate_protos.append(
+                    executive_pb2.HeuristicSuggestion(
+                        heuristic_id=candidate.get("heuristic_id", ""),
+                        suggested_action=candidate.get("suggested_action", ""),
+                        confidence=candidate.get("confidence", 0.0),
+                        condition_text=candidate.get("condition_text", ""),
+                    )
+                )
+
             request = executive_pb2.ProcessEventRequest(
                 event=event,
                 immediate=True,
                 suggestion=suggestion_proto,
+                candidates=candidate_protos,
             )
             response = await self._stub.ProcessEvent(request)
             return {

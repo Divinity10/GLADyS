@@ -189,6 +189,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                     suggested_action=suggestion.get("suggested_action", ""),
                     heuristic_confidence=suggestion.get("confidence", 0.0),
                     condition_text=suggestion.get("condition_text", ""),
+                    candidates=result.get("_candidates", []),
                 )
             else:
                 # Immediate response (heuristic shortcut) - store event now
@@ -285,6 +286,7 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
                         suggested_action=suggestion.get("suggested_action", ""),
                         heuristic_confidence=suggestion.get("confidence", 0.0),
                         condition_text=suggestion.get("condition_text", ""),
+                        candidates=result.get("_candidates", []),
                     )
                 else:
                     # Immediate response (heuristic shortcut) - store event now

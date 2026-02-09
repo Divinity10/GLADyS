@@ -35,6 +35,10 @@ class OrchestratorConfig(BaseSettings):
     # If matched heuristic has confidence >= this threshold, return action immediately
     # without calling LLM. Lower values = more aggressive use of learned responses.
     heuristic_confidence_threshold: float = 0.7
+    max_evaluation_candidates: int = Field(
+        default=5,
+        description="Max below-threshold heuristic candidates to pass to Executive for bootstrapping evaluation",
+    )
 
     # Emergency fast-path thresholds (default values, override via env)
     # When both conditions are met, Orchestrator bypasses Executive entirely

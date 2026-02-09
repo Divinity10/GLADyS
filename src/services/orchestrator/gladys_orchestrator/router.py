@@ -125,6 +125,7 @@ class EventRouter:
                 "predicted_success": 0.0,
                 "prediction_confidence": 0.0,
                 "queued": False,  # True if event was queued for async processing
+                "_candidates": [],
             }
 
             # Step 4: Record heuristic fire via LearningModule
@@ -139,13 +140,10 @@ class EventRouter:
                 if heuristic:
                     confidence = heuristic.get("confidence", 0.0)
 
-                    action_text = ""
-                    effects_json = heuristic.get("effects_json", "{}")
-                    try:
-                        action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
-                        action_text = action.get("message") or action.get("text") or action.get("response") or ""
-                    except json.JSONDecodeError:
-                        logger.warning("Failed to parse effects_json", heuristic_id=matched_heuristic_id)
+                    action_text = self._extract_action_text(
+                        heuristic.get("effects_json", "{}"),
+                        matched_heuristic_id,
+                    )
 
                     condition_text = heuristic.get("condition_text", "")
 
@@ -206,6 +204,60 @@ class EventRouter:
                         await self._broadcast_to_subscribers(event)
                         return result
 
+            if (
+                self._memory_client
+                and getattr(event, "raw_text", "")
+                and self.config.max_evaluation_candidates > 0
+            ):
+                source_filter = getattr(event, "source", "") or ""
+                best_match_id = (
+                    heuristic_data.get("heuristic_id", "")
+                    if heuristic_data
+                    else matched_heuristic_id
+                )
+                matches = await self._memory_client.query_matching_heuristics(
+                    event_text=getattr(event, "raw_text", ""),
+                    min_confidence=0.0,
+                    limit=self.config.max_evaluation_candidates + 1,
+                    source_filter=source_filter,
+                )
+
+                filtered_with_similarity: list[dict] = []
+                for match in matches:
+                    heuristic_id = match.get("heuristic_id", "")
+                    if heuristic_id and heuristic_id == best_match_id:
+                        continue
+
+                    confidence = float(match.get("confidence", 0.0) or 0.0)
+                    if confidence >= self.config.heuristic_confidence_threshold:
+                        continue
+
+                    filtered_with_similarity.append({
+                        "heuristic_id": heuristic_id,
+                        "suggested_action": self._extract_action_text(
+                            match.get("effects_json", "{}"),
+                            heuristic_id,
+                        ),
+                        "confidence": confidence,
+                        "condition_text": match.get("condition_text", ""),
+                        "_similarity": float(match.get("similarity", 0.0) or 0.0),
+                    })
+
+                filtered_with_similarity.sort(
+                    key=lambda candidate: candidate.get("_similarity", 0.0),
+                    reverse=True,
+                )
+
+                candidates: list[dict] = []
+                for candidate in filtered_with_similarity[: self.config.max_evaluation_candidates]:
+                    candidates.append({
+                        "heuristic_id": candidate.get("heuristic_id", ""),
+                        "suggested_action": candidate.get("suggested_action", ""),
+                        "confidence": candidate.get("confidence", 0.0),
+                        "condition_text": candidate.get("condition_text", ""),
+                    })
+                result["_candidates"] = candidates
+
             # Step 6: Always queue for Executive (§30)
             # Executive decides heuristic-vs-LLM based on suggestion context.
             logger.info(
@@ -213,6 +265,7 @@ class EventRouter:
                 event_id=event_id,
                 salience=round(max_salience, 2),
                 has_suggestion=heuristic_data is not None,
+                candidate_count=len(result.get("_candidates", [])),
             )
             result["queued"] = True
             result["_salience"] = max_salience
@@ -249,6 +302,17 @@ class EventRouter:
         except Exception as e:
             logger.error("Error routing event", event_id=event_id, error=str(e))
             return {"event_id": event_id, "accepted": False, "error_message": str(e)}
+
+    def _extract_action_text(self, effects_json: Any, heuristic_id: str) -> str:
+        """Extract suggested action text from a heuristic effects payload."""
+        action_text = ""
+        try:
+            action = json.loads(effects_json) if isinstance(effects_json, str) else effects_json
+            if isinstance(action, dict):
+                action_text = action.get("message") or action.get("text") or action.get("response") or ""
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse effects_json", heuristic_id=heuristic_id)
+        return action_text
 
     def _has_explicit_salience(self, event: Any) -> bool:
         """Check if event has explicitly-set salience values (for testing/override)."""
@@ -383,7 +447,12 @@ class EventRouter:
         ]
         return max(dimensions)
 
-    async def _send_immediate(self, event: Any, suggestion: dict | None = None) -> dict | None:
+    async def _send_immediate(
+        self,
+        event: Any,
+        suggestion: dict | None = None,
+        candidates: list[dict] | None = None,
+    ) -> dict | None:
         """
         Send event immediately to Executive for LLM processing.
 
@@ -396,7 +465,11 @@ class EventRouter:
         event_id = getattr(event, 'id', 'unknown')
 
         if self._executive_client:
-            response = await self._executive_client.send_event_immediate(event, suggestion=suggestion)
+            response = await self._executive_client.send_event_immediate(
+                event,
+                suggestion=suggestion,
+                candidates=candidates,
+            )
             if response.get("accepted"):
                 logger.info("IMMEDIATE: Event delivered to Executive", event_id=event_id)
             else:

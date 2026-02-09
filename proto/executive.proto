@@ -32,6 +32,7 @@ message ProcessEventRequest {
     Event event = 1;
     bool immediate = 2;
     HeuristicSuggestion suggestion = 3;  // Optional: low-conf heuristic that matched
+    repeated HeuristicSuggestion candidates = 4;  // Other below-threshold heuristic matches
     RequestMetadata metadata = 15;
 }
 

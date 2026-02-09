@@ -13,6 +13,7 @@ Architecture:
 
 import asyncio
 import heapq
+import inspect
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, Optional
@@ -36,6 +37,7 @@ class QueuedEvent:
     suggested_action: str = ""
     heuristic_confidence: float = 0.0
     condition_text: str = ""
+    candidates: list[dict] = field(default_factory=list)
 
 
 class EventQueue:
@@ -51,7 +53,7 @@ class EventQueue:
     def __init__(
         self,
         config: OrchestratorConfig,
-        process_callback: Optional[Callable[[Any, Optional[dict]], Coroutine[Any, Any, dict]]] = None,
+        process_callback: Optional[Callable[[Any, Optional[dict], list[dict]], Coroutine[Any, Any, dict]]] = None,
         broadcast_callback: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
         store_callback: Optional[Callable[[Any, dict], Coroutine[Any, Any, None]]] = None,
     ):
@@ -66,6 +68,7 @@ class EventQueue:
         """
         self.config = config
         self._process_callback = process_callback
+        self._process_callback_accepts_candidates = self._callback_accepts_candidates(process_callback)
         self._broadcast_callback = broadcast_callback
         self._store_callback = store_callback
 
@@ -132,6 +135,7 @@ class EventQueue:
         suggested_action: str = "",
         heuristic_confidence: float = 0.0,
         condition_text: str = "",
+        candidates: list[dict] | None = None,
     ) -> None:
         """
         Add an event to the queue.
@@ -143,6 +147,7 @@ class EventQueue:
             suggested_action: Action text from low-conf heuristic (Scenario 2)
             heuristic_confidence: Confidence of matched heuristic
             condition_text: Condition text from matched heuristic
+            candidates: Additional below-threshold heuristic candidates
         """
         event_id = getattr(event, "id", str(id(event)))
         now_ms = int(time.time() * 1000)
@@ -156,6 +161,7 @@ class EventQueue:
             suggested_action=suggested_action,
             heuristic_confidence=heuristic_confidence,
             condition_text=condition_text,
+            candidates=list(candidates or []),
         )
 
         self._pending[event_id] = queued
@@ -227,7 +233,10 @@ class EventQueue:
                         "confidence": queued.heuristic_confidence,
                         "condition_text": queued.condition_text,
                     }
-                response = await self._process_callback(queued.event, suggestion)
+                if self._process_callback_accepts_candidates:
+                    response = await self._process_callback(queued.event, suggestion, queued.candidates)
+                else:
+                    response = await self._process_callback(queued.event, suggestion)
 
             process_time_ms = int((time.time() - start_time) * 1000)
             self._total_processed += 1
@@ -359,3 +368,17 @@ class EventQueue:
             "total_processed": self._total_processed,
             "total_timed_out": self._total_timed_out,
         }
+
+    def _callback_accepts_candidates(self, callback: Callable | None) -> bool:
+        """Return True if callback can accept a third positional argument for candidates."""
+        if callback is None:
+            return False
+        try:
+            signature = inspect.signature(callback)
+        except (TypeError, ValueError):
+            return True
+
+        params = list(signature.parameters.values())
+        if any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params):
+            return True
+        return len(params) >= 3
