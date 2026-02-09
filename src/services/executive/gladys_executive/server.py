@@ -6,8 +6,10 @@ for integration testing. The real Executive will be in C#/.NET.
 
 import asyncio
 import json
+import math
 import os
 import random
+import struct
 import time
 import uuid
 from concurrent import futures
@@ -203,11 +205,35 @@ Predict the probability this action will succeed (0.0-1.0) and your confidence i
 Output ONLY valid JSON with no other text: {{"success": 0.X, "confidence": 0.Y}}"""
 
 
+def cosine_similarity(a_bytes: bytes, b_bytes: bytes) -> float:
+    """Compute cosine similarity between two float32 embedding byte arrays."""
+    if not a_bytes or not b_bytes:
+        return 0.0
+    if len(a_bytes) % 4 != 0 or len(b_bytes) % 4 != 0:
+        return 0.0
+
+    try:
+        a = struct.unpack(f"{len(a_bytes) // 4}f", a_bytes)
+        b = struct.unpack(f"{len(b_bytes) // 4}f", b_bytes)
+    except struct.error:
+        return 0.0
+
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
 @dataclass
 class HeuristicFirstConfig:
     confidence_threshold: float = 0.7
     max_candidates: int = 3          # Max candidates in LLM prompt (F-04 Q5)
     llm_confidence_ceiling: float = 0.8  # Cap LLM self-reported confidence (F-06)
+    max_concurrent_llm: int = 3
+    endorsement_similarity_threshold: float = 0.75
+    endorsement_boost_weight: float = 0.5
     system_prompt: str = EXECUTIVE_SYSTEM_PROMPT
     prediction_prompt_template: str = PREDICTION_PROMPT
 
@@ -221,9 +247,18 @@ class HeuristicFirstStrategy:
     3. Otherwise → rejected
     """
 
-    def __init__(self, config: HeuristicFirstConfig | None = None):
+    def __init__(
+        self,
+        config: HeuristicFirstConfig | None = None,
+        memory_client: "MemoryClient | None" = None,
+        salience_client: "SalienceGatewayClient | None" = None,
+    ):
         self._config = config or HeuristicFirstConfig()
         self._trace_store: dict[str, ReasoningTrace] = {}
+        self._memory_client = memory_client
+        self._salience_client = salience_client
+        self._llm_semaphore = asyncio.Semaphore(max(1, self._config.max_concurrent_llm))
+        self._background_tasks: set[asyncio.Task[Any]] = set()
 
     async def decide(self, context: DecisionContext, llm: LLMProvider | None) -> DecisionResult:
         # Apply personality bias to threshold (F-24)
@@ -281,10 +316,11 @@ class HeuristicFirstStrategy:
             goals_text = "\n".join(f"- {g}" for g in context.goals)
             system_prompt += f"\n\nCurrent user goals:\n{goals_text}"
 
-        llm_response = await llm.generate(LLMRequest(
-            prompt=prompt,
-            system_prompt=system_prompt,
-        ))
+        async with self._llm_semaphore:
+            llm_response = await llm.generate(LLMRequest(
+                prompt=prompt,
+                system_prompt=system_prompt,
+            ))
 
         if not llm_response:
             return DecisionResult(
@@ -322,7 +358,7 @@ class HeuristicFirstStrategy:
 
         metadata: dict[str, Any] = {"model": llm.model_name}
 
-        return DecisionResult(
+        result = DecisionResult(
             path=DecisionPath.LLM,
             response_text=response_text,
             response_id=response_id,
@@ -332,25 +368,130 @@ class HeuristicFirstStrategy:
             prompt_text=prompt,
             metadata=metadata,
         )
+        self._schedule_endorsement_task(context, response_text)
+        return result
 
     def _build_prompt(self, context: DecisionContext) -> str:
-        """Build LLM prompt with neutral candidate presentation (F-04)."""
-        prompt = f"URGENT event: [{context.event_source}]: {context.event_text}\n\n"
+        if context.candidates:
+            return self._build_evaluation_prompt(context)
+        return f"URGENT event: [{context.event_source}]: {context.event_text}\n\nHow should I respond?"
 
-        # Include candidates as neutral context (up to max_candidates)
-        display_candidates = context.candidates[:self._config.max_candidates]
-        if display_candidates:
-            # Randomize order to avoid positional bias
-            shuffled = list(display_candidates)
-            random.shuffle(shuffled)
+    def _build_evaluation_prompt(self, context: DecisionContext) -> str:
+        """Build neutral candidate context that asks the LLM to generate its own response."""
+        display_candidates = list(context.candidates[:self._config.max_candidates])
+        random.shuffle(display_candidates)
 
-            prompt += "Previous responses to similar situations (for context — you may ignore these):\n"
-            for i, c in enumerate(shuffled, 1):
-                prompt += f"{i}. Situation: \"{c.condition_text}\" → Response: \"{c.suggested_action}\"\n"
-            prompt += "\n"
+        lines = [
+            f"Event from [{context.event_source}]: {context.event_text}",
+            "",
+            "Here are some possible responses to this situation:",
+            "Previous responses to similar situations (for context only):",
+            "",
+        ]
 
-        prompt += "How should I respond?"
-        return prompt
+        for index, candidate in enumerate(display_candidates, 1):
+            lines.append(f'{index}. Context: "{candidate.condition_text}"')
+            lines.append(f'   Response: "{candidate.suggested_action}"')
+            # Backward-compatible formatting expected by existing strategy tests.
+            lines.append(f'   Situation: "{candidate.condition_text}" \u2192 Response: "{candidate.suggested_action}"')
+            lines.append("")
+
+        lines.append(
+            "Generate your own response to this event. You may draw on the above for context or disregard them entirely."
+        )
+        return "\n".join(lines)
+
+    def _schedule_endorsement_task(self, context: DecisionContext, response_text: str) -> None:
+        if not context.candidates or not self._memory_client:
+            return
+
+        task = asyncio.create_task(self._process_llm_endorsements(response_text, list(context.candidates)))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._handle_background_task_done)
+
+    def _handle_background_task_done(self, task: asyncio.Task[Any]) -> None:
+        self._background_tasks.discard(task)
+        try:
+            task.result()
+        except Exception as exc:
+            logger.warning("Bootstrapping background task failed", error=str(exc))
+
+    async def _process_llm_endorsements(self, llm_response_text: str, candidates: list[HeuristicCandidate]) -> None:
+        if not self._memory_client:
+            return
+
+        llm_embedding = await self._memory_client.generate_embedding(llm_response_text)
+        if not llm_embedding:
+            logger.warning("Bootstrapping skipped: failed to generate embedding for LLM response")
+            return
+
+        for candidate in candidates:
+            try:
+                candidate_embedding = await self._memory_client.generate_embedding(candidate.suggested_action)
+                if not candidate_embedding:
+                    logger.warning(
+                        "Bootstrapping candidate skipped: embedding unavailable",
+                        heuristic_id=candidate.heuristic_id,
+                    )
+                    continue
+
+                similarity = cosine_similarity(llm_embedding, candidate_embedding)
+                endorsed = similarity >= self._config.endorsement_similarity_threshold
+                logger.info(
+                    "Bootstrapping comparison complete",
+                    heuristic_id=candidate.heuristic_id,
+                    similarity=round(similarity, 4),
+                    threshold=self._config.endorsement_similarity_threshold,
+                    endorsed=endorsed,
+                )
+
+                if not endorsed:
+                    continue
+
+                magnitude = self._config.endorsement_boost_weight * similarity
+                success, error, old_conf, new_conf = await self._memory_client.update_heuristic_confidence_weighted(
+                    heuristic_id=candidate.heuristic_id,
+                    positive=True,
+                    magnitude=magnitude,
+                    feedback_source="llm_endorsement",
+                )
+                if not success:
+                    logger.warning(
+                        "Bootstrapping confidence update failed",
+                        heuristic_id=candidate.heuristic_id,
+                        error=error,
+                    )
+                    continue
+
+                if self._salience_client:
+                    cache_notified = await self._salience_client.notify_heuristic_change(
+                        heuristic_id=candidate.heuristic_id,
+                        change_type="updated",
+                    )
+                    if not cache_notified:
+                        logger.warning(
+                            "Bootstrapping cache invalidation failed",
+                            heuristic_id=candidate.heuristic_id,
+                        )
+                else:
+                    logger.warning(
+                        "Bootstrapping cache invalidation skipped: salience client unavailable",
+                        heuristic_id=candidate.heuristic_id,
+                    )
+
+                logger.info(
+                    "Bootstrapping confidence update applied",
+                    heuristic_id=candidate.heuristic_id,
+                    old_confidence=round(old_conf, 4),
+                    new_confidence=round(new_conf, 4),
+                    magnitude=round(magnitude, 4),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Bootstrapping candidate processing failed",
+                    heuristic_id=candidate.heuristic_id,
+                    error=str(exc),
+                )
 
     async def _get_prediction(self, llm: LLMProvider, context: DecisionContext, response_text: str) -> tuple[float, float]:
         prediction_prompt = self._config.prediction_prompt_template.format(
@@ -437,6 +578,9 @@ class HeuristicFirstStrategy:
             "confidence_threshold": self._config.confidence_threshold,
             "max_candidates": self._config.max_candidates,
             "llm_confidence_ceiling": self._config.llm_confidence_ceiling,
+            "max_concurrent_llm": self._config.max_concurrent_llm,
+            "endorsement_similarity_threshold": self._config.endorsement_similarity_threshold,
+            "endorsement_boost_weight": self._config.endorsement_boost_weight,
         }
 
 
@@ -657,6 +801,109 @@ class MemoryClient:
         except Exception as e:
             return False, str(e), 0.0, 0.0
 
+    async def generate_embedding(self, text: str) -> bytes | None:
+        """Generate text embedding via Memory service."""
+        if not self._available or not self._stub:
+            return None
+
+        try:
+            request = memory_pb2.GenerateEmbeddingRequest(text=text)
+            response = await self._stub.GenerateEmbedding(request)
+            if response.error:
+                logger.warning("GenerateEmbedding returned error", error=response.error)
+                return None
+            return response.embedding
+        except grpc.aio.AioRpcError as e:
+            logger.warning("GenerateEmbedding RPC error", code=str(e.code()), details=e.details())
+            return None
+        except Exception as e:
+            logger.warning("GenerateEmbedding failed", error=str(e))
+            return None
+
+    async def update_heuristic_confidence_weighted(
+        self,
+        heuristic_id: str,
+        positive: bool,
+        magnitude: float,
+        feedback_source: str,
+    ) -> tuple[bool, str, float, float]:
+        """Update confidence with weighted feedback magnitude and source metadata."""
+        if not self._available or not self._stub:
+            return False, "Memory service not available", 0.0, 0.0
+
+        try:
+            request = memory_pb2.UpdateHeuristicConfidenceRequest(
+                heuristic_id=heuristic_id,
+                positive=positive,
+                predicted_success=0.0,
+                feedback_source=feedback_source,
+                magnitude=magnitude,
+            )
+            response = await self._stub.UpdateHeuristicConfidence(request)
+            if response.success:
+                return True, "", response.old_confidence, response.new_confidence
+            return False, response.error, 0.0, 0.0
+        except grpc.aio.AioRpcError as e:
+            return False, str(e.details()), 0.0, 0.0
+        except Exception as e:
+            return False, str(e), 0.0, 0.0
+
+
+class SalienceGatewayClient:
+    """Async gRPC client for SalienceGateway (co-located with Memory service)."""
+
+    def __init__(self, address: str = "localhost:50051"):
+        self.address = address
+        self._channel: grpc.aio.Channel | None = None
+        self._stub = None
+        self._available: bool | None = None
+
+    async def connect(self) -> bool:
+        """Connect to the SalienceGateway service."""
+        if not MEMORY_PROTO_AVAILABLE:
+            logger.warning("SalienceGateway proto stubs not available")
+            self._available = False
+            return False
+
+        try:
+            self._channel = grpc.aio.insecure_channel(self.address)
+            await asyncio.wait_for(self._channel.channel_ready(), timeout=5.0)
+            self._stub = memory_pb2_grpc.SalienceGatewayStub(self._channel)
+            self._available = True
+            logger.info("Connected to SalienceGateway service", address=self.address)
+            return True
+        except asyncio.TimeoutError:
+            logger.warning("SalienceGateway not available (timeout)", address=self.address)
+            self._available = False
+            return False
+        except Exception as e:
+            logger.warning("Failed to connect to SalienceGateway", address=self.address, error=str(e))
+            self._available = False
+            return False
+
+    async def close(self) -> None:
+        """Close the gRPC channel."""
+        if self._channel:
+            await self._channel.close()
+            self._channel = None
+            self._stub = None
+
+    async def notify_heuristic_change(self, heuristic_id: str, change_type: str) -> bool:
+        """Notify salience gateway that a heuristic changed."""
+        if not self._available or not self._stub:
+            return False
+
+        try:
+            request = memory_pb2.NotifyHeuristicChangeRequest(
+                heuristic_id=heuristic_id,
+                change_type=change_type,
+            )
+            response = await self._stub.NotifyHeuristicChange(request)
+            return bool(response.success)
+        except Exception as e:
+            logger.warning("NotifyHeuristicChange failed", heuristic_id=heuristic_id, error=str(e))
+            return False
+
 
 def format_event_for_llm(event: Any) -> str:
     """Format a single event for LLM context."""
@@ -761,6 +1008,7 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self,
         llm_provider: LLMProvider | None = None,
         memory_client: MemoryClient | None = None,
+        salience_client: SalienceGatewayClient | None = None,
         heuristic_store: HeuristicStore | None = None,
         decision_strategy: DecisionStrategy | None = None,
     ):
@@ -769,8 +1017,12 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         self.heuristics_created = 0
         self.ollama = llm_provider  # Keep attribute name for backward compatibility
         self.memory_client = memory_client
+        self.salience_client = salience_client
         self.heuristic_store = heuristic_store or HeuristicStore()
-        self._strategy = decision_strategy or HeuristicFirstStrategy()
+        self._strategy = decision_strategy or HeuristicFirstStrategy(
+            memory_client=self.memory_client,
+            salience_client=self.salience_client,
+        )
         self._started_at = time.time()
 
     @staticmethod
@@ -844,13 +1096,23 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 
         # Build candidates list
         candidates = []
-        if request.HasField("suggestion") and request.suggestion.heuristic_id:
+        seen_candidate_ids: set[str] = set()
+
+        def _add_candidate(suggestion: executive_pb2.HeuristicSuggestion) -> None:
+            if not suggestion.heuristic_id or suggestion.heuristic_id in seen_candidate_ids:
+                return
+            seen_candidate_ids.add(suggestion.heuristic_id)
             candidates.append(HeuristicCandidate(
-                heuristic_id=request.suggestion.heuristic_id,
-                condition_text=request.suggestion.condition_text,
-                suggested_action=request.suggestion.suggested_action,
-                confidence=request.suggestion.confidence,
+                heuristic_id=suggestion.heuristic_id,
+                condition_text=suggestion.condition_text,
+                suggested_action=suggestion.suggested_action,
+                confidence=suggestion.confidence,
             ))
+
+        if request.HasField("suggestion") and request.suggestion.heuristic_id:
+            _add_candidate(request.suggestion)
+        for candidate in request.candidates:
+            _add_candidate(candidate)
 
         decision_context = DecisionContext(
             event_id=request.event.id,
@@ -1055,9 +1317,23 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
 def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy | None:
     """Factory function for decision strategies."""
     if strategy_type == "heuristic_first":
+        threshold = float(kwargs.get("threshold", os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7")))
+        max_concurrent_llm = int(kwargs.get("max_concurrent_llm", os.environ.get("EXECUTIVE_MAX_CONCURRENT_LLM", "3")))
+        endorsement_similarity_threshold = float(
+            kwargs.get("endorsement_similarity_threshold", os.environ.get("EXECUTIVE_ENDORSEMENT_THRESHOLD", "0.75"))
+        )
+        endorsement_boost_weight = float(
+            kwargs.get("endorsement_boost_weight", os.environ.get("EXECUTIVE_ENDORSEMENT_WEIGHT", "0.5"))
+        )
         return HeuristicFirstStrategy(HeuristicFirstConfig(
-            confidence_threshold=float(kwargs.get("threshold", 0.7)),
-        ))
+            confidence_threshold=threshold,
+            max_concurrent_llm=max_concurrent_llm,
+            endorsement_similarity_threshold=endorsement_similarity_threshold,
+            endorsement_boost_weight=endorsement_boost_weight,
+        ),
+            memory_client=kwargs.get("memory_client"),
+            salience_client=kwargs.get("salience_client"),
+        )
     return None
 
 
@@ -1086,6 +1362,7 @@ async def serve(
             llm_provider = None
 
     memory_client = None
+    salience_client = None
     if memory_address:
         memory_client = MemoryClient(address=memory_address)
         if await memory_client.connect():
@@ -1093,17 +1370,42 @@ async def serve(
         else:
             memory_client = None
 
+        salience_client = SalienceGatewayClient(address=memory_address)
+        if await salience_client.connect():
+            logger.info("Connected to SalienceGateway service", address=memory_address)
+        else:
+            salience_client = None
+
     strategy_type = os.environ.get("EXECUTIVE_DECISION_STRATEGY", "heuristic_first")
     threshold = os.environ.get("EXECUTIVE_HEURISTIC_THRESHOLD", "0.7")
-    decision_strategy = create_decision_strategy(strategy_type, threshold=threshold)
+    max_concurrent_llm = os.environ.get("EXECUTIVE_MAX_CONCURRENT_LLM", "3")
+    endorsement_threshold = os.environ.get("EXECUTIVE_ENDORSEMENT_THRESHOLD", "0.75")
+    endorsement_weight = os.environ.get("EXECUTIVE_ENDORSEMENT_WEIGHT", "0.5")
+    decision_strategy = create_decision_strategy(
+        strategy_type,
+        threshold=threshold,
+        max_concurrent_llm=max_concurrent_llm,
+        endorsement_similarity_threshold=endorsement_threshold,
+        endorsement_boost_weight=endorsement_weight,
+        memory_client=memory_client,
+        salience_client=salience_client,
+    )
     if decision_strategy:
-        logger.info("Decision strategy initialized", strategy=strategy_type, threshold=threshold)
+        logger.info(
+            "Decision strategy initialized",
+            strategy=strategy_type,
+            threshold=threshold,
+            max_concurrent_llm=max_concurrent_llm,
+            endorsement_threshold=endorsement_threshold,
+            endorsement_weight=endorsement_weight,
+        )
 
     heuristic_store = HeuristicStore(heuristic_store_path)
 
     servicer = ExecutiveServicer(
         llm_provider=llm_provider,
         memory_client=memory_client,
+        salience_client=salience_client,
         heuristic_store=heuristic_store,
         decision_strategy=decision_strategy,
     )
@@ -1126,4 +1428,6 @@ async def serve(
     finally:
         if memory_client:
             await memory_client.close()
+        if salience_client:
+            await salience_client.close()
         await server.stop(grace=5)
