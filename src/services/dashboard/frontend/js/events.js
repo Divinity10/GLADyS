@@ -158,10 +158,16 @@ function uploadBatchFile(input) {
             clearStatusAfterDelay(8000);
             return;
         }
+        const payload = Array.isArray(events)
+            ? events.map(ev => ({
+                ...ev,
+                intent: ev && ev.intent ? ev.intent : 'unknown'
+            }))
+            : events;
         fetch('/api/events/batch', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(events)
+            body: JSON.stringify(payload)
         })
         .then(r => r.json())
         .then(data => {

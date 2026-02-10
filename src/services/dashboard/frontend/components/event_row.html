@@ -44,6 +44,7 @@
 
         {{ drilldown_stats_row([
             {'label': 'Source', 'value': event.source},
+            {'label': 'Intent', 'value': event.intent or 'unknown'},
             {'label': 'Path', 'value': event.path},
             {'label': 'Salience', 'value': event.salience_score},
             {'label': 'Confidence', 'value': event.confidence}

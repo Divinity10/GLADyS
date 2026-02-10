@@ -17,6 +17,11 @@
                 <option value="custom">custom...</option>
             </select>
             <input type="text" name="text" placeholder="Enter event text..." required class="input-dense bg-gray-900 flex-1">
+            <select name="intent" class="input-dense bg-gray-900 w-32">
+                <option value="unknown" selected>unknown</option>
+                <option value="actionable">actionable</option>
+                <option value="informational">informational</option>
+            </select>
             <select name="salience_override" class="input-dense bg-gray-900 w-32">
                 <option value="">System (Auto)</option>
                 <option value="high">Force HIGH</option>

@@ -26,6 +26,7 @@ router = APIRouter(prefix="/api")
 class BatchEvent(BaseModel):
     source: str = "batch"
     text: str
+    intent: str | None = None
     id: str | None = None
 
 
@@ -58,6 +59,7 @@ async def submit_batch(request: Request):
             id=event_id,
             source=item.source,
             raw_text=item.text,
+            intent=item.intent or "",
         ))
 
     def _publish_all():

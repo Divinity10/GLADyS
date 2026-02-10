@@ -42,7 +42,8 @@ def _make_event_dict(event_id: str, source: str, text: str,
                      predicted_success: float = None,
                      prediction_confidence: float = None,
                      matched_heuristic_id: str = "",
-                     decision_path: str = "") -> dict:
+                     decision_path: str = "",
+                     intent: str = "") -> dict:
     """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
@@ -83,6 +84,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
     return {
         "id": event_id,
         "source": source,
+        "intent": intent or "",
         "text": text,
         "status": status,
         "path": path,
@@ -115,6 +117,7 @@ def _proto_event_to_dict(ev) -> dict:
     return _make_event_dict(
         event_id=ev.id,
         source=ev.source,
+        intent=ev.intent or "",
         text=ev.raw_text,
         timestamp=ts,
         salience=salience_data,
@@ -155,6 +158,7 @@ async def submit_event(request: Request):
     source = form.get("source", "dashboard")
     text = form.get("text", "")
     salience_override = form.get("salience_override", "")
+    intent = form.get("intent", "unknown")
 
     if not text:
         return HTMLResponse('<span class="text-red-400">Error: text is required</span>', status_code=400)
@@ -168,14 +172,15 @@ async def submit_event(request: Request):
 
     salience = None
     if salience_override == "high":
-        salience = common_pb2.SalienceVector(novelty=0.95, urgency=0.95, threat=0.0)
+        salience = common_pb2.SalienceVector(novelty=0.95, actionability=0.95, threat=0.0)
     elif salience_override == "low":
-        salience = common_pb2.SalienceVector(novelty=0.1, urgency=0.1, threat=0.0)
+        salience = common_pb2.SalienceVector(novelty=0.1, actionability=0.1, threat=0.0)
 
     event = common_pb2.Event(
         id=event_id,
         source=source,
         raw_text=text,
+        intent=intent,
     )
     if salience:
         event.salience.CopyFrom(salience)
