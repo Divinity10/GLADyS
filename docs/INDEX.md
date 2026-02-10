@@ -70,7 +70,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | Type | File | Purpose |
 | :--- | :--- | :--- |
 | **Decisions** | [ARCHITECTURE.md](design/ARCHITECTURE.md) | **10 architectural decisions**: subsystem taxonomy, API tiers, plugin ecosystem, async dispatch, learning module. |
-| **Interfaces** | [INTERFACES.md](design/INTERFACES.md) | **Plugin contracts**: BasePlugin, Sensor/Actuator/Skill interfaces, OutcomeEvaluation, pack manifest, directory structure. |
+| **Interfaces** | [INTERFACES.md](design/INTERFACES.md) | **Plugin contracts**: common/sensor/actuator/skill protocols, OutcomeEvaluation, pack manifest, directory structure. |
 | **Roadmap** | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) | **PoC lifecycle**: claims, convergence tests, baseline metrics, DoD, proven/not-proven templates, future PoC roadmap. |
 | **Scenarios** | [USE_CASES.md](design/USE_CASES.md) | Use case catalog validating architectural decisions. |
 | **State** | [DESIGN.md](design/DESIGN.md) | Per-subsystem implementation status, PoC deviations, open questions. The status-tracking doc. |

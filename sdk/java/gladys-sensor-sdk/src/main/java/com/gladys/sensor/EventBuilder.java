@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * Fluent builder for GLADyS Event protobuf messages.
- * Populates fields that sensors are responsible for (1-5, 11-12, 15).
+ * Populates adapter-responsibility fields (1-5, 11-12, 15).
  * Fields populated downstream (6-10) are not exposed.
  */
 public class EventBuilder {
