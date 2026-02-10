@@ -43,7 +43,7 @@
 
 **Response Manager rejected as subsystem** — demoted to Executive module. Adding a service hop between Executive and actuators costs latency, and personality should be a prompt modifier in a single LLM call, not a second call. Actuator routing is a dispatch table; channel state is reported by actuators via interface; preemption is the actuator's responsibility.
 
-**Supervisor justification**: Single authority on component health. Independent monitoring loop calls `health()` on all registered components uniformly via BasePlugin interface. Distributing health monitoring across subsystems creates duplication and no single source of truth. May share a process with Orchestrator if code boundary stays clean.
+**Supervisor justification**: Single authority on component health. Independent monitoring loop calls `health()` on all registered components uniformly via the common plugin protocol. Distributing health monitoring across subsystems creates duplication and no single source of truth. May share a process with Orchestrator if code boundary stays clean.
 
 ---
 
@@ -63,7 +63,7 @@
 
 **Personality can affect reasoning.** Primarily a prompt modifier (tone, style, TTS voice), but packs can optionally include heuristics and skills. Personality heuristics are tagged by origin (e.g., `origin: 'personality:glados'`) and disabled by default on personality swap. The system can cleanly enable/disable them as a group.
 
-**Interface composition**: All plugins implement BasePlugin. Type-specific interfaces layer on top. See [INTERFACES.md](INTERFACES.md) for contracts.
+**Interface composition**: All plugins implement a common protocol (lifecycle + health). Type-specific protocols layer on top. See [INTERFACES.md](INTERFACES.md) for contracts.
 
 ---
 
@@ -123,7 +123,7 @@ See [INTERFACES.md](INTERFACES.md) for pack directory structure and manifest for
 
 **Key changes**: `src/services/` (subsystem per dir), `src/lib/` (shared libraries), `packs/` (domain-first plugins), `cli/` (replaces scripts/), `src/db/migrations/` (shared concern), `tests/` (consolidated).
 
-See [INTERFACES.md](INTERFACES.md) for full directory layout.
+Run `uv run codebase-info tree` for the current layout.
 
 ---
 

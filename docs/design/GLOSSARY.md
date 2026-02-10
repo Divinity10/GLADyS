@@ -49,7 +49,7 @@ See: ADR-0010
 A component that captures information from the world and delivers normalized events to the orchestrator. Supports both push (immediate) and poll (periodic) delivery patterns.
 
 **Direction:** World → Brain
-**Structure:** Driver (capture) + Sensor (normalization/protocol)
+**Structure:** Driver (capture) + Adapter (normalization/protocol)
 **Examples:** Microphone, temperature sensor, game state reader, doorbell, email monitor
 
 See: SENSOR_ARCHITECTURE.md, ADR-0003
@@ -100,20 +100,20 @@ A bridge to external ecosystems (Home Assistant, Google Home) that exposes their
 See: ADR-0011
 
 ### Sensor Protocol
-The language-agnostic contract that all GLADyS sensors must implement to communicate with the orchestrator. Covers registration, event publishing, heartbeats, health reporting, recovery, capture/replay, and flow control.
+The language-agnostic contract that all GLADyS adapters must implement to communicate with the orchestrator. Covers registration, event publishing, heartbeats, health reporting, recovery, capture/replay, and flow control.
 
 See: SENSOR_ARCHITECTURE.md §3
 
 ### Driver
-A lightweight, application-specific component that captures events from a target application and sends them to a sensor. Drivers are polyglot and run inside or alongside the application they monitor; they are a sensor-internal concern.
+A lightweight, application-specific component that captures events from a target application and sends them to an adapter. Drivers are polyglot and run inside or alongside the application they monitor; they are a sensor-internal concern.
 
 **Language:** Polyglot (native to target app)
-**Direction:** App → Sensor
+**Direction:** App → driver → adapter → orchestrator
 
 See: SENSOR_ARCHITECTURE.md §1.1
 
 ### Delivery Pattern
-The mechanism by which a sensor collects data from its target. PoC 2 supports **push** (driver sends events when they occur) and **poll** (sensor periodically checks state) patterns.
+The mechanism by which a driver collects data from its target. PoC 2 supports **push** (driver sends events when they occur) and **poll** (adapter periodically checks state) patterns.
 
 See: SENSOR_ARCHITECTURE.md §2.3
 
@@ -123,7 +123,7 @@ A YAML configuration file that declares a sensor's identity, capabilities (event
 See: SENSOR_ARCHITECTURE.md §10
 
 ### Intent
-A routing hint provided by a sensor indicating whether an event expects a response.
+A routing hint provided by an adapter indicating whether an event expects a response.
 
 | Intent | Routing |
 |--------|---------|
@@ -271,12 +271,12 @@ The REST API gateway for external access to GLADyS subsystems. Used by the Dashb
 Google's high-performance RPC framework using Protocol Buffers (protobuf) for typed message serialization. GLADyS uses gRPC for all service-to-service communication. Proto definitions live in `proto/` and are the source of truth for service contracts.
 
 ### Capture/Replay
-A protocol-level feature for recording and replaying event streams at two boundaries: driver-to-sensor (raw) and sensor-to-orchestrator (normalized). Enables development and testing without live target applications or sensors.
+A protocol-level feature for recording and replaying event streams at two boundaries: driver-to-adapter (raw) and adapter-to-orchestrator (normalized). Enables development and testing without live target applications or sensors.
 
 See: SENSOR_ARCHITECTURE.md §4
 
 ### PublishEvent / PublishEvents
-The gRPC unary RPCs used by sensors to send normalized events to the orchestrator. `PublishEvent` is for single events; `PublishEvents` is a batch transport for high-volume sensors (e.g., RuneScape).
+The gRPC unary RPCs used by adapters to send normalized events to the orchestrator. `PublishEvent` is for single events; `PublishEvents` is a batch transport for high-volume sensors (e.g., RuneScape).
 
 See: SENSOR_ARCHITECTURE.md §1.3, §3
 

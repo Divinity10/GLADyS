@@ -3,8 +3,8 @@ import { Event, RequestMetadata } from "./generated/common";
 
 /**
  * Fluent builder for GLADyS Event messages.
- * Populates sensor-responsibility fields (1-5, 11-12, 15).
- * Fields 6-10 are populated downstream and must not be set by sensors.
+ * Populates adapter-responsibility fields (1-5, 11-12, 15).
+ * Fields 6-10 are populated downstream and must not be set by adapters.
  */
 export class EventBuilder {
   private readonly source: string;
