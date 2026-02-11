@@ -43,7 +43,7 @@ SALIENCE_DIMENSIONS = (
     ("novelty", 0.0, 1.0),
     ("goal_relevance", 0.0, 1.0),
     ("social", 0.0, 1.0),
-    ("emotional", -1.0, 1.0),
+    ("emotional", 0.0, 1.0),
     ("actionability", 0.0, 1.0),
     ("habituation", 0.0, 1.0),
 )
