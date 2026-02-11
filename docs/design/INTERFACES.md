@@ -7,27 +7,32 @@ This document defines the contracts between subsystems, plugin interfaces, and d
 
 ---
 
-## Plugin Interface Composition
+## Plugin Protocols
 
-All plugins implement a base interface. Type-specific interfaces layer on top. The Supervisor calls `health()` uniformly on all plugin types without needing type-specific knowledge.
+Each plugin type is defined as a **protocol** (language-agnostic contract), not a base class. Per-language SDKs provide composable helpers that implement the protocol. Base classes don't translate well across languages — SDKs do (see [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks) for the full rationale).
 
-### BasePlugin (all plugins)
+All plugin types share a common lifecycle and health contract. The Supervisor calls `health()` uniformly on all plugin types without needing type-specific knowledge.
+
+### Common Protocol (all plugins)
 
 ```
-health() → HealthStatus          # status reporting (used by Supervisor)
-capabilities() → [Capability]    # what this plugin can do
 start() → void                   # lifecycle: initialize and begin
 stop() → void                    # lifecycle: clean shutdown
+health() → HealthStatus          # status reporting (used by Supervisor)
+recover() → bool                 # attempt self-healing (true=recovered, false=shutdown needed)
 ```
 
-### SensorPlugin = BasePlugin + SensorInterface
+### Sensor Protocol
+
+Defined in detail in [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks).
 
 ```
-emit_events() → EventStream      # event stream to Orchestrator
-get_state() → busy | idle | error
+emit_events() → Event[]          # produce normalized events
+start_capture(boundary) → void   # begin JSONL capture
+stop_capture(boundary) → void    # stop JSONL capture
 ```
 
-### ActuatorPlugin = BasePlugin + ActuatorInterface
+### Actuator Protocol
 
 ```
 execute(action) → Result         # perform the action
@@ -35,7 +40,7 @@ get_state() → busy | idle | error
 interrupt(priority) → bool       # whether preemption succeeded
 ```
 
-### SkillPlugin = BasePlugin + SkillInterface
+### Skill Protocol
 
 ```
 process(event, context) → Decision
@@ -107,7 +112,7 @@ message EventAck {
 
 ## OutcomeEvaluation
 
-Returned by `SkillPlugin.evaluate_outcome()`. Used by the learning module to weight Bayesian confidence updates.
+Returned by the skill protocol's `evaluate_outcome()`. Used by the learning module to weight Bayesian confidence updates.
 
 ```
 OutcomeEvaluation {
@@ -212,55 +217,3 @@ personality: null  # Uses system personality
 ```
 
 Runtime scans manifests to discover what to load — no hard-coded paths.
-
----
-
-## Codebase Directory Structure
-
-Target layout after restructure (ARCHITECTURE.md §9).
-
-```
-GLADys/
-├── proto/                      # Shared proto definitions (unchanged)
-├── src/
-│   ├── lib/                    # Shared libraries (imported, not deployed)
-│   │   ├── gladys_common/      # Logging, shared utils
-│   │   └── gladys_client/      # Unified service client
-│   │
-│   ├── services/               # Runtime subsystems (each is deployable)
-│   │   ├── orchestrator/
-│   │   ├── memory/             # MemoryStorage only
-│   │   ├── salience/           # SalienceGateway (Rust) — own home
-│   │   ├── executive/
-│   │   ├── fun_api/            # REST gateway + dev/QA UI
-│   │   └── supervisor/         # Future: health monitoring
-│   │
-│   └── db/
-│       └── migrations/         # Schema (not memory-owned)
-│
-├── packs/                      # Plugin ecosystem (domain-first)
-│   ├── core/
-│   ├── personalities/
-│   └── ...
-│
-├── cli/                        # CLI tools only (no shared libs)
-│   ├── local.py
-│   ├── docker.py
-│   └── ...
-│
-├── tests/                      # All tests consolidated
-│   ├── unit/
-│   └── integration/
-│
-├── tools/                      # Dev-only tooling (docsearch, etc.)
-└── docs/
-```
-
-### Key principles
-
-- **`src/lib/`** — shared libraries, separate from services
-- **`src/services/`** — each subsystem gets its own directory, independently deployable
-- **`packs/`** — plugin/sensor work has a home from day one
-- **`cli/`** — pure CLI tools, no shared library code (that goes in `src/lib/`)
-- **`src/db/migrations/`** — database schema is a shared concern, not memory-owned
-- **`tests/`** — consolidated, not scattered across service directories

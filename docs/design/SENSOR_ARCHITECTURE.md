@@ -14,17 +14,17 @@ Sensors are one component of a **skill pack** (sensor + domain skill + heuristic
 
 ---
 
-## 1. Architecture: Driver / Sensor / Orchestrator
+## 1. Architecture: Driver / Adapter / Orchestrator
 
 Three-layer pipeline with clear boundaries.
 
 ```
-┌──────────┐     native      ┌──────────┐     gRPC        ┌──────────────┐
-│  Driver  │ ──────────────► │  Sensor  │ ─────────────► │ Orchestrator │
-│ (polyglot)│   transport    │ (polyglot)│  PublishEvent(s)│              │
-└──────────┘                 └──────────┘                 └──────────────┘
- App-specific                 Normalizes                   Routes, stores,
- event capture                to GLADyS                    processes
+┌───────────┐     native      ┌───────────┐     gRPC        ┌──────────────┐
+│  Driver   │ ──────────────► │  Adapter  │ ──────────────► │ Orchestrator │
+│ (polyglot)│   transport     │ (polyglot)│  PublishEvent(s)│              │
+└───────────┘                 └───────────┘                 └──────────────┘
+ App-specific                 Normalizes                    Routes, stores,
+ event capture                to GLADyS                     processes
                               event contract
 ```
 
@@ -32,28 +32,28 @@ Three-layer pipeline with clear boundaries.
 
 - Runs inside or alongside the target application
 - Language = whatever the app requires (Java for RuneLite, browser extension for web apps, etc.)
-- Responsibilities: capture app events, send to sensor via native transport (HTTP, WebSocket, file, etc.)
-- Does NOT normalize, classify, or filter — that's the sensor's job
-- Reports driver-level metrics to sensor (events handled, dropped, errors)
+- Responsibilities: capture app events, send to adapter via native transport (HTTP, WebSocket, file, etc.)
+- Does NOT normalize, classify, or filter — that's the adapter's job
+- Reports driver-level metrics to adapter (events handled, dropped, errors)
 - **Drivers are a sensor concern, not a GLADyS concern.** Each sensor decides the best way to collect data from its target.
 
 #### Browser extension drivers
 
 Browser extensions push data outward — external processes cannot reach into an extension. Communication patterns:
-- **HTTP push**: Extension POSTs to sensor's local HTTP endpoint (simplest, used by existing Melvor exploratory code)
-- **WebSocket**: Extension opens persistent connection to sensor. Enables bidirectional communication — sensor can request "check now" for poll-pattern sensors.
+- **HTTP push**: Extension POSTs to adapter's local HTTP endpoint (simplest, used by existing Melvor exploratory code)
+- **WebSocket**: Extension opens persistent connection to adapter. Enables bidirectional communication — adapter can request "check now" for poll-pattern adapter.
 
-The sensor cannot poll a browser extension. For poll-pattern sensors using browser extensions (e.g., Gmail), the extension handles polling internally and pushes results to the sensor.
+The adapter cannot poll a browser extension. For poll-pattern adapter using browser extensions (e.g., Gmail), the extension handles polling internally and pushes results to the adapter.
 
-### 1.2 Sensor (polyglot, protocol-driven)
+### 1.2 Adapter (polyglot, protocol-driven)
 
 - Receives raw driver data, normalizes to GLADyS event contract
 - Implements the **sensor protocol** (§3) — language-agnostic contract
 - Manages its own emit schedule (rate control independent of driver event rate)
 - Publishes normalized events to orchestrator via gRPC `PublishEvent` / `PublishEvents`
-- How the sensor manages its driver(s) is an internal implementation detail. A game sensor may have one driver; an email sensor may manage multiple driver instances (one per account).
+- How the adapter manages its driver(s) is an internal implementation detail. A game adapter may have one driver; an email adapter may manage multiple driver instances (one per account).
 
-**Language choice**: Sensors may be written in any language that can implement the protocol. When driver and sensor share a language, they can use native calls instead of IPC — eliminating a serialization boundary. Python, Java, and JavaScript/TypeScript SDKs are provided for PoC 2 (§3.3).
+**Language choice**: adapter may be written in any language that can implement the protocol. When driver and adapter share a language, they can use native calls instead of IPC — eliminating a serialization boundary. Python, Java, and JavaScript/TypeScript SDKs are provided for PoC 2 (§3.3).
 
 ### 1.3 Orchestrator interface
 
@@ -61,7 +61,7 @@ The sensor cannot poll a browser extension. For poll-pattern sensors using brows
 - `PublishEvents` — batch gRPC call (repeated Event). For high-volume sensors (e.g., RuneScape: 100+ events per tick). Sensor chooses which to use based on volume.
 - `RegisterComponent` for sensor registration
 - `system.metrics` events routed to system handlers, not salience pipeline
-- Orchestrator sees one sensor, not individual drivers — the sensor abstracts its driver topology
+- Orchestrator sees one sensor (the adapter), not individual drivers — the adapter abstracts its driver topology
 
 ### 1.4 Remote sensors (future consideration)
 
@@ -100,13 +100,13 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 | `intent` | 11 | enum: `actionable`, `informational`, `unknown` | `unknown` | F-20 |
 | `evaluation_data` | 12 | Struct | empty | F-19 |
 
-**`intent`** — Routing hint from the sensor. The sensor knows best whether an event expects a response.
+**`intent`** — Routing hint from the adapter. The adapter knows best whether an event expects a response.
 
 | Intent | Routing |
 |--------|---------|
 | `actionable` | Full pipeline: salience → executive → response |
 | `informational` | Store as context in memory. Available for retrieval by executive when processing future actionable events. No pipeline routing. |
-| `unknown` (default) | Let salience decide. Sensors that haven't classified their events use this. |
+| `unknown` (default) | Let salience decide. Adapters that haven't classified their events use this. |
 
 **Note**: `backfill` (F-21: pre-existing state dumped on connect) is deferred. If needed, it can be added as a fourth intent value (`intent: backfill`) which would route identically to `informational` with additional semantics: timestamps may be inaccurate, not a missed learning opportunity.
 
@@ -129,7 +129,7 @@ Two patterns for PoC 2 (streaming deferred):
 | Pattern | How it works | Examples | Volume profile |
 |---------|-------------|----------|---------------|
 | Push (`event`) | Driver sends events when things happen | Game combat, game state changes | Bursty — zero to hundreds/sec |
-| Poll | Sensor periodically checks state | Email check, system monitor | Steady — configurable interval |
+| Poll | Adapter periodically checks state | Email check, system monitor | Steady — configurable interval |
 
 Each pattern has different volume management characteristics. The `structured` field carries delivery-pattern-specific attributes when needed (e.g., `poll_interval` for poll sensors).
 
@@ -142,7 +142,7 @@ Each pattern has different volume management characteristics. The `structured` f
 
 ### 2.5 Source semantics
 
-- Sensor decides the source string per event
+- Adapter decides the source string per event
 - Flat string sufficient for PoC 2
 - Used as hard filter in heuristic matching (F-01) — prevents cross-domain false matches
 - Multi-driver sensors may differentiate source per driver instance or use a shared source — sensor's decision
@@ -155,17 +155,17 @@ The sensor architecture is defined as a **protocol** (language-agnostic contract
 
 ### 3.1 Sensor Protocol (language-agnostic)
 
-Every sensor, regardless of implementation language, must:
+Every adapter, regardless of implementation language, must:
 
 1. **Register** with the orchestrator via `RegisterComponent` gRPC
 2. **Publish events** via `PublishEvent` (single) or `PublishEvents` (batch) gRPC
 3. **Emit heartbeats** as `system.metrics` events at the declared `heartbeat_interval_s`
 4. **Report health** when queried by orchestrator
 5. **Attempt recovery** when orchestrator calls `recover()`
-6. **Support capture/replay** — write JSONL at two boundaries (driver→sensor raw, sensor→orchestrator normalized)
+6. **Support capture/replay** — write JSONL at two boundaries (driver→adapter raw, adapter→orchestrator normalized)
 7. **Enforce flow control** — accept strategy configuration from orchestrator at registration, execute locally
 
-The protocol is defined by the gRPC service contract and the JSONL capture format. Any language that can do gRPC can implement a sensor.
+The protocol is defined by the gRPC service contract and the JSONL capture format. Any language that can do gRPC can implement an adapter.
 
 ### 3.2 Protocol Interface
 
@@ -180,17 +180,17 @@ Sensor Protocol:
     stop_capture(boundary)     → Stop JSONL capture, flush file
 ```
 
-Flow control is **configuration-injected**, not code-injected. At registration, the orchestrator sends: strategy name + parameters (e.g., `{ strategy: "rate_limiter", max_events_per_sec: 100 }`). Each language SDK implements the named strategies locally. This works across process and language boundaries — the orchestrator injects configuration, sensors execute behavior.
+Flow control is **configuration-injected**, not code-injected. At registration, the orchestrator sends: strategy name + parameters (e.g., `{ strategy: "rate_limiter", max_events_per_sec: 100 }`). Each language SDK implements the named strategies locally. This works across process and language boundaries — the orchestrator injects configuration, adapters execute the behavior locally.
 
 ### 3.3 Language SDKs (PoC 2)
 
 | SDK | Language | Covers | Scope |
 |-----|----------|--------|-------|
-| **Python SDK** | Python | Generic sensors, reference implementation | Full base class with capture/replay, metrics, flow control, buffering. Sensors extend and get infrastructure for free. |
-| **JavaScript/TypeScript SDK** | JS/TS | Browser extension sensors (Melvor, Sudoku, Gmail) | Lightweight library: gRPC publish client (or HTTP-to-gRPC proxy — browser extensions can't do gRPC directly), metrics helpers, JSONL capture. |
+| **Python SDK** | Python | Generic adapters, reference implementation | Full base class with capture/replay, metrics, flow control, buffering. Adapters extend and get infrastructure for free. |
+| **JavaScript/TypeScript SDK** | JS/TS | Browser extension drivers (Melvor, Sudoku, Gmail) | Lightweight library: gRPC publish client (or HTTP-to-gRPC proxy — browser extensions can't do gRPC directly), metrics helpers, JSONL capture. |
 | **Java SDK** | Java | RuneScape (RuneLite plugin) | Lightweight library: gRPC publish client, metrics helpers, JSONL capture. |
 
-**Why per-language SDKs, not per-language base classes?** Base classes are inheritance-based and don't translate well across languages. SDKs provide composable helpers. The Python SDK uses a base class because Python sensors benefit from it (multiple potential generic sensors). The JS and Java SDKs are libraries, not base classes.
+**Why per-language SDKs, not per-language base classes?** Base classes are inheritance-based and don't translate well across languages. SDKs provide composable helpers. The Python SDK uses a base class because Python adapters benefit from it (multiple potential generic adapters). The JS and Java SDKs are libraries, not base classes.
 
 **Browser extension limitation**: Browser extensions cannot make gRPC calls (no HTTP/2 client-initiated connections). Browser-based sensors need either:
 - A local HTTP endpoint on the orchestrator (REST alongside gRPC)
@@ -200,54 +200,54 @@ This is a shared concern for the three browser-based PoC 2 sensors (Melvor, Sudo
 
 ### 3.4 Python Base Class
 
-The Python SDK provides a full base class. Sensors extend it and implement domain-specific logic only.
+The Python SDK provides a full base class. Adapters extend it and implement domain-specific logic only.
 
 ```python
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 
-class SensorBase(ABC):
-    """Base class for Python GLADyS sensors."""
+class AdapterBase(ABC):
+    """Base class for Python GLADyS adapters."""
 
-    # --- Lifecycle (sensor implements) ---
+    # --- Lifecycle (adapter implements) ---
 
     @abstractmethod
     async def start(self) -> None:
-        """Start sensing. Connect to driver(s), begin event collection."""
+        """Start the adapter. Connect to driver(s), begin event collection."""
         ...
 
     @abstractmethod
     async def stop(self) -> None:
-        """Stop sensing. Disconnect from driver(s), flush buffers."""
+        """Stop the adapter. Disconnect from driver(s), flush buffers."""
         ...
 
     @abstractmethod
-    async def health(self) -> SensorHealth:
-        """Report sensor health status."""
+    async def health(self) -> AdapterHealth:
+        """Report adapter health status."""
         ...
 
     @abstractmethod
     async def recover(self) -> bool:
         """Orchestrator requests self-healing.
 
-        Called when the orchestrator detects the sensor is unhealthy.
-        Sensor decides what to do: restart driver, clear buffers, etc.
+        Called when the orchestrator detects the adapter is unhealthy.
+        Adapter decides what to do: restart driver, clear buffers, etc.
         Returns True if recovery succeeded, False if shutdown needed.
         """
         ...
 
-    # --- Event production (sensor implements) ---
+    # --- Event production (adapter implements) ---
 
     @abstractmethod
     async def emit_events(self) -> AsyncIterator[Event]:
         """Yield normalized GLADyS events.
 
-        The sensor controls its own emit cadence — it may buffer
+        The adapter controls its own emit cadence — it may buffer
         driver events and consolidate them before yielding.
         """
         ...
 
-    # --- Provided by base class (sensor does NOT override) ---
+    # --- Provided by base class (adapter does NOT override) ---
 
     # Capture/replay (§4)
     # Metrics collection (§5)
@@ -263,11 +263,11 @@ class SensorBase(ABC):
 
 Protocol-level feature — all SDKs implement it. Two capture boundaries, both JSONL.
 
-**Boundary 1: Driver → Sensor (raw)**
-Captures what the driver sends before the sensor normalizes it. Enables sensor development without the target application running.
+**Boundary 1: Driver → Adapter (raw)**
+Captures what the driver sends before the adapter normalizes it. Enables adapter development without the target application running.
 
-**Boundary 2: Sensor → Orchestrator (normalized)**
-Captures the normalized GLADyS events the sensor publishes. Enables orchestrator/pipeline testing without live sensors.
+**Boundary 2: Adapter → Orchestrator (normalized)**
+Captures the normalized GLADyS events the adapter publishes. Enables orchestrator/pipeline testing without live sensors.
 
 | Aspect | Design |
 |--------|--------|
@@ -275,7 +275,7 @@ Captures the normalized GLADyS events the sensor publishes. Enables orchestrator
 | Stop conditions | Time-based (`--capture-duration`) OR record-count (`--capture-count`), whichever hits first. |
 | Replay timing | Preserves original inter-event deltas. Optional `--replay-speed` multiplier (2x, 10x, etc.). No "instant dump" default — flooding the orchestrator produces unrealistic test results. |
 | Multi-driver | Capture tags each record with driver instance ID (sensor's concern). |
-| Who captures | Sensor's ingestion layer, not the driver. Drivers stay lightweight. |
+| Who captures | Adapter's ingestion layer, not the driver. Drivers stay lightweight. |
 | Dry-run mode | `--dry-run`: capture without publishing to orchestrator. Enables testing sensors in isolation. |
 
 ### Activation
@@ -286,7 +286,7 @@ Captures the normalized GLADyS events the sensor publishes. Enables orchestrator
 
 **Replay** is CLI-only (`--replay <file>`, `--replay-speed <multiplier>`). Replay replaces live driver input — it's a fundamentally different operating mode, not something you toggle mid-session.
 
-**Dry-run** is CLI-only (`--dry-run`). Runs the sensor without an orchestrator connection.
+**Dry-run** is CLI-only (`--dry-run`). Runs the adapter without an orchestrator connection.
 
 ---
 
@@ -307,7 +307,7 @@ All SDKs implement metrics collection. Emitted as `system.metrics` events via `P
 | `avg_latency_ms` | gauge | Rolling avg processing latency |
 | `error_count` | counter | Total errors (all types) |
 
-**Driver-level metrics** (driver reports to sensor, sensor aggregates):
+**Driver-level metrics** (driver reports to adapter, adapter aggregates):
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -326,13 +326,13 @@ Driver metrics stored as JSONB since different drivers report different things.
 
 ## 6. Flow Control
 
-**System-level strategy pattern.** The orchestrator sends flow control configuration to the sensor at registration time. All sensors use the same strategy — sensors do not choose whether to participate.
+**System-level strategy pattern.** The orchestrator sends flow control configuration to the adapter at registration time. All adapters use the same strategy — adapters do not choose whether to participate.
 
 **Configuration injection** (not code injection): The orchestrator sends a strategy name and parameters. Each language SDK implements the named strategies locally. Example: `{ strategy: "rate_limiter", max_events_per_sec: 100 }` or `{ strategy: "none" }`.
 
 The SDK calls the strategy before every publish. If the strategy says "don't publish," the event is buffered (and may be dropped per buffer policy — see §7).
 
-**PoC 2**: Start with `strategy: "none"` (all publishes allowed). The pattern exists in all SDKs so strategies can be added later without changing sensors.
+**PoC 2**: Start with `strategy: "none"` (all publishes allowed). The pattern exists in all SDKs so strategies can be added later without changing adapters.
 
 **Future (PoC 3+)**: BBR-inspired strategy that tracks `PublishEvent(s)` response latency. Latency increase → reduce publish rate. Return to baseline → increase rate.
 
@@ -349,15 +349,15 @@ When the orchestrator is unreachable, the SDK buffers events locally.
 | Reconnect | Retry with exponential backoff |
 | Flush | On reconnect, publish buffered events in order. Events that aged beyond a configurable TTL are dropped. |
 
-All SDKs implement this. Sensors do not implement their own buffering.
+All SDKs implement this. Adapters do not implement their own buffering.
 
 ---
 
 ## 8. Emit Schedule
 
-The sensor controls its own emit cadence, independent of the driver's event rate. The sensor buffers driver events and emits consolidated events on a timer or on meaningful change (domain-specific). This is rate control — the sensor decides *how often* to emit, not *what* to emit.
+The adapter controls its own emit cadence, independent of the driver's event rate. The adapter buffers driver events and emits consolidated events on a timer or on meaningful change (domain-specific). This is rate control — the adapter decides *how often* to emit, not *what* to emit.
 
-Example: Driver fires position every 600ms. Sensor emits position every 5s unless movement exceeds a threshold.
+Example: Driver fires position every 600ms. Adapter emits position every 5s unless movement exceeds a threshold.
 
 The SDK tracks `events_received` vs `events_published` for the consolidation ratio metric.
 
@@ -464,17 +464,17 @@ All existing sensor code in `packs/sensors/` is exploratory — no design, no sp
 
 | Sensor | Pattern | Driver(s) | Language | PoC 2 Role |
 |--------|---------|-----------|----------|------------|
-| RuneScape | push | Single — Java RuneLite plugin | Java (driver+sensor) | Game sensor option |
-| Melvor Idle | push | Single — browser extension | JS/TS (extension) + Python or JS sensor | Game sensor option |
-| Sudoku | push | Single — browser extension | JS/TS (extension) + Python or JS sensor | Game sensor option |
-| Gmail | poll | Multiple — one per email account | JS/TS (extension) + Python or JS sensor | Email sensor (non-game) |
+| RuneScape | push | Single — Java RuneLite plugin | Java (driver+adapter) | Game sensor option |
+| Melvor Idle | push | Single — browser extension | JS/TS (extension) + Python or JS adapter | Game sensor option |
+| Sudoku | push | Single — browser extension | JS/TS (extension) + Python or JS adapter | Game sensor option |
+| Gmail | poll | Multiple — one per email account | JS/TS (extension) + Python or JS adapter | Email sensor (non-game) |
 
 ### Design characteristics by sensor type
 
 | Characteristic | Game sensors | Email sensor |
 |---------------|-------------|-------------|
 | Driver management | Single driver, sensor-internal | Multiple driver instances (per account), sensor-internal |
-| Delivery | Push (event-driven) | Poll (periodic, extension polls internally and pushes to sensor) |
+| Delivery | Push (event-driven) | Poll (periodic, extension polls internally and pushes to adapter) |
 | Volume | High, bursty | Low, steady |
 | Default intent | Mostly `actionable` or `unknown` | Mostly `informational` |
 | Emit schedule | Consolidate high-frequency events | Emit on change (new/updated emails) |
