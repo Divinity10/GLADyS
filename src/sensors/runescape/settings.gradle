@@ -1,0 +1,4 @@
+rootProject.name = 'gladys-runescape-sensor'
+
+// Include the SDK as a composite build so Gradle resolves it automatically
+includeBuild '../../../sdk/java/gladys-sensor-sdk'

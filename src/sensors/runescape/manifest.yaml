@@ -1,0 +1,43 @@
+id: runescape
+name: RuneScape Sensor
+version: 0.1.0
+type: game
+description: RuneLite plugin that captures in-game events and publishes to GLADyS
+author: GLADyS
+delivery_pattern: push
+source: runescape
+heartbeat_interval_s: 30
+event_types:
+  - name: spawn_despawn
+    intent: informational
+    default_enabled: true
+  - name: movement
+    intent: informational
+    default_enabled: true
+  - name: damage
+    intent: mixed
+    default_enabled: true
+  - name: stat_change
+    intent: mixed
+    default_enabled: true
+  - name: action_state
+    intent: informational
+    default_enabled: true
+  - name: menu_action
+    intent: actionable
+    default_enabled: true
+  - name: item_change
+    intent: informational
+    default_enabled: true
+  - name: chat
+    intent: mixed
+    default_enabled: true
+  - name: session_state
+    intent: informational
+    default_enabled: true
+  - name: sound
+    intent: informational
+    default_enabled: false
+  - name: misc
+    intent: informational
+    default_enabled: false

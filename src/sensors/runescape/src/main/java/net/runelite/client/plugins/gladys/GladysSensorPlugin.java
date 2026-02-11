@@ -1,16 +1,13 @@
 package net.runelite.client.plugins.gladys;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.gladys.sensor.EventBuilder;
+import com.gladys.sensor.GladysClient;
+import com.gladys.sensor.HeartbeatManager;
+import com.gladys.sensor.SensorRegistration;
+import gladys.v1.Common;
+import gladys.v1.Orchestrator.ComponentCapabilities;
+import gladys.v1.Orchestrator.TransportMode;
 import java.awt.image.BufferedImage;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -18,6 +15,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +54,15 @@ import com.google.inject.Provides;
 @Slf4j
 public class GladysSensorPlugin extends Plugin
 {
-	private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+	// SDK components
+	private GladysClient gladysClient;
+	private HeartbeatManager heartbeatManager;
+
+	// Async event publishing — gRPC calls must not block RuneLite's client thread
+	private ExecutorService eventExecutor;
+
+	private static final String SENSOR_ID = "runescape";
+	private static final int HEARTBEAT_INTERVAL_S = 30;
 
 	@Inject
 	private Client client;
@@ -97,13 +105,6 @@ public class GladysSensorPlugin extends Plugin
 	@Getter
 	private final Map<String, Integer> eventCounts = new LinkedHashMap<>();
 
-	// JSONL file output
-	private static final int MAX_EVENT_FILES = 10;
-	private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-	private File eventDir;
-	private BufferedWriter fileWriter;
-	private String currentFileDate;
-
 	// Chat logging toggle (panel-controlled, not persisted)
 	@Getter
 	private boolean logToChat = false;
@@ -111,18 +112,6 @@ public class GladysSensorPlugin extends Plugin
 	public void setLogToChat(boolean value)
 	{
 		this.logToChat = value;
-	}
-
-	public void updateOutputDirectory(String newPath)
-	{
-		closeFileWriter();
-		eventDir = new File(newPath);
-		if (!eventDir.exists())
-		{
-			eventDir.mkdirs();
-		}
-		currentFileDate = null; // Force new file creation on next emit
-		log.info("GLADyS output directory changed to: {}", newPath);
 	}
 
 	@Override
@@ -142,19 +131,37 @@ public class GladysSensorPlugin extends Plugin
 
 		clientToolbar.addNavigation(navButton);
 
-		// Set up JSONL event output directory from config
-		String configuredPath = config.outputDirectory();
-		if (configuredPath == null || configuredPath.isEmpty())
-		{
-			configuredPath = System.getProperty("user.home") + "/.gladys/events";
-		}
-		eventDir = new File(configuredPath);
-		if (!eventDir.exists())
-		{
-			eventDir.mkdirs();
-		}
+		// Connect to GLADyS orchestrator
+		String host = config.orchestratorHost();
+		int port = config.orchestratorPort();
 
-		log.info("GLADyS Sensor started, output directory: {}", eventDir.getAbsolutePath());
+		try
+		{
+			gladysClient = new GladysClient(host, port);
+
+			// Register as a sensor
+			ComponentCapabilities caps = ComponentCapabilities.newBuilder()
+				.setTransportMode(TransportMode.TRANSPORT_MODE_EVENT)
+				.build();
+			SensorRegistration.register(gladysClient, SENSOR_ID, "sensor", caps);
+
+			// Start heartbeat
+			heartbeatManager = new HeartbeatManager(gladysClient, SENSOR_ID, HEARTBEAT_INTERVAL_S);
+			heartbeatManager.start();
+
+			// Background thread for async event publishing
+			eventExecutor = Executors.newSingleThreadExecutor(r -> {
+				Thread t = new Thread(r, "gladys-event-publisher");
+				t.setDaemon(true);
+				return t;
+			});
+
+			log.info("GLADyS Sensor connected to orchestrator at {}:{}", host, port);
+		}
+		catch (Exception e)
+		{
+			log.error("GLADyS Sensor failed to connect to orchestrator at {}:{}", host, port, e);
+		}
 	}
 
 	@Override
@@ -165,7 +172,31 @@ public class GladysSensorPlugin extends Plugin
 			clientToolbar.removeNavigation(navButton);
 		}
 
-		closeFileWriter();
+		if (heartbeatManager != null)
+		{
+			heartbeatManager.stop();
+		}
+
+		if (eventExecutor != null)
+		{
+			eventExecutor.shutdown();
+			try
+			{
+				if (!eventExecutor.awaitTermination(5, TimeUnit.SECONDS))
+				{
+					eventExecutor.shutdownNow();
+				}
+			}
+			catch (InterruptedException e)
+			{
+				eventExecutor.shutdownNow();
+			}
+		}
+
+		if (gladysClient != null)
+		{
+			gladysClient.close();
+		}
 
 		npcPositions.clear();
 		playerPositions.clear();
@@ -191,29 +222,68 @@ public class GladysSensorPlugin extends Plugin
 
 	private void emit(String eventType, Map<String, Object> payload, String chatSummary)
 	{
-		Map<String, Object> envelope = new LinkedHashMap<>();
-		envelope.put("event_type", eventType);
-		envelope.put("tick", client.getTickCount());
-		envelope.put("timestamp", Instant.now().toString());
-		envelope.put("payload", payload);
+		// Add game-specific context to structured data
+		payload.put("event_type", eventType);
+		payload.put("tick", client.getTickCount());
 
-		String json = GSON.toJson(envelope);
-		log.debug("[GLADyS] {}", json);
+		// Classify intent
+		String intent = classifyIntent(eventType, payload);
 
-		// Write to JSONL file
-		writeToFile(json);
+		// Build the event
+		Common.Event event = new EventBuilder(SENSOR_ID)
+			.text("RuneScape: " + (chatSummary != null ? chatSummary : eventType))
+			.structured(payload)
+			.intent(intent)
+			.build();
 
+		// Publish asynchronously — never block RuneLite's client thread
+		if (gladysClient != null && eventExecutor != null && !eventExecutor.isShutdown())
+		{
+			eventExecutor.submit(() -> {
+				try
+				{
+					gladysClient.publishEvent(event);
+				}
+				catch (Exception e)
+				{
+					log.warn("Failed to publish {} event: {}", eventType, e.getMessage());
+				}
+			});
+		}
+
+		// Update panel counts (keep existing behavior)
 		eventCounts.merge(eventType, 1, Integer::sum);
 		if (panel != null)
 		{
 			panel.updateCounts();
 		}
 
+		// Chat logging (keep existing behavior)
 		if (logToChat && chatSummary != null && client.getGameState() == GameState.LOGGED_IN)
 		{
 			clientThread.invokeLater(() ->
 				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "",
 					"[GLADyS:" + eventType + "] " + chatSummary, ""));
+		}
+	}
+
+	private String classifyIntent(String eventType, Map<String, Object> payload)
+	{
+		switch (eventType)
+		{
+			case "menu_action":
+				return "actionable";
+			case "damage":
+				Boolean isMine = (Boolean) payload.get("is_mine");
+				return (isMine != null && isMine) ? "actionable" : "informational";
+			case "stat_change":
+				Boolean leveledUp = (Boolean) payload.get("leveled_up");
+				return (leveledUp != null && leveledUp) ? "actionable" : "informational";
+			case "chat":
+				String channel = (String) payload.get("channel");
+				return "private_chat".equals(channel) ? "actionable" : "informational";
+			default:
+				return "informational";
 		}
 	}
 
@@ -330,81 +400,6 @@ public class GladysSensorPlugin extends Plugin
 			case CONNECTION_LOST: return "connection_lost";
 			case HOPPING: return "hopping";
 			default: return state.name().toLowerCase();
-		}
-	}
-
-	// ── JSONL File Output ───────────────────────────────────────
-
-	private void writeToFile(String json)
-	{
-		try
-		{
-			String today = LocalDate.now().format(DATE_FMT);
-
-			// Create new file or rotate if date changed
-			if (!today.equals(currentFileDate))
-			{
-				closeFileWriter();
-				currentFileDate = today;
-
-				if (!eventDir.exists())
-				{
-					eventDir.mkdirs();
-				}
-
-				File outFile = new File(eventDir, "events-" + today + ".jsonl");
-				fileWriter = new BufferedWriter(new FileWriter(outFile, true));
-				log.info("GLADyS writing events to: {}", outFile.getAbsolutePath());
-				pruneEventFiles();
-			}
-
-			if (fileWriter != null)
-			{
-				fileWriter.write(json);
-				fileWriter.newLine();
-				fileWriter.flush();
-			}
-		}
-		catch (IOException e)
-		{
-			log.error("Failed to write event to file", e);
-		}
-	}
-
-	private void closeFileWriter()
-	{
-		if (fileWriter != null)
-		{
-			try
-			{
-				fileWriter.close();
-			}
-			catch (IOException e)
-			{
-				log.error("Failed to close event file writer", e);
-			}
-			fileWriter = null;
-		}
-	}
-
-	private void pruneEventFiles()
-	{
-		File[] files = eventDir.listFiles((dir, name) -> name.startsWith("events-") && name.endsWith(".jsonl"));
-		if (files == null || files.length <= MAX_EVENT_FILES)
-		{
-			return;
-		}
-
-		// Sort by name (date), oldest first
-		Arrays.sort(files);
-
-		int toDelete = files.length - MAX_EVENT_FILES;
-		for (int i = 0; i < toDelete; i++)
-		{
-			if (files[i].delete())
-			{
-				log.info("Pruned old event file: {}", files[i].getName());
-			}
 		}
 	}
 
