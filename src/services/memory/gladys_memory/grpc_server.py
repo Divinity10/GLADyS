@@ -59,8 +59,10 @@ def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
         raw_text=event.raw_text,
         embedding=_embedding_to_bytes(event.embedding),
         salience=salience,
-        structured_json=json.dumps(event.structured) if event.structured else "{}",
+        structured_json=json.dumps(event.structured) if event.structured is not None else "",
         entity_ids=[str(eid) for eid in (event.entity_ids or [])],
+        intent=event.intent,
+        evaluation_data_json=json.dumps(event.evaluation_data) if event.evaluation_data is not None else "",
         # Prediction instrumentation (§27)
         predicted_success=event.predicted_success or 0.0,
         prediction_confidence=event.prediction_confidence or 0.0,
@@ -97,14 +99,23 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
         except json.JSONDecodeError:
             structured = {}
 
+    evaluation_data = None
+    if proto.evaluation_data_json:
+        try:
+            evaluation_data = json.loads(proto.evaluation_data_json)
+        except json.JSONDecodeError:
+            evaluation_data = {}
+
     return EpisodicEvent(
         id=UUID(proto.id) if proto.id else None,
         timestamp=datetime.fromtimestamp(proto.timestamp_ms / 1000, tz=timezone.utc),
         source=proto.source,
         raw_text=proto.raw_text,
+        intent=proto.intent,
         embedding=_bytes_to_embedding(proto.embedding),
         salience=salience,
         structured=structured,
+        evaluation_data=evaluation_data,
         entity_ids=[UUID(eid) for eid in proto.entity_ids] if proto.entity_ids else [],
         # Prediction instrumentation (§27)
         predicted_success=proto.predicted_success if proto.predicted_success else None,
@@ -116,6 +127,43 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
         decision_path=proto.decision_path if proto.decision_path else None,
         matched_heuristic_id=UUID(proto.matched_heuristic_id) if proto.matched_heuristic_id else None,
         episode_id=UUID(proto.episode_id) if proto.episode_id else None,
+    )
+
+
+def _row_dict_to_event(row: dict) -> EpisodicEvent:
+    """Convert a list/get row dict to EpisodicEvent for proto serialization."""
+    matched_heuristic_id = row.get("matched_heuristic_id")
+    if matched_heuristic_id and not isinstance(matched_heuristic_id, UUID):
+        try:
+            matched_heuristic_id = UUID(str(matched_heuristic_id))
+        except (ValueError, TypeError):
+            matched_heuristic_id = None
+
+    episode_id = row.get("episode_id")
+    if episode_id and not isinstance(episode_id, UUID):
+        try:
+            episode_id = UUID(str(episode_id))
+        except (ValueError, TypeError):
+            episode_id = None
+
+    return EpisodicEvent(
+        id=row["id"],
+        timestamp=row["timestamp"],
+        source=row.get("source") or "",
+        raw_text=row.get("raw_text") or "",
+        intent=row.get("intent") or "",
+        salience=row.get("salience"),
+        structured=row.get("structured"),
+        evaluation_data=row.get("evaluation_data"),
+        entity_ids=row.get("entity_ids"),
+        predicted_success=float(row["predicted_success"]) if row.get("predicted_success") is not None else None,
+        prediction_confidence=float(row["prediction_confidence"]) if row.get("prediction_confidence") is not None else None,
+        response_id=row.get("response_id"),
+        response_text=row.get("response_text"),
+        matched_heuristic_id=matched_heuristic_id,
+        llm_prompt_text=row.get("llm_prompt_text"),
+        decision_path=row.get("decision_path"),
+        episode_id=episode_id,
     )
 
 
@@ -247,36 +295,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
                 include_archived=request.include_archived,
             )
 
-            proto_events = []
-            for row in rows:
-                salience = types_pb2.SalienceVector()
-                sal_data = row.get("salience")
-                if isinstance(sal_data, dict):
-                    salience.threat = sal_data.get("threat", 0.0)
-                    salience.opportunity = sal_data.get("opportunity", 0.0)
-                    salience.humor = sal_data.get("humor", 0.0)
-                    salience.novelty = sal_data.get("novelty", 0.0)
-                    salience.goal_relevance = sal_data.get("goal_relevance", 0.0)
-                    salience.social = sal_data.get("social", 0.0)
-                    salience.emotional = sal_data.get("emotional", 0.0)
-                    salience.actionability = sal_data.get("actionability", 0.0)
-                    salience.habituation = sal_data.get("habituation", 0.0)
-
-                proto_events.append(memory_pb2.EpisodicEvent(
-                    id=str(row["id"]),
-                    timestamp_ms=int(row["timestamp"].timestamp() * 1000),
-                    source=row["source"] or "",
-                    raw_text=row["raw_text"] or "",
-                    salience=salience,
-                    predicted_success=float(row["predicted_success"]) if row.get("predicted_success") is not None else 0.0,
-                    prediction_confidence=float(row["prediction_confidence"]) if row.get("prediction_confidence") is not None else 0.0,
-                    response_id=row.get("response_id") or "",
-                    response_text=row.get("response_text") or "",
-                    matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
-                    llm_prompt_text=row.get("llm_prompt_text") or "",
-                    decision_path=row.get("decision_path") or "",
-                    episode_id=str(row["episode_id"]) if row.get("episode_id") else "",
-                ))
+            proto_events = [_event_to_proto(_row_dict_to_event(row)) for row in rows]
 
             logger.info("ListEvents success", count=len(proto_events))
             return memory_pb2.ListEventsResponse(events=proto_events)
@@ -297,34 +316,7 @@ class MemoryStorageServicer(memory_pb2_grpc.MemoryStorageServicer):
             if not row:
                 return memory_pb2.GetEventResponse(error="Event not found")
 
-            salience = types_pb2.SalienceVector()
-            sal_data = row.get("salience")
-            if isinstance(sal_data, dict):
-                salience.threat = sal_data.get("threat", 0.0)
-                salience.opportunity = sal_data.get("opportunity", 0.0)
-                salience.humor = sal_data.get("humor", 0.0)
-                salience.novelty = sal_data.get("novelty", 0.0)
-                salience.goal_relevance = sal_data.get("goal_relevance", 0.0)
-                salience.social = sal_data.get("social", 0.0)
-                salience.emotional = sal_data.get("emotional", 0.0)
-                salience.actionability = sal_data.get("actionability", 0.0)
-                salience.habituation = sal_data.get("habituation", 0.0)
-
-            event = memory_pb2.EpisodicEvent(
-                id=str(row["id"]),
-                timestamp_ms=int(row["timestamp"].timestamp() * 1000),
-                source=row["source"] or "",
-                raw_text=row["raw_text"] or "",
-                salience=salience,
-                predicted_success=float(row["predicted_success"]) if row.get("predicted_success") is not None else 0.0,
-                prediction_confidence=float(row["prediction_confidence"]) if row.get("prediction_confidence") is not None else 0.0,
-                response_id=row.get("response_id") or "",
-                response_text=row.get("response_text") or "",
-                matched_heuristic_id=str(row["matched_heuristic_id"]) if row.get("matched_heuristic_id") else "",
-                llm_prompt_text=row.get("llm_prompt_text") or "",
-                decision_path=row.get("decision_path") or "",
-                episode_id=str(row["episode_id"]) if row.get("episode_id") else "",
-            )
+            event = _event_to_proto(_row_dict_to_event(row))
 
             logger.info("GetEvent success", event_id=request.event_id)
             return memory_pb2.GetEventResponse(event=event)

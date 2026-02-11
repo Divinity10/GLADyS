@@ -26,9 +26,11 @@ class EpisodicEvent:
     timestamp: datetime
     source: str
     raw_text: str
+    intent: str = ""
     embedding: Optional[np.ndarray] = None
     salience: Optional[dict] = None
     structured: Optional[dict] = None
+    evaluation_data: Optional[dict] = None
     entity_ids: Optional[list[UUID]] = None
     # Prediction instrumentation (§27 - Instrument Now, Analyze Later)
     predicted_success: Optional[float] = None  # LLM's prediction of action success (0.0-1.0)
@@ -94,10 +96,10 @@ class MemoryStorage:
             """
             INSERT INTO episodic_events (
                 id, timestamp, source, raw_text, embedding,
-                salience, structured, entity_ids,
+                salience, structured, entity_ids, intent, evaluation_data,
                 predicted_success, prediction_confidence, response_id, response_text,
                 llm_prompt_text, decision_path, matched_heuristic_id, episode_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             """,
             event.id,
             event.timestamp,
@@ -107,6 +109,8 @@ class MemoryStorage:
             event.salience or {},
             event.structured or {},
             event.entity_ids or [],
+            event.intent,
+            event.evaluation_data,
             event.predicted_success,
             event.prediction_confidence,
             event.response_id,
@@ -160,7 +164,7 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids,
+                       salience, structured, entity_ids, intent, evaluation_data,
                        predicted_success, prediction_confidence, response_id, response_text
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
@@ -178,7 +182,7 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids,
+                       salience, structured, entity_ids, intent, evaluation_data,
                        predicted_success, prediction_confidence, response_id, response_text
                 FROM episodic_events
                 WHERE timestamp BETWEEN $1 AND $2
@@ -211,7 +215,7 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 f"""
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids,
+                       salience, structured, entity_ids, intent, evaluation_data,
                        predicted_success, prediction_confidence, response_id, response_text,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
@@ -230,7 +234,7 @@ class MemoryStorage:
             rows = await self._pool.fetch(
                 """
                 SELECT id, timestamp, source, raw_text, embedding,
-                       salience, structured, entity_ids,
+                       salience, structured, entity_ids, intent, evaluation_data,
                        predicted_success, prediction_confidence, response_id, response_text,
                        1 - (embedding <=> $1) AS similarity
                 FROM episodic_events
@@ -264,7 +268,8 @@ class MemoryStorage:
         inner = """
             SELECT DISTINCT ON (e.id)
                    e.id, e.timestamp, e.source, e.raw_text,
-                   e.salience, e.response_text, e.response_id,
+                   e.salience, e.structured, e.entity_ids, e.intent, e.evaluation_data,
+                   e.response_text, e.response_id,
                    e.predicted_success, e.prediction_confidence,
                    COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
                    e.llm_prompt_text, e.decision_path, e.episode_id
@@ -304,7 +309,8 @@ class MemoryStorage:
             """
             SELECT DISTINCT ON (e.id)
                    e.id, e.timestamp, e.source, e.raw_text,
-                   e.salience, e.response_text, e.response_id,
+                   e.salience, e.structured, e.entity_ids, e.intent, e.evaluation_data,
+                   e.response_text, e.response_id,
                    e.predicted_success, e.prediction_confidence,
                    COALESCE(e.matched_heuristic_id::text, hf.heuristic_id::text) AS matched_heuristic_id,
                    e.llm_prompt_text, e.decision_path, e.episode_id
@@ -408,10 +414,12 @@ class MemoryStorage:
             timestamp=row["timestamp"],
             source=row["source"],
             raw_text=row["raw_text"],
+            intent=row.get("intent") or "",
             embedding=np.array(row["embedding"]) if row["embedding"] is not None else None,
             salience=row["salience"],
-            structured=row["structured"],
-            entity_ids=row["entity_ids"],
+            structured=row.get("structured"),
+            evaluation_data=row.get("evaluation_data"),
+            entity_ids=row.get("entity_ids"),
             # Prediction instrumentation (§27) - may be null for older events
             predicted_success=row.get("predicted_success"),
             prediction_confidence=row.get("prediction_confidence"),
