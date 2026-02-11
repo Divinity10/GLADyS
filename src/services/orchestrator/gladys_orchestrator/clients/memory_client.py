@@ -3,10 +3,10 @@
 This client stores episodic events in the Memory subsystem.
 """
 
-import time
 from typing import Any
 
 import grpc
+from google.protobuf.json_format import MessageToJson
 
 from gladys_common import get_logger
 
@@ -73,12 +73,29 @@ class MemoryStorageClient:
             return False
 
         try:
+            timestamp_ms = int(event.timestamp.seconds * 1000 + event.timestamp.nanos // 1_000_000)
+            structured_json = (
+                MessageToJson(event.structured)
+                if hasattr(event, "HasField") and event.HasField("structured")
+                else ""
+            )
+            evaluation_data_json = (
+                MessageToJson(event.evaluation_data)
+                if hasattr(event, "HasField") and event.HasField("evaluation_data")
+                else ""
+            )
+            entity_ids = list(event.entity_ids) if event.entity_ids else []
+
             # Build EpisodicEvent from Event
             episodic_event = memory_pb2.EpisodicEvent(
                 id=getattr(event, "id", ""),
-                timestamp_ms=int(time.time() * 1000),
+                timestamp_ms=timestamp_ms,
                 source=getattr(event, "source", ""),
                 raw_text=getattr(event, "raw_text", ""),
+                structured_json=structured_json,
+                entity_ids=entity_ids,
+                intent=getattr(event, "intent", ""),
+                evaluation_data_json=evaluation_data_json,
                 response_id=response_id,
                 response_text=response_text,
                 predicted_success=predicted_success,

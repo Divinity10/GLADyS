@@ -6,7 +6,7 @@ Covers list_events, get_event, list_responses, and get_response_detail.
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -29,6 +29,10 @@ def _make_row(**overrides):
         "source": "test-sensor",
         "raw_text": "something happened",
         "salience": {"novelty": 0.5, "threat": 0.0},
+        "structured": {"zone": "tutorial"},
+        "entity_ids": [uuid.uuid4()],
+        "intent": "actionable",
+        "evaluation_data": {"hint": "open menu"},
         "response_text": "response here",
         "response_id": "resp-001",
         "predicted_success": 0.75,
@@ -101,6 +105,10 @@ class TestListEvents:
     async def test_null_fields_in_row(self, storage):
         """Rows with NULL values should convert cleanly."""
         row = _make_row(
+            structured=None,
+            entity_ids=None,
+            intent="",
+            evaluation_data=None,
             response_text=None,
             response_id=None,
             predicted_success=None,
@@ -112,6 +120,26 @@ class TestListEvents:
         result = await storage.list_events()
         assert result[0]["response_text"] is None
         assert result[0]["matched_heuristic_id"] is None
+
+    async def test_intent_round_trip(self, storage):
+        row = _make_row(intent="informational")
+        storage._pool.fetch.return_value = [row]
+
+        result = await storage.list_events()
+
+        assert result[0]["intent"] == "informational"
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.intent" in query
+
+    async def test_evaluation_data_round_trip(self, storage):
+        row = _make_row(evaluation_data={"score": 0.95, "passed": True})
+        storage._pool.fetch.return_value = [row]
+
+        result = await storage.list_events()
+
+        assert result[0]["evaluation_data"] == {"score": 0.95, "passed": True}
+        query = storage._pool.fetch.call_args[0][0]
+        assert "e.evaluation_data" in query
 
     async def test_not_connected_raises(self):
         s = MemoryStorage()
@@ -154,6 +182,17 @@ class TestGetEvent:
         s._pool = None
         with pytest.raises(RuntimeError, match="Not connected"):
             await s.get_event("some-id")
+
+    async def test_query_includes_new_columns(self, storage):
+        storage._pool.fetchrow.return_value = None
+
+        await storage.get_event(str(uuid.uuid4()))
+
+        query = storage._pool.fetchrow.call_args[0][0]
+        assert "e.structured" in query
+        assert "e.entity_ids" in query
+        assert "e.intent" in query
+        assert "e.evaluation_data" in query
 
 
 def _make_response_row(**overrides):

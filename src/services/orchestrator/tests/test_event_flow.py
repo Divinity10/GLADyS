@@ -11,12 +11,16 @@ catching issues where events might be silently dropped.
 """
 
 import asyncio
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from gladys_orchestrator.clients.memory_client import MemoryStorageClient
 from gladys_orchestrator.config import OrchestratorConfig
 from gladys_orchestrator.event_queue import EventQueue
+from gladys_orchestrator.generated import common_pb2
+from gladys_orchestrator.generated import memory_pb2
 
 
 def make_config(**overrides):
@@ -284,3 +288,42 @@ class TestEventFlowWithHeuristicSuggestion:
         assert suggestion["heuristic_id"] == "heur-123"
         assert suggestion["suggested_action"] == "Do this"
         assert suggestion["confidence"] == 0.7
+
+
+class TestMemoryStoreEventMapping:
+    @pytest.mark.asyncio
+    async def test_timestamp_preservation(self):
+        """Memory client should preserve Event.timestamp in timestamp_ms."""
+        client = MemoryStorageClient("localhost:50051")
+        stub = AsyncMock()
+        stub.StoreEvent = AsyncMock(return_value=memory_pb2.StoreEventResponse(success=True))
+        client._stub = stub
+
+        event = common_pb2.Event(
+            id="evt-ts-1",
+            source="test-sensor",
+            raw_text="timestamp should be preserved",
+            intent="actionable",
+        )
+        event.timestamp.seconds = 1_717_000_123
+        event.timestamp.nanos = 456_000_000
+        event.structured.update({"context": "combat"})
+        event.evaluation_data.update({"expected": "retreat"})
+        event.entity_ids.extend([
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+        ])
+
+        success = await client.store_event(event)
+
+        assert success is True
+        request = stub.StoreEvent.call_args.args[0]
+        stored = request.event
+        assert stored.timestamp_ms == 1_717_000_123_456
+        assert stored.intent == "actionable"
+        assert json.loads(stored.structured_json) == {"context": "combat"}
+        assert list(stored.entity_ids) == [
+            "11111111-1111-1111-1111-111111111111",
+            "22222222-2222-2222-2222-222222222222",
+        ]
+        assert json.loads(stored.evaluation_data_json) == {"expected": "retreat"}

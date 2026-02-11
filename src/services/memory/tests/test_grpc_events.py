@@ -4,6 +4,7 @@ Tests proto serialization round-trip: DB row → storage → handler → proto m
 Uses mocked storage to isolate the gRPC handler logic.
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
@@ -38,6 +39,10 @@ def _make_db_row(**overrides):
         "timestamp": datetime(2026, 1, 31, 12, 0, 0, tzinfo=timezone.utc),
         "source": "test-sensor",
         "raw_text": "player opened inventory",
+        "intent": "actionable",
+        "evaluation_data": {"score": 0.9},
+        "structured": {"zone": "base", "step": 2},
+        "entity_ids": [uuid.uuid4(), uuid.uuid4()],
         "salience": {"novelty": 0.5, "threat": 0.0, "humor": 0.0,
                      "opportunity": 0.0, "goal_relevance": 0.3,
                      "social": 0.0, "emotional": 0.0,
@@ -175,6 +180,35 @@ class TestListEvents:
 
         context.abort.assert_called_once()
 
+    async def test_structured_round_trip(self, servicer, context):
+        row = _make_db_row(structured={"quest": "tutorial", "step": 3})
+        servicer.storage.list_events.return_value = [row]
+
+        request = memory_pb2.ListEventsRequest(limit=10)
+        resp = await servicer.ListEvents(request, context)
+
+        assert json.loads(resp.events[0].structured_json) == {"quest": "tutorial", "step": 3}
+
+    async def test_entity_ids_round_trip(self, servicer, context):
+        entity_ids = [uuid.uuid4(), uuid.uuid4()]
+        row = _make_db_row(entity_ids=entity_ids)
+        servicer.storage.list_events.return_value = [row]
+
+        request = memory_pb2.ListEventsRequest(limit=10)
+        resp = await servicer.ListEvents(request, context)
+
+        assert list(resp.events[0].entity_ids) == [str(eid) for eid in entity_ids]
+
+    async def test_intent_and_evaluation_data_round_trip(self, servicer, context):
+        row = _make_db_row(intent="informational", evaluation_data={"difficulty": "easy"})
+        servicer.storage.list_events.return_value = [row]
+
+        request = memory_pb2.ListEventsRequest(limit=10)
+        resp = await servicer.ListEvents(request, context)
+
+        assert resp.events[0].intent == "informational"
+        assert json.loads(resp.events[0].evaluation_data_json) == {"difficulty": "easy"}
+
 
 class TestGetEvent:
     async def test_found(self, servicer, context):
@@ -234,3 +268,20 @@ class TestGetEvent:
 
         # Should get default zero salience vector
         assert resp.event.salience.threat == 0.0
+
+    async def test_get_event_includes_new_fields(self, servicer, context):
+        row = _make_db_row(
+            structured={"kind": "combat"},
+            entity_ids=[uuid.uuid4()],
+            intent="actionable",
+            evaluation_data={"confidence": 0.8},
+        )
+        servicer.storage.get_event.return_value = row
+
+        request = memory_pb2.GetEventRequest(event_id=str(row["id"]))
+        resp = await servicer.GetEvent(request, context)
+
+        assert json.loads(resp.event.structured_json) == {"kind": "combat"}
+        assert list(resp.event.entity_ids) == [str(row["entity_ids"][0])]
+        assert resp.event.intent == "actionable"
+        assert json.loads(resp.event.evaluation_data_json) == {"confidence": 0.8}
