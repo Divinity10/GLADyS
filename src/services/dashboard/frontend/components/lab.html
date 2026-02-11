@@ -67,23 +67,31 @@
         <!-- Header -->
         <div class="sticky top-0 z-10 bg-gray-800 shadow-md">
             <!-- Column Headers -->
-            <div class="grid grid-cols-[30px_90px_70px_1fr_80px_70px_160px] gap-4 px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+            <div class="grid grid-cols-[30px_90px_70px_50px_1fr_80px_70px] gap-4 px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
                 <div class="flex items-center">
                     <input type="checkbox" onclick="toggleSelectAllEvents()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
                 </div>
                 <div>Time</div>
                 <div>Source</div>
+                <div>Intent</div>
                 <div>Event</div>
                 <div>Status</div>
                 <div>Path</div>
-                <div>Response</div>
             </div>
             <!-- Filter Row -->
-            <div class="grid grid-cols-[30px_90px_70px_1fr_80px_70px_160px] gap-4 px-4 py-1 bg-gray-850 border-b border-gray-700">
+            <div class="grid grid-cols-[30px_90px_70px_50px_1fr_80px_70px] gap-4 px-4 py-1 bg-gray-850 border-b border-gray-700">
                 <div></div>
                 <div></div>
                 <div>
                     <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter..." data-filter-col="source" data-filter-mode="contains">
+                </div>
+                <div>
+                    <select class="input-dense text-[10px] w-full" data-filter-col="intent" data-filter-mode="equals">
+                        <option value="">All</option>
+                        <option value="actionable">Actionable</option>
+                        <option value="informational">Informational</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
                 </div>
                 <div>
                     <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter event..." data-filter-col="event" data-filter-mode="contains">
@@ -103,9 +111,6 @@
                         <option value="llm">LLM</option>
                         <option value="fallback">Fallback</option>
                     </select>
-                </div>
-                <div>
-                    <input type="text" class="input-dense text-[10px] w-full" placeholder="Filter response..." data-filter-col="response" data-filter-mode="contains">
                 </div>
             </div>
         </div>
@@ -219,14 +224,16 @@ function toggleSelectAllEvents() {
             const cells = grid.children;
             let visible = true;
 
-            // Map columns by index: 0=checkbox, 1=time, 2=source, 3=event, 4=status, 5=path, 6=response
-            const colMap = { 'source': 2, 'event': 3, 'status': 4, 'path': 5, 'response': 6 };
+            // Map columns by index: 0=checkbox, 1=time, 2=source, 3=intent, 4=event, 5=status, 6=path
+            const colMap = { 'source': 2, 'intent': 3, 'event': 4, 'status': 5, 'path': 6 };
 
             for (const [col, filter] of Object.entries(filters)) {
                 if (col === 'time-after' || col === 'time-before') continue;
                 const idx = colMap[col];
                 if (idx === undefined || !cells[idx]) continue;
-                const text = (cells[idx].textContent || '').trim().toLowerCase();
+                const text = col === 'intent'
+                    ? ((cells[idx].dataset.intent || '').trim().toLowerCase())
+                    : ((cells[idx].textContent || '').trim().toLowerCase());
                 if (filter.mode === 'equals' && text !== filter.val) { visible = false; break; }
                 if (filter.mode === 'contains' && !text.includes(filter.val)) { visible = false; break; }
             }
