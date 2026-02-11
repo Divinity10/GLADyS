@@ -18,7 +18,18 @@ dependencies = [
 
     # Database (for clean commands)
     "psycopg2-binary>=2.9",
+
+    # GLADyS services (for imports in tests)
+    "gladys-common",
+    "gladys-orchestrator",
+
+    # YAML (for skill manifests)
+    "pyyaml>=6.0",
 ]
+
+[tool.uv.sources]
+gladys-common = { path = "../../src/lib/gladys_common", editable = true }
+gladys-orchestrator = { path = "../../src/services/orchestrator", editable = true }
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
