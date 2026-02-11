@@ -95,16 +95,16 @@
                        onchange="uploadBatchFile(this)" style="display:none">
             </div>
 
-            <div x-show="advancedOpen" x-cloak class="space-y-3 border-t border-gray-700 pt-3">
+            <div x-show="advancedOpen" x-cloak class="space-y-3 border-t border-gray-700 pt-3 bg-gray-200 text-black rounded p-3">
                 <div>
-                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Origin Timestamp</label>
+                    <label class="text-[10px] text-gray-700 uppercase tracking-wide">Origin Timestamp</label>
                     <input type="datetime-local" name="timestamp" x-model="timestamp"
                            :disabled="!advancedOpen"
                            class="input-dense bg-gray-900 w-full mt-1 md:w-80">
                 </div>
 
-                <div class="border border-gray-700 rounded">
-                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                <div class="border border-gray-300 rounded bg-gray-100">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-black font-medium hover:bg-gray-200"
                             @click="salienceOpen = !salienceOpen">
                         <span>Salience Override</span>
                         <span x-text="salienceOpen ? '-' : '+'"></span>
@@ -112,61 +112,61 @@
                     <div x-show="salienceOpen" x-cloak class="px-3 pb-3 space-y-3">
                         <div class="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-2">
                             <div>
-                                <label class="text-[10px] text-gray-400 uppercase tracking-wide">Preset Override</label>
+                                <label class="text-[10px] text-gray-700 uppercase tracking-wide">Preset Override</label>
                                 <select name="salience_override" class="input-dense bg-gray-900 w-full mt-1">
                                     <option value="">System (Auto)</option>
                                     <option value="high">Force HIGH</option>
                                     <option value="low">Force LOW</option>
                                 </select>
                             </div>
-                            <label class="flex items-center gap-2 mt-4 text-xs text-gray-300">
+                            <label class="flex items-center gap-2 mt-4 text-xs text-black">
                                 <input type="checkbox" x-model="salienceEnabled" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
                                 Enable manual salience vector
                             </label>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                             <label class="space-y-1">
-                                <span class="text-gray-300">Threat</span>
+                                <span class="text-black">Threat</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_threat" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Opportunity</span>
+                                <span class="text-black">Opportunity</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_opportunity" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Humor</span>
+                                <span class="text-black">Humor</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_humor" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Novelty</span>
+                                <span class="text-black">Novelty</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_novelty" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Goal Relevance</span>
+                                <span class="text-black">Goal Relevance</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_goal_relevance" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Social</span>
+                                <span class="text-black">Social</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_social" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Emotional</span>
+                                <span class="text-black">Emotional</span>
                                 <input type="range" min="-1" max="1" step="0.01" name="salience_emotional" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Actionability</span>
+                                <span class="text-black">Actionability</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_actionability" :disabled="!salienceEnabled" class="w-full">
                             </label>
                             <label class="space-y-1">
-                                <span class="text-gray-300">Habituation</span>
+                                <span class="text-black">Habituation</span>
                                 <input type="range" min="0" max="1" step="0.01" name="salience_habituation" :disabled="!salienceEnabled" class="w-full">
                             </label>
                         </div>
                     </div>
                 </div>
 
-                <div class="border border-gray-700 rounded">
-                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                <div class="border border-gray-300 rounded bg-gray-100">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-black font-medium hover:bg-gray-200"
                             @click="structuredOpen = !structuredOpen">
                         <span>Structured Data</span>
                         <span x-text="structuredOpen ? '-' : '+'"></span>
@@ -185,8 +185,8 @@
                     </div>
                 </div>
 
-                <div class="border border-gray-700 rounded">
-                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                <div class="border border-gray-300 rounded bg-gray-100">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-black font-medium hover:bg-gray-200"
                             @click="evaluationOpen = !evaluationOpen">
                         <span>Evaluation Data</span>
                         <span x-text="evaluationOpen ? '-' : '+'"></span>
@@ -205,8 +205,8 @@
                     </div>
                 </div>
 
-                <div class="border border-gray-700 rounded">
-                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                <div class="border border-gray-300 rounded bg-gray-100">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-black font-medium hover:bg-gray-200"
                             @click="entityOpen = !entityOpen">
                         <span>Entity IDs</span>
                         <span x-text="entityOpen ? '-' : '+'"></span>
