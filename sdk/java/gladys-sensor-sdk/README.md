@@ -1,6 +1,11 @@
 # GLADyS Java Sensor SDK
 
-Java client library for integrating sensors with the GLADyS orchestrator via gRPC.
+Java client library for building GLADyS sensors. Provides adapter infrastructure
+(gRPC client, heartbeat, event builder, registration) so sensor developers focus
+on driver integration and domain-specific normalization.
+
+**Terminology**: A sensor is a bundle of driver (captures from app) + adapter
+(normalizes and publishes to orchestrator). This SDK provides the adapter half.
 
 ## Prerequisites
 
@@ -55,7 +60,7 @@ try (GladysClient client = new GladysClient("localhost", 50050)) {
 
 ### EventBuilder
 
-Fluent builder for `Event` protobuf messages. Populates the sensor-responsibility
+Fluent builder for `Event` protobuf messages. Populates the adapter-responsibility
 fields (id, timestamp, source, raw_text, structured, intent, evaluation_data,
 metadata). Fields populated downstream by the pipeline (salience, entity_ids) are
 not exposed.

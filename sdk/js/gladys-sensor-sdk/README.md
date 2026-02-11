@@ -1,6 +1,11 @@
 # GLADyS TypeScript Sensor SDK
 
-TypeScript client library for integrating sensors with the GLADyS orchestrator via gRPC.
+TypeScript client library for building GLADyS sensors. Provides adapter
+infrastructure (gRPC client, heartbeat, event builder, registration) so sensor
+developers focus on driver integration and domain-specific normalization.
+
+**Terminology**: A sensor is a bundle of driver (captures from app) + adapter
+(normalizes and publishes to orchestrator). This SDK provides the adapter half.
 
 ## Prerequisites
 
@@ -59,7 +64,7 @@ client.close();
 
 ### EventBuilder
 
-Fluent builder for `Event` messages. Populates sensor-responsibility fields
+Fluent builder for `Event` messages. Populates adapter-responsibility fields
 (id, timestamp, source, rawText, structured, intent, evaluationData, metadata).
 Fields populated downstream (salience, entityIds) are left at defaults.
 
