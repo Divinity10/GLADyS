@@ -3,11 +3,11 @@
 {% from 'components/widgets/json_viewer.html' import json_viewer %}
 
 {# Event Row - Div-based expandable row for Lab tab
-   Grid: 8 columns - Checkbox | Time | Source | Intent | Event | Status | Path | Response
+   Grid: 7 columns - Checkbox | Time | Source | Intent | Event | Status | Path
    Must match header in lab.html
 #}
 
-{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_50px_1fr_80px_70px_160px]') }}
+{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_50px_1fr_80px_70px]') }}
 
     {{ checkbox_cell(event.id, 'window.eventsSelection') }}
 
@@ -40,11 +40,6 @@
     <!-- Path -->
     <div class="text-xs truncate text-gray-400">
         {{ event.path or '—' }}
-    </div>
-
-    <!-- Response (truncated) -->
-    <div class="text-xs truncate text-gray-300" title="{{ event.response_text }}">
-        {{ event.response_text or '—' }}
     </div>
 
 {{ expandable_row_drilldown_start(event.id) }}

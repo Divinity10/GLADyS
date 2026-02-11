@@ -343,6 +343,11 @@ body {
     grid-template-columns: 30px 90px 70px 50px 1fr 80px 70px 160px;
 }
 
+/* Events tab grid v3 (checkbox, time, source, intent, event, status, path) */
+.grid-cols-\[30px_90px_70px_50px_1fr_80px_70px\] {
+    grid-template-columns: 30px 90px 70px 50px 1fr 80px 70px;
+}
+
 /* Response detail grid (label: value) */
 .grid-cols-\[80px_1fr\] {
     grid-template-columns: 80px 1fr;
