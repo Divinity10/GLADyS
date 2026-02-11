@@ -22,7 +22,7 @@ use crate::config::{SalienceConfig, ServerConfig, StorageConfig};
 use crate::client::{ClientConfig, StorageClient};
 use crate::proto::salience_gateway_server::SalienceGateway;
 use crate::proto::{
-    EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceVector,
+    EvaluateSalienceRequest, EvaluateSalienceResponse, SalienceResult,
     FlushCacheRequest, FlushCacheResponse, EvictFromCacheRequest, EvictFromCacheResponse,
     GetCacheStatsRequest, GetCacheStatsResponse, ListCachedHeuristicsRequest,
     ListCachedHeuristicsResponse, CachedHeuristicInfo,
@@ -280,31 +280,33 @@ impl SalienceService {
     }
 
     /// Apply salience boosts from a scored match.
-    fn apply_salience_boost(salience: &mut SalienceVector, boost: &serde_json::Value) {
+    fn apply_salience_boost(salience: &mut SalienceResult, boost: &serde_json::Value) {
+        let mut update_dimension = |dimension: &str| {
+            if let Some(new_value) = boost.get(dimension).and_then(|v| v.as_f64()) {
+                let existing = salience.vector.get(dimension).copied().unwrap_or(0.0);
+                salience
+                    .vector
+                    .insert(dimension.to_string(), (new_value as f32).max(existing));
+            }
+        };
+
         if let Some(threat) = boost.get("threat").and_then(|v| v.as_f64()) {
             salience.threat = salience.threat.max(threat as f32);
         }
-        if let Some(opportunity) = boost.get("opportunity").and_then(|v| v.as_f64()) {
-            salience.opportunity = salience.opportunity.max(opportunity as f32);
-        }
-        if let Some(humor) = boost.get("humor").and_then(|v| v.as_f64()) {
-            salience.humor = salience.humor.max(humor as f32);
-        }
-        if let Some(novelty) = boost.get("novelty").and_then(|v| v.as_f64()) {
-            salience.novelty = salience.novelty.max(novelty as f32);
-        }
-        if let Some(goal_relevance) = boost.get("goal_relevance").and_then(|v| v.as_f64()) {
-            salience.goal_relevance = salience.goal_relevance.max(goal_relevance as f32);
-        }
-        if let Some(social) = boost.get("social").and_then(|v| v.as_f64()) {
-            salience.social = salience.social.max(social as f32);
-        }
-        if let Some(emotional) = boost.get("emotional").and_then(|v| v.as_f64()) {
-            salience.emotional = salience.emotional.max(emotional as f32);
-        }
-        if let Some(actionability) = boost.get("actionability").and_then(|v| v.as_f64()) {
-            salience.actionability = salience.actionability.max(actionability as f32);
-        }
+
+        update_dimension("novelty");
+        update_dimension("goal_relevance");
+        update_dimension("opportunity");
+        update_dimension("actionability");
+        update_dimension("social");
+
+        salience.salience = salience
+            .vector
+            .values()
+            .copied()
+            .reduce(f32::max)
+            .unwrap_or(0.0);
+        salience.model_id = "heuristic_boost_v1".to_string();
     }
 }
 
@@ -333,16 +335,12 @@ impl SalienceGateway for SalienceService {
         );
 
         // Start with default salience values (using config)
-        let mut salience = SalienceVector {
+        let mut salience = SalienceResult {
             threat: 0.0,
-            opportunity: 0.0,
-            humor: 0.0,
-            novelty: self.config.baseline_novelty,
-            goal_relevance: 0.0,
-            social: 0.0,
-            emotional: 0.0,
-            actionability: 0.0,
+            salience: self.config.baseline_novelty,
             habituation: 0.0,
+            vector: HashMap::from([(String::from("novelty"), self.config.baseline_novelty)]),
+            model_id: "heuristic_base_v1".to_string(),
         };
 
         let mut matched_heuristic_id = String::new();
@@ -388,11 +386,29 @@ impl SalienceGateway for SalienceService {
                 }
                 Ok(_) => {
                     // No matches found
-                    salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+                    let novelty = salience.vector.get("novelty").copied().unwrap_or(0.0);
+                    salience
+                        .vector
+                        .insert("novelty".to_string(), novelty.max(self.config.unmatched_novelty_boost));
+                    salience.salience = salience
+                        .vector
+                        .values()
+                        .copied()
+                        .reduce(f32::max)
+                        .unwrap_or(0.0);
                 }
                 Err(e) => {
                     warn!(trace_id = %trace_id, error = %e, "Scoring failed");
-                    salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+                    let novelty = salience.vector.get("novelty").copied().unwrap_or(0.0);
+                    salience
+                        .vector
+                        .insert("novelty".to_string(), novelty.max(self.config.unmatched_novelty_boost));
+                    salience.salience = salience
+                        .vector
+                        .values()
+                        .copied()
+                        .reduce(f32::max)
+                        .unwrap_or(0.0);
                     
                     return Ok(Response::new(EvaluateSalienceResponse {
                         salience: Some(salience),
@@ -407,14 +423,30 @@ impl SalienceGateway for SalienceService {
 
         // Novelty detection: If no heuristic matched, this is potentially novel
         if !heuristic_matched && !req.raw_text.is_empty() {
-            salience.novelty = salience.novelty.max(self.config.unmatched_novelty_boost);
+            let novelty = salience.vector.get("novelty").copied().unwrap_or(0.0);
+            salience
+                .vector
+                .insert("novelty".to_string(), novelty.max(self.config.unmatched_novelty_boost));
+            salience.salience = salience
+                .vector
+                .values()
+                .copied()
+                .reduce(f32::max)
+                .unwrap_or(0.0);
         }
+
+        salience.salience = salience
+            .vector
+            .values()
+            .copied()
+            .reduce(f32::max)
+            .unwrap_or(0.0);
 
         info!(
             trace_id = %trace_id,
             event_id = %req.event_id,
             threat = salience.threat,
-            novelty = salience.novelty,
+            novelty = salience.vector.get("novelty").copied().unwrap_or(0.0),
             matched = %matched_heuristic_id,
             "Salience evaluated"
         );
@@ -813,16 +845,12 @@ mod tests {
             "opportunity": 0.3
         });
 
-        let mut salience = SalienceVector {
+        let mut salience = SalienceResult {
             threat: 0.1,
-            opportunity: 0.5, // Already higher than boost
-            humor: 0.0,
-            novelty: 0.0,
-            goal_relevance: 0.0,
-            social: 0.0,
-            emotional: 0.0,
-            actionability: 0.0,
+            salience: 0.0,
             habituation: 0.0,
+            vector: HashMap::from([(String::from("opportunity"), 0.5)]), // Already higher than boost
+            model_id: String::new(),
         };
 
         SalienceService::apply_salience_boost(&mut salience, &boost);
@@ -830,7 +858,9 @@ mod tests {
         // Threat should be boosted to 0.9
         assert!((salience.threat - 0.9).abs() < 0.001);
         // Opportunity should stay at 0.5 (was already higher)
-        assert!((salience.opportunity - 0.5).abs() < 0.001);
+        assert!((salience.vector.get("opportunity").copied().unwrap_or(0.0) - 0.5).abs() < 0.001);
+        assert!((salience.salience - 0.5).abs() < 0.001);
+        assert_eq!(salience.model_id, "heuristic_boost_v1");
     }
 
     #[tokio::test]
@@ -963,4 +993,3 @@ mod tests {
         assert_eq!(*value, Some(Some("test_domain".to_string())));
     }
 }
-

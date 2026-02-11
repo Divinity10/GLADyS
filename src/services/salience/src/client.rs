@@ -15,7 +15,7 @@ use crate::logging::TRACE_ID_HEADER;
 use crate::proto::{
     memory_storage_client::MemoryStorageClient, EpisodicEvent, GenerateEmbeddingRequest,
     Heuristic, HeuristicMatch, QueryByTimeRequest, QueryBySimilarityRequest, QueryHeuristicsRequest,
-    QueryMatchingHeuristicsRequest, SalienceVector, StoreEventRequest, StoreHeuristicRequest,
+    QueryMatchingHeuristicsRequest, SalienceResult, StoreEventRequest, StoreHeuristicRequest,
 };
 
 /// Errors from the storage client.
@@ -348,7 +348,7 @@ impl EventBuilder {
         self
     }
 
-    pub fn salience(mut self, salience: SalienceVector) -> Self {
+    pub fn salience(mut self, salience: SalienceResult) -> Self {
         self.event.salience = Some(salience);
         self
     }
@@ -481,4 +481,3 @@ mod tests {
         assert_eq!(heuristic.condition_text, "user entered the room");
     }
 }
-
