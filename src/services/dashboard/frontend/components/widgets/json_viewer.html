@@ -1,0 +1,16 @@
+{% macro json_viewer(title, data, default_collapsed=True) %}
+{% if data %}
+<div x-data="{ expanded: {{ 'false' if default_collapsed else 'true' }} }"
+     class="border-t border-gray-700 pt-2">
+    <div @click="expanded = !expanded"
+         class="cursor-pointer flex items-center gap-2 text-gray-400 font-bold uppercase text-xs mb-1 hover:text-gray-300">
+        <span x-text="expanded ? '▼' : '▶'" class="text-[10px]"></span>
+        <span>{{ title }}</span>
+    </div>
+    <div x-show="expanded" x-collapse
+         class="bg-gray-900 p-2 rounded overflow-auto max-h-64">
+        <pre class="text-xs text-gray-300 select-text">{{ data | tojson(indent=2) }}</pre>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}

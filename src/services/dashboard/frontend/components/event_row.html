@@ -1,12 +1,13 @@
 {% from 'components/widgets/expandable_row.html' import expandable_row_start, expandable_row_drilldown_start, expandable_row_end, checkbox_cell, source_cell, text_cell, status_cell, drilldown_text_field, drilldown_id_row, drilldown_stats_row, drilldown_boxed_text %}
 {% from 'components/widgets/feedback_actions.html' import feedback_buttons %}
+{% from 'components/widgets/json_viewer.html' import json_viewer %}
 
 {# Event Row - Div-based expandable row for Lab tab
-   Grid: 7 columns - Checkbox | Time | Source | Event | Status | Path | Response
+   Grid: 8 columns - Checkbox | Time | Source | Intent | Event | Status | Path | Response
    Must match header in lab.html
 #}
 
-{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_1fr_80px_70px_160px]') }}
+{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_50px_1fr_80px_70px_160px]') }}
 
     {{ checkbox_cell(event.id, 'window.eventsSelection') }}
 
@@ -17,6 +18,18 @@
 
     <!-- Source -->
     {{ source_cell(event.source) }}
+
+    <!-- Intent -->
+    {% set intent_value = (event.intent or 'unknown')|lower %}
+    <div class="text-xs font-bold text-center" title="{{ intent_value }}" data-intent="{{ intent_value }}">
+        {% if intent_value == 'actionable' %}
+            <span class="text-blue-400">⚡</span>
+        {% elif intent_value == 'informational' %}
+            <span class="text-gray-400">ℹ️</span>
+        {% else %}
+            <span class="text-yellow-400">❓</span>
+        {% endif %}
+    </div>
 
     <!-- Event Text -->
     {{ text_cell(event.text) }}
@@ -43,12 +56,34 @@
         {{ drilldown_id_row('ID', event.id, 'Response ID', event.response_id) }}
 
         {{ drilldown_stats_row([
+            {'label': 'Received', 'value': (event.received_time_absolute or event.time_absolute)},
+            {'label': 'Origin', 'value': (event.origin_time_absolute or '—')}
+        ]) }}
+
+        {{ drilldown_stats_row([
             {'label': 'Source', 'value': event.source},
-            {'label': 'Intent', 'value': event.intent or 'unknown'},
             {'label': 'Path', 'value': event.path},
             {'label': 'Salience', 'value': event.salience_score},
             {'label': 'Confidence', 'value': event.confidence}
         ]) }}
+
+        {{ json_viewer('Structured', event.structured) }}
+
+        {{ json_viewer('Evaluation Data', event.evaluation_data) }}
+
+        {% if event.entity_ids %}
+        <div class="border-t border-gray-700 pt-2">
+            <div class="text-gray-400 font-bold uppercase text-xs mb-1">Entity IDs</div>
+            <div class="flex flex-wrap gap-2">
+                {% for entity_id in event.entity_ids %}
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-700 bg-gray-900 text-blue-400 text-[11px] font-mono cursor-default hover:underline">
+                    <span class="text-gray-500">🔗</span>
+                    <span>{{ entity_id }}</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Salience Breakdown (unique to events, keep inline) -->
         {% if event.salience_breakdown %}
