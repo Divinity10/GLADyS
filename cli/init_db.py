@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Initialize the GLADyS PostgreSQL database for local development.
 
-Creates the gladys user/database and runs all migrations.
+Creates the gladys user/database and runs the canonical schema.
 Run via: make init-db  (or: python cli/init_db.py)
 
 Prerequisites:
@@ -11,18 +11,34 @@ Prerequisites:
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS_DIR = REPO_ROOT / "src" / "db" / "migrations"
+SCHEMA_FILE = REPO_ROOT / "src" / "db" / "schema.sql"
 
 DB_NAME = os.environ.get("DB_NAME", "gladys")
 DB_USER = os.environ.get("DB_USER", "gladys")
 DB_PASS = os.environ.get("DB_PASS", "gladys")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_HOST = os.environ.get("DB_HOST", "localhost")
+
+# Regex for validating SQL identifiers (no injection risk)
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_ident(value: str) -> str:
+    """Quote a SQL identifier after validating safe shape."""
+    if not IDENTIFIER_RE.fullmatch(value):
+        raise ValueError(f"Invalid SQL identifier: {value}")
+    return f'"{value}"'
+
+
+def _quote_literal(value: str) -> str:
+    """Quote a SQL string literal (escapes single quotes)."""
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _psql_cmd(dbname: str, as_postgres: bool) -> list[str]:
@@ -77,7 +93,7 @@ def check_postgres_running() -> bool:
 
 def create_user() -> bool:
     """Create the gladys database user if it doesn't exist."""
-    ok, output = run_psql(f"SELECT 1 FROM pg_roles WHERE rolname = '{DB_USER}';")
+    ok, output = run_psql(f"SELECT 1 FROM pg_roles WHERE rolname = {_quote_literal(DB_USER)};")
     if not ok:
         print(f"  FAIL  Cannot query pg_roles: {output}")
         return False
@@ -85,7 +101,7 @@ def create_user() -> bool:
         print(f"  OK    User '{DB_USER}' already exists")
         return True
 
-    ok, output = run_psql(f"CREATE USER {DB_USER} WITH PASSWORD '{DB_PASS}';")
+    ok, output = run_psql(f"CREATE USER {_quote_ident(DB_USER)} WITH PASSWORD {_quote_literal(DB_PASS)};")
     if ok:
         print(f"  OK    Created user '{DB_USER}'")
     else:
@@ -95,7 +111,7 @@ def create_user() -> bool:
 
 def create_database() -> bool:
     """Create the gladys database if it doesn't exist."""
-    ok, output = run_psql(f"SELECT 1 FROM pg_database WHERE datname = '{DB_NAME}';")
+    ok, output = run_psql(f"SELECT 1 FROM pg_database WHERE datname = {_quote_literal(DB_NAME)};")
     if not ok:
         print(f"  FAIL  Cannot query pg_database: {output}")
         return False
@@ -103,7 +119,7 @@ def create_database() -> bool:
         print(f"  OK    Database '{DB_NAME}' already exists")
         return True
 
-    ok, output = run_psql(f"CREATE DATABASE {DB_NAME} OWNER {DB_USER};")
+    ok, output = run_psql(f"CREATE DATABASE {_quote_ident(DB_NAME)} OWNER {_quote_ident(DB_USER)};")
     if ok:
         print(f"  OK    Created database '{DB_NAME}'")
     else:
@@ -113,7 +129,7 @@ def create_database() -> bool:
 
 def grant_permissions() -> bool:
     """Grant the gladys user permissions to create extensions."""
-    ok, output = run_psql(f"GRANT ALL PRIVILEGES ON DATABASE {DB_NAME} TO {DB_USER};")
+    ok, output = run_psql(f"GRANT ALL PRIVILEGES ON DATABASE {_quote_ident(DB_NAME)} TO {_quote_ident(DB_USER)};")
     if not ok:
         print(f"  WARN  Could not grant privileges: {output}")
     return True
@@ -136,33 +152,22 @@ def create_extensions() -> bool:
     return True
 
 
-def run_migrations() -> bool:
-    """Run all migration files in order as the gladys user."""
-    if not MIGRATIONS_DIR.exists():
-        print(f"  FAIL  Migrations directory not found: {MIGRATIONS_DIR}")
+def run_schema() -> bool:
+    """Run the canonical schema file as the gladys user."""
+    if not SCHEMA_FILE.exists():
+        print(f"  FAIL  Schema file not found: {SCHEMA_FILE}")
         return False
 
-    migrations = sorted(MIGRATIONS_DIR.glob("*.sql"))
-    if not migrations:
-        print("  SKIP  No migration files found")
+    # Run as gladys user (password auth) — avoids /root permission issues
+    ok, output = run_psql_file(SCHEMA_FILE, DB_NAME, as_postgres=False)
+    if ok:
+        print(f"  OK    {SCHEMA_FILE.name}")
         return True
 
-    all_ok = True
-    for migration in migrations:
-        # Run as gladys user (password auth) — avoids /root permission issues
-        ok, output = run_psql_file(migration, DB_NAME, as_postgres=False)
-        if ok:
-            print(f"  OK    {migration.name}")
-        else:
-            if "already exists" in output or "NOTICE" in output:
-                print(f"  OK    {migration.name} (already applied)")
-            else:
-                print(f"  FAIL  {migration.name}")
-                for line in output.splitlines()[:5]:
-                    print(f"        {line}")
-                all_ok = False
-
-    return all_ok
+    print(f"  FAIL  {SCHEMA_FILE.name}")
+    for line in output.splitlines()[:5]:
+        print(f"        {line}")
+    return False
 
 
 def main() -> int:
@@ -170,6 +175,14 @@ def main() -> int:
     print("=" * 40)
     print(f"  Host: {DB_HOST}  Port: {DB_PORT}  DB: {DB_NAME}  User: {DB_USER}")
     print()
+
+    # Validate identifiers early to fail fast
+    try:
+        _quote_ident(DB_NAME)
+        _quote_ident(DB_USER)
+    except ValueError as exc:
+        print(f"  FAIL  {exc}")
+        return 1
 
     print("Checking PostgreSQL:")
     if not check_postgres_running():
@@ -189,9 +202,9 @@ def main() -> int:
     if not create_extensions():
         return 1
 
-    print("\nRunning migrations:")
-    if not run_migrations():
-        print("\nMigrations had errors. Check output above.")
+    print("\nRunning schema:")
+    if not run_schema():
+        print("\nSchema apply had errors. Check output above.")
         return 1
 
     print("\n" + "=" * 40)
