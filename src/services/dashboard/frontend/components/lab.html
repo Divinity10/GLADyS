@@ -124,43 +124,43 @@
                                 Enable manual salience vector
                             </label>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs border rounded p-2 transition-colors"
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 text-xs border rounded p-2 transition-colors"
                              :class="salienceEnabled ? 'bg-white border-gray-400' : 'bg-gray-300 border-gray-400'">
-                            <label class="space-y-1">
-                                <span class="text-black">Threat</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_threat" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Threat</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_threat" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Opportunity</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_opportunity" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Opportunity</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_opportunity" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Humor</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_humor" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Humor</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_humor" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Novelty</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_novelty" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Novelty</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_novelty" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Goal Relevance</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_goal_relevance" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Goal Relevance</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_goal_relevance" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Social</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_social" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Social</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_social" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Emotional</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_emotional" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Emotional</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_emotional" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Actionability</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_actionability" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Actionability</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_actionability" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1">
-                                <span class="text-black">Habituation</span>
-                                <input type="number" min="0" max="1" step="0.01" name="salience_habituation" :disabled="!salienceEnabled" class="input-dense w-full bg-white text-black border border-gray-400 disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed">
+                            <label class="space-y-1 min-w-0">
+                                <span class="text-[10px] font-medium text-black">Habituation</span>
+                                <input type="number" min="0" max="1" step="0.01" name="salience_habituation" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
                             </label>
                         </div>
                     </div>
