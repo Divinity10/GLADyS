@@ -1,7 +1,7 @@
 # Salience Model Interface Spec
 
-**Status**: Proposed
-**Date**: 2026-02-05
+**Status**: Approved
+**Date**: 2026-02-11 (finalized), 2026-02-05 (initial)
 **Authors**: Scott Mulcahy, Claude (Architect)
 **Supersedes**: Partially supersedes SALIENCE_SCORER.md (which covers heuristic matching only)
 **Informed by**: Phase 1 finding F-20
@@ -103,27 +103,43 @@ salience = sum(weight[d] * vector[d] for d in dimensions) / sum(weights.values()
 
 Normalized so salience remains in 0.0-1.0 regardless of weight magnitudes.
 
-### 2.4 Vector Dimensions Are Response-Shaping Only
+### 2.4 Vector Dimensions Drive Response Shaping and Priority
 
 After removing threat and habituation, the vector contains dimensions that answer:
-*"What kind of attention does this deserve?"*
+*"What kind of attention does this deserve, and how should I respond?"*
 
 | Dimension | Range | Purpose |
 |-----------|-------|---------|
-| opportunity | 0-1 | Positive potential, advantages |
-| novelty | 0-1 | Semantic distance from known events |
-| humor | 0-1 | Entertainment/personality value |
-| goal_relevance | 0-1 | Alignment with active user goals |
+| novelty | 0-1 | Semantic distance from known events (expected vs unexpected) |
+| goal_relevance | 0-1 | Alignment with active user goals (including personality-derived goals like entertainment) |
+| opportunity | 0-1 | Positive potential, beneficial if acted upon |
+| actionability | 0-1 | Feasibility of responding to this event |
 | social | 0-1 | Interpersonal/entity significance |
-| emotional | -1 to 1 | Sentiment/tone (only signed dimension) |
-| actionability | 0-1 | Feasibility of acting on this event |
 
-**Note**: These dimensions are NOT yet proven orthogonal. Orthogonality is a goal for
-future model development, not a current guarantee. The interface supports models that
-output any subset of these dimensions, or additional custom dimensions.
+**Design rationale for removed dimensions:**
 
-**Open question**: Should `emotional` remain signed (-1 to 1) or split into `positive_affect`
-and `negative_affect`? Signed is compact but creates abs() edge cases.
+- **emotional** (removed): Emotional valence is captured by existing dimensions:
+  - Negative urgent consequences → `threat` (separate scalar)
+  - Positive beneficial outcomes → `opportunity`
+  - Example: "Angry customer email" = high threat (job/relationship risk), "Bank overdraft $5000" = high threat (financial risk), "Boss offers conference trip" = high opportunity
+  - In GLADyS's context (email, calendar, thermostat, games, doorbell), emotional valence doesn't drive action selection beyond what threat/opportunity already capture
+
+- **humor** (removed): Entertainment value is captured by `goal_relevance` when entertainment is an active goal:
+  - User personality profiles can include implicit "entertainment" goals
+  - Humor detection becomes an input to goal evaluation, not an output dimension
+  - Funny events score high on goal_relevance (when entertainment is valued) and opportunity (entertainment has value)
+
+- **impact** (deferred, YAGNI): Magnitude of effect on user's state. Deferred because:
+  - Threat and opportunity scores should already reflect magnitude (small threat = 0.2, large threat = 0.9)
+  - Vector is extensible (`map<string, float>`) — can add if data shows we need it
+  - No concrete evidence yet that current dimensions fail to capture impact
+
+**Orthogonality**: These 5 dimensions are orthogonal (can vary independently):
+- Opportunity vs actionability: "2 tons of gold, heavily guarded" (high opportunity: 1.0, low actionability: 0.1)
+- Goal_relevance vs opportunity: "Exit door while escaping" (high goal_relevance: 0.9, low opportunity: 0.2)
+- Social vs actionability: "Friend asks for $10k loan you can't afford" (high social: 0.9, low actionability: 0.1)
+
+The interface supports models outputting any subset of these dimensions, or additional custom dimensions as needs emerge.
 
 ---
 
@@ -211,7 +227,7 @@ class SalienceModel(Protocol):
 class SalienceWeights:
     """Configurable weights for computing salience scalar from vector."""
 
-    weights: dict[str, float]     # dimension → weight (e.g., {"novelty": 1.0, "humor": 0.5})
+    weights: dict[str, float]     # dimension → weight (e.g., {"novelty": 1.0, "actionability": 0.5})
     threat_threshold: float       # Above this → emergency path (default 0.8)
     salience_threshold: float     # Above this → queue for Executive (default 0.5)
 
@@ -278,21 +294,28 @@ async def route_event(self, event, salience: SalienceResult):
 
 ---
 
-## 7. Open Questions
+## 7. Design Decisions Summary
 
-1. **Should `emotional` be signed (-1 to 1) or split?** Signed is compact but creates
-   abs() edge cases in weighted sums.
+### Resolved Questions
 
-2. **Should the model own the scalar computation, or should it output only the vector
-   and let the system compute the scalar from weights?** Current design: system computes
-   scalar (enables user-configurable weights without model retraining).
+1. **emotional dimension** — RESOLVED: Removed. Captured by threat (negative consequences) + opportunity (positive benefits).
 
-3. **How do context profiles (ADR-0013 Â§5.3) interact with weights?** Are profiles just
+2. **humor dimension** — RESOLVED: Removed. Captured by goal_relevance when entertainment is an active/personality goal.
+
+3. **actionability placement** — RESOLVED: In vector, not as modifier. Weighted sum naturally handles high-social + low-actionability cases (friend's request you can't fulfill still routes to Executive for decline).
+
+4. **Scalar computation ownership** — RESOLVED: System computes scalar from weights. Enables user-configurable weights without model retraining.
+
+5. **Vector dimension count** — RESOLVED: 5 standard dimensions (novelty, goal_relevance, opportunity, actionability, social). Extensible via map for future additions.
+
+### Open Questions
+
+1. **How do context profiles (ADR-0013 Â§5.3) interact with weights?** Are profiles just
    preset weight configurations, or do they also affect which dimensions are active?
 
-4. **Should the vector be fixed-dimension or variable?** Fixed = simpler math, comparable
-   across models. Variable = models can innovate on dimensions. Current design: variable
-   (models declare their dimensions), but standard dimensions are recommended.
+2. **Should impact be added as a dimension?** (Magnitude of effect on user's state, orthogonal to valence.) Deferred per YAGNI — threat/opportunity should encode magnitude in their scores. Add if data shows current model under-represents magnitude.
+
+3. **Should additional domain-specific dimensions emerge?** Vector is extensible. Models can add dimensions as needed (e.g., urgency, complexity, certainty).
 
 ---
 
