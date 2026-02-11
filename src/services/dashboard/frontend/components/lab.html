@@ -1,37 +1,222 @@
 {% from 'components/widgets/data_table.html' import bulk_action_bar %}
 
 <div id="lab-tab" class="flex flex-col h-full gap-4">
-    <!-- Event Submission Bar -->
-    <div class="bg-gray-800 p-2 border border-gray-700 rounded sticky top-0 z-10">
+    <!-- Event Submission Form -->
+    <div class="bg-gray-800 p-3 border border-gray-700 rounded sticky top-0 z-10">
         <form hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
-              hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.querySelector('[name=text]').value=''; if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
-              class="flex gap-2 items-center">
-            <select name="source" class="input-dense bg-gray-900 w-32">
-                <option value="sudoku">sudoku</option>
-                <option value="melvor">melvor</option>
-                <option value="minecraft">minecraft</option>
-                <option value="kitchen">kitchen</option>
-                <option value="smart_home">smart_home</option>
-                <option value="work">work</option>
-                <option value="health">health</option>
-                <option value="custom">custom...</option>
-            </select>
-            <input type="text" name="text" placeholder="Enter event text..." required class="input-dense bg-gray-900 flex-1">
-            <select name="intent" class="input-dense bg-gray-900 w-32">
-                <option value="unknown" selected>unknown</option>
-                <option value="actionable">actionable</option>
-                <option value="informational">informational</option>
-            </select>
-            <select name="salience_override" class="input-dense bg-gray-900 w-32">
-                <option value="">System (Auto)</option>
-                <option value="high">Force HIGH</option>
-                <option value="low">Force LOW</option>
-            </select>
-            <button type="submit" class="btn btn-primary px-4 py-1">Submit</button>
-            <button type="button" onclick="document.getElementById('batch-file').click()"
-                    class="btn px-4 py-1" title="Load events from a JSON file">Load JSON</button>
-            <input type="file" id="batch-file" accept=".json" class="hidden"
-                   onchange="uploadBatchFile(this)" style="display:none">
+              x-data="{
+                  advancedOpen: false,
+                  salienceOpen: false,
+                  salienceEnabled: false,
+                  structuredOpen: false,
+                  evaluationOpen: false,
+                  entityOpen: false,
+                  timestamp: '',
+                  structuredPairs: [{ key: '', value: '' }],
+                  evaluationPairs: [{ key: '', value: '' }],
+                  init() { this.setTimestampNow(); },
+                  setTimestampNow() {
+                      const now = new Date();
+                      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                      this.timestamp = now.toISOString().slice(0, 16);
+                  },
+                  addStructuredPair() {
+                      this.structuredPairs.push({ key: '', value: '' });
+                  },
+                  removeStructuredPair(index) {
+                      this.structuredPairs.splice(index, 1);
+                      if (!this.structuredPairs.length) {
+                          this.addStructuredPair();
+                      }
+                  },
+                  addEvaluationPair() {
+                      this.evaluationPairs.push({ key: '', value: '' });
+                  },
+                  removeEvaluationPair(index) {
+                      this.evaluationPairs.splice(index, 1);
+                      if (!this.evaluationPairs.length) {
+                          this.addEvaluationPair();
+                      }
+                  },
+                  resetForm() {
+                      this.$el.reset();
+                      this.advancedOpen = false;
+                      this.salienceOpen = false;
+                      this.salienceEnabled = false;
+                      this.structuredOpen = false;
+                      this.evaluationOpen = false;
+                      this.entityOpen = false;
+                      this.structuredPairs = [{ key: '', value: '' }];
+                      this.evaluationPairs = [{ key: '', value: '' }];
+                      this.setTimestampNow();
+                  }
+              }"
+              x-init="init()"
+              x-on:event-form-reset="resetForm()"
+              hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.dispatchEvent(new CustomEvent('event-form-reset', { bubbles: true })); if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
+              class="space-y-3">
+            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Source</label>
+                    <select name="source" class="input-dense bg-gray-900 w-full mt-1">
+                        <option value="sudoku">sudoku</option>
+                        <option value="melvor">melvor</option>
+                        <option value="minecraft">minecraft</option>
+                        <option value="kitchen">kitchen</option>
+                        <option value="smart_home">smart_home</option>
+                        <option value="work">work</option>
+                        <option value="health">health</option>
+                        <option value="custom">custom...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Event Text</label>
+                    <textarea name="text" placeholder="Enter event text..." required rows="2"
+                              class="input-dense bg-gray-900 w-full mt-1"></textarea>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Intent</label>
+                    <select name="intent" class="input-dense bg-gray-900 w-40 mt-1">
+                        <option value="unknown" selected>unknown</option>
+                        <option value="actionable">actionable</option>
+                        <option value="informational">informational</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary px-4 py-1 mt-4">Submit</button>
+                <button type="button" onclick="document.getElementById('batch-file').click()"
+                        class="btn px-4 py-1 mt-4" title="Load events from a JSON file">Load JSON</button>
+                <button type="button" class="btn px-4 py-1 mt-4"
+                        @click="advancedOpen = !advancedOpen"
+                        x-text="advancedOpen ? 'Hide Advanced Fields' : 'Show Advanced Fields'"></button>
+                <input type="file" id="batch-file" accept=".json" class="hidden"
+                       onchange="uploadBatchFile(this)" style="display:none">
+            </div>
+
+            <div x-show="advancedOpen" x-cloak class="space-y-3 border-t border-gray-700 pt-3">
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Origin Timestamp</label>
+                    <input type="datetime-local" name="timestamp" x-model="timestamp"
+                           :disabled="!advancedOpen"
+                           class="input-dense bg-gray-900 w-full mt-1 md:w-80">
+                </div>
+
+                <div class="border border-gray-700 rounded">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                            @click="salienceOpen = !salienceOpen">
+                        <span>Salience Override</span>
+                        <span x-text="salienceOpen ? '-' : '+'"></span>
+                    </button>
+                    <div x-show="salienceOpen" x-cloak class="px-3 pb-3 space-y-3">
+                        <div class="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-2">
+                            <div>
+                                <label class="text-[10px] text-gray-400 uppercase tracking-wide">Preset Override</label>
+                                <select name="salience_override" class="input-dense bg-gray-900 w-full mt-1">
+                                    <option value="">System (Auto)</option>
+                                    <option value="high">Force HIGH</option>
+                                    <option value="low">Force LOW</option>
+                                </select>
+                            </div>
+                            <label class="flex items-center gap-2 mt-4 text-xs text-gray-300">
+                                <input type="checkbox" x-model="salienceEnabled" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
+                                Enable manual salience vector
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Threat</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_threat" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Opportunity</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_opportunity" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Humor</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_humor" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Novelty</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_novelty" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Goal Relevance</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_goal_relevance" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Social</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_social" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Emotional</span>
+                                <input type="range" min="-1" max="1" step="0.01" name="salience_emotional" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Actionability</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_actionability" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                            <label class="space-y-1">
+                                <span class="text-gray-300">Habituation</span>
+                                <input type="range" min="0" max="1" step="0.01" name="salience_habituation" :disabled="!salienceEnabled" class="w-full">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border border-gray-700 rounded">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                            @click="structuredOpen = !structuredOpen">
+                        <span>Structured Data</span>
+                        <span x-text="structuredOpen ? '-' : '+'"></span>
+                    </button>
+                    <div x-show="structuredOpen" x-cloak class="px-3 pb-3 space-y-2">
+                        <template x-for="(pair, index) in structuredPairs" :key="'structured-' + index">
+                            <div class="grid grid-cols-[1fr_1fr_auto] gap-2">
+                                <input type="text" name="structured_keys[]" x-model="pair.key" placeholder="key"
+                                       class="input-dense bg-gray-900 w-full">
+                                <input type="text" name="structured_values[]" x-model="pair.value" placeholder="value"
+                                       class="input-dense bg-gray-900 w-full">
+                                <button type="button" class="btn px-3 py-1" @click="removeStructuredPair(index)">Remove</button>
+                            </div>
+                        </template>
+                        <button type="button" class="btn px-3 py-1 text-xs" @click="addStructuredPair()">Add Field</button>
+                    </div>
+                </div>
+
+                <div class="border border-gray-700 rounded">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                            @click="evaluationOpen = !evaluationOpen">
+                        <span>Evaluation Data</span>
+                        <span x-text="evaluationOpen ? '-' : '+'"></span>
+                    </button>
+                    <div x-show="evaluationOpen" x-cloak class="px-3 pb-3 space-y-2">
+                        <template x-for="(pair, index) in evaluationPairs" :key="'evaluation-' + index">
+                            <div class="grid grid-cols-[1fr_1fr_auto] gap-2">
+                                <input type="text" name="evaluation_keys[]" x-model="pair.key" placeholder="key"
+                                       class="input-dense bg-gray-900 w-full">
+                                <input type="text" name="evaluation_values[]" x-model="pair.value" placeholder="value"
+                                       class="input-dense bg-gray-900 w-full">
+                                <button type="button" class="btn px-3 py-1" @click="removeEvaluationPair(index)">Remove</button>
+                            </div>
+                        </template>
+                        <button type="button" class="btn px-3 py-1 text-xs" @click="addEvaluationPair()">Add Field</button>
+                    </div>
+                </div>
+
+                <div class="border border-gray-700 rounded">
+                    <button type="button" class="w-full flex items-center justify-between px-3 py-2 text-xs text-gray-300"
+                            @click="entityOpen = !entityOpen">
+                        <span>Entity IDs</span>
+                        <span x-text="entityOpen ? '-' : '+'"></span>
+                    </button>
+                    <div x-show="entityOpen" x-cloak class="px-3 pb-3">
+                        <input type="text" name="entity_ids" placeholder="uuid1, uuid2, uuid3"
+                               class="input-dense bg-gray-900 w-full">
+                    </div>
+                </div>
+            </div>
         </form>
         <div id="submit-status" class="text-[10px] mt-1"></div>
     </div>

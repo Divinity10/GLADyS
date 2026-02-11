@@ -28,12 +28,52 @@ if PROTOS_AVAILABLE:
         memory_pb2,
         orchestrator_pb2,
         orchestrator_pb2_grpc,
+        types_pb2,
     )
 
 router = APIRouter(prefix="/api")
 
 FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
+
+SALIENCE_DIMENSIONS = (
+    ("threat", 0.0, 1.0),
+    ("opportunity", 0.0, 1.0),
+    ("humor", 0.0, 1.0),
+    ("novelty", 0.0, 1.0),
+    ("goal_relevance", 0.0, 1.0),
+    ("social", 0.0, 1.0),
+    ("emotional", -1.0, 1.0),
+    ("actionability", 0.0, 1.0),
+    ("habituation", 0.0, 1.0),
+)
+
+
+def _parse_optional_float(value) -> float | None:
+    """Parse an optional form float value; return None for blank/invalid."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "":
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _clamp(value: float, min_value: float, max_value: float) -> float:
+    return max(min_value, min(max_value, value))
+
+
+def _pairs_to_dict(keys: list[str], values: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for key, value in zip(keys, values):
+        normalized_key = (key or "").strip()
+        if not normalized_key:
+            continue
+        result[normalized_key] = (value or "").strip()
+    return result
 
 
 def _make_event_dict(event_id: str, source: str, text: str,
@@ -182,6 +222,8 @@ async def submit_event(request: Request):
     text = form.get("text", "")
     salience_override = form.get("salience_override", "")
     intent = form.get("intent", "unknown")
+    timestamp_str = (form.get("timestamp", "") or "").strip()
+    entity_ids_str = (form.get("entity_ids", "") or "").strip()
 
     if not text:
         return HTMLResponse('<span class="text-red-400">Error: text is required</span>', status_code=400)
@@ -193,20 +235,97 @@ async def submit_event(request: Request):
     if not stub:
         return HTMLResponse('<span class="text-red-400">Error: orchestrator not available (proto stubs missing)</span>', status_code=503)
 
-    salience = None
-    if salience_override == "high":
-        salience = common_pb2.SalienceVector(novelty=0.95, actionability=0.95, threat=0.0)
-    elif salience_override == "low":
-        salience = common_pb2.SalienceVector(novelty=0.1, actionability=0.1, threat=0.0)
-
     event = common_pb2.Event(
         id=event_id,
         source=source,
         raw_text=text,
         intent=intent,
     )
+
+    if timestamp_str:
+        try:
+            origin_dt = datetime.fromisoformat(timestamp_str)
+        except ValueError:
+            return HTMLResponse(
+                '<span class="text-red-400">Error: invalid timestamp format</span>',
+                status_code=400,
+            )
+        if origin_dt.tzinfo is None:
+            local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+            origin_dt = origin_dt.replace(tzinfo=local_tz)
+        event.timestamp.FromDatetime(origin_dt.astimezone(timezone.utc))
+
+    manual_salience: dict[str, float] = {}
+    for dimension, min_value, max_value in SALIENCE_DIMENSIONS:
+        parsed = _parse_optional_float(form.get(f"salience_{dimension}"))
+        if parsed is None:
+            continue
+        manual_salience[dimension] = _clamp(parsed, min_value, max_value)
+
+    salience = None
+    if manual_salience:
+        salience = types_pb2.SalienceVector(
+            threat=manual_salience.get("threat", 0.0),
+            opportunity=manual_salience.get("opportunity", 0.0),
+            humor=manual_salience.get("humor", 0.0),
+            novelty=manual_salience.get("novelty", 0.0),
+            goal_relevance=manual_salience.get("goal_relevance", 0.0),
+            social=manual_salience.get("social", 0.0),
+            emotional=manual_salience.get("emotional", 0.0),
+            actionability=manual_salience.get("actionability", 0.0),
+            habituation=manual_salience.get("habituation", 0.0),
+        )
+    elif salience_override == "high":
+        salience = types_pb2.SalienceVector(
+            novelty=0.95,
+            actionability=0.95,
+            threat=0.0,
+        )
+    elif salience_override == "low":
+        salience = types_pb2.SalienceVector(
+            novelty=0.1,
+            actionability=0.1,
+            threat=0.0,
+        )
+
     if salience:
         event.salience.CopyFrom(salience)
+
+    structured_data = _pairs_to_dict(
+        form.getlist("structured_keys[]"),
+        form.getlist("structured_values[]"),
+    )
+    if structured_data:
+        event.structured.update(structured_data)
+
+    evaluation_data = _pairs_to_dict(
+        form.getlist("evaluation_keys[]"),
+        form.getlist("evaluation_values[]"),
+    )
+    if evaluation_data:
+        event.evaluation_data.update(evaluation_data)
+
+    if entity_ids_str:
+        parsed_entity_ids: list[str] = []
+        invalid_ids: list[str] = []
+        for raw_id in entity_ids_str.split(","):
+            entity_id = raw_id.strip()
+            if not entity_id:
+                continue
+            try:
+                uuid.UUID(entity_id)
+                parsed_entity_ids.append(entity_id)
+            except ValueError:
+                invalid_ids.append(entity_id)
+
+        if invalid_ids:
+            return HTMLResponse(
+                '<span class="text-red-400">Error: entity_ids must be comma-separated UUIDs</span>',
+                status_code=400,
+            )
+
+        if parsed_entity_ids:
+            event.entity_ids.extend(parsed_entity_ids)
 
     def _publish():
         try:
