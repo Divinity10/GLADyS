@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Initialize the GLADyS PostgreSQL database for local development.
 
-Creates the gladys user/database and runs all migrations.
+Creates the gladys user/database and runs the canonical schema.
 Run via: make init-db  (or: python cli/init_db.py)
 
 Prerequisites:
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS_DIR = REPO_ROOT / "src" / "db" / "migrations"
+SCHEMA_FILE = REPO_ROOT / "src" / "db" / "schema.sql"
 
 DB_NAME = os.environ.get("DB_NAME", "gladys")
 DB_USER = os.environ.get("DB_USER", "gladys")
@@ -136,33 +136,22 @@ def create_extensions() -> bool:
     return True
 
 
-def run_migrations() -> bool:
-    """Run all migration files in order as the gladys user."""
-    if not MIGRATIONS_DIR.exists():
-        print(f"  FAIL  Migrations directory not found: {MIGRATIONS_DIR}")
+def run_schema() -> bool:
+    """Run the canonical schema file as the gladys user."""
+    if not SCHEMA_FILE.exists():
+        print(f"  FAIL  Schema file not found: {SCHEMA_FILE}")
         return False
 
-    migrations = sorted(MIGRATIONS_DIR.glob("*.sql"))
-    if not migrations:
-        print("  SKIP  No migration files found")
+    # Run as gladys user (password auth) — avoids /root permission issues
+    ok, output = run_psql_file(SCHEMA_FILE, DB_NAME, as_postgres=False)
+    if ok:
+        print(f"  OK    {SCHEMA_FILE.name}")
         return True
 
-    all_ok = True
-    for migration in migrations:
-        # Run as gladys user (password auth) — avoids /root permission issues
-        ok, output = run_psql_file(migration, DB_NAME, as_postgres=False)
-        if ok:
-            print(f"  OK    {migration.name}")
-        else:
-            if "already exists" in output or "NOTICE" in output:
-                print(f"  OK    {migration.name} (already applied)")
-            else:
-                print(f"  FAIL  {migration.name}")
-                for line in output.splitlines()[:5]:
-                    print(f"        {line}")
-                all_ok = False
-
-    return all_ok
+    print(f"  FAIL  {SCHEMA_FILE.name}")
+    for line in output.splitlines()[:5]:
+        print(f"        {line}")
+    return False
 
 
 def main() -> int:
@@ -189,9 +178,9 @@ def main() -> int:
     if not create_extensions():
         return 1
 
-    print("\nRunning migrations:")
-    if not run_migrations():
-        print("\nMigrations had errors. Check output above.")
+    print("\nRunning schema:")
+    if not run_schema():
+        print("\nSchema apply had errors. Check output above.")
         return 1
 
     print("\n" + "=" * 40)
