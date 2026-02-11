@@ -11,6 +11,7 @@ Prerequisites:
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,21 @@ DB_USER = os.environ.get("DB_USER", "gladys")
 DB_PASS = os.environ.get("DB_PASS", "gladys")
 DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_HOST = os.environ.get("DB_HOST", "localhost")
+
+# Regex for validating SQL identifiers (no injection risk)
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_ident(value: str) -> str:
+    """Quote a SQL identifier after validating safe shape."""
+    if not IDENTIFIER_RE.fullmatch(value):
+        raise ValueError(f"Invalid SQL identifier: {value}")
+    return f'"{value}"'
+
+
+def _quote_literal(value: str) -> str:
+    """Quote a SQL string literal (escapes single quotes)."""
+    return "'" + value.replace("'", "''") + "'"
 
 
 def _psql_cmd(dbname: str, as_postgres: bool) -> list[str]:
@@ -77,7 +93,7 @@ def check_postgres_running() -> bool:
 
 def create_user() -> bool:
     """Create the gladys database user if it doesn't exist."""
-    ok, output = run_psql(f"SELECT 1 FROM pg_roles WHERE rolname = '{DB_USER}';")
+    ok, output = run_psql(f"SELECT 1 FROM pg_roles WHERE rolname = {_quote_literal(DB_USER)};")
     if not ok:
         print(f"  FAIL  Cannot query pg_roles: {output}")
         return False
@@ -85,7 +101,7 @@ def create_user() -> bool:
         print(f"  OK    User '{DB_USER}' already exists")
         return True
 
-    ok, output = run_psql(f"CREATE USER {DB_USER} WITH PASSWORD '{DB_PASS}';")
+    ok, output = run_psql(f"CREATE USER {_quote_ident(DB_USER)} WITH PASSWORD {_quote_literal(DB_PASS)};")
     if ok:
         print(f"  OK    Created user '{DB_USER}'")
     else:
@@ -95,7 +111,7 @@ def create_user() -> bool:
 
 def create_database() -> bool:
     """Create the gladys database if it doesn't exist."""
-    ok, output = run_psql(f"SELECT 1 FROM pg_database WHERE datname = '{DB_NAME}';")
+    ok, output = run_psql(f"SELECT 1 FROM pg_database WHERE datname = {_quote_literal(DB_NAME)};")
     if not ok:
         print(f"  FAIL  Cannot query pg_database: {output}")
         return False
@@ -103,7 +119,7 @@ def create_database() -> bool:
         print(f"  OK    Database '{DB_NAME}' already exists")
         return True
 
-    ok, output = run_psql(f"CREATE DATABASE {DB_NAME} OWNER {DB_USER};")
+    ok, output = run_psql(f"CREATE DATABASE {_quote_ident(DB_NAME)} OWNER {_quote_ident(DB_USER)};")
     if ok:
         print(f"  OK    Created database '{DB_NAME}'")
     else:
@@ -113,7 +129,7 @@ def create_database() -> bool:
 
 def grant_permissions() -> bool:
     """Grant the gladys user permissions to create extensions."""
-    ok, output = run_psql(f"GRANT ALL PRIVILEGES ON DATABASE {DB_NAME} TO {DB_USER};")
+    ok, output = run_psql(f"GRANT ALL PRIVILEGES ON DATABASE {_quote_ident(DB_NAME)} TO {_quote_ident(DB_USER)};")
     if not ok:
         print(f"  WARN  Could not grant privileges: {output}")
     return True
@@ -159,6 +175,14 @@ def main() -> int:
     print("=" * 40)
     print(f"  Host: {DB_HOST}  Port: {DB_PORT}  DB: {DB_NAME}  User: {DB_USER}")
     print()
+
+    # Validate identifiers early to fail fast
+    try:
+        _quote_ident(DB_NAME)
+        _quote_ident(DB_USER)
+    except ValueError as exc:
+        print(f"  FAIL  {exc}")
+        return 1
 
     print("Checking PostgreSQL:")
     if not check_postgres_running():
