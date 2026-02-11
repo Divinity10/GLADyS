@@ -333,17 +333,7 @@ body {
     grid-template-columns: 30px 120px 80px 1fr 90px 100px;
 }
 
-/* Events tab grid (checkbox, time, source, event, status, path, response) */
-.grid-cols-\[30px_90px_70px_1fr_80px_70px_160px\] {
-    grid-template-columns: 30px 90px 70px 1fr 80px 70px 160px;
-}
-
-/* Events tab grid v2 (checkbox, time, source, intent, event, status, path, response) */
-.grid-cols-\[30px_90px_70px_50px_1fr_80px_70px_160px\] {
-    grid-template-columns: 30px 90px 70px 50px 1fr 80px 70px 160px;
-}
-
-/* Events tab grid v3 (checkbox, time, source, intent, event, status, path) */
+/* Events tab grid (checkbox, time, source, intent, event, status, path) */
 .grid-cols-\[30px_90px_70px_50px_1fr_80px_70px\] {
     grid-template-columns: 30px 90px 70px 50px 1fr 80px 70px;
 }
