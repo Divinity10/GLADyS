@@ -1169,7 +1169,7 @@ class MemoryStorage(object):
 
 class SalienceGatewayStub(object):
     """Salience Gateway Service - the "amygdala"
-    Co-located with Memory per ADR-0001 §5.1
+    Co-located with Memory per ADR-0001 Â§5.1
     Provides fast salience evaluation for incoming events
     """
 
@@ -1223,7 +1223,7 @@ class SalienceGatewayStub(object):
 
 class SalienceGatewayServicer(object):
     """Salience Gateway Service - the "amygdala"
-    Co-located with Memory per ADR-0001 §5.1
+    Co-located with Memory per ADR-0001 Â§5.1
     Provides fast salience evaluation for incoming events
     """
 
@@ -1338,7 +1338,7 @@ def add_SalienceGatewayServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class SalienceGateway(object):
     """Salience Gateway Service - the "amygdala"
-    Co-located with Memory per ADR-0001 §5.1
+    Co-located with Memory per ADR-0001 Â§5.1
     Provides fast salience evaluation for incoming events
     """
 

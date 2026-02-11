@@ -176,7 +176,7 @@ message EpisodicEvent {
     string source = 3;                  // Sensor ID
     string raw_text = 4;                // Natural language description
     bytes embedding = 5;                // 384-dim float32 vector (serialized)
-    gladys.types.SalienceVector salience = 6;
+    gladys.types.SalienceResult salience = 6;
     string structured_json = 7;         // Domain-specific data as JSON string
     repeated string entity_ids = 8;     // Referenced entity UUIDs
 
@@ -358,7 +358,7 @@ message EvaluateSalienceRequest {
 }
 
 message EvaluateSalienceResponse {
-    gladys.types.SalienceVector salience = 1;
+    gladys.types.SalienceResult salience = 1;
     bool from_cache = 2;
     string matched_heuristic_id = 3;
     string error = 4;

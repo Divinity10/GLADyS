@@ -24,27 +24,31 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0btypes.proto\x12\x0cgladys.types\"\xbc\x01\n\x0eSalienceVector\x12\x0e\n\x06threat\x18\x01 \x01(\x02\x12\x13\n\x0bopportunity\x18\x02 \x01(\x02\x12\r\n\x05humor\x18\x03 \x01(\x02\x12\x0f\n\x07novelty\x18\x04 \x01(\x02\x12\x16\n\x0egoal_relevance\x18\x05 \x01(\x02\x12\x0e\n\x06social\x18\x06 \x01(\x02\x12\x11\n\temotional\x18\x07 \x01(\x02\x12\x15\n\ractionability\x18\x08 \x01(\x02\x12\x13\n\x0bhabituation\x18\t \x01(\x02\"\x12\n\x10GetHealthRequest\"P\n\x11GetHealthResponse\x12*\n\x06status\x18\x01 \x01(\x0e\x32\x1a.gladys.types.HealthStatus\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x19\n\x17GetHealthDetailsRequest\"\xd4\x01\n\x18GetHealthDetailsResponse\x12*\n\x06status\x18\x01 \x01(\x0e\x32\x1a.gladys.types.HealthStatus\x12\x16\n\x0euptime_seconds\x18\x02 \x01(\x03\x12\x44\n\x07\x64\x65tails\x18\x03 \x03(\x0b\x32\x33.gladys.types.GetHealthDetailsResponse.DetailsEntry\x1a.\n\x0c\x44\x65tailsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*}\n\x0cHealthStatus\x12\x19\n\x15HEALTH_STATUS_UNKNOWN\x10\x00\x12\x19\n\x15HEALTH_STATUS_HEALTHY\x10\x01\x12\x1b\n\x17HEALTH_STATUS_UNHEALTHY\x10\x02\x12\x1a\n\x16HEALTH_STATUS_DEGRADED\x10\x03\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0btypes.proto\x12\x0cgladys.types\"\xc2\x01\n\x0eSalienceResult\x12\x0e\n\x06threat\x18\x01 \x01(\x02\x12\x10\n\x08salience\x18\x02 \x01(\x02\x12\x13\n\x0bhabituation\x18\x03 \x01(\x02\x12\x38\n\x06vector\x18\x04 \x03(\x0b\x32(.gladys.types.SalienceResult.VectorEntry\x12\x10\n\x08model_id\x18\x05 \x01(\t\x1a-\n\x0bVectorEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x02:\x02\x38\x01\"\x12\n\x10GetHealthRequest\"P\n\x11GetHealthResponse\x12*\n\x06status\x18\x01 \x01(\x0e\x32\x1a.gladys.types.HealthStatus\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x19\n\x17GetHealthDetailsRequest\"\xd4\x01\n\x18GetHealthDetailsResponse\x12*\n\x06status\x18\x01 \x01(\x0e\x32\x1a.gladys.types.HealthStatus\x12\x16\n\x0euptime_seconds\x18\x02 \x01(\x03\x12\x44\n\x07\x64\x65tails\x18\x03 \x03(\x0b\x32\x33.gladys.types.GetHealthDetailsResponse.DetailsEntry\x1a.\n\x0c\x44\x65tailsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*}\n\x0cHealthStatus\x12\x19\n\x15HEALTH_STATUS_UNKNOWN\x10\x00\x12\x19\n\x15HEALTH_STATUS_HEALTHY\x10\x01\x12\x1b\n\x17HEALTH_STATUS_UNHEALTHY\x10\x02\x12\x1a\n\x16HEALTH_STATUS_DEGRADED\x10\x03\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'types_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_SALIENCERESULT_VECTORENTRY']._loaded_options = None
+  _globals['_SALIENCERESULT_VECTORENTRY']._serialized_options = b'8\001'
   _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._loaded_options = None
   _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._serialized_options = b'8\001'
-  _globals['_HEALTHSTATUS']._serialized_start=564
-  _globals['_HEALTHSTATUS']._serialized_end=689
-  _globals['_SALIENCEVECTOR']._serialized_start=30
-  _globals['_SALIENCEVECTOR']._serialized_end=218
-  _globals['_GETHEALTHREQUEST']._serialized_start=220
-  _globals['_GETHEALTHREQUEST']._serialized_end=238
-  _globals['_GETHEALTHRESPONSE']._serialized_start=240
-  _globals['_GETHEALTHRESPONSE']._serialized_end=320
-  _globals['_GETHEALTHDETAILSREQUEST']._serialized_start=322
-  _globals['_GETHEALTHDETAILSREQUEST']._serialized_end=347
-  _globals['_GETHEALTHDETAILSRESPONSE']._serialized_start=350
-  _globals['_GETHEALTHDETAILSRESPONSE']._serialized_end=562
-  _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._serialized_start=516
-  _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._serialized_end=562
+  _globals['_HEALTHSTATUS']._serialized_start=570
+  _globals['_HEALTHSTATUS']._serialized_end=695
+  _globals['_SALIENCERESULT']._serialized_start=30
+  _globals['_SALIENCERESULT']._serialized_end=224
+  _globals['_SALIENCERESULT_VECTORENTRY']._serialized_start=179
+  _globals['_SALIENCERESULT_VECTORENTRY']._serialized_end=224
+  _globals['_GETHEALTHREQUEST']._serialized_start=226
+  _globals['_GETHEALTHREQUEST']._serialized_end=244
+  _globals['_GETHEALTHRESPONSE']._serialized_start=246
+  _globals['_GETHEALTHRESPONSE']._serialized_end=326
+  _globals['_GETHEALTHDETAILSREQUEST']._serialized_start=328
+  _globals['_GETHEALTHDETAILSREQUEST']._serialized_end=353
+  _globals['_GETHEALTHDETAILSRESPONSE']._serialized_start=356
+  _globals['_GETHEALTHDETAILSRESPONSE']._serialized_end=568
+  _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._serialized_start=522
+  _globals['_GETHEALTHDETAILSRESPONSE_DETAILSENTRY']._serialized_end=568
 # @@protoc_insertion_point(module_scope)
