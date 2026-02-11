@@ -1,0 +1,72 @@
+plugin:
+  id: minecraft-skill
+  name: Minecraft Skill
+  version: 0.1.0
+  type: skill
+  description: Test skill for Minecraft game integration
+
+skill:
+  category: capability
+  capabilities:
+    - check_player_status
+    - query_player_location
+    - query_inventory
+    - send_chat_message
+
+  methods:
+    - name: check_player
+      description: Check player status in Minecraft
+      capabilities:
+        - check_player_status
+      parameters:
+        - name: player_name
+          type: string
+          description: Name of the player to check
+          required: true
+      returns:
+        type: object
+        description: Player status information
+
+    - name: get_player_location
+      description: Query player location in the game world
+      capabilities:
+        - query_player_location
+      parameters:
+        - name: player_name
+          type: string
+          description: Name of the player
+          required: true
+      returns:
+        type: object
+        description: Player coordinates
+
+    - name: get_inventory
+      description: Query player inventory contents
+      capabilities:
+        - query_inventory
+      parameters:
+        - name: player_name
+          type: string
+          description: Name of the player
+          required: true
+      returns:
+        type: array
+        description: List of inventory items
+
+    - name: send_chat
+      description: Send a chat message in Minecraft
+      capabilities:
+        - send_chat_message
+      parameters:
+        - name: message
+          type: string
+          description: Message to send
+          required: true
+      returns:
+        type: boolean
+        description: Whether message was sent successfully
+
+  activation:
+    triggers:
+      - source_match: "minecraft"
+        description: Activates for Minecraft-related events

@@ -30,6 +30,7 @@ try:
     from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
     from gladys_orchestrator.generated import common_pb2
     from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
+    from gladys_orchestrator.generated import types_pb2
 except ImportError:
     print("ERROR: Proto stubs not found. Run 'make proto'")
     sys.exit(1)
@@ -41,14 +42,14 @@ MEMORY_ADDR = os.environ.get("PYTHON_ADDRESS", "localhost:50061")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("test_lab_bench")
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 async def orchestrator_stub():
     channel = grpc.aio.insecure_channel(ORCHESTRATOR_ADDR)
     stub = orchestrator_pb2_grpc.OrchestratorServiceStub(channel)
     yield stub
     await channel.close()
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 async def memory_stub():
     channel = grpc.aio.insecure_channel(MEMORY_ADDR)
     stub = memory_pb2_grpc.MemoryStorageStub(channel)
@@ -57,24 +58,24 @@ async def memory_stub():
 
 @pytest.mark.asyncio
 async def test_immediate_path_override(orchestrator_stub):
-    """Verify HIGH salience events are routed immediately to LLM."""
+    """Verify HIGH salience events are queued to Executive (§30 boundary change)."""
     event_id = str(uuid.uuid4())
     event_text = f"URGENT: Server fire! {event_id}"
-    
+
     # Force HIGH salience
     event = common_pb2.Event(
         id=event_id,
         source="test_bench",
         raw_text=event_text,
-        salience=common_pb2.SalienceVector(novelty=0.9, threat=0.9)
+        salience=types_pb2.SalienceVector(novelty=0.9, threat=0.9)
     )
     response = await orchestrator_stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
     ack = response.ack
-    
+
     assert ack is not None
     assert ack.accepted
-    assert ack.routed_to_llm, "Should be routed to LLM (Immediate Path)"
-    # We might check for response_id if stub is running, but routed_to_llm is the key signal
+    # Post-§30: All events queue to Executive (which decides heuristic-vs-LLM)
+    assert ack.queued, "Should be queued for Executive processing"
 
 @pytest.mark.asyncio
 async def test_heuristic_metadata(orchestrator_stub, memory_stub):

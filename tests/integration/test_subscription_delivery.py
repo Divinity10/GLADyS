@@ -86,6 +86,7 @@ async def test_subscription_receives_queued_response(orchestrator_stub):
             subscriber_id = f"test-{uuid4().hex[:8]}"
             req = orchestrator_pb2.SubscribeResponsesRequest(
                 subscriber_id=subscriber_id,
+                source_filters=["test-subscription"],  # Only receive our test events
                 include_immediate=True
             )
             print(f"[Subscription] Starting as {subscriber_id}")

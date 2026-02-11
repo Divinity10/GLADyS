@@ -39,6 +39,7 @@ try:
     from gladys_orchestrator.generated import memory_pb2, memory_pb2_grpc
     from gladys_orchestrator.generated import executive_pb2, executive_pb2_grpc
     from gladys_orchestrator.generated import common_pb2
+    from gladys_orchestrator.generated import types_pb2
 except ImportError:
     print("ERROR: Proto stubs not found. Run 'make proto'")
     sys.exit(1)
@@ -268,7 +269,7 @@ class LearningLoopTest:
                 id=str(uuid.uuid4()),
                 source="kitchen",
                 raw_text=event_text,
-                salience=common_pb2.SalienceVector(threat=0.1)
+                salience=types_pb2.SalienceVector(threat=0.1)
             ),
             immediate=True
         )
@@ -560,7 +561,7 @@ class LearningLoopTest:
                 id=str(uuid.uuid4()),
                 source="smart_home",
                 raw_text=event_text,
-                salience=common_pb2.SalienceVector(threat=0.2)
+                salience=types_pb2.SalienceVector(threat=0.2)
             ),
             immediate=True
         )

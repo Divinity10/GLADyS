@@ -20,13 +20,14 @@ import tempfile
 from pathlib import Path
 
 # Add orchestrator to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "orchestrator"))
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src" / "services" / "orchestrator"))
 
 from gladys_orchestrator.skill_registry import SkillRegistry, CapabilityMatch
 
 
 # Use the actual plugins directory
-PLUGINS_DIR = Path(__file__).parent.parent.parent / "plugins" / "skills"
+PLUGINS_DIR = PROJECT_ROOT / "plugins" / "skills"
 
 
 def test_load_minecraft_skill():

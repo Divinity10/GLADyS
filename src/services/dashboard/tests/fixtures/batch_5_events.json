@@ -1,7 +1,55 @@
 [
-  {"source": "minecraft", "text": "Player XYZ built a redstone contraption near the village", "intent": "informational"},
-  {"source": "minecraft", "text": "Player ABC fell from a high place", "intent": "actionable"},
-  {"source": "kitchen", "text": "Oven preheated to 375F and timer set for 25 minutes", "intent": "informational"},
-  {"source": "smart_home", "text": "Motion detected in backyard at 11:42 PM", "intent": "actionable"},
-  {"source": "work", "text": "Pull request #847 merged into main branch by scott", "intent": "unknown"}
+  {
+    "source": "minecraft",
+    "text": "Fixture A: skeleton spotted in cave entrance with low health",
+    "intent": "actionable",
+    "structured": {
+      "domain": "minecraft",
+      "location": "cave_entrance",
+      "threat_type": "skeleton",
+      "player_health": 4
+    },
+    "evaluation_data": {
+      "rule": "combat-risk-v2",
+      "score": 0.93,
+      "reason": "hostile + low health"
+    },
+    "entity_ids": [
+      "11111111-1111-1111-1111-111111111111",
+      "22222222-2222-2222-2222-222222222222"
+    ]
+  },
+  {
+    "source": "kitchen",
+    "text": "Fixture B: oven preheated and bake timer started",
+    "intent": "informational",
+    "structured": {
+      "device": "oven",
+      "temp_f": 375,
+      "timer_minutes": 25
+    }
+  },
+  {
+    "source": "smart_home",
+    "text": "Fixture C: backyard motion event evaluated as medium confidence",
+    "intent": "actionable",
+    "evaluation_data": {
+      "model": "motion-eval-1",
+      "confidence": 0.61,
+      "classification": "possible_person"
+    }
+  },
+  {
+    "source": "work",
+    "text": "Fixture D: issue triage mentions two known entities",
+    "intent": "unknown",
+    "entity_ids": [
+      "33333333-3333-3333-3333-333333333333"
+    ]
+  },
+  {
+    "source": "health",
+    "text": "Fixture E: baseline event with no optional phase-2 fields",
+    "intent": "informational"
+  }
 ]

@@ -43,7 +43,10 @@ def _make_event_dict(event_id: str, source: str, text: str,
                      prediction_confidence: float = None,
                      matched_heuristic_id: str = "",
                      decision_path: str = "",
-                     intent: str = "") -> dict:
+                     intent: str = "",
+                     evaluation_data=None,
+                     structured=None,
+                     entity_ids: list[str] | None = None) -> dict:
     """Build an event dict matching the event_row.html template."""
     now = datetime.now(timezone.utc)
 
@@ -73,6 +76,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
 
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
     time_rel = format_relative_time(timestamp) if timestamp else "just now"
+    origin_time_abs = timestamp.strftime("%H:%M:%S") if timestamp else "\u2014"
 
     salience_score = "\u2014"
     if predicted_success is not None:
@@ -92,9 +96,16 @@ def _make_event_dict(event_id: str, source: str, text: str,
         "response_id": response_id or "",
         "time_relative": time_rel,
         "time_absolute": time_abs,
+        "received_time_relative": time_rel,
+        "received_time_absolute": time_abs,
+        "origin_time_absolute": origin_time_abs,
+        "timestamp": timestamp.isoformat() if timestamp else "",
         "salience_score": salience_score,
         "confidence": f"{prediction_confidence:.2f}" if prediction_confidence else "\u2014",
         "salience_breakdown": salience_breakdown,
+        "evaluation_data": evaluation_data,
+        "structured": structured,
+        "entity_ids": entity_ids or [],
     }
 
 
@@ -107,6 +118,15 @@ def _proto_event_to_dict(ev) -> dict:
             salience_data[key] = getattr(ev.salience, key, 0.0)
 
     ts = datetime.fromtimestamp(ev.timestamp_ms / 1000, tz=timezone.utc) if ev.timestamp_ms else None
+    try:
+        structured = json.loads(ev.structured_json) if ev.structured_json else None
+    except json.JSONDecodeError:
+        structured = ev.structured_json
+    try:
+        evaluation_data = json.loads(ev.evaluation_data_json) if ev.evaluation_data_json else None
+    except json.JSONDecodeError:
+        evaluation_data = ev.evaluation_data_json
+    entity_ids = list(ev.entity_ids) if ev.entity_ids else []
 
     # proto3 floats default to 0.0 — can't distinguish "unset" from "set to 0.0".
     # Pass the value through; _make_event_dict shows "0.00" which is correct when
@@ -127,6 +147,9 @@ def _proto_event_to_dict(ev) -> dict:
         prediction_confidence=pc,
         matched_heuristic_id=ev.matched_heuristic_id or "",
         decision_path=ev.decision_path or "",
+        evaluation_data=evaluation_data,
+        structured=structured,
+        entity_ids=entity_ids,
     )
 
 
