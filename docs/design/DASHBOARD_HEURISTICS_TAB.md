@@ -3,7 +3,7 @@
 **Status**: Design complete, ready for implementation
 **Date**: 2026-02-03
 **Branch**: `dashboard/response-heuristics-tabs`
-**Blocks**: PoC 1 assessment (#63, #65)
+**Blocks**: Phase 1 assessment (#63, #65)
 
 ## Problem Statement
 
@@ -29,16 +29,16 @@ Previous fix attempts failed because they tried to debug x-for instead of recogn
 
 ```
 heuristics.html
-    │
-    │  Alpine x-init: fetch('/api/heuristics')
-    ▼
+    â”‚
+    â”‚  Alpine x-init: fetch('/api/heuristics')
+    â–¼
 fun_api/routers/heuristics.py
-    │
-    │  stub.QueryHeuristics(min_confidence=0, limit=200)
-    ▼
+    â”‚
+    â”‚  stub.QueryHeuristics(min_confidence=0, limit=200)
+    â–¼
 Memory gRPC (50051)
-    │
-    ▼
+    â”‚
+    â–¼
 PostgreSQL → JSON response → Alpine x-for (BROKEN)
 ```
 
@@ -53,45 +53,45 @@ When htmx dynamically loads HTML containing `<template x-for="...">`, Alpine may
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  heuristics.html (htmx container)                               │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │ Toolbar (Alpine x-data for filter state)                  │ │
-│  │ - Origin dropdown                                         │ │
-│  │ - Active dropdown                                         │ │
-│  │ - Search input                                            │ │
-│  │ - Refresh button                                          │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                                 │
-│  ┌───────────────────────────────────────────────────────────┐ │
-│  │ #heuristics-list (htmx swap target)                       │ │
-│  │                                                           │ │
-│  │ hx-get="/api/heuristics/rows"                            │ │
-│  │ hx-trigger="load"                                        │ │
-│  │                                                           │ │
-│  │ Server renders rows with Jinja {% for %}                 │ │
-│  │ Each row has Alpine x-data for expansion/editing         │ │
-│  └───────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  heuristics.html (htmx container)                               â”‚
+â”‚                                                                 â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ Toolbar (Alpine x-data for filter state)                  â”‚ â”‚
+â”‚  â”‚ - Origin dropdown                                         â”‚ â”‚
+â”‚  â”‚ - Active dropdown                                         â”‚ â”‚
+â”‚  â”‚ - Search input                                            â”‚ â”‚
+â”‚  â”‚ - Refresh button                                          â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚                                                                 â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ #heuristics-list (htmx swap target)                       â”‚ â”‚
+â”‚  â”‚                                                           â”‚ â”‚
+â”‚  â”‚ hx-get="/api/heuristics/rows"                            â”‚ â”‚
+â”‚  â”‚ hx-trigger="load"                                        â”‚ â”‚
+â”‚  â”‚                                                           â”‚ â”‚
+â”‚  â”‚ Server renders rows with Jinja {% for %}                 â”‚ â”‚
+â”‚  â”‚ Each row has Alpine x-data for expansion/editing         â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Data Flow (Target)
 
 ```
 heuristics.html
-    │
-    │  htmx: hx-get="/api/heuristics/rows?origin=...&active=..."
-    ▼
+    â”‚
+    â”‚  htmx: hx-get="/api/heuristics/rows?origin=...&active=..."
+    â–¼
 backend/routers/heuristics.py (NEW)
-    │
-    │  stub.QueryHeuristics(min_confidence=0, limit=200)
-    │  Server-side filtering by origin, active, search
-    │  Jinja renders heuristics_rows.html
-    ▼
+    â”‚
+    â”‚  stub.QueryHeuristics(min_confidence=0, limit=200)
+    â”‚  Server-side filtering by origin, active, search
+    â”‚  Jinja renders heuristics_rows.html
+    â–¼
 Memory gRPC (50051)
-    │
-    ▼
+    â”‚
+    â–¼
 PostgreSQL → Rendered HTML → htmx swaps into DOM
 ```
 
@@ -437,7 +437,7 @@ app.include_router(backend_heuristics.router)
 
 ## Known Limitations
 
-### Proto Gaps (Accepted for PoC 1)
+### Proto Gaps (Accepted for Phase 1)
 
 | Gap | Workaround |
 |-----|------------|
@@ -498,3 +498,4 @@ See `docs/prompts/fix-heuristics-server-side-render.md` for complete test code.
 - `docs/design/DASHBOARD_V2.md` — Overall dashboard design
 - `docs/codebase/DASHBOARD.md` — Dual-router architecture, rendering patterns
 - `fun_api/routers/heuristics.py` — Existing JSON API (keep for programmatic access)
+

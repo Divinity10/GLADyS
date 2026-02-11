@@ -18,19 +18,19 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Heuristic Store** | ✅ Implemented | `heuristics` table with embedding-based matching (migrations 003, 008) |
-| **Episodic Store** | ✅ Implemented | `episodic_events` table per ADR-0009 |
-| **TD Confidence Updates** | ✅ Implemented | Basic delta learning on heuristic confidence |
-| **Semantic Matching** | ✅ Implemented | pgvector embeddings for fuzzy heuristic matching |
-| **Novelty Detector** | ❌ Not implemented | Designed but not built |
-| **Pattern Detector** | ❌ Not implemented | Background batch analysis - future work |
-| **Causal Modeler** | ❌ Not implemented | Correlation/causation analysis - future work |
-| **Preference Tracker** | ❌ Not implemented | EWMA for likes/dislikes - future work |
-| **Deferred Validation Queue** | ❌ Not implemented | Experience replay queue - future work |
-| **Outcome Evaluator** | ❌ Not implemented | Pack-provided outcome signals - future work |
-| **Sleep Mode Batch Learning** | ❌ Not implemented | Batch processing during idle - future work |
+| **Heuristic Store** | âœ… Implemented | `heuristics` table with embedding-based matching (migrations 003, 008) |
+| **Episodic Store** | âœ… Implemented | `episodic_events` table per ADR-0009 |
+| **TD Confidence Updates** | âœ… Implemented | Basic delta learning on heuristic confidence |
+| **Semantic Matching** | âœ… Implemented | pgvector embeddings for fuzzy heuristic matching |
+| **Novelty Detector** | âŒ Not implemented | Designed but not built |
+| **Pattern Detector** | âŒ Not implemented | Background batch analysis - future work |
+| **Causal Modeler** | âŒ Not implemented | Correlation/causation analysis - future work |
+| **Preference Tracker** | âŒ Not implemented | EWMA for likes/dislikes - future work |
+| **Deferred Validation Queue** | âŒ Not implemented | Experience replay queue - future work |
+| **Outcome Evaluator** | âŒ Not implemented | Pack-provided outcome signals - future work |
+| **Sleep Mode Batch Learning** | âŒ Not implemented | Batch processing during idle - future work |
 
-The current PoC focuses on: event → heuristic matching → Executive response → feedback → confidence update. Advanced learning features (pattern extraction, causal modeling, sleep-mode consolidation) are deferred.
+The current Phase focuses on: event → heuristic matching → Executive response → feedback → confidence update. Advanced learning features (pattern extraction, causal modeling, sleep-mode consolidation) are deferred.
 
 ---
 
@@ -111,9 +111,9 @@ Model is auto-selected from data shape, with explicit override available.
 
 | Model | Data Shape | Use Case | Parameters |
 |-------|------------|----------|------------|
-| **Beta-Binomial** | Binary outcomes | "Did user accept suggestion?" | α, β (pseudo-counts) |
-| **Normal-Gamma** | Continuous values | "Preferred temperature" | μ, κ, α, β |
-| **Gamma-Poisson** | Rate/count data | "Gathering completion rate" | α, β (shape, rate) |
+| **Beta-Binomial** | Binary outcomes | "Did user accept suggestion?" | Î±, Î² (pseudo-counts) |
+| **Normal-Gamma** | Continuous values | "Preferred temperature" | Î¼, Îº, Î±, Î² |
+| **Gamma-Poisson** | Rate/count data | "Gathering completion rate" | Î±, Î² (shape, rate) |
 
 **Dirichlet** (categorical) deferred - can be approximated with multiple Beta-Binomials initially.
 
@@ -351,9 +351,9 @@ For each deferred decision:
 
 Learning signals:
 - S1 = LLM = Good outcome: S1 heuristic reinforced
-- S1 ≠ LLM, LLM = Good outcome: S1 heuristic needs correction
+- S1 â‰  LLM, LLM = Good outcome: S1 heuristic needs correction
 - S1 = LLM = Bad outcome: Both need calibration (rare edge case)
-- S1 ≠ LLM, S1 = Good outcome: S1 heuristic may be better than LLM for this case
+- S1 â‰  LLM, S1 = Good outcome: S1 heuristic may be better than LLM for this case
 
 #### 3.12.3 Queue Structure (MVP)
 
@@ -381,7 +381,7 @@ Classification by implementation priority and triggers for when to add sophistic
 |-----------|----------------|-----------|
 | **Outcome Evaluator** | Pack-provided callbacks | Core learning needs domain signals |
 | **Deferred Queue** | Simple FIFO | Experience replay is fundamental |
-| **Context-dependent rates** | Per-domain learning_rate (§3.5) | Already designed |
+| **Context-dependent rates** | Per-domain learning_rate (Â§3.5) | Already designed |
 
 #### 3.13.2 Post-MVP (Implement When Metrics Indicate)
 
@@ -397,7 +397,7 @@ Classification by implementation priority and triggers for when to add sophistic
 | Technique | Description | Why Deferred |
 |-----------|-------------|--------------|
 | **Eligibility Traces** | Credit assignment for multi-step sequences | Adds hot-path complexity; implement if multi-step credit is problematic |
-| **Full TD(λ)** | Temporal difference with eligibility | Overkill for current scope |
+| **Full TD(Î»)** | Temporal difference with eligibility | Overkill for current scope |
 
 #### 3.13.4 Implementation Notes
 
@@ -623,16 +623,17 @@ This ADR supports the following use cases (see [USE_CASES.md](../design/USE_CASE
 ### Bayesian Model Cheat Sheet
 
 **Beta-Binomial** (binary):
-- Prior: Beta(α, β) where α = pseudo-successes, β = pseudo-failures
-- Update: α' = α + successes, β' = β + failures
-- Mean: α / (α + β)
+- Prior: Beta(Î±, Î²) where Î± = pseudo-successes, Î² = pseudo-failures
+- Update: Î±' = Î± + successes, Î²' = Î² + failures
+- Mean: Î± / (Î± + Î²)
 
 **Normal-Gamma** (continuous):
-- Prior: Normal-Gamma(μ, κ, α, β)
+- Prior: Normal-Gamma(Î¼, Îº, Î±, Î²)
 - Tracks mean and precision (inverse variance)
 - Update: standard conjugate formulas
 
 **Gamma-Poisson** (rates):
-- Prior: Gamma(α, β) for rate parameter λ
-- Update: α' = α + Σcounts, β' = β + n (observations)
-- Mean rate: α / β
+- Prior: Gamma(Î±, Î²) for rate parameter Î»
+- Update: Î±' = Î± + Î£counts, Î²' = Î² + n (observations)
+- Mean rate: Î± / Î²
+

@@ -20,8 +20,9 @@ A heuristic can match incorrectly but provide a useful response by coincidence. 
   - (b) First like on a heuristic-generated response (pattern confirmation)
   - (c) Subsequent likes (reinforcement)
   - Example curve: a→0.3, b→0.4, c→0.6, then +0.1 with cap
-- What data do we need to capture now (PoC 2) to enable this analysis later?
+- What data do we need to capture now (Phase 2) to enable this analysis later?
 
 ## Dependencies
 
 - Confidence analysis harness (see `confidence-analysis-harness.md`) — needed to evaluate different weight models offline
+

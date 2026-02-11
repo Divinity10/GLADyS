@@ -217,7 +217,7 @@ Fired when inventory, equipment, or ground items change.
 | `old_quantity` | int | Previous quantity (`ground_quantity` only). |
 
 #### Notes
-- `ItemContainerChanged` fires with the full container contents, not a diff. The plugin could diff against previous state to emit only changes, or ship the full snapshot and let GLADyS handle it. For PoC, full snapshot is simpler.
+- `ItemContainerChanged` fires with the full container contents, not a diff. The plugin could diff against previous state to emit only changes, or ship the full snapshot and let GLADyS handle it. For Phase, full snapshot is simpler.
 - Container IDs: 93 = inventory, 94 = equipment, 95 = bank. Others exist for various interfaces.
 - Ground item events fire during scene load for items already on the ground.
 
@@ -388,3 +388,4 @@ All other data is read directly from RuneLite event objects and the `Client` API
 - No animation ID-to-name mapping — downstream or skill packs handle this.
 - No deduplication of skilling animation cycles — the AI handles repetition.
 - No spatial filtering (e.g., ignoring distant entities) — salience decides what matters.
+

@@ -3,11 +3,11 @@
 **Status**: Proposed
 **Date**: 2026-02-02 (updated 2026-02-06 with F-01)
 **Implements**: Extensibility Review item #3
-**Informed by**: PoC 1 finding F-01
+**Informed by**: Phase 1 finding F-01
 
 ## Purpose
 
-Define a Rust trait for salience scoring so that PoC 2 can test alternative algorithms (TF-IDF, different distance metrics) without modifying the gRPC handler.
+Define a Rust trait for salience scoring so that Phase 2 can test alternative algorithms (TF-IDF, different distance metrics) without modifying the gRPC handler.
 
 ## Current State
 
@@ -79,7 +79,7 @@ The `source` parameter enables domain-based heuristic filtering per F-01. Source
 ## Default Implementation: EmbeddingSimilarityScorer
 
 ```rust
-/// Current PoC 1 scorer — embedding + cosine similarity.
+/// Current Phase 1 scorer — embedding + cosine similarity.
 pub struct EmbeddingSimilarityScorer {
     cache: Arc<RwLock<MemoryCache>>,
     storage_config: Option<StorageConfig>,
@@ -315,6 +315,7 @@ This allows unit testing `EmbeddingSimilarityScorer` without a live gRPC server.
 
 ## Out of Scope
 
-- TF-IDF scorer — add in PoC 2 if needed
+- TF-IDF scorer — add in Phase 2 if needed
 - Alternative embedding models — Python-side change
 - Variable-length embedding support — requires cache schema changes
+

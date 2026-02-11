@@ -10,13 +10,13 @@ The integration tests successfully validated the "Killer Feature" of GLADyS: the
 
 | Scenario | Result | Finding |
 |----------|--------|---------|
-| **1: Happy Path** | ✅ PASS | Full loop confirmed: Novel Event → LLM → Heuristic Store → Fast Path Match. |
-| **2: Correction Loop** | ⚠️ PARTIAL | Confidence updates in DB work, but **Rust Salience Cache is stale**. The gateway continues using old confidence values until restarted. |
-| **3: Fuzzy Matching** | ✅ PASS | Semantic variants (e.g., "magma/lava", "perished/died") correctly match stored heuristics via embeddings. |
-| **4: Domain Safety** | ⚠️ PARTIAL | Domain prefixes in condition strings are insufficient for semantic separation of close concepts. **Explicit domain filtering is required**. |
-| **5: Clamping** | ✅ PASS | Confidence values correctly saturate at 1.0 and clamp at 0.0. |
-| **6: Ambiguity** | ⏭️ SKIPPED | Requires complex multi-match logic in Orchestrator (deferred to post-PoC). |
-| **7: Instrumentation** | ✅ PASS | Verified that prediction metadata is correctly associated with traces. |
+| **1: Happy Path** | âœ… PASS | Full loop confirmed: Novel Event → LLM → Heuristic Store → Fast Path Match. |
+| **2: Correction Loop** | âš ï¸ PARTIAL | Confidence updates in DB work, but **Rust Salience Cache is stale**. The gateway continues using old confidence values until restarted. |
+| **3: Fuzzy Matching** | âœ… PASS | Semantic variants (e.g., "magma/lava", "perished/died") correctly match stored heuristics via embeddings. |
+| **4: Domain Safety** | âš ï¸ PARTIAL | Domain prefixes in condition strings are insufficient for semantic separation of close concepts. **Explicit domain filtering is required**. |
+| **5: Clamping** | âœ… PASS | Confidence values correctly saturate at 1.0 and clamp at 0.0. |
+| **6: Ambiguity** | â­ï¸ SKIPPED | Requires complex multi-match logic in Orchestrator (deferred to post-Phase). |
+| **7: Instrumentation** | âœ… PASS | Verified that prediction metadata is correctly associated with traces. |
 
 ## Artifacts Created
 
@@ -37,3 +37,4 @@ The integration tests successfully validated the "Killer Feature" of GLADyS: the
 
 3. **Cleanup Automation**:
    - The test currently uses `TRUNCATE heuristics CASCADE` and restarts the `memory` service group. This is effective but heavy; more surgical cleanup/invalidation is desired for CI.
+

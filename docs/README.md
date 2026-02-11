@@ -25,7 +25,7 @@
 | **Running services (local/Docker)** | [GETTING_STARTED.md](GETTING_STARTED.md#running-the-full-stack) |
 | Service ports | Run `codebase-info ports` |
 | Concept-to-code map | [CONCEPT_MAP.md](../CONCEPT_MAP.md) |
-| PoC phases & success criteria | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) |
+| Phases & success criteria | [ITERATIVE_DESIGN.md](design/ITERATIVE_DESIGN.md) |
 | Sensor protocol & SDK architecture | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md) |
 | All ADRs indexed | [docs/adr/README.md](adr/README.md) |
 | Open design questions | [design/questions/](design/questions/README.md) |
@@ -49,7 +49,7 @@
 |--------------|-----|
 | See events and heuristics visually | [Dashboard](../src/services/dashboard/) |
 | Query the database directly | `python cli/docker.py psql` |
-| Understand why confidence changed | [learning.md §20](design/questions/learning.md) |
+| Understand why confidence changed | [learning.md Â§20](design/questions/learning.md) |
 | Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |
 
 ### Building Features
@@ -95,3 +95,5 @@
 | **ADRs** | `docs/adr/` | Architecture Decision Records - why we made specific choices |
 | **Design docs** | `docs/design/` | Working documents, overviews, open questions |
 | **Archive** | `docs/archive/` | Preserved design work (deferred features, historical decisions) |
+
+

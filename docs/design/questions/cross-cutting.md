@@ -8,7 +8,7 @@ Topics that span multiple subsystems: audit, output routing, integration, and ar
 
 ## Open Questions
 
-### Q: Cross-Context Salience Strategy (§35)
+### Q: Cross-Context Salience Strategy (Â§35)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -26,7 +26,7 @@ When a doorbell rings during a gaming session, two contexts apply: gaming (prima
 
 ---
 
-### Q: Event Condensation Strategy (§36)
+### Q: Event Condensation Strategy (Â§36)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -45,22 +45,22 @@ Some sensors produce high-frequency data — a motion sensor firing hundreds of 
 - What's the right condensation unit? By exact match, embedding similarity, or source?
 - Does condensation interact with habituation? (Double-filtering risk)
 - What temporal features matter enough to preserve? (Bursts, periodicity, acceleration)
-- Should condensation be a preprocessor function? (Requires state — see §37)
+- Should condensation be a preprocessor function? (Requires state — see Â§37)
 
 **Relevant**: ADR-0013 Section 6.3 (overload handling), ADR-0004 Section 4 (memory hierarchy)
 
 ---
 
-### Q: Orchestrator vs Executive Responsibility Boundary (§30)
+### Q: Orchestrator vs Executive Responsibility Boundary (Â§30)
 
 **Status**: Resolved — implemented in W3 (branch `poc1/closed-loop-learning`)
-**Priority**: High (affects PoC architecture)
+**Priority**: High (affects Phase architecture)
 **Created**: 2026-01-26
 **Resolved**: 2026-01-31
 
 #### Problem
 
-The current PoC has the Orchestrator deciding whether to use a heuristic or invoke Executive reasoning:
+The current Phase has the Orchestrator deciding whether to use a heuristic or invoke Executive reasoning:
 
 ```
 Current flow:
@@ -132,9 +132,9 @@ When the Executive is under load, it can respond with:
 3. **No response needed** - Low urgency events can be dropped
 4. **Batch mode** - Accumulate and process together
 
-#### Impact on PoC
+#### Impact on Phase
 
-Current PoC implementation in `router.py` would need to change:
+Current Phase implementation in `router.py` would need to change:
 - Remove confidence threshold logic from Orchestrator
 - Always send to Executive with heuristic context attached
 - Add fast-path exception for critical urgency only
@@ -143,9 +143,9 @@ Current PoC implementation in `router.py` would need to change:
 
 Implemented in W3. Answers to the open questions:
 
-1. **Yes** — implemented in PoC on `poc1/closed-loop-learning` branch
+1. **Yes** — implemented in Phase on `poc1/closed-loop-learning` branch
 2. **Emergency fast-path**: confidence >= 0.95 AND threat >= 0.9 (Orchestrator short-circuits)
-3. **Rate limiting**: Deferred to post-PoC
+3. **Rate limiting**: Deferred to post-Phase
 
 Key implementation files:
 - `src/services/orchestrator/gladys_orchestrator/router.py` — always forwards to Executive, emergency fast-path only
@@ -153,16 +153,16 @@ Key implementation files:
 
 ---
 
-### Q: Orchestrator Coordination Model (§31)
+### Q: Orchestrator Coordination Model (Â§31)
 
 **Status**: Open - needs design
 **Priority**: High (affects scalability and reliability)
 **Created**: 2026-01-26
-**See also**: [resource-allocation.md](resource-allocation.md) — Concurrent Event Processing section addresses §31.1 and §31.5 specifically
+**See also**: [resource-allocation.md](resource-allocation.md) — Concurrent Event Processing section addresses Â§31.1 and Â§31.5 specifically
 
 #### Context
 
-The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Several related design questions need answers before the PoC becomes the product.
+The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Several related design questions need answers before the Phase becomes the product.
 
 #### Questions
 
@@ -238,7 +238,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 
 ---
 
-### Q: PoC Validation Scope (§32)
+### Q: Phase Validation Scope (Â§32)
 
 **Status**: Open - needs definition
 **Priority**: High (guides all implementation decisions)
@@ -246,7 +246,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 
 #### Context
 
-The PoC will eventually morph into the product. We need clarity on what the PoC must prove and in what sequence, to avoid both over-engineering and under-engineering.
+The Phase will eventually morph into the product. We need clarity on what the Phase must prove and in what sequence, to avoid both over-engineering and under-engineering.
 
 #### Questions
 
@@ -267,7 +267,7 @@ Core hypotheses to validate:
 What order should we validate hypotheses?
 
 **Proposed**:
-1. **Single sensor → heuristic → response** (current PoC scope)
+1. **Single sensor → heuristic → response** (current Phase scope)
 2. **Feedback → confidence update** (partially implemented)
 3. **Heuristic creation from reasoning** (not implemented)
 4. **Multi-sensor fusion** (not implemented)
@@ -305,7 +305,7 @@ What knobs exist for tuning system behavior?
 
 ##### 32.6 Testing Strategy
 
-**Questions** (also in §14.8):
+**Questions** (also in Â§14.8):
 - How do you regression test a learning system?
 - What's deterministic vs non-deterministic?
 - Simulation environments for sensors?
@@ -313,7 +313,7 @@ What knobs exist for tuning system behavior?
 
 ---
 
-### Q: Cross-Cutting Integration Questions (§12)
+### Q: Cross-Cutting Integration Questions (Â§12)
 
 **Status**: Open
 **Priority**: Medium
@@ -327,7 +327,7 @@ What knobs exist for tuning system behavior?
 
 ---
 
-### Q: Output Routing and User Presence (§13)
+### Q: Output Routing and User Presence (Â§13)
 
 **Status**: Gap - needs design
 **Priority**: High
@@ -338,11 +338,11 @@ The Executive decides WHAT to communicate. But we haven't specified WHERE:
 
 ```
 Executive → "Someone's at the door" → Output Router → ???
-                                            │
-                                            ├─→ Computer speakers (if at desk)
-                                            ├─→ Google Home (if in that room)
-                                            ├─→ Phone notification (if away)
-                                            └─→ Smart display (show video + audio)
+                                            â”‚
+                                            â”œâ”€→ Computer speakers (if at desk)
+                                            â”œâ”€→ Google Home (if in that room)
+                                            â”œâ”€→ Phone notification (if away)
+                                            â””â”€→ Smart display (show video + audio)
 ```
 
 Output is distinct from actuators:
@@ -413,7 +413,7 @@ Decision needed: unified model or separate concepts?
 
 ---
 
-### Q: Architectural Gaps Inventory (§14)
+### Q: Architectural Gaps Inventory (Â§14)
 
 **Status**: Partial - some resolved, some open
 **Priority**: Varies
@@ -432,7 +432,7 @@ Gap analysis performed after ADR-0010/0011/0012 completion.
 #### Medium Priority (User Experience)
 
 ##### 14.3 Output Routing / User Presence
-See [§13 above](#q-output-routing-and-user-presence-13)
+See [Â§13 above](#q-output-routing-and-user-presence-13)
 
 ##### 14.5 Multi-User / Household
 **Gap**: Mentioned as open question in ADR-0010 but it's architectural.
@@ -484,7 +484,7 @@ See [§13 above](#q-output-routing-and-user-presence-13)
 
 ---
 
-### Q: PoC vs ADR-0005 Spec Gaps (§19)
+### Q: Phase vs ADR-0005 Spec Gaps (Â§19)
 
 **Status**: Tracked for post-MVP (intentional simplification)
 **Priority**: Low
@@ -492,11 +492,11 @@ See [§13 above](#q-output-routing-and-user-presence-13)
 
 #### Context
 
-The PoC implementation uses simplified gRPC contracts compared to ADR-0005 specifications. This is intentional - the ADR defines the target architecture, while the PoC proves the core concept with minimal viable contracts.
+The Phase implementation uses simplified gRPC contracts compared to ADR-0005 specifications. This is intentional - the ADR defines the target architecture, while the Phase proves the core concept with minimal viable contracts.
 
 #### SalienceGateway Service
 
-| Aspect | ADR-0005 §4.5 Spec | PoC Implementation |
+| Aspect | ADR-0005 Â§4.5 Spec | Phase Implementation |
 |--------|--------------------|--------------------|
 | Package | `gladys.v1` | `gladys.memory` |
 | Service name | `SalienceGatewayService` | `SalienceGateway` |
@@ -506,7 +506,7 @@ The PoC implementation uses simplified gRPC contracts compared to ADR-0005 speci
 
 #### Rationale for Simplification
 
-1. **Minimal viable path**: PoC needs to prove event → salience → routing works
+1. **Minimal viable path**: Phase needs to prove event → salience → routing works
 2. **Avoid premature complexity**: Rich context can be added when needed
 3. **Faster iteration**: Simpler contracts = faster debugging
 4. **Memory retrieval deferred**: `relevant_memories` requires additional integration
@@ -525,7 +525,7 @@ The PoC implementation uses simplified gRPC contracts compared to ADR-0005 speci
 
 ## Resolved
 
-### R: Audit System Design (§7)
+### R: Audit System Design (Â§7)
 
 **Decision**: See ADR-0012
 **Date**: 2026-01-18
@@ -563,13 +563,13 @@ The PoC implementation uses simplified gRPC contracts compared to ADR-0005 speci
 
 ---
 
-### R: Orchestrator Language (§18)
+### R: Orchestrator Language (Â§18)
 
 **Decision**: Python
 **Date**: 2026-01-22
 
 See:
-- [SUBSYSTEM_OVERVIEW.md §3](../SUBSYSTEM_OVERVIEW.md)
+- [SUBSYSTEM_OVERVIEW.md Â§3](../SUBSYSTEM_OVERVIEW.md)
 
 Rationale: ML ecosystem, rapid prototyping, team familiarity. Performance-critical paths handled by Rust memory fast-path.
 
@@ -580,9 +580,9 @@ Rationale: ML ecosystem, rapid prototyping, team familiarity. Performance-critic
 ### UC3: Voice Interaction (DAG Processing)
 
 ```
-[Microphone] → [STT Preprocessor] ──┬→ [Semantic Meaning] → Salience → Executive → [TTS]
-                                    │
-              [Tone Preprocessor] ──┘
+[Microphone] → [STT Preprocessor] â”€â”€â”¬→ [Semantic Meaning] → Salience → Executive → [TTS]
+                                    â”‚
+              [Tone Preprocessor] â”€â”€â”˜
 ```
 
 Tests: DAG preprocessor model, parallel execution
@@ -590,9 +590,10 @@ Tests: DAG preprocessor model, parallel execution
 ### UC6: Multi-Modal Analysis
 
 ```
-[Screen Capture] → [OCR] ────────────┐
-                                     ├→ [Context Analyzer] → Salience → Executive
-[Audio] → [STT] → [Speaker ID] ──────┘
+[Screen Capture] → [OCR] â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                                     â”œ→ [Context Analyzer] → Salience → Executive
+[Audio] → [STT] → [Speaker ID] â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 Tests: Complex DAG, multiple sensor sources merging
+

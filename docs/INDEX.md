@@ -12,7 +12,7 @@
 | An architectural decision (why we chose X) | [ARCHITECTURE.md](design/ARCHITECTURE.md) |
 | An interface contract or data structure | [INTERFACES.md](design/INTERFACES.md) |
 | Current implementation state of a subsystem | [DESIGN.md](design/DESIGN.md) |
-| PoC scope, success criteria, abort signals | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) |
+| Phase scope, success criteria, abort signals | [ITERATIVE_DESIGN.md](design/ITERATIVE_DESIGN.md) |
 | A permanent, immutable decision | `docs/adr/` (new ADR) |
 | An open question or debate | `docs/design/questions/` |
 | A term definition | [GLOSSARY.md](design/GLOSSARY.md) |
@@ -20,18 +20,18 @@
 | Service ports | Run `codebase-info ports` |
 | Concept-to-code mapping | [CONCEPT_MAP.md](../CONCEPT_MAP.md) |
 | Setup/run instructions, dev environment | [GETTING_STARTED.md](GETTING_STARTED.md) |
-| Known shortcuts to fix post-PoC | [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt) |
+| Known shortcuts to fix post-Phase | [GitHub Issues](https://github.com/divinity10/GLADyS/issues) (label: tech-debt) |
 
 If none of these fit, create a new doc — and add it to this table and the index below.
 
 ---
 
-## 🧠 Intelligence & Learning
+## ðŸ§  Intelligence & Learning
 *Keywords: Bayesian, Confidence, Feedback, Training, EWMA, Adaptation*
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
-| **Truth** | [ADR-0010](adr/ADR-0010-Learning-and-Inference.md) | **Bayesian definitions**, System 1 vs 2, Learning Pipeline, **Outcome evaluation** (§3.11), **Deferred validation** (§3.12). |
+| **Truth** | [ADR-0010](adr/ADR-0010-Learning-and-Inference.md) | **Bayesian definitions**, System 1 vs 2, Learning Pipeline, **Outcome evaluation** (Â§3.11), **Deferred validation** (Â§3.12). |
 | **Truth** | [ADR-0007](adr/ADR-0007-Adaptive-Algorithms.md) | **EWMA**, User Preference tracking logic. |
 | **Design** | [DESIGN.md#learning-subsystem](design/DESIGN.md#learning-subsystem) | TD Learning, Confidence update design and deviations from ADRs. |
 | **Debate** | [Q&A](design/questions/learning.md) | Open questions on **TD Learning** and Heuristics. |
@@ -39,7 +39,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [LEARNING_STRATEGY.md](design/LEARNING_STRATEGY.md) | **Extensibility**: Learning signal interpretation interface (Bayesian strategy, alternative models). |
 | **Design** | [CONFIDENCE_BOOTSTRAPPING.md](design/CONFIDENCE_BOOTSTRAPPING.md) | LLM endorsement bootstraps below-threshold heuristics. Defines **three measurement dimensions**: context match, confidence, success rate. Dev rating workflow. |
 
-## ⚡ Salience & Attention
+## âš¡ Salience & Attention
 *Keywords: Filtering, Routing, Urgency, Habituation, Novelty, Selection, Confidence Threshold, Context Match*
 
 | Type | File | Purpose |
@@ -53,7 +53,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [SALIENCE_SCORER.md](design/SALIENCE_SCORER.md) | **Extensibility**: Rust trait for salience scoring algorithms. |
 | **Design** | [DECISION_STRATEGY.md](design/DECISION_STRATEGY.md) | **Selection strategy**: similarity-dominant ranking, confidence threshold gate, urgency-modulated tiers, three measurement dimensions. |
 
-## 💾 Memory & Knowledge
+## ðŸ’¾ Memory & Knowledge
 *Keywords: Embeddings, Vector Search, Semantic, Episodic, Heuristics*
 
 | Type | File | Purpose |
@@ -64,21 +64,21 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Debate** | [Q&A](design/questions/memory.md) | Discussions on embedding strategies. |
 | **Impl** | `src/services/memory/gladys_memory/storage.py` | Storage implementation (Code). |
 
-## 🏗️ Architecture & Design
-*Keywords: Subsystems, API, Plugins, Packs, Interfaces, PoC, Lifecycle*
+## ðŸ—ï¸ Architecture & Design
+*Keywords: Subsystems, API, Plugins, Packs, Interfaces, Phase, Lifecycle*
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
 | **Decisions** | [ARCHITECTURE.md](design/ARCHITECTURE.md) | **10 architectural decisions**: subsystem taxonomy, API tiers, plugin ecosystem, async dispatch, learning module. |
 | **Interfaces** | [INTERFACES.md](design/INTERFACES.md) | **Plugin contracts**: common/sensor/actuator/skill protocols, OutcomeEvaluation, pack manifest, directory structure. |
-| **Roadmap** | [POC_LIFECYCLE.md](design/POC_LIFECYCLE.md) | **PoC lifecycle**: claims, convergence tests, baseline metrics, DoD, proven/not-proven templates, future PoC roadmap. |
+| **Roadmap** | [ITERATIVE_DESIGN.md](design/ITERATIVE_DESIGN.md) | **Phase lifecycle**: claims, convergence tests, baseline metrics, DoD, proven/not-proven templates, future Phase roadmap. |
 | **Scenarios** | [USE_CASES.md](design/USE_CASES.md) | Use case catalog validating architectural decisions. |
-| **State** | [DESIGN.md](design/DESIGN.md) | Per-subsystem implementation status, PoC deviations, open questions. The status-tracking doc. |
+| **State** | [DESIGN.md](design/DESIGN.md) | Per-subsystem implementation status, Phase deviations, open questions. The status-tracking doc. |
 | **Overview** | [SUBSYSTEM_OVERVIEW.md](design/SUBSYSTEM_OVERVIEW.md) | Conceptual overview and onboarding guide for all subsystems. |
 | **Truth** | [ADR-0008](adr/ADR-0008-Security-and-Privacy.md) | **Security & Privacy**: permissions, sandboxing, age restrictions, data retention, fail-closed defaults. |
 | **Index** | [ADR README](adr/README.md) | ADR index with status, reading order, and dependency graph. |
 
-## 📋 Design Questions
+## ðŸ“‹ Design Questions
 *Keywords: Open Questions, Decisions, Tradeoffs*
 
 | Type | File | Purpose |
@@ -90,7 +90,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Question** | [user-feedback-calibration.md](design/questions/user-feedback-calibration.md) | Calibrating user feedback to learning rate. |
 | **Question** | [sensor-dashboard.md](design/questions/sensor-dashboard.md) | Sensor management dashboard design. |
 | **Question** | [resource-allocation.md](design/questions/resource-allocation.md) | Resource allocation across concurrent events. |
-| **Question** | [poc1-findings.md](design/questions/poc1-findings.md) | PoC 1 findings requiring PoC 2 action. |
+| **Question** | [poc1-findings.md](design/questions/poc1-findings.md) | Phase 1 findings requiring Phase 2 action. |
 | **Question** | [cross-cutting.md](design/questions/cross-cutting.md) | Cross-cutting design concerns. |
 | **Question** | [data-types.md](design/questions/data-types.md) | Data type design questions. |
 | **Question** | [infrastructure.md](design/questions/infrastructure.md) | Infrastructure design questions. |
@@ -99,7 +99,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Question** | [urgency-selection.md](design/questions/urgency-selection.md) | Urgency-modulated thresholds, heuristic selection tiers, cache decision. |
 | **Question** | [goal-identification.md](design/questions/goal-identification.md) | Goal impact on success measurement, goal inference, goal-directed prompts. |
 
-## 🛠️ Infrastructure & Ops
+## ðŸ› ï¸ Infrastructure & Ops
 *Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
 
 | Type | File | Purpose |
@@ -116,11 +116,11 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Lib** | `src/lib/gladys_client/` | Shared client library — DB queries, gRPC clients (orchestrator, cache, health). |
 | **Code** | `cli/_orchestrator.py` | Orchestrator CLI commands (thin wrapper over gladys_client). |
 | **Tool** | `tools/docsearch/` | **DocSearch**. Context packing tool for AI sessions. |
-| **Test** | `tests/integration/test_llm_response_flow.py` | End-to-end integration test (Orchestrator ↔ Executive). |
+| **Test** | `tests/integration/test_llm_response_flow.py` | End-to-end integration test (Orchestrator â†” Executive). |
 | **Design** | [LOGGING_STANDARD.md](design/LOGGING_STANDARD.md) | Standardized structured logging conventions. |
 | **Design** | [ROUTER_CONFIG.md](design/ROUTER_CONFIG.md) | **Extensibility**: Orchestrator router configuration (externalized from code). |
 
-## 🎭 Executive & Personality
+## ðŸŽ­ Executive & Personality
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
 
 | Type | File | Purpose |
@@ -134,7 +134,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [LLM_PROVIDER.md](design/LLM_PROVIDER.md) | **Extensibility**: Abstract LLM provider interface (swappable without modifying decision logic). |
 | **Design** | [DECISION_STRATEGY.md](design/DECISION_STRATEGY.md) | **Extensibility**: Executive decision strategy — heuristic vs LLM path selection, candidate ranking. |
 
-## 🔌 Plugins & World
+## ðŸ”Œ Plugins & World
 *Keywords: Sensors, Actuators, Manifest, Safety, Audit, Subscription, Dashboard*
 
 | Type | File | Purpose |
@@ -158,7 +158,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 
 ---
 
-## 🔬 Research
+## ðŸ”¬ Research
 *Keywords: Theory, Cognitive Science, Neuroscience, Academic, Open Questions*
 
 | Type | File | Purpose |
@@ -167,7 +167,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Questions** | [OPEN_QUESTIONS.md](research/OPEN_QUESTIONS.md) | Unsolved research problems where expert input would help. |
 | **Backlog** | [RESEARCH_BACKLOG.md](research/RESEARCH_BACKLOG.md) | Literature research tasks we can do ourselves. |
 
-## 🔍 Validation & Metrics
+## ðŸ” Validation & Metrics
 *Where to check if things actually work.*
 
 - **Benchmarking**: [BENCHMARK_STRATEGY.md](design/BENCHMARK_STRATEGY.md) (polyglot architecture validation)
@@ -198,8 +198,10 @@ If none of these fit, create a new doc — and add it to this table and the inde
 
 ---
 
-## 🏛️ Archive
+## ðŸ›ï¸ Archive
 *Superseded designs. Do not implement based on these.*
 
 - `docs/design/archive/`
 - `docs/archive/`
+
+

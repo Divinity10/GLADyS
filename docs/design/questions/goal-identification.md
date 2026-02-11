@@ -29,11 +29,12 @@ Success is goal-dependent. "Killing teammates" is a success if that's the player
 - **Success rate**: `success_count / fire_count` is meaningless without goal context — success relative to WHAT goal?
 
 **Sub-questions**:
-1. For PoC 2, is static goal configuration sufficient? Or do we need at minimum per-domain goals from the skill manifest?
+1. For Phase 2, is static goal configuration sufficient? Or do we need at minimum per-domain goals from the skill manifest?
 2. How should goal changes be detected? User declares? Behavioral inference? Domain skill detects?
 3. Should goals be hierarchical (long-term: "beat the game", short-term: "survive this fight")?
 4. How does goal context flow through the pipeline? Event metadata? Separate context channel?
 
-**PoC 2 approach**: Static per-domain goals from config. Dynamic selection deferred. Design interfaces to accept goal context so future implementations can provide richer goal awareness.
+**Phase 2 approach**: Static per-domain goals from config. Dynamic selection deferred. Design interfaces to accept goal context so future implementations can provide richer goal awareness.
 
-**Related**: EXECUTIVE_DESIGN.md, DECISION_STRATEGY.md (F-07), CONFIDENCE_BOOTSTRAPPING.md §Three Measurement Dimensions, ADR-0010 §3.11 (outcome evaluation)
+**Related**: EXECUTIVE_DESIGN.md, DECISION_STRATEGY.md (F-07), CONFIDENCE_BOOTSTRAPPING.md Â§Three Measurement Dimensions, ADR-0010 Â§3.11 (outcome evaluation)
+

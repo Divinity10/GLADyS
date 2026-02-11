@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test Skill Registry - Phase 3 PoC validation.
+"""Test Skill Registry - Phase 3 Phase validation.
 
 Proves:
 1. Skill manifests can be loaded from disk
@@ -182,7 +182,7 @@ def test_db_sync():
 
 def test_poc_success_criteria():
     """
-    PoC Phase 3 Success Criteria (from POC_ROADMAP.md):
+    Phase 3 Success Criteria (from POC_ROADMAP.md):
     - Can query "what skill checks player online status?"
     - Returns correct skill with correct method
     """
@@ -217,7 +217,7 @@ def test_poc_success_criteria():
 def main():
     """Run all tests."""
     print("=" * 70)
-    print("SKILL REGISTRY TEST - Phase 3 PoC Validation")
+    print("SKILL REGISTRY TEST - Phase 3 Phase Validation")
     print("=" * 70)
 
     tests = [
@@ -253,3 +253,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

@@ -154,7 +154,7 @@ impl StorageBackend for GrpcStorageBackend {
     }
 }
 
-/// Current PoC 1 scorer — embedding + cosine similarity.
+/// Current Phase 1 scorer — embedding + cosine similarity.
 pub struct EmbeddingSimilarityScorer {
     cache: Arc<RwLock<MemoryCache>>,
     storage: Box<dyn StorageBackend>,
@@ -963,3 +963,4 @@ mod tests {
         assert_eq!(*value, Some(Some("test_domain".to_string())));
     }
 }
+

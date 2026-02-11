@@ -17,7 +17,7 @@
 
 Learned heuristics start at confidence 0.3. The firing threshold is 0.7. A heuristic can only gain confidence through feedback on its fires. But it can't fire until it reaches the threshold. It stays at 0.3 forever.
 
-Confirmed during PoC 1: every learned heuristic stayed at 0.3, and every event routed to the LLM regardless of how many similar events had been handled before.
+Confirmed during Phase 1: every learned heuristic stayed at 0.3, and every event routed to the LLM regardless of how many similar events had been handled before.
 
 ---
 
@@ -33,25 +33,25 @@ The bootstrapping evaluation is an extension of the existing System 2 (LLM) path
 
 ```
 Event arrives
-    │
-    ▼
+    â”‚
+    â–¼
 Heuristic lookup (Memory service)
-    │
-    ├── Confidence >= threshold → System 1 (heuristic fires directly)
-    │
-    └── Confidence < threshold → System 2 (LLM path)
-            │
-            ▼
+    â”‚
+    â”œâ”€â”€ Confidence >= threshold → System 1 (heuristic fires directly)
+    â”‚
+    â””â”€â”€ Confidence < threshold → System 2 (LLM path)
+            â”‚
+            â–¼
         Build evaluation prompt (candidates + event, neutral framing)
-            │
-            ▼
+            â”‚
+            â–¼
         LLM generates response → delivered to user
-            │
-            ▼
-        [ASYNC] Compare LLM response to each candidate     ← NEW
-            │
-            ├── Similarity >= match threshold → boost candidate confidence
-            └── Similarity < match threshold → no change
+            â”‚
+            â–¼
+        [ASYNC] Compare LLM response to each candidate     â† NEW
+            â”‚
+            â”œâ”€â”€ Similarity >= match threshold → boost candidate confidence
+            â””â”€â”€ Similarity < match threshold → no change
 ```
 
 ### Two-Path Signal Model
@@ -140,9 +140,9 @@ The existing `QueryMatchingHeuristics` uses pgvector to find heuristics by `cond
 | B: `GenerateEmbedding` RPC + local cosine similarity | No schema changes, works immediately | N+1 embedding calls per evaluation, doesn't scale beyond candidates |
 | C: New `QuerySimilarActions(text, min_similarity, limit)` RPC | Clean interface, DB-backed | New RPC + action embeddings needed (combines A's migration with clean API) |
 
-**Recommendation**: Option A for release (DB-backed action embeddings). Option B is acceptable for PoC if candidates are few (3-5).
+**Recommendation**: Option A for release (DB-backed action embeddings). Option B is acceptable for Phase if candidates are few (3-5).
 
-**PoC optimization**: Rather than N+1 `GenerateEmbedding` RPC calls, add a batch comparison RPC to the memory service:
+**Phase optimization**: Rather than N+1 `GenerateEmbedding` RPC calls, add a batch comparison RPC to the memory service:
 ```
 CompareTextToActions(response_text, [heuristic_id1, heuristic_id2, ...]) → [(heuristic_id, similarity), ...]
 ```
@@ -159,7 +159,7 @@ The comparison is **not on the response path**. The user already has the LLM's r
 ```
 Timeline:
   t=0     LLM responds → user gets response immediately
-  t=0+δ   Async: compute similarity, update confidence
+  t=0+Î´   Async: compute similarity, update confidence
   t=later  Next event arrives → heuristic has updated confidence
 ```
 
@@ -174,10 +174,10 @@ When the LLM's response is similar to a candidate's action (similarity >= thresh
 The boost is a **weighted positive observation** in the confidence model. It counts as a fraction of a success, not a full success:
 
 ```
-effective_signal = endorsement_boost_weight × similarity
+effective_signal = endorsement_boost_weight Ã— similarity
 ```
 
-Where `endorsement_boost_weight` is configurable (default 0.5) and `similarity` is the embedding cosine similarity (0.0–1.0).
+Where `endorsement_boost_weight` is configurable (default 0.5) and `similarity` is the embedding cosine similarity (0.0—1.0).
 
 ### Signal Weight Table
 
@@ -187,8 +187,8 @@ The weights below express relative signal strength. Actual magnitudes must be ca
 
 | Signal | Relative strength | Path | Notes |
 |--------|-------------------|------|-------|
-| Explicit positive (user 👍) | Strong | Both | Direct validation — but measures satisfaction, not correctness (see §Three Measurement Dimensions) |
-| Explicit negative (user 👎) | Strong negative | Both | Direct rejection |
+| Explicit positive (user ðŸ‘) | Strong | Both | Direct validation — but measures satisfaction, not correctness (see Â§Three Measurement Dimensions) |
+| Explicit negative (user ðŸ‘Ž) | Strong negative | Both | Direct rejection |
 | LLM endorsement (similar response) | Moderate | Bootstrapping | LLM agrees independently |
 | Dev positive (outcome rated successful) | Strong | Both | Measures correctness — strongest quality signal |
 | Dev negative (outcome rated unsuccessful) | Strong negative | Both | Measures correctness |
@@ -201,7 +201,7 @@ The weights below express relative signal strength. Actual magnitudes must be ca
 **Decision (2026-02-08)**: Confidence uses real-valued alpha/beta pseudo-counts. Magnitude scales observation weight — an LLM endorsement at magnitude 0.41 adds 0.41 to alpha, not 1.0. This is standard practice (Thompson sampling, Bayesian A/B testing, multi-armed bandits).
 
 The `UpdateHeuristicConfidenceRequest` proto has the fields needed:
-- `magnitude` (field 6): scales the observation weight (0.0–1.0)
+- `magnitude` (field 6): scales the observation weight (0.0—1.0)
 - `feedback_source` (field 5): identifies the signal type (e.g., `"llm_endorsement"`, `"explicit_positive"`, `"dev_outcome"`)
 - `positive` (field 2): direction of the update
 
@@ -211,7 +211,7 @@ The `UpdateHeuristicConfidenceRequest` proto has the fields needed:
 - Confidence = `alpha / (alpha + beta)`
 - Prior: alpha = 1.0, beta = 1.0 (uniform — no opinion)
 
-**Magnitude affects confidence only.** Success rate uses a separate integer mechanism — `success_count` incremented only on outcome-confirmed success (see §Success Rate).
+**Magnitude affects confidence only.** Success rate uses a separate integer mechanism — `success_count` incremented only on outcome-confirmed success (see Â§Success Rate).
 
 **Implementation required**: `storage.py` currently ignores `magnitude`. The formula `(1 + success_count) / (2 + fire_count)` uses integer counts. Must be updated to use float alpha/beta columns. This is a prerequisite for bootstrapping — without it, all signals are treated as full-weight observations.
 
@@ -220,7 +220,7 @@ The executive sends:
 UpdateHeuristicConfidence(
     heuristic_id = candidate.id,
     positive = true,
-    magnitude = endorsement_boost_weight × similarity,
+    magnitude = endorsement_boost_weight Ã— similarity,
     feedback_source = "llm_endorsement"
 )
 ```
@@ -267,7 +267,7 @@ The executive must support multiple concurrent LLM evaluations. This is needed b
 
 ### Implementation Notes
 
-**Python (PoC)**: `asyncio.Semaphore(N)` — straightforward, already async.
+**Python (Phase)**: `asyncio.Semaphore(N)` — straightforward, already async.
 
 **C# (future)**: `SemaphoreSlim(N)` with `async/await` — direct equivalent. Or, for true multithreading with shared memory coordination, a thread pool with bounded concurrency.
 
@@ -312,7 +312,7 @@ All settings with defaults. Grouped by concern.
 | `max_concurrent_llm_evaluations` | int | 3 | Max LLM calls in flight simultaneously |
 | `max_evaluation_candidates` | int | 5 | Max candidates included in evaluation prompt |
 | `endorsement_similarity_threshold` | float | 0.75 | Minimum similarity for LLM response to count as endorsement |
-| `endorsement_boost_weight` | float | 0.5 | Weight of LLM endorsement signal (0.0–1.0) |
+| `endorsement_boost_weight` | float | 0.5 | Weight of LLM endorsement signal (0.0—1.0) |
 
 ### Confidence Thresholds (Existing)
 
@@ -323,7 +323,7 @@ All settings with defaults. Grouped by concern.
 
 ### Where Configuration Lives
 
-For PoC: environment variables (consistent with existing `EXECUTIVE_*` pattern).
+For Phase: environment variables (consistent with existing `EXECUTIVE_*` pattern).
 
 For release: config file or pack manifest. The bootstrapping parameters are executive-level settings, not pack-level — they apply to all domains equally.
 
@@ -331,7 +331,7 @@ For release: config file or pack manifest. The bootstrapping parameters are exec
 
 ## Performance Instrumentation
 
-These metrics support both PoC validation and the Python-vs-C# decision.
+These metrics support both Phase validation and the Python-vs-C# decision.
 
 ### Required Metrics
 
@@ -349,12 +349,12 @@ These metrics support both PoC validation and the Python-vs-C# decision.
 
 Specific signals that would indicate Python is insufficient:
 
-1. `event_processing_latency_ms` P95 exceeds 100ms target (ADR-0014 §12) excluding LLM wait time
+1. `event_processing_latency_ms` P95 exceeds 100ms target (ADR-0014 Â§12) excluding LLM wait time
 2. Semaphore contention consistently above 50% (GIL-related scheduling issues)
 3. Memory growth under sustained load (Python object overhead)
 4. CPU utilization dominated by Python overhead rather than useful work
 
-If none of these trigger during PoC, Python remains viable. C# migration becomes a capability play (shared memory, true multithreading) rather than a performance necessity.
+If none of these trigger during Phase, Python remains viable. C# migration becomes a capability play (shared memory, true multithreading) rather than a performance necessity.
 
 ---
 
@@ -422,7 +422,7 @@ The embedding model lives in the memory service. All similarity computation requ
 
 ### Learning Module Location
 
-Where the learning module lives (orchestrator, executive, or split) is an open decision that will be evaluated across PoCs. The bootstrapping mechanism is designed to work regardless:
+Where the learning module lives (orchestrator, executive, or split) is an open decision that will be evaluated across phases. The bootstrapping mechanism is designed to work regardless:
 
 - The interface contract (signal type, weight, target heuristic) is the same either way
 - Only the transport changes (internal method calls vs gRPC vs direct DB)
@@ -445,11 +445,11 @@ Confidence bootstrapping addresses one dimension. The system actually tracks thr
 
 Success rate = `success_count / fire_count`. Both fields exist in the `heuristics` table and proto. Currently `success_count` is incremented on any positive feedback — it should only be incremented when the action's outcome is evaluated as successful.
 
-**What "success" means**: Determined by the domain skill's outcome evaluator (ADR-0010 §3.11, ADR-0003 §6.4). The evaluator defines outcome signals (e.g., "player_survived" = positive, "player_died" = negative) and a correlation window for matching decisions to outcomes. The domain skill is the authority on correctness.
+**What "success" means**: Determined by the domain skill's outcome evaluator (ADR-0010 Â§3.11, ADR-0003 Â§6.4). The evaluator defines outcome signals (e.g., "player_survived" = positive, "player_died" = negative) and a correlation window for matching decisions to outcomes. The domain skill is the authority on correctness.
 
 **Success depends on the user's goal.** Killing teammates is a success if that's the player's goal. The executive's `EXECUTIVE_GOALS` config provides goal context to the LLM prompt and outcome evaluation. Goal identification is a separate design question (see `docs/design/questions/goal-identification.md`).
 
-### Existing Fields to Wire Up (PoC 2)
+### Existing Fields to Wire Up (Phase 2)
 
 | Field | Location | Current state | Action |
 |-------|----------|--------------|--------|
@@ -467,13 +467,13 @@ Users cannot decompose their feedback — a thumbs-up/down is a combined reactio
 
 The dashboard (#62) must support dev rating of both dimensions. Dev outcome ratings feed directly into `success_count` and are the primary quality signal for pre-built heuristic development. User feedback remains valuable as a satisfaction signal but should not be confused with correctness.
 
-**PoC scope**: Dashboard dev rating UI. User-facing feedback stays as-is (binary like/dislike). Automated outcome observation (follow-up event correlation) is deferred — see `docs/design/questions/outcome-correlation.md`.
+**Phase scope**: Dashboard dev rating UI. User-facing feedback stays as-is (binary like/dislike). Automated outcome observation (follow-up event correlation) is deferred — see `docs/design/questions/outcome-correlation.md`.
 
 ---
 
-## Open Questions (To Resolve During PoC)
+## Open Questions (To Resolve During Phase)
 
-1. **Rejection penalty**: Should LLM generating a response dissimilar to ALL candidates penalize those candidates? Current design says no (no change). If PoC shows heuristics lingering at low confidence without penalty, reconsider.
+1. **Rejection penalty**: Should LLM generating a response dissimilar to ALL candidates penalize those candidates? Current design says no (no change). If Phase shows heuristics lingering at low confidence without penalty, reconsider.
 
 2. **Evaluation frequency**: Should every below-threshold match trigger an LLM evaluation? Or should there be rate limiting per-heuristic (e.g., evaluate at most once per hour)? Start without rate limiting, add if LLM costs are excessive.
 
@@ -497,10 +497,13 @@ The dashboard (#62) must support dev rating of both dimensions. Dev outcome rati
 
 **Step 5 (async)**: Compute embedding similarity between LLM response and H1's action "Use a healing potion immediately". Similarity = 0.82 (above 0.75 threshold).
 
-**Step 6**: H1 endorsed. Magnitude = `endorsement_boost_weight × similarity` = `0.5 × 0.82 = 0.41`. Bayesian update: `alpha += 0.41` → alpha = 1.41, beta = 1.0. New confidence = `1.41 / (1.41 + 1.0) = 0.585`. H1 is climbing but not yet above the 0.7 threshold.
+**Step 6**: H1 endorsed. Magnitude = `endorsement_boost_weight Ã— similarity` = `0.5 Ã— 0.82 = 0.41`. Bayesian update: `alpha += 0.41` → alpha = 1.41, beta = 1.0. New confidence = `1.41 / (1.41 + 1.0) = 0.585`. H1 is climbing but not yet above the 0.7 threshold.
 
-**Step 7**: Same scenario occurs again. LLM again generates a similar response (similarity 0.79). Magnitude = `0.5 × 0.79 = 0.395`. Update: alpha = 1.805, beta = 1.0. Confidence = `1.805 / 2.805 = 0.643`. Getting closer.
+**Step 7**: Same scenario occurs again. LLM again generates a similar response (similarity 0.79). Magnitude = `0.5 Ã— 0.79 = 0.395`. Update: alpha = 1.805, beta = 1.0. Confidence = `1.805 / 2.805 = 0.643`. Getting closer.
 
-**Step 8**: User gives 👍 on the LLM response. Full-weight update: `alpha += 1.0` → alpha = 2.805, beta = 1.0. Confidence = `2.805 / 3.805 = 0.737`. H1 now exceeds the 0.7 threshold.
+**Step 8**: User gives ðŸ‘ on the LLM response. Full-weight update: `alpha += 1.0` → alpha = 2.805, beta = 1.0. Confidence = `2.805 / 3.805 = 0.737`. H1 now exceeds the 0.7 threshold.
 
 **Step 9**: Next time a similar event arrives, H1 fires directly via System 1. No LLM call needed. H1 has graduated from bootstrapping through a combination of LLM endorsements and one user confirmation.
+
+
+

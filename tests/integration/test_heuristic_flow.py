@@ -2,7 +2,7 @@
 """Test script to verify the heuristic formation flow.
 
 This script:
-1. Sends an event directly to Executive (skip Orchestrator for PoC testing)
+1. Sends an event directly to Executive (skip Orchestrator for Phase testing)
 2. Sends positive feedback to Executive
 3. Verifies the heuristic was stored in Memory
 
@@ -127,3 +127,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

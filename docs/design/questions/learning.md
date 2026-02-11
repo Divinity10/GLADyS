@@ -8,9 +8,9 @@ Heuristics, TD learning, pattern formation, and how GLADyS learns from experienc
 
 ## Open Questions
 
-### Q: TD Learning for Heuristics (§20)
+### Q: TD Learning for Heuristics (Â§20)
 
-**Status**: Open - needs minimal PoC design
+**Status**: Open - needs minimal Phase design
 **Priority**: High (core learning mechanism)
 **Created**: 2026-01-23
 
@@ -18,7 +18,7 @@ Heuristics, TD learning, pattern formation, and how GLADyS learns from experienc
 
 ADR-0010 defines the Learning Pipeline with System 1 (heuristics) and System 2 (LLM reasoning). The question: **how do heuristics get created and updated from successful reasoning?**
 
-Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 §5.6), but the mechanism for:
+Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 Â§5.6), but the mechanism for:
 1. Creating heuristics from novel reasoning
 2. Updating heuristic confidence based on outcomes
 
@@ -41,7 +41,7 @@ The proposed mechanism follows **Temporal Difference (TD) Learning** - specifica
 
 **Key insight**: This is how biological brains work. The dopamine system signals prediction error, not reward itself. "Better than expected" drives learning, not "good outcome."
 
-#### Minimal PoC Requirements
+#### Minimal Phase Requirements
 
 To prove this architecture is achievable, we need:
 
@@ -51,12 +51,12 @@ To prove this architecture is achievable, we need:
 4. **Confidence Update**: `new_confidence = old_confidence + learning_rate * delta`
 5. **Heuristic Creation** (Stretch): Log successful reasoning traces for manual pattern extraction
 
-#### What This Does NOT Require for PoC
+#### What This Does NOT Require for Phase
 
 - Automatic outcome detection (use explicit user feedback)
 - Complex pattern extraction (log traces, create heuristics manually)
 - Multi-step credit assignment (single action → single outcome)
-- Causal inference (correlation is sufficient for PoC)
+- Causal inference (correlation is sufficient for Phase)
 
 #### Open Questions
 
@@ -77,10 +77,10 @@ To prove this architecture is achievable, we need:
 
 ---
 
-### Q: Heuristic Learning Infrastructure (§23)
+### Q: Heuristic Learning Infrastructure (Â§23)
 
 **Status**: Partial - credit assignment UX designed; implementation deferred
-**Priority**: Medium (needed for real learning, not PoC)
+**Priority**: Medium (needed for real learning, not Phase)
 **Created**: 2026-01-23
 **Updated**: 2026-01-24 - Credit assignment UX design agreed
 
@@ -131,9 +131,9 @@ The key insight: **implicit feedback > explicit feedback**. User actions (undo, 
 
 ---
 
-### Q: Prediction Baseline Strategy (§27)
+### Q: Prediction Baseline Strategy (Â§27)
 
-**Status**: Designed (PoC: Instrument only; Post-PoC: Implement learning)
+**Status**: Designed (Phase: Instrument only; Post-Phase: Implement learning)
 **Priority**: Medium
 **Created**: 2026-01-24
 
@@ -168,7 +168,7 @@ def get_prediction_baseline(event_embedding, triggered_heuristic_id=None):
     return 0.5
 ```
 
-#### PoC Scope: Instrument Only
+#### Phase Scope: Instrument Only
 
 Following "Instrument Now, Analyze Later" recommendation:
 1. Add `prediction` and `prediction_confidence` fields to reasoning output
@@ -199,7 +199,7 @@ CREATE TABLE heuristic_fires (
 
 ---
 
-### Q: Learning Loop Integration Gaps (§29)
+### Q: Learning Loop Integration Gaps (Â§29)
 
 **Status**: Resolved (W2 + prior PRs)
 **Priority**: High (blocks full E2E validation)
@@ -278,7 +278,7 @@ Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Im
 
 ---
 
-### Q: Similarity Threshold Strategy (§31)
+### Q: Similarity Threshold Strategy (Â§31)
 
 **Status**: Open — needs empirical data
 **Priority**: Medium (affects matching quality)
@@ -297,11 +297,11 @@ At 0.7, "user wants ice cream" matches "user wants frozen dessert" (0.78) but no
 
 **Relevant**: ADR-0010 Section 3.2, `heuristics.similarity_threshold`
 
-**When to revisit**: When running load tests or real workloads with meaningful heuristics. See also §23.3 (Tuning Mode).
+**When to revisit**: When running load tests or real workloads with meaningful heuristics. See also Â§23.3 (Tuning Mode).
 
 ---
 
-### Q: Conflicting Heuristic Resolution (§32)
+### Q: Conflicting Heuristic Resolution (Â§32)
 
 **Status**: Open — design decision needed
 **Priority**: Medium
@@ -322,7 +322,7 @@ When multiple heuristics match an event, the highest `similarity * confidence` s
 
 ## Resolved
 
-### R: Semantic Heuristic Matching (§28)
+### R: Semantic Heuristic Matching (Â§28)
 
 **Status**: Resolved (2026-01-25)
 **Priority**: Critical - Fixed
@@ -341,13 +341,13 @@ The current heuristic matching system uses word overlap to find relevant heurist
 
 Replace word overlap with vector similarity using embeddings. "killing neighbor" and "meeting at 1pm" will have very different vectors despite sharing structural words.
 
-**Implementation**: See [§22 Heuristic Data Structure](#r-heuristic-data-structure---cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
+**Implementation**: See [Â§22 Heuristic Data Structure](#r-heuristic-data-structure---cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
 
 **Status**: Migration 008 deployed, embeddings backfilled, semantic matching verified working.
 
 ---
 
-### R: Learning System Design (§5)
+### R: Learning System Design (Â§5)
 
 **Decision**: See ADR-0010
 **Date**: 2026-01-XX
@@ -363,19 +363,19 @@ Resolved questions:
 
 ---
 
-### R: Heuristic Condition Matching (§17)
+### R: Heuristic Condition Matching (Â§17)
 
-**Status**: Superseded by §22
+**Status**: Superseded by Â§22
 **Date**: 2026-01-23
 
-Original design used exact key-value matching. Superseded by embedding-based fuzzy matching in §22 because:
+Original design used exact key-value matching. Superseded by embedding-based fuzzy matching in Â§22 because:
 - Exact matching is too brittle for natural language conditions
 - Without fuzzy logic, GLADyS is just an expert system
 - Semantic similarity via embeddings is brain-like and well-studied
 
 ---
 
-### R: Heuristic Storage Model (§21)
+### R: Heuristic Storage Model (Â§21)
 
 **Decision**: Transaction log pattern
 **Date**: 2026-01-23
@@ -417,7 +417,7 @@ CREATE TABLE heuristic_history (
 
 ---
 
-### R: Heuristic Data Structure - CBR + Fuzzy Matching (§22)
+### R: Heuristic Data Structure - CBR + Fuzzy Matching (Â§22)
 
 **Decision**: Case-Based Reasoning with embedding similarity
 **Date**: 2026-01-23
@@ -427,7 +427,7 @@ CREATE TABLE heuristic_history (
 | Aspect | Decision | Rationale |
 |--------|----------|-----------|
 | **Approach** | Case-Based Reasoning (CBR) | More brain-like than behavior trees |
-| **Structure** | Flat list with competition | Highest (similarity × confidence) wins |
+| **Structure** | Flat list with competition | Highest (similarity Ã— confidence) wins |
 | **Matching** | Embedding similarity via pgvector | Without fuzzy logic, we're just an expert system |
 | **Learning** | TD learning updates confidence | Heuristics improve based on feedback |
 | **Formation** | LLM-assisted pattern extraction | Reasoning → Heuristic migration |
@@ -457,7 +457,7 @@ CREATE INDEX idx_heuristics_embedding ON heuristics
 1. Generate embedding for incoming event context
 2. Query pgvector: SELECT *, 1 - (condition_embedding <=> input) as similarity
    WHERE similarity > threshold
-3. Score each match: score = similarity × confidence
+3. Score each match: score = similarity Ã— confidence
 4. Winner = argmax(score)
 5. Execute winner's effects_json
 ```
@@ -492,3 +492,4 @@ Novel event → LLM reasons → User thumbs up → Pattern extracted → New heu
 Next similar event → Heuristic fires → LLM skipped
 ```
 Tests: Heuristic formation, semantic matching, confidence updates
+

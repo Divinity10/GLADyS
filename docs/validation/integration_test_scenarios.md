@@ -6,7 +6,7 @@
 ## Overview
 These scenarios validate the "Killer Feature": the ability of the system to learn from LLM reasoning and user feedback, converting slow, expensive reasoning into fast, cheap heuristics.
 
-Each scenario assumes the PoC environment is running (Python Memory, Rust Salience, Executive Stub).
+Each scenario assumes the Phase environment is running (Python Memory, Rust Salience, Executive Stub).
 
 ---
 
@@ -128,3 +128,4 @@ Tests should ideally read this value from the system configuration (e.g., `HEURI
 2.  Mock the LLM for predictability (or use the Stub if stable) for Scenarios 1 & 2.
 3.  Directly manipulate the DB for "Initial States" (inject heuristics).
 4.  Assert on the `from_cache` flag in the `EvaluateSalienceResponse`.
+

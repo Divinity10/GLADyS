@@ -9,7 +9,7 @@ This document defines the contracts between subsystems, plugin interfaces, and d
 
 ## Plugin Protocols
 
-Each plugin type is defined as a **protocol** (language-agnostic contract), not a base class. Per-language SDKs provide composable helpers that implement the protocol. Base classes don't translate well across languages — SDKs do (see [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks) for the full rationale).
+Each plugin type is defined as a **protocol** (language-agnostic contract), not a base class. Per-language SDKs provide composable helpers that implement the protocol. Base classes don't translate well across languages — SDKs do (see [SENSOR_ARCHITECTURE.md Â§3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks) for the full rationale).
 
 All plugin types share a common lifecycle and health contract. The Supervisor calls `health()` uniformly on all plugin types without needing type-specific knowledge.
 
@@ -24,7 +24,7 @@ recover() → bool                 # attempt self-healing (true=recovered, false
 
 ### Sensor Protocol
 
-Defined in detail in [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks).
+Defined in detail in [SENSOR_ARCHITECTURE.md Â§3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks).
 
 ```
 emit_events() → Event[]          # produce normalized events
@@ -122,7 +122,7 @@ OutcomeEvaluation {
 }
 ```
 
-**Update weight**: `valence × confidence`. High-confidence catastrophic outcomes drive strong negative updates. Uncertain assessments barely move the needle.
+**Update weight**: `valence Ã— confidence`. High-confidence catastrophic outcomes drive strong negative updates. Uncertain assessments barely move the needle.
 
 **The `factors` list aids attribution** — tracing which decision led to the outcome, rather than blaming whichever heuristic fired most recently.
 
@@ -146,7 +146,7 @@ The system learns fastest in domains with skills loaded (continuous outcome eval
 
 ## Learning Module I/O
 
-The learning module is Orchestrator-owned with a clean boundary (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-learning-module-orchestrator-owned)).
+The learning module is Orchestrator-owned with a clean boundary (see [ARCHITECTURE.md Â§10](ARCHITECTURE.md#10-learning-module-orchestrator-owned)).
 
 | Input | Operation | Output |
 |-------|-----------|--------|
@@ -167,7 +167,7 @@ The interface must stay clean enough to extract into a separate process later:
 
 | Approach | When |
 |----------|------|
-| Learning logic inline in Orchestrator | PoC |
+| Learning logic inline in Orchestrator | Phase |
 | Learning as a module with clean boundary | When learning code grows beyond trivial |
 | Learning as a background worker (sleep mode) | When batch jobs need CPU isolation |
 | Learning as a persistent subsystem (7th process) | When real-time + batch both run continuously |
@@ -182,26 +182,26 @@ Domain-first, not type-first. Each pack is a self-contained unit with a manifest
 
 ```
 packs/
-├── minecraft/
-│   ├── sensors/
-│   ├── skills/
-│   ├── preprocessors/
-│   ├── heuristics/
-│   └── manifest.yaml
-├── smart-home/
-│   ├── sensors/
-│   ├── skills/
-│   └── manifest.yaml
-├── personalities/
-│   ├── murderbot/
-│   │   └── manifest.yaml       # prompt modifier only
-│   └── glados/
-│       ├── heuristics/         # tagged origin: personality:glados
-│       ├── skills/             # optional domain skills
-│       └── manifest.yaml
-└── core/                       # Built-in, always-loaded
-    ├── sensors/
-    └── skills/
+â”œâ”€â”€ minecraft/
+â”‚   â”œâ”€â”€ sensors/
+â”‚   â”œâ”€â”€ skills/
+â”‚   â”œâ”€â”€ preprocessors/
+â”‚   â”œâ”€â”€ heuristics/
+â”‚   â””â”€â”€ manifest.yaml
+â”œâ”€â”€ smart-home/
+â”‚   â”œâ”€â”€ sensors/
+â”‚   â”œâ”€â”€ skills/
+â”‚   â””â”€â”€ manifest.yaml
+â”œâ”€â”€ personalities/
+â”‚   â”œâ”€â”€ murderbot/
+â”‚   â”‚   â””â”€â”€ manifest.yaml       # prompt modifier only
+â”‚   â””â”€â”€ glados/
+â”‚       â”œâ”€â”€ heuristics/         # tagged origin: personality:glados
+â”‚       â”œâ”€â”€ skills/             # optional domain skills
+â”‚       â””â”€â”€ manifest.yaml
+â””â”€â”€ core/                       # Built-in, always-loaded
+    â”œâ”€â”€ sensors/
+    â””â”€â”€ skills/
 ```
 
 ### Pack Manifest

@@ -38,10 +38,11 @@ Urgency is domain-specific: real-time games need sub-second, email can wait minu
 3. Where does the sensor declare its urgency profile? Manifest? Registration? Per-event?
 4. Should there be "salience heuristics" — learned condition-to-salience mappings that enrich urgency over time?
 
-### Q: Should the Rust heuristic cache be used for PoC 2?
+### Q: Should the Rust heuristic cache be used for Phase 2?
 **Status**: Resolved
-**Decision**: No cache for PoC 2. Encapsulate heuristic lookup behind an interface that could add a cache layer later. DB is sole source of truth. If a cache is added in future, it must be read-through only (never write-back) and domain-partitioned.
+**Decision**: No cache for Phase 2. Encapsulate heuristic lookup behind an interface that could add a cache layer later. DB is sole source of truth. If a cache is added in future, it must be read-through only (never write-back) and domain-partitioned.
 **Rationale**: The cache saves 1-10ms on a local PostgreSQL query. This is meaningful only for tier (a) immediate responses. Cache coherence adds complexity (syncing confidence updates between cache and DB). The DB round-trip is not the bottleneck — LLM latency is. Keep infrastructure, don't invest in making it smarter until performance data shows need.
 **Date**: 2026-02-08
 
 **Related**: CONFIDENCE_BOOTSTRAPPING.md, DECISION_STRATEGY.md, SALIENCE_MODEL.md, SENSOR_ARCHITECTURE.md (urgency metadata)
+

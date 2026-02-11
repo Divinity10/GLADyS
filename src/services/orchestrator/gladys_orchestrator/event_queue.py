@@ -1,6 +1,6 @@
 """Event Queue for priority-based processing.
 
-Replaces MomentAccumulator for PoC. Events are queued by salience priority
+Replaces MomentAccumulator for Phase. Events are queued by salience priority
 and processed asynchronously. Events without high-confidence heuristics
 go through this queue to the LLM (Executive).
 
@@ -8,7 +8,7 @@ Architecture:
 - Events added with salience priority (higher = process sooner)
 - Background worker dequeues and sends to Executive
 - Timeout scanner removes stale events
-- All in-memory for PoC (events lost on restart is acceptable)
+- All in-memory for Phase (events lost on restart is acceptable)
 """
 
 import asyncio
@@ -47,7 +47,7 @@ class EventQueue:
     Events are ordered by salience (highest first). A background worker
     dequeues events and sends them to Executive for processing.
 
-    For PoC: Pure in-memory, events lost on restart is acceptable.
+    For Phase: Pure in-memory, events lost on restart is acceptable.
     """
 
     def __init__(
@@ -382,3 +382,4 @@ class EventQueue:
         if any(param.kind == inspect.Parameter.VAR_POSITIONAL for param in params):
             return True
         return len(params) >= 3
+

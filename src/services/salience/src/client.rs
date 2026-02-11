@@ -322,7 +322,7 @@ impl EventBuilder {
                 salience: None,
                 structured_json: "{}".to_string(),
                 entity_ids: Vec::new(),
-                // Prediction instrumentation (§27) - defaults to 0.0/empty
+                // Prediction instrumentation (Â§27) - defaults to 0.0/empty
                 predicted_success: 0.0,
                 prediction_confidence: 0.0,
                 response_id: String::new(),
@@ -331,7 +331,7 @@ impl EventBuilder {
                 llm_prompt_text: String::new(),
                 decision_path: String::new(),
                 episode_id: String::new(),
-                // PoC 2 sensor contract extensions
+                // Phase 2 sensor contract extensions
                 intent: String::new(),
                 evaluation_data_json: String::new(),
             },
@@ -481,3 +481,4 @@ mod tests {
         assert_eq!(heuristic.condition_text, "user entered the room");
     }
 }
+

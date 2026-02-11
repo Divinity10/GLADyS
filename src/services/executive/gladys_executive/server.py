@@ -959,7 +959,7 @@ class Heuristic:
 
 
 class HeuristicStore:
-    """Simple file-based heuristic storage for PoC testing."""
+    """Simple file-based heuristic storage for Phase testing."""
 
     def __init__(self, path: str | Path = "heuristics.json"):
         self.path = Path(path)
@@ -1428,3 +1428,4 @@ async def serve(
         if salience_client:
             await salience_client.close()
         await server.stop(grace=5)
+

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Tests protect the validity of experimental results. GLADyS is hypothesis-driven incremental development (see `docs/design/POC_LIFECYCLE.md`) -- each PoC has proof obligations with observable success criteria. If a bug silently corrupts data flowing through the pipeline, experimental observations become untrustworthy and we won't know it.
+Tests protect the validity of experimental results. GLADyS is hypothesis-driven incremental development (see `docs/design/ITERATIVE_DESIGN.md`) -- each Phase has proof obligations with observable success criteria. If a bug silently corrupts data flowing through the pipeline, experimental observations become untrustworthy and we won't know it.
 
 The question isn't "is this code production-ready?" -- it's "can I trust the results I'm getting from this pipeline?"
 
@@ -156,9 +156,9 @@ with patch("module.random.shuffle", side_effect=lambda items: items.reverse()):
 
 ## Coverage Expectations
 
-Coverage is proportional to the component's role in the current proof obligations (see `docs/design/POC_LIFECYCLE.md`).
+Coverage is proportional to the component's role in the current proof obligations (see `docs/design/ITERATIVE_DESIGN.md`).
 
-| Component | Current PoC role | Coverage expectation |
+| Component | Current Phase role | Coverage expectation |
 |-----------|-----------------|---------------------|
 | Memory storage (confidence, heuristics) | Core data integrity | High -- every update path tested |
 | Orchestrator routing (candidates, events) | Pipeline plumbing | High -- data must arrive intact |
@@ -167,4 +167,5 @@ Coverage is proportional to the component's role in the current proof obligation
 | Salience (Rust) | Heuristic matching | Medium -- matching correctness, cache behavior |
 | Sensors | Data sources | Per-sensor -- protocol compliance, not application logic |
 
-This table updates as proof obligations shift between PoCs.
+This table updates as proof obligations shift Between phases.
+

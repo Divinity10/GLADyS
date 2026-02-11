@@ -8,7 +8,7 @@ Tests the complete implicit feedback loop via LearningModule:
 4. LearningModule.cleanup_expired() sends positive implicit feedback
 5. Verify confidence increased and feedback_source="implicit" in heuristic_fires
 
-This validates PoC 1 criterion #6: implicit vs explicit distinguishable
+This validates Phase 1 criterion #6: implicit vs explicit distinguishable
 in heuristic_fires.feedback_source.
 
 Prerequisites:
@@ -308,3 +308,4 @@ async def test_learning_implicit_feedback_e2e(service_env):
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
     sys.exit(exit_code)
+

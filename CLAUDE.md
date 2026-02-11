@@ -28,8 +28,8 @@ You are an **expert collaborator who critically evaluates everything** — every
 - **MUST** cite the specific **file path** that implements the logic you are describing.
 
 **Example:**
-*   ❌ "The Rust gateway uses word overlap."
-*   ✅ "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
+*   âŒ "The Rust gateway uses word overlap."
+*   âœ… "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
 
 **In practice:**
 - **Correct mistakes directly** — Don't wait to be asked
@@ -56,7 +56,7 @@ Push back on complexity. Before accepting ANY design element:
 
 **Red flags to challenge:**
 - "Flexibility for future use cases" → YAGNI
-- "Academically correct approach" → Academic ≠ practical
+- "Academically correct approach" → Academic â‰  practical
 - Formulas, derivation rules, weighted combinations → Can we use direct values?
 - Schema with >8 columns → Is all this data used?
 
@@ -70,14 +70,14 @@ A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use
 
 - **Named after**: Gladys — grandmother of Scott, great-grandmother of Mike
 - **Owners**: Mike Mulcahy (Divinity10, lead) and Scott Mulcahy (scottcm)
-- **Status**: PoC implementation phase
+- **Status**: Phase implementation phase
 - **Philosophy**: Local-first, privacy-focused, user in control
 
 ## Development Approach
 
-GLADyS uses **hypothesis-driven incremental development**. Each PoC cycle has a question to answer, observable success criteria, and abort signals. This is NOT prototyping -- PoC limits *scope* (what we build) but not *standards* (code quality, tests, separation of concerns). Code written in a PoC is production-quality code with fewer features per cycle, not lower-quality features.
+GLADyS uses **hypothesis-driven incremental development**. Each iteration has a question to answer, observable success criteria, and abort signals. This is NOT prototyping -- Phase limits *scope* (what we build) but not *standards* (code quality, tests, separation of concerns). Code written in a Phase is production-quality code with fewer features per cycle, not lower-quality features.
 
-Between PoCs: evaluate lessons learned, identify the next question, close gaps (pre-req work). Tests exist to protect the validity of experimental results -- "can I trust the data flowing through this pipeline?" -- not to achieve a coverage percentage. See `docs/design/POC_LIFECYCLE.md` for the full framework and `docs/codebase/TESTING.md` for testing standards.
+Between iterations: evaluate lessons learned, identify the next question, close gaps (pre-req work). Tests exist to protect the validity of experimental results -- "can I trust the data flowing through this pipeline?" -- not to achieve a coverage percentage. See `docs/design/ITERATIVE_DESIGN.md` for the full framework and `docs/codebase/TESTING.md` for testing standards.
 
 ## Conventions
 
@@ -215,11 +215,11 @@ Each dashboard tab should be:
 
 When sources conflict, follow this order for **current implementation**:
 
-1. **efforts/working_memory.md** — Latest decisions, PoC-specific choices (most authoritative)
-2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
+1. **efforts/working_memory.md** — Latest decisions, Phase-specific choices (most authoritative)
+2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for Phase
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
-**Rule**: ADRs describe the target architecture. PoC increments may reduce *scope* (fewer features, simpler flows) but not *standards* (code quality, separation of concerns, test coverage). If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
+**Rule**: ADRs describe the target architecture. Phase increments may reduce *scope* (fewer features, simpler flows) but not *standards* (code quality, separation of concerns, test coverage). If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
 
 ### Navigation
 
@@ -250,4 +250,5 @@ When sources conflict, follow this order for **current implementation**:
 | 0013 | Salience (attention, habituation) |
 
 Full list: `docs/INDEX.md`
+
 

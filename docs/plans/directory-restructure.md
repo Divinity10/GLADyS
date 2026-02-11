@@ -6,8 +6,8 @@
 - Phase 2 (gladys_client extraction) deferred — cli/ modules are tightly coupled to _gladys.py config. Dashboard continues importing via sys.path. Extraction needs API design work.
 - Phase 3 (FUN API extraction) deferred — dashboard routers mix htmx partial rendering with REST/gRPC proxy logic. Clean extraction requires splitting each router.
 - Phase 4 executed incrementally alongside Phases 1-3, not as a separate batch.
-**Prerequisite for**: PoC 1 (see [POC_LIFECYCLE.md](../design/POC_LIFECYCLE.md))
-**Reference**: [ARCHITECTURE.md §9](../design/ARCHITECTURE.md), [INTERFACES.md](../design/INTERFACES.md)
+**Prerequisite for**: Phase 1 (see [ITERATIVE_DESIGN.md](../design/ITERATIVE_DESIGN.md))
+**Reference**: [ARCHITECTURE.md Â§9](../design/ARCHITECTURE.md), [INTERFACES.md](../design/INTERFACES.md)
 
 ---
 
@@ -112,3 +112,4 @@ The fun_api is a service that exposes gRPC operations over REST. The dashboard i
 - Dockerfiles updated
 - `CODEBASE_MAP.md` reflects new layout
 - No references to old paths in code or docs
+

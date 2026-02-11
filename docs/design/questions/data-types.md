@@ -8,7 +8,7 @@ Handling continuous vs discrete data, streaming sensors, and time-series data.
 
 ## Open Questions
 
-### Q: Continuous vs Discrete Data (§2)
+### Q: Continuous vs Discrete Data (Â§2)
 
 **Status**: Open
 **Priority**: Medium
@@ -20,7 +20,7 @@ Salience gateway and memory are designed for **discrete events** ("player took d
 #### Key Questions
 
 - Does a temperature reading have "salience"?
-- Should 72°F → 73°F enter salience evaluation at all?
+- Should 72Â°F → 73Â°F enter salience evaluation at all?
 - How does episodic memory model time-series data?
 - Should continuous data be pre-filtered into discrete events at the sensor?
 
@@ -36,8 +36,8 @@ Salience gateway and memory are designed for **discrete events** ("player took d
 #### Discussion
 
 **Temperature example**:
-- Raw: 72°F, 72°F, 72°F, 73°F, 73°F, 73°F, 74°F...
-- Threshold event: "Temperature crossed 74°F threshold"
+- Raw: 72Â°F, 72Â°F, 72Â°F, 73Â°F, 73Â°F, 73Â°F, 74Â°F...
+- Threshold event: "Temperature crossed 74Â°F threshold"
 
 The threshold event has clear salience. The raw readings are just noise for most purposes.
 
@@ -49,7 +49,7 @@ The threshold event has clear salience. The raw readings are just noise for most
 
 **Question**: Do we have the right data structures? When is the right time to define them?
 
-The current schema (`episodic_events`, `heuristics`, `heuristic_fires`) emerged from PoC needs. As sensors, actuators, and multi-user support arrive, the schema will need to evolve. Key tensions:
+The current schema (`episodic_events`, `heuristics`, `heuristic_fires`) emerged from Phase needs. As sensors, actuators, and multi-user support arrive, the schema will need to evolve. Key tensions:
 - Define early → risk premature abstraction
 - Define late → risk expensive migrations
 - Current pragmatic approach: add columns as needed, defer new tables until a concrete use case requires them
@@ -97,3 +97,4 @@ This is architectural - needs ADR if we proceed.
 1. Sensor emits only on threshold crossing
 2. Separate "metric" path that bypasses salience
 3. Preprocessor filters to significant changes
+

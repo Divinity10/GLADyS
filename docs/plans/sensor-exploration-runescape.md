@@ -2,8 +2,8 @@
 
 **Status**: Not started
 **Owner**: Mike
-**Purpose**: PoC 1 W1 — build one real sensor that produces events without human intervention
-**Reference**: [POC_LIFECYCLE.md](../design/POC_LIFECYCLE.md) (PoC 1, W1)
+**Purpose**: Phase 1 W1 — build one real sensor that produces events without human intervention
+**Reference**: [ITERATIVE_DESIGN.md](../design/ITERATIVE_DESIGN.md) (Phase 1, W1)
 
 ---
 
@@ -22,7 +22,7 @@ Don't formalize the sensor/driver interface boundary yet. Build them together an
 
 ## Constraints
 
-These are non-negotiable for PoC 1 integration:
+These are non-negotiable for Phase 1 integration:
 
 1. **Events go through gRPC**: Call `PublishEvents` on the Orchestrator. No direct database writes.
 2. **Event format**: Each event needs `source` (domain identifier, e.g. "runescape"), `event_type`, `payload`, `timestamp`
@@ -39,7 +39,7 @@ These are non-negotiable for PoC 1 integration:
 
 ## Document As You Go
 
-These questions help inform the sensor abstraction and PoC 1 planning:
+These questions help inform the sensor abstraction and Phase 1 planning:
 
 - What events does Runescape actually expose? What's easy vs hard to get?
 - How much event variety do you get from normal gameplay?
@@ -52,3 +52,4 @@ These questions help inform the sensor abstraction and PoC 1 planning:
 - Events appear in the dashboard event table
 - At least 3 distinct event types are emitted
 - Notes on what worked, what was hard, and what events are available
+

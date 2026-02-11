@@ -4,11 +4,11 @@
 **Date**: 2026-02-02 (updated 2026-02-06)
 **Implements**: Extensibility Review item #2
 **Depends on**: [LLM_PROVIDER.md](LLM_PROVIDER.md)
-**Informed by**: PoC 1 findings F-04, F-06, F-07, F-24, F-25
+**Informed by**: Phase 1 findings F-04, F-06, F-07, F-24, F-25
 
 ## Purpose
 
-Define an abstract interface for event decision logic so that PoC 2 can A/B test different strategies (heuristic-first, always-LLM, hybrid) without modifying the Executive's gRPC handler.
+Define an abstract interface for event decision logic so that Phase 2 can A/B test different strategies (heuristic-first, always-LLM, hybrid) without modifying the Executive's gRPC handler.
 
 ## Current State
 
@@ -221,7 +221,7 @@ class HeuristicFirstStrategy:
 
         metadata: dict[str, Any] = {"model": llm.model_name}
         # Note: Convergence detection (comparing LLM response to candidate actions
-        # via embedding similarity) is deferred to PoC 2. When implemented, add:
+        # via embedding similarity) is deferred to Phase 2. When implemented, add:
         # metadata["convergence"] = {"converged_heuristic_id": "...", "similarity": 0.82}
 
         return DecisionResult(
@@ -311,7 +311,7 @@ async def ProcessEvent(self, request, context) -> ProcessEventResponse:
         salience=self._extract_salience(request.event.salience),
         candidates=candidates,
         immediate=request.immediate,
-        goals=self._get_active_goals(),  # From config/env for PoC 2
+        goals=self._get_active_goals(),  # From config/env for Phase 2
     )
 
     result = await self._strategy.decide(decision_context, self._llm)
@@ -369,7 +369,7 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 - Test confidence ceiling is applied (F-06)
 - Test empty candidates list (supports F-25 sleep-cycle re-evaluation)
 
-## Design Decisions (from PoC 1 findings)
+## Design Decisions (from Phase 1 findings)
 
 ### F-04: Candidate presentation in LLM prompt
 - Candidates shown with **condition + action only** — no scores (avoids anchoring bias)
@@ -388,7 +388,7 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 ### F-07: Goal context
 - `DecisionContext.goals` carries active goals
 - Goals injected into **system prompt** (after personality, before event data)
-- PoC 2: static per-domain goals from config. Dynamic selection deferred to F-08
+- Phase 2: static per-domain goals from config. Dynamic selection deferred to F-08
 
 ### F-24: Personality bias as threshold modifier
 - Personality = bias (weighted preferences, threshold adjustments), NOT strategy override
@@ -437,7 +437,7 @@ The current selection strategy is **similarity-dominant**: the heuristic with th
 ### Planned: Urgency-Modulated Threshold
 
 ```
-effective_threshold = base_threshold - (urgency × threshold_reduction)
+effective_threshold = base_threshold - (urgency Ã— threshold_reduction)
 ```
 
 High urgency lowers the bar for heuristic firing. Low urgency keeps the baseline, preferring LLM. Three behavioral tiers:
@@ -450,15 +450,15 @@ High urgency lowers the bar for heuristic firing. Low urgency keeps the baseline
 
 **Selection ranking** within a tier: similarity-dominant, confidence as tiebreaker when similarities are close. A 0.3-confidence heuristic with 0.9 context match beats a 0.7-confidence with 0.6 match.
 
-### Heuristic Cache Decision (PoC 2)
+### Heuristic Cache Decision (Phase 2)
 
-**No cache for PoC 2.** The Rust salience gateway's LRU cache exists but should be bypassed — DB is sole source of truth. Cache saves 1-10ms on local PostgreSQL queries; the real bottleneck is LLM latency. Cache coherence (syncing confidence updates) adds complexity without proportional benefit.
+**No cache for Phase 2.** The Rust salience gateway's LRU cache exists but should be bypassed — DB is sole source of truth. Cache saves 1-10ms on local PostgreSQL queries; the real bottleneck is LLM latency. Cache coherence (syncing confidence updates) adds complexity without proportional benefit.
 
 If a cache is added later: read-through only (never write-back), domain-partitioned.
 
 ### Three Measurement Dimensions
 
-The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) §Three Measurement Dimensions):
+The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) Â§Three Measurement Dimensions):
 - **Context match** (similarity) — primary selection criterion
 - **Confidence** (trust) — threshold gate, not ranking factor
 - **Success rate** (correctness) — not yet used in selection; future work may incorporate it
@@ -467,7 +467,8 @@ The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOO
 
 - Feedback handling details — deferred until feedback model is designed
 - Quality gate and dedup logic — stays in current `ProvideFeedback` for now
-- Alternative strategies — add in PoC 2
+- Alternative strategies — add in Phase 2
 - Convergence detection implementation — captured in metadata structure, actual embedding comparison deferred
-- Dynamic goal selection per event (F-08) — PoC 2 uses static goals
+- Dynamic goal selection per event (F-08) — Phase 2 uses static goals
 - Urgency implementation details — see [urgency-selection.md](questions/urgency-selection.md)
+

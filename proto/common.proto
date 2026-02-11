@@ -43,7 +43,7 @@ message Event {
     // Heuristic that matched this event (for TD learning feedback)
     string matched_heuristic_id = 10;
 
-    // PoC 2 sensor contract extensions
+    // Phase 2 sensor contract extensions
     string intent = 11;                         // "actionable", "informational", "unknown" (default)
     google.protobuf.Struct evaluation_data = 12; // Solution/cheat data (stripped before executive)
 
@@ -86,3 +86,4 @@ message ErrorDetail {
     string message = 2;             // Human-readable message
     map<string, string> metadata = 3;
 }
+

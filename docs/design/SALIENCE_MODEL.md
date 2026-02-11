@@ -4,7 +4,7 @@
 **Date**: 2026-02-05
 **Authors**: Scott Mulcahy, Claude (Architect)
 **Supersedes**: Partially supersedes SALIENCE_SCORER.md (which covers heuristic matching only)
-**Informed by**: PoC 1 finding F-20
+**Informed by**: Phase 1 finding F-20
 **Relates to**: ADR-0013 (Salience Subsystem), DECISION_STRATEGY.md, ROUTER_CONFIG.md
 
 ---
@@ -168,7 +168,7 @@ message SalienceResult {
 The dashboard currently shows a flat "Salience Breakdown" grid. With this change:
 - **Salience score** shown in the row summary (replaces current single value)
 - **Threat** shown with color coding (red if above threshold)
-- **Habituation** shown as a modifier (e.g., "×0.7" or "30% habituated")
+- **Habituation** shown as a modifier (e.g., "Ã—0.7" or "30% habituated")
 - **Vector breakdown** shown in the drilldown (same grid layout as current)
 
 ---
@@ -256,14 +256,14 @@ async def route_event(self, event, salience: SalienceResult):
 
 ---
 
-## 6. Migration Path (PoC 1 → PoC 2)
+## 6. Migration Path (Phase 1 → Phase 2)
 
 ### Phase 1: Data Object (minimal code change)
 - Define SalienceResult in proto
 - Adapter in Rust: current evaluate_salience() → SalienceResult
   - threat = current vector.threat
   - habituation = current vector.habituation
-  - salience = max(remaining dimensions)  ← preserves current behavior
+  - salience = max(remaining dimensions)  â† preserves current behavior
   - vector = remaining dimensions
 - Router uses SalienceResult instead of raw dict
 
@@ -287,7 +287,7 @@ async def route_event(self, event, salience: SalienceResult):
    and let the system compute the scalar from weights?** Current design: system computes
    scalar (enables user-configurable weights without model retraining).
 
-3. **How do context profiles (ADR-0013 §5.3) interact with weights?** Are profiles just
+3. **How do context profiles (ADR-0013 Â§5.3) interact with weights?** Are profiles just
    preset weight configurations, or do they also affect which dimensions are active?
 
 4. **Should the vector be fixed-dimension or variable?** Fixed = simpler math, comparable

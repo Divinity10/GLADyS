@@ -104,25 +104,25 @@ make test       # Run unit tests
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Sensors                                  │
-│        (Discord, Minecraft, Home Assistant, etc.)               │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │ events
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Orchestrator                               │
-│  • Routes events          • Manages attention (salience)        │
-│  • Coordinates subsystems • Calls LLM when needed               │
-└───────────┬─────────────────────────────────┬───────────────────┘
-            │                                 │
-            ▼                                 ▼
-┌───────────────────────┐         ┌───────────────────────────────┐
-│        Memory         │         │          Executive            │
-│  • Store/recall       │         │  • User interaction           │
-│  • Semantic search    │         │  • Decision execution         │
-│  • Learned heuristics │         │  • Skill invocation           │
-└───────────────────────┘         └───────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                         Sensors                                  â”‚
+â”‚        (Discord, Minecraft, Home Assistant, etc.)               â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                              â”‚ events
+                              â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                       Orchestrator                               â”‚
+â”‚  â€¢ Routes events          â€¢ Manages attention (salience)        â”‚
+â”‚  â€¢ Coordinates subsystems â€¢ Calls LLM when needed               â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+            â”‚                                 â”‚
+            â–¼                                 â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”         â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚        Memory         â”‚         â”‚          Executive            â”‚
+â”‚  â€¢ Store/recall       â”‚         â”‚  â€¢ User interaction           â”‚
+â”‚  â€¢ Semantic search    â”‚         â”‚  â€¢ Decision execution         â”‚
+â”‚  â€¢ Learned heuristics â”‚         â”‚  â€¢ Skill invocation           â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜         â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 Everything communicates via **gRPC**. Each subsystem runs as a separate service.
@@ -199,7 +199,7 @@ cd src/services/orchestrator && uv run pytest
 
 ### "I want to work on Executive"
 
-User-facing decision layer. Production will be C#/.NET, but we have a Python stub for PoC.
+User-facing decision layer. Production will be C#/.NET, but we have a Python stub for Phase.
 
 **Current state:** Python stub exists at `src/services/executive/gladys_executive/server.py`
 
@@ -419,3 +419,4 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 - Check existing ADRs for design rationale
 - Look at [design questions](design/questions/) for active discussions
 - Open an issue if stuck
+

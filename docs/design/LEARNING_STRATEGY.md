@@ -1,12 +1,12 @@
 # Learning Strategy Interface Spec
 
 **Status**: Proposed
-**Date**: 2026-02-02 (updated 2026-02-06 with PoC 1 findings F-03, F-11, F-23, F-24)
+**Date**: 2026-02-02 (updated 2026-02-06 with Phase 1 findings F-03, F-11, F-23, F-24)
 **Implements**: Extensibility Review item #3
 
 ## Purpose
 
-Define an abstract interface for learning signal interpretation so that PoC 2 can test alternative learning models (e.g., reinforcement learning) without modifying the Orchestrator's router or LearningModule facade.
+Define an abstract interface for learning signal interpretation so that Phase 2 can test alternative learning models (e.g., reinforcement learning) without modifying the Orchestrator's router or LearningModule facade.
 
 ## Current State
 
@@ -22,7 +22,7 @@ These constants are module-level literals. Swapping logic requires editing the f
 
 **Boundary**: Strategy owns signal interpretation only. Confidence math stays in Memory.
 
-**Rationale**: Memory already owns the confidence data (fire_count, success_count). Signal interpretation is where PoC 2 experiments differ. If custom confidence math is needed, add a new RPC.
+**Rationale**: Memory already owns the confidence data (fire_count, success_count). Signal interpretation is where Phase 2 experiments differ. If custom confidence math is needed, add a new RPC.
 
 ## Protocol
 
@@ -54,8 +54,8 @@ class LearningStrategy(Protocol):
     def interpret_explicit_feedback(
         self, event_id: str, heuristic_id: str, positive: bool, source: str
     ) -> FeedbackSignal:
-        """Interpret explicit feedback. For PoC 1: binary (positive: bool).
-        PoC 2 extends to granular scores via F-23 (3-point user, 5-point dev)."""
+        """Interpret explicit feedback. For Phase 1: binary (positive: bool).
+        Phase 2 extends to granular scores via F-23 (3-point user, 5-point dev)."""
         ...
 
     def interpret_timeout(
@@ -95,7 +95,7 @@ class BayesianStrategyConfig:
 
 
 class BayesianStrategy:
-    """Current PoC 1 learning strategy — implicit signals."""
+    """Current Phase 1 learning strategy — implicit signals."""
 
     def __init__(self, config: BayesianStrategyConfig | None = None):
         self._config = config or BayesianStrategyConfig()
@@ -269,26 +269,26 @@ Memory's `update_heuristic_confidence` RPC needs changes:
 - Test ignore threshold boundary (2 ignores = NEUTRAL, 3 = NEGATIVE)
 - Regression test: default behavior unchanged
 
-## PoC 1 Findings Incorporated
+## Phase 1 Findings Incorporated
 
 | Finding | What changed | Where |
 |---------|-------------|-------|
 | F-03 | `magnitude` field on `FeedbackSignal`. `implicit_magnitude` and `explicit_magnitude` config. Implicit > explicit weighting. | FeedbackSignal, BayesianStrategyConfig |
 | F-11 | Implicit timeout default changed 60s → 30s. Per-domain configurable. Explicit: unlimited, last click wins (no change to strategy — handled by caller). Both implicit and explicit are independent channels. | BayesianStrategyConfig.undo_window_sec |
-| F-23 | `source` field expanded to `user_explicit`, `user_implicit`, `dev`. Protocol signature unchanged for PoC 1 (binary). PoC 2 extends to granular scores. | FeedbackSignal.source |
+| F-23 | `source` field expanded to `user_explicit`, `user_implicit`, `dev`. Protocol signature unchanged for Phase 1 (binary). Phase 2 extends to granular scores. | FeedbackSignal.source |
 | F-24 | Not enforced in strategy — constraints (locked/floor/ceiling/feedback_weight) are enforced in `_apply_signal` or Memory. Strategy returns signals; LearningModule checks constraints before applying. | Documented, not implemented |
 
 ### F-03 design: implicit > explicit
 
 Per F-03 Q3: "implicit feedback weighted higher than explicit (correctness > user happiness)." Implicit = "it worked in practice"; explicit = "user opinion" (noisy, biased negative). Both can coexist for the same event. The `magnitude` field carries this weight to Memory's update function.
 
-F-03 also resolved: decay function (`1 / (1 + k * n)`) for diminishing returns on repeated feedback. This is a **PoC 2 extension** — BayesianStrategy currently uses flat magnitudes.
+F-03 also resolved: decay function (`1 / (1 + k * n)`) for diminishing returns on repeated feedback. This is a **Phase 2 extension** — BayesianStrategy currently uses flat magnitudes.
 
 ### F-24 design: constraint enforcement
 
 Pack constraints (`locked`, `floor`, `ceiling`, `feedback_weight`) are NOT checked in the strategy. The strategy is algorithm-agnostic — it interprets signals, not enforce policies. Enforcement goes in `_apply_signal` (LearningModule) or Memory's `update_heuristic_confidence`. For this extraction: pass `magnitude` through; constraint enforcement is a separate task.
 
-## PoC 2 Extensions (not built now, Protocol supports them)
+## Phase 2 Extensions (not built now, Protocol supports them)
 
 - **F-03 decay**: `BayesianStrategy.interpret_explicit_feedback` applies `magnitude *= 1 / (1 + k * n)` where n is observation count
 - **F-23 granular scores**: Protocol method signature changes to `interpret_explicit_feedback(event_id, heuristic_id, score: int, source: str)`. BayesianStrategy maps 3-point/5-point scores to magnitudes via config
@@ -296,9 +296,10 @@ Pack constraints (`locked`, `floor`, `ceiling`, `feedback_weight`) are NOT check
 
 ## Out of Scope
 
-- RL strategy implementation — PoC 2
+- RL strategy implementation — Phase 2
 - Per-heuristic strategy selection — all heuristics use same strategy
 - Custom confidence math — Memory's Bayesian update unchanged
-- F-03 decay function — PoC 2 (Protocol supports it via magnitude)
-- F-23 granular score mapping — PoC 2 (Protocol supports it via source field)
+- F-03 decay function — Phase 2 (Protocol supports it via magnitude)
+- F-23 granular score mapping — Phase 2 (Protocol supports it via source field)
 - F-24 constraint enforcement — separate task (not a strategy concern)
+

@@ -2,7 +2,7 @@
 
 **Status**: Approved (Scott & Mike, 2026-01-29)
 **Interfaces**: See [INTERFACES.md](INTERFACES.md) for plugin contracts and detailed specifications.
-**PoC Roadmap**: See [POC_LIFECYCLE.md](POC_LIFECYCLE.md) for implementation phases and success criteria.
+**Phase Roadmap**: See [ITERATIVE_DESIGN.md](ITERATIVE_DESIGN.md) for implementation phases and success criteria.
 
 ---
 
@@ -103,7 +103,7 @@ See [INTERFACES.md](INTERFACES.md) for pack directory structure and manifest for
 
 **Why**: Like an OS scheduler is part of the kernel. Adding a network hop to every scheduling decision adds latency in the wrong place.
 
-**Current state**: Naive priority heap (FIFO within priority bands). Adequate for PoC. Needs starvation prevention, preemption, and time-budgeting at scale.
+**Current state**: Naive priority heap (FIFO within priority bands). Adequate for Phase. Needs starvation prevention, preemption, and time-budgeting at scale.
 
 ---
 
@@ -150,5 +150,6 @@ Not decisions yet. Need design work.
 - **Context/Mode detection** ("gaming" vs "working") — affects salience thresholds, active skills. Needs an owner.
 - **Configuration subsystem** — runtime config changes beyond `.env` at startup.
 - **Actuator conflict resolution** — deterministic selection when multiple actuators claim same capability.
-- **Plugin behavior enforcement** — "immune system" for capability/resource/trust-tier bounds. Post-PoC (we control all plugins now), Supervisor is natural home.
+- **Plugin behavior enforcement** — "immune system" for capability/resource/trust-tier bounds. Post-Phase (we control all plugins now), Supervisor is natural home.
 - **Brain subsystem audit** — systematic review of brain regions mapped to GLADyS functions.
+

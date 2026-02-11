@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test E2E Query Flow - Phase 4 PoC validation.
+"""Test E2E Query Flow - Phase 4 Phase validation.
 
 This test proves the "Is Steve online?" scenario works end-to-end:
 1. User query → Extract entity (Steve)
@@ -49,14 +49,14 @@ class SkillCallResult:
 
 class MockSkillExecutor:
     """
-    Mock skill executor for PoC.
+    Mock skill executor for Phase.
 
     In production, this would:
     - Load the actual skill module
     - Call the method with parameters
     - Return real results
 
-    For PoC, we simulate the Minecraft skill responses.
+    For Phase, we simulate the Minecraft skill responses.
     """
 
     def __init__(self):
@@ -335,3 +335,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

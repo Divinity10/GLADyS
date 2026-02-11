@@ -89,7 +89,7 @@ service MemoryStorage {
 }
 
 // Salience Gateway Service - the "amygdala"
-// Co-located with Memory per ADR-0001 §5.1
+// Co-located with Memory per ADR-0001 Â§5.1
 // Provides fast salience evaluation for incoming events
 service SalienceGateway {
     // Evaluate salience of an event
@@ -190,7 +190,7 @@ message EpisodicEvent {
     string decision_path = 15;           // "heuristic" or "llm"
     string episode_id = 16;              // FK to episodes table (future use)
 
-    // PoC 2 sensor contract extensions
+    // Phase 2 sensor contract extensions
     string intent = 17;                  // Event intent at time of submission
     string evaluation_data_json = 18;    // Serialized evaluation data (JSON string)
 }
@@ -589,3 +589,4 @@ message HeuristicFire {
     string condition_text = 9;
     float confidence = 10;
 }
+

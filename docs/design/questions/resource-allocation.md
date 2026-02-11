@@ -17,9 +17,9 @@ This shows up as:
 
 The System 1/2 architecture already embodies this tradeoff: heuristics are fast/approximate (low cost, lower accuracy ceiling), LLM reasoning is slow/accurate (high cost, higher accuracy ceiling). The question is how to make good allocation decisions at runtime.
 
-### Why This Matters for PoC 1
+### Why This Matters for Phase 1
 
-PoC 1's convergence test assumes low volume (manual events). But the **design of the heuristic firing threshold IS a resource allocation decision** — "when is a heuristic good enough to skip the LLM?" That's accuracy-latency tradeoff at its most basic. Getting the framing right now prevents rework later.
+Phase 1's convergence test assumes low volume (manual events). But the **design of the heuristic firing threshold IS a resource allocation decision** — "when is a heuristic good enough to skip the LLM?" That's accuracy-latency tradeoff at its most basic. Getting the framing right now prevents rework later.
 
 ---
 
@@ -28,7 +28,7 @@ PoC 1's convergence test assumes low volume (manual events). But the **design of
 ### Q: What models exist for balancing competing objectives under resource constraints?
 
 **Status**: Research needed
-**Priority**: High (framing question — affects all PoC phases)
+**Priority**: High (framing question — affects all Phases)
 **Created**: 2026-01-31
 
 #### Context
@@ -63,16 +63,16 @@ These are known fields that study this class of problem. Research needed to eval
 #### Relationship to Existing Design
 
 - **System 1/2 (ADR-0010)**: Already the core architecture. This question asks: is the switching logic optimal?
-- **Latency profiles (infrastructure.md §4/§11)**: Defines latency budgets per context. This question asks: how to stay within budget while maximizing accuracy?
+- **Latency profiles (infrastructure.md Â§4/Â§11)**: Defines latency budgets per context. This question asks: how to stay within budget while maximizing accuracy?
 - **Confidence threshold**: Currently a static config value. This question asks: should it be dynamic?
-- **§30 (Orchestrator vs Executive boundary)**: Proposes Executive decides heuristic-vs-LLM. This question provides the theoretical basis for HOW it decides.
+- **Â§30 (Orchestrator vs Executive boundary)**: Proposes Executive decides heuristic-vs-LLM. This question provides the theoretical basis for HOW it decides.
 
 ---
 
 ### Q: Dynamic Heuristic Behavior
 
 **Status**: Open — design needed
-**Priority**: Medium (PoC 2 implementation, PoC 1 framing)
+**Priority**: Medium (Phase 2 implementation, Phase 1 framing)
 **Created**: 2026-01-31
 
 #### Problem
@@ -144,14 +144,14 @@ These mechanisms could be:
 - **Complementary layers** (preprocessor handles domain-specific, orchestrator handles general)
 - **Evolutionary** (start with #1, add #2 when data shows which changes matter)
 
-See also: §36 (Event Condensation Strategy) in cross-cutting.md — overlapping concern.
+See also: Â§36 (Event Condensation Strategy) in cross-cutting.md — overlapping concern.
 
 ---
 
 ### Q: Concurrent Event Processing
 
 **Status**: Open — design needed
-**Priority**: Medium (PoC 2 implementation, configurable stub in PoC 1)
+**Priority**: Medium (Phase 2 implementation, configurable stub in Phase 1)
 **Created**: 2026-01-31
 
 #### Problem
@@ -177,7 +177,7 @@ During the LLM wait, the queue grows and heuristic-path events that could resolv
 
 #### Recommendation
 
-Start with configurable concurrent workers (N=1 for PoC 1, increase for PoC 2). This is the simplest change that unblocks the most value. Other approaches are refinements.
+Start with configurable concurrent workers (N=1 for Phase 1, increase for Phase 2). This is the simplest change that unblocks the most value. Other approaches are refinements.
 
 #### Implementation Note
 
@@ -188,7 +188,7 @@ The `_worker_loop` in `event_queue.py` could become N workers pulling from the s
 ### Q: Sensor Event Contract Design
 
 **Status**: Open — design needed
-**Priority**: High (PoC 1 W1 prerequisite)
+**Priority**: High (Phase 1 W1 prerequisite)
 **Created**: 2026-01-31
 
 #### Context
@@ -211,7 +211,7 @@ Base Event Interface (all events, GLADyS core):
 + Delivery Pattern Interface (determined by event_type, GLADyS core):
   event_type: "event"  → { }  (push — something happened, base fields sufficient)
   event_type: "poll"   → { poll_interval, previous_value? }  (periodic state snapshot)
-  event_type: "stream" → { sample_rate, sequence_id }  (continuous data — not PoC scope)
+  event_type: "stream" → { sample_rate, sequence_id }  (continuous data — not Phase scope)
 
 + Domain Interface (pack-defined, e.g. gaming.combat, home.climate):
   { damage_type, spell_type, ... }
@@ -260,11 +260,11 @@ The sensor/pack manifest declares which interfaces the sensor can produce and th
 |---------|-------------|----------|---------------|
 | **`event` (push)** | Driver sends events when things happen | Game combat, Discord message, doorbell ring | Bursty — zero to hundreds/sec |
 | **`poll` (periodic)** | Sensor periodically checks state | File watcher, system monitor, temperature | Steady — configurable interval |
-| **`stream` (continuous)** | Continuous data flow | Audio, video, real-time telemetry | Constant high — not PoC scope |
+| **`stream` (continuous)** | Continuous data flow | Audio, video, real-time telemetry | Constant high — not Phase scope |
 
 These map to the `event_type` discriminator in the base event interface. Each pattern has different delivery-pattern attributes and different volume management characteristics.
 
-PoC 1 needs one sensor. The contract should accommodate `event` and `poll` patterns. `stream` is deferred.
+Phase 1 needs one sensor. The contract should accommodate `event` and `poll` patterns. `stream` is deferred.
 
 #### Open Questions
 
@@ -277,3 +277,5 @@ PoC 1 needs one sensor. The contract should accommodate `event` and `poll` patte
 ## Resolved
 
 *(None yet — all questions in this file are open)*
+
+

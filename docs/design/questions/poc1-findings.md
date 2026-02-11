@@ -1,16 +1,16 @@
-# PoC 1 Findings & Design Questions
+# Phase 1 Findings & Design Questions
 
 **Created**: 2026-02-06
 **Status**: Captured, needs discussion
-**Source**: Scott + Mike post-PoC 1 analysis session
-**Feeds into**: PoC 2 planning, sensor contract design, extensibility work
+**Source**: Scott + Mike post-Phase 1 analysis session
+**Feeds into**: Phase 2 planning, sensor contract design, extensibility work
 
 ---
 
 ## How to Use This Document
 
 Each finding is numbered for reference (F-01, F-02, etc.). Findings are grouped by primary subsystem but many are cross-cutting. Each includes:
-- **Observation**: What was seen during PoC 1
+- **Observation**: What was seen during Phase 1
 - **Impact**: What this means for the system
 - **Design questions**: What needs to be decided
 - **Affects**: Which subsystems / specs
@@ -32,13 +32,13 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. Should source be a hard filter (only match heuristics from same source) or a weighted signal (prefer same-source, allow cross-source at high similarity)?
-   - **Resolved**: Hard filter for PoC 2 default. Config option for exact vs domain-level matching — domain-level match is genuinely new signal worth testing (distinct from PoC 1's "no filter"). Pluggable filter architecture so PoC 3 can swap in weighted/cross-domain matcher without architectural changes.
+   - **Resolved**: Hard filter for Phase 2 default. Config option for exact vs domain-level matching — domain-level match is genuinely new signal worth testing (distinct from Phase 1's "no filter"). Pluggable filter architecture so Phase 3 can swap in weighted/cross-domain matcher without architectural changes.
 2. How granular is "source"? Sensor ID? Domain? Pack? (e.g., `runescape-sensor` vs `gaming` vs `runescape-pack`)
-   - **Resolved**: Sensor decides source string per event. Flat string sufficient for PoC 2 (one sensor per domain). No proto changes needed.
+   - **Resolved**: Sensor decides source string per event. Flat string sufficient for Phase 2 (one sensor per domain). No proto changes needed.
 3. Does the heuristic store its source context? If so, at what granularity?
    - **Resolved**: Already implemented. `HeuristicDetail.source` (memory.proto:417) and `QueryHeuristicsRequest.source_filter` (memory.proto:301) exist.
-4. How does this interact with cross-domain reasoning (PoC 3 goal)?
-   - **Resolved**: Cross-domain reasoning is context enrichment (executive having multi-source awareness), not heuristic matching. Hard filter doesn't conflict with PoC 3 goals.
+4. How does this interact with cross-domain reasoning (Phase 3 goal)?
+   - **Resolved**: Cross-domain reasoning is context enrichment (executive having multi-source awareness), not heuristic matching. Hard filter doesn't conflict with Phase 3 goals.
 
 **Related**: working_memory.md discovery ("MiniLM-L6 similarity too coarse for cross-domain"), #56, #99
 
@@ -60,7 +60,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Design questions**:
 1. How much of the matching problem is solvable by fixing source filtering (F-01) vs requiring a better embedding model?
-   - **Resolved**: Source filtering (F-01) first — it eliminates the biggest class of false positives (cross-domain). Defer embedding model changes. Measure matching quality after source filtering lands. If within-domain matching is still poor, revisit embedding model for PoC 3.
+   - **Resolved**: Source filtering (F-01) first — it eliminates the biggest class of false positives (cross-domain). Defer embedding model changes. Measure matching quality after source filtering lands. If within-domain matching is still poor, revisit embedding model for Phase 3.
 2. Should `raw_text` generation follow a template/pattern per event type to improve embedding consistency?
    - **Resolved**: Yes, as convention not enforcement. Document best practices in sensor base class docs: natural-language sentences, not key-value pairs. No proto validation or enforcement. Sensors that follow guidance get better matching.
 3. Should we log all candidate matches (not just winner) to diagnose matching quality? (POC_LIFECYCLE already suggests this)
@@ -101,7 +101,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Design questions (all resolved)**:
 
 1. **What similarity threshold qualifies as "reasonably matches" for inclusion?**
-   **Resolved**: Cosine similarity confirmed as metric — the problem was embedding model (MiniLM-L6), not the distance function. Source filtering (F-01) is the biggest lever for match quality. Candidate inclusion threshold: **0.4** (configurable), applied after source filtering. Below the 0.7 heuristic firing threshold. Model upgrade deferred to PoC 2.
+   **Resolved**: Cosine similarity confirmed as metric — the problem was embedding model (MiniLM-L6), not the distance function. Source filtering (F-01) is the biggest lever for match quality. Candidate inclusion threshold: **0.4** (configurable), applied after source filtering. Below the 0.7 heuristic firing threshold. Model upgrade deferred to Phase 2.
 
 2. **How are heuristic options presented in the prompt?**
    **Resolved**: Show **condition text + action only**. No confidence scores, fire count, similarity scores, or age — all create anchoring bias. Candidates framed as "previous responses to similar situations (for context, not selection)." Order **randomized** to avoid positional bias. Explicit permission for LLM to ignore them.
@@ -143,13 +143,13 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 2. Should this be configurable or fixed?
    - **Resolved**: Configurable. Answered together with Q1.
 3. Does this need to be in the proto definition or just enforced in the update logic?
-   - **Resolved**: Enforce in update logic only. Proto is a transport contract — clamping is a learning policy decision. Belongs where confidence is calculated, not where it's transmitted. Configurable bounds may change at runtime or per-domain in PoC 3. Proto allows full `[0.0, 1.0]` range for forward compatibility.
+   - **Resolved**: Enforce in update logic only. Proto is a transport contract — clamping is a learning policy decision. Belongs where confidence is calculated, not where it's transmitted. Configurable bounds may change at runtime or per-domain in Phase 3. Proto allows full `[0.0, 1.0]` range for forward compatibility.
 
 ---
 
 ### F-06: LLM-generated response confidence seems unusually high
 
-**Status**: resolved (PoC 2 implementation)
+**Status**: resolved (Phase 2 implementation)
 **Affects**: Executive, decision strategy, confidence semantics
 
 **Observation**: The LLM reports high confidence in its responses, but it's unclear what "confidence" means in this context.
@@ -176,7 +176,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 ### F-07: Goal statement needed in LLM prompt
 
-**Status**: resolved (minimal for PoC 2, full design deferred to F-08)
+**Status**: resolved (minimal for Phase 2, full design deferred to F-08)
 **Affects**: Executive, sensor contract (goal context), orchestrator context
 
 **Observation**: Without a goal statement, the LLM generates generic responses. Quality improves significantly when the system knows what the user is trying to achieve.
@@ -186,20 +186,20 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Design questions**:
 
 1. **Where are goals stored?**
-   **Resolved (PoC 2 minimal)**: Static per-domain goals via config file or environment variable (e.g., `EXECUTIVE_GOALS="Survive combat;Level up efficiently;Have fun"`). Or passed from orchestrator in ProcessEvent request (requires proto change). Full goal storage design deferred to F-08.
+   **Resolved (Phase 2 minimal)**: Static per-domain goals via config file or environment variable (e.g., `EXECUTIVE_GOALS="Survive combat;Level up efficiently;Have fun"`). Or passed from orchestrator in ProcessEvent request (requires proto change). Full goal storage design deferred to F-08.
 
 2. **How is a goal selected for a given event?**
-   **Deferred to F-08**: For PoC 2, all active goals are included in every prompt. Dynamic goal selection per event is a dedicated design session (F-08).
+   **Deferred to F-08**: For Phase 2, all active goals are included in every prompt. Dynamic goal selection per event is a dedicated design session (F-08).
 
 3. **Can multiple goals be active simultaneously?**
    **Resolved**: Yes. `DecisionContext.goals: list[str]` supports multiple concurrent goals.
 
 4. **How are conflicting goals handled?**
-   **Deferred to F-08**: PoC 2 doesn't resolve conflicts — it includes all goals and lets the LLM balance them. Explicit priority/conflict resolution is PoC 3.
+   **Deferred to F-08**: Phase 2 doesn't resolve conflicts — it includes all goals and lets the LLM balance them. Explicit priority/conflict resolution is Phase 3.
 
 **Decision Strategy impact**: Add `goals: list[str]` to `DecisionContext`. Goals are injected into the system prompt (after personality, before event data). The strategy doesn't care where goals come from — that's the caller's responsibility.
 
-**Related**: SUBSYSTEM_OVERVIEW.md §7 lists "Goal management — where do user goals come from?" as unspecified
+**Related**: SUBSYSTEM_OVERVIEW.md Â§7 lists "Goal management — where do user goals come from?" as unspecified
 
 ---
 
@@ -210,19 +210,19 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Observation**: Even if goals are defined, how does the system pick which goal applies to a given event? A combat event might relate to "survive" or "level up" or "have fun" depending on context.
 
-**Impact**: This is a core reasoning problem. It's related to context detection (PoC 2 deferred item) and salience (goal_relevance dimension in the vector).
+**Impact**: This is a core reasoning problem. It's related to context detection (Phase 2 deferred item) and salience (goal_relevance dimension in the vector).
 
 **Design questions**:
 1. Is goal selection an Executive responsibility (reasoning) or an Orchestrator responsibility (routing)?
 2. Can salience scoring include goal matching? (The `goal_relevance` dimension exists but isn't implemented)
 3. Should domain skills define goal-event mappings? (e.g., RuneScape skill knows "combat event → survival goal")
-4. Is this PoC 2 scope or PoC 3 scope?
+4. Is this Phase 2 scope or Phase 3 scope?
 
 ---
 
 ### F-09: Non-exclusive and combinatorial response selection
 
-**Status**: captured — current Protocol accommodates future extension; **needs dedicated design session** for PoC 3
+**Status**: captured — current Protocol accommodates future extension; **needs dedicated design session** for Phase 3
 **Affects**: Decision strategy, executive, response model
 
 **Observation**: Not all responses are mutually exclusive. Example scenario (wounded teammate):
@@ -238,7 +238,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Design questions**:
 1. How does the system represent response compatibility? (exclusion groups? dependency graph?)
 2. Should the LLM evaluate combinations, or should a separate optimizer compose them?
-3. Is this a PoC 2 concern or PoC 3? (Likely PoC 3 — current system can function with single-response model)
+3. Is this a Phase 2 concern or Phase 3? (Likely Phase 3 — current system can function with single-response model)
 4. How does this interact with multi-dimensional response scoring (F-10)?
 
 ---
@@ -272,15 +272,15 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 **Design questions**:
 1. What's the manual feedback window? Time-based (e.g., 5 minutes)? Session-based? Unlimited until next event?
-   - **Resolved**: Unlimited window, last click wins. Corrections allowed — UI displays most recent submission. Confidence model uses latest value only (not cumulative). PoC 2: no anti-spam (trust devs). Production: revisit UX guardrails if needed. At most one explicit feedback *value* applies per event at any time (the latest).
+   - **Resolved**: Unlimited window, last click wins. Corrections allowed — UI displays most recent submission. Confidence model uses latest value only (not cumulative). Phase 2: no anti-spam (trust devs). Production: revisit UX guardrails if needed. At most one explicit feedback *value* applies per event at any time (the latest).
 2. What's the implicit feedback window? Time-based? Event-count-based? Both?
    - **Resolved**: Time-based only, configurable default (30 seconds). Event-count is unreliable across domains (3 events = 2 seconds in gaming, 3 hours in home automation). Time is intuitive to configure and reason about. Single mechanism = less to debug.
 3. Should the window vary by domain? (Gaming events are rapid — 3 events might be 2 seconds. Home automation events are sparse — 3 events might be 3 hours.)
    - **Resolved**: Yes, via per-domain config. The configurable timeout from Q2 handles this — each domain sets its own implicit feedback timeout. No separate mechanism needed.
 4. How does this interact with the gradient confidence scale (F-03)?
-   - **Resolved**: No interaction with decay function (F-03 gradient is source-agnostic). Implicit and explicit are **independent channels** — both fire regardless of each other. Contradictory signals are expected and handled by weighting: implicit > explicit (F-03 Q3: correctness > user happiness). Example: user says "Bad" but doesn't undo → implicit positive + explicit negative. Both are true — "it worked but user didn't like it." The confidence model receives both and weights implicit higher. No timer cancellation, no coupling between feedback paths. For PoC 2, explicit feedback corrections (last click wins) simply overwrite the previous explicit value.
+   - **Resolved**: No interaction with decay function (F-03 gradient is source-agnostic). Implicit and explicit are **independent channels** — both fire regardless of each other. Contradictory signals are expected and handled by weighting: implicit > explicit (F-03 Q3: correctness > user happiness). Example: user says "Bad" but doesn't undo → implicit positive + explicit negative. Both are true — "it worked but user didn't like it." The confidence model receives both and weights implicit higher. No timer cancellation, no coupling between feedback paths. For Phase 2, explicit feedback corrections (last click wins) simply overwrite the previous explicit value.
 
-**Related**: ADR-0010 §3.10 defines implicit signal types but not windows
+**Related**: ADR-0010 Â§3.10 defines implicit signal types but not windows
 
 ---
 
@@ -288,7 +288,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 ### F-12: Multi-threaded LLM calls for scenario exploration
 
-**Status**: captured — deferred to PoC 3+, covered by F-04 and F-25
+**Status**: captured — deferred to Phase 3+, covered by F-04 and F-25
 **Affects**: Executive architecture, latency budget
 
 **Observation**: Sometimes the Executive should explore multiple scenarios simultaneously. If done serially, latency is too high (each LLM call is 500-2000ms).
@@ -297,22 +297,22 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 
 **Resolution**: Two distinct problems here — scenario exploration and concurrent event processing:
 
-**Scenario exploration** (multiple LLM calls per event): Deferred to PoC 3+.
+**Scenario exploration** (multiple LLM calls per event): Deferred to Phase 3+.
 - **F-04** handles it in a single call — candidates as context, LLM considers multiple options without parallel calls
 - **F-25** sleep-cycle handles offline exploration with enriched context, no latency pressure
 - Parallel live LLM calls add resource management, result reconciliation, and cost complexity — especially on local hardware (local-first constraint)
 
-**Concurrent event processing** (multiple events in-flight simultaneously): **PoC 2 scope.**
+**Concurrent event processing** (multiple events in-flight simultaneously): **Phase 2 scope.**
 - Current `EventQueue._worker_loop()` processes events serially — dequeues one, awaits full processing (including LLM call), then dequeues next
-- With multiple sensors in PoC 2, events arrive simultaneously. Serial processing creates unacceptable latency (5 queued events × 2-5s LLM = 10-25s for last event)
+- With multiple sensors in Phase 2, events arrive simultaneously. Serial processing creates unacceptable latency (5 queued events Ã— 2-5s LLM = 10-25s for last event)
 - Fix is at the orchestrator layer: multiple concurrent worker tasks or `asyncio.gather` with a semaphore. The executive already supports concurrency (gRPC server has 4 workers, LLM provider is async, decision strategy is async)
 - Concurrency limit should be configurable (default 3-4, bounded by local LLM throughput)
 
 **Design questions**:
-1. ~~When should the Executive explore multiple scenarios vs commit to one?~~ **Deferred**: F-04 single-call approach for PoC 2.
+1. ~~When should the Executive explore multiple scenarios vs commit to one?~~ **Deferred**: F-04 single-call approach for Phase 2.
 2. ~~How many concurrent explorations?~~ **Deferred**: Moot until parallel calls are needed.
 3. ~~Does this interact with F-04?~~ **Resolved**: Yes — F-04 makes parallel calls redundant for the stated problem.
-4. ~~Is this PoC 2 or PoC 3 scope?~~ **Resolved**: PoC 3+ at earliest.
+4. ~~Is this Phase 2 or Phase 3 scope?~~ **Resolved**: Phase 3+ at earliest.
 
 **Related**: resource-allocation.md concurrent processing question
 
@@ -436,11 +436,11 @@ Sensor emits metrics as `system.metrics` events through the existing `PublishEve
 
 **All rate settings are per-sensor, not global.** Each sensor has its own domain characteristics — a global rate would be meaningless across sensors with fundamentally different event patterns.
 
-**`heartbeat_interval_s`** (required, per-sensor): How often the sensor reports, even when idle. Dead sensor detection: no heartbeat within 2× interval = presumed dead. This is the only rate info with a PoC 2 consumer.
+**`heartbeat_interval_s`** (required, per-sensor): How often the sensor reports, even when idle. Dead sensor detection: no heartbeat within 2Ã— interval = presumed dead. This is the only rate info with a Phase 2 consumer.
 
-**`poll_interval_s`** and **`driver_tick_rate_s`** (optional, per-sensor): Document sensor characteristics. No consumer in PoC 2. The orchestrator could use these for capacity planning later — that's PoC 3+ scope.
+**`poll_interval_s`** and **`driver_tick_rate_s`** (optional, per-sensor): Document sensor characteristics. No consumer in Phase 2. The orchestrator could use these for capacity planning later — that's Phase 3+ scope.
 
-**Anomaly detection**: Learned from historical data in `sensor_metrics`, not from declared rates. Actual event rates vary too much by context (combat vs idle, meeting time vs midnight). Simple threshold for PoC 2 (e.g., error rate > 3× rolling average).
+**Anomaly detection**: Learned from historical data in `sensor_metrics`, not from declared rates. Actual event rates vary too much by context (combat vs idle, meeting time vs midnight). Simple threshold for Phase 2 (e.g., error rate > 3Ã— rolling average).
 
 **Design questions**:
 1. What metrics should every sensor report?
@@ -450,7 +450,7 @@ Sensor emits metrics as `system.metrics` events through the existing `PublishEve
 3. How are metrics exposed?
    - **Resolved**: Event subscription model. Sensor emits `system.metrics` events via `PublishEvents`. Orchestrator subscribes and writes to `sensor_metrics` DB table. No polling. Sensor fires and forgets. Dashboard queries DB. Subscription model built now; orchestrator is first subscriber, can offload to dedicated service later.
 4. Should the manifest declare expected event rates?
-   - **Resolved**: `heartbeat_interval_s` required (dead sensor detection). `poll_interval_s` and `driver_tick_rate_s` optional (documentation only, no PoC 2 consumer). Anomaly detection uses learned baselines from historical metrics, not declared rates — variance is too high for static declarations to be useful.
+   - **Resolved**: `heartbeat_interval_s` required (dead sensor detection). `poll_interval_s` and `driver_tick_rate_s` optional (documentation only, no Phase 2 consumer). Anomaly detection uses learned baselines from historical metrics, not declared rates — variance is too high for static declarations to be useful.
 
 ---
 
@@ -503,9 +503,9 @@ Inspired by TCP BBR (Bottleneck Bandwidth and Round-trip propagation time). Mode
 
 **Explicit orchestrator hints as secondary mechanism** for non-observable conditions (restart, maintenance). Piggybacked on `PublishEvents` response as a `throttle_hint` field.
 
-**PoC 2**: Simple threshold-based implementation (latency > N× baseline → reduce rate). Sensor base class provides default; subclasses override with domain-specific priority.
+**Phase 2**: Simple threshold-based implementation (latency > NÃ— baseline → reduce rate). Sensor base class provides default; subclasses override with domain-specific priority.
 
-**PoC 3+**: Full BBR-style probing phases, per-event-type priority during throttling, automatic congestion pattern learning from metrics history.
+**Phase 3+**: Full BBR-style probing phases, per-event-type priority during throttling, automatic congestion pattern learning from metrics history.
 
 **Layer 3 — Salience-level suppression (habituation):**
 "Is this event interesting right now?" Already designed in the salience model (habituation dimension). Learned, adaptive, operates on events that passed layers 1 and 2. Not changed by this finding.
@@ -518,7 +518,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 1. Should there be two suppression layers?
    - **Resolved**: Three layers. (1) Capability suppression: static, config/manifest-driven. (2) Flow control: dynamic, BBR-inspired, automatic using `PublishEvents` response latency. (3) Salience habituation: learned, adaptive (already designed).
 2. Who controls sensor-level suppression?
-   - **Resolved**: Layer 1 (capability) — sensor manifest + config. Layer 2 (flow control) — sensor self-regulates using response latency (BBR-style), with orchestrator hints as secondary mechanism. Orchestrator-driven automatic suppression of specific event types based on observed patterns is PoC 3.
+   - **Resolved**: Layer 1 (capability) — sensor manifest + config. Layer 2 (flow control) — sensor self-regulates using response latency (BBR-style), with orchestrator hints as secondary mechanism. Orchestrator-driven automatic suppression of specific event types based on observed patterns is Phase 3.
 3. Should the manifest declare suppressible event types?
    - **Resolved**: Yes. Manifest declares all event types with `enabled: true/false` defaults. Serves as both documentation and suppression config.
 4. Is suppression reversible at runtime?
@@ -530,7 +530,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 
 ### F-17: Streaming connection for realtime sensors (prepare, don't build)
 
-**Status**: captured (PoC 2 awareness, not PoC 2 implementation)
+**Status**: captured (Phase 2 awareness, not Phase 2 implementation)
 **Affects**: Sensor contract (delivery pattern), event interface model
 
 **Observation**: A future sensor type captures realtime app window activity (screen capture, OCR) for apps that can't be modded. This requires a streaming connection — continuous data, not discrete events. Not needed now, but the contract should not preclude it.
@@ -539,7 +539,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 
 **Design questions**:
 1. Does the event contract need any changes to accommodate streaming, or is `event_type: "stream"` + `sample_rate` + `sequence_id` sufficient as designed?
-2. Should the base class have a streaming mixin, or is that a PoC 3+ concern?
+2. Should the base class have a streaming mixin, or is that a Phase 3+ concern?
 3. Is the transport (gRPC bidirectional stream) adequate for continuous data, or would something like WebSocket/shared memory be needed?
 
 **Decision for now**: Design the contract to accommodate it (don't close the door). Don't build it.
@@ -550,7 +550,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 
 **Status**: resolved
 **Affects**: Sensor contract, orchestrator caching, salience habituation
-**Consolidates**: `cross-cutting.md` §36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
+**Consolidates**: `cross-cutting.md` Â§36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
 
 **Observation**: Game events often contain overlapping data. RuneScape example:
 - Position event fires every game tick (contains entity position)
@@ -572,7 +572,7 @@ The sensor controls its own emit cadence, independent of the driver's event rate
 A lightweight cache in the orchestrator maps `(event_type, source, content_hash) → response`. Before sending an event to the salience pipeline, the orchestrator checks the cache. Cache hit = return the cached response without re-evaluation. TTL-based invalidation.
 
 - No event buffering or holding — events are processed immediately or served from cache.
-- Simple TTL for PoC 2. Context-aware cache invalidation (e.g., invalidate position cache when movement event arrives) deferred to PoC 3.
+- Simple TTL for Phase 2. Context-aware cache invalidation (e.g., invalidate position cache when movement event arrives) deferred to Phase 3.
 
 **3. Salience habituation (already designed)**
 Catches remaining redundancy that passes through the first two layers. Repeated similar events naturally score lower on novelty and higher on habituation.
@@ -588,7 +588,7 @@ Catches remaining redundancy that passes through the first two layers. Repeated 
 3. **Authoritative source?** Domain-specific, handled by sensor domain logic. The sensor decides which event type is authoritative for each data field.
 4. **Sensor-specific or platform?** Sensor emit schedule is domain-specific. Orchestrator cache and salience habituation are platform-level.
 
-**Scope**: Sensor emit schedule + simple TTL cache in PoC 2. Context-aware cache invalidation in PoC 3.
+**Scope**: Sensor emit schedule + simple TTL cache in Phase 2. Context-aware cache invalidation in Phase 3.
 
 ---
 
@@ -620,9 +620,9 @@ This replaces the proposed `visibility` enum. The structure itself encodes the c
 4. **Can classification change over time?**
    - **Resolved**: No runtime reclassification. "Show me the answer" is a user command — the executive handles it as a request, not a data visibility change. The solution data stays in `evaluation_data` forever. What changes is the user explicitly asking for it.
 5. **Audit interaction?**
-   - **Resolved**: No new audit system needed. Existing logging standard (`LOGGING_STANDARD.md`) covers it. Implementation guidance: log `evaluation_data_present: true/false` in structured context, never log `evaluation_data` content. The DB stores both buckets — that's the audit source if needed (PoC 3+), not logs.
+   - **Resolved**: No new audit system needed. Existing logging standard (`LOGGING_STANDARD.md`) covers it. Implementation guidance: log `evaluation_data_present: true/false` in structured context, never log `evaluation_data` content. The DB stores both buckets — that's the audit source if needed (Phase 3+), not logs.
 
-**Scope**: Contract definition in PoC 2 (add `evaluation_data` field). Simple orchestrator strip before executive context. No runtime reclassification.
+**Scope**: Contract definition in Phase 2 (add `evaluation_data` field). Simple orchestrator strip before executive context. No runtime reclassification.
 
 ---
 
@@ -660,7 +660,7 @@ The sensor knows best whether an event expects a response. Inventory dump on log
 5. **Informational data into context?**
    - **Resolved**: Orchestrator stores `informational` events in memory (available for retrieval by the executive when processing a future `actionable` event) but does not route them through salience → executive. Same routing concept as F-15's `system.*` events generalized — different intents get different routing.
 
-**Scope**: Add `intent` field to event contract in PoC 2. Orchestrator routing logic for `informational` events (store only, no pipeline).
+**Scope**: Add `intent` field to event contract in Phase 2. Orchestrator routing logic for `informational` events (store only, no pipeline).
 
 ---
 
@@ -690,7 +690,7 @@ The sensor knows best whether an event expects a response. Inventory dump on log
 3. **Orchestrator handling?**
    - **Resolved**: Store as context, don't trigger pipeline. Same as F-20's `informational` routing. The `backfill` flag additionally signals "don't trust timestamps" and "not a missed opportunity" for learning.
 
-**Scope**: Add `backfill` boolean to event contract in PoC 2 alongside F-20's `intent` field.
+**Scope**: Add `backfill` boolean to event contract in Phase 2 alongside F-20's `intent` field.
 
 ---
 
@@ -798,7 +798,7 @@ No explicit override mechanism. Both dev and user feedback are observations feed
 
 In practice, dev and user feedback are temporally separated: dev feedback happens during pack development (pre-release), user feedback happens during production use (post-release). The settings toggle (Q1) reflects this — the active feedback mode matches the deployment phase.
 
-**Scope**: PoC 2. Feedback proto changes, dashboard UI mode toggle, learning strategy config for magnitudes.
+**Scope**: Phase 2. Feedback proto changes, dashboard UI mode toggle, learning strategy config for magnitudes.
 
 ---
 
@@ -904,7 +904,7 @@ Per-heuristic, with pack-level default (same layering as Q1). A pack's stable he
 
 **Q4: How do pack response biases interact with user preferences?**
 
-Deferred. Response biases require the multi-response selection system (F-09, PoC 3). Designing the interaction model now risks YAGNI. The body text captures the concept and the bias-vs-strategy boundary well enough for future design work.
+Deferred. Response biases require the multi-response selection system (F-09, Phase 3). Designing the interaction model now risks YAGNI. The body text captures the concept and the bias-vs-strategy boundary well enough for future design work.
 
 **Q5: Should constraints be visible to the user?**
 
@@ -914,13 +914,13 @@ Yes, in the dashboard heuristic detail view. Users should understand why a heuri
 
 Already resolved in body text above ("Resolved: Personality affects bias, not strategy"). The boundary is confirmed: bias affects **selection weights among existing options**, strategy controls **what options exist and how they're evaluated**. No additional design work needed.
 
-**Scope**: PoC 2 — per-heuristic constraints in heuristic storage, pack manifest defaults, learning strategy enforcement. Dashboard heuristic detail view shows constraint labels. Response biases deferred to PoC 3 (F-09 dependency).
+**Scope**: Phase 2 — per-heuristic constraints in heuristic storage, pack manifest defaults, learning strategy enforcement. Dashboard heuristic detail view shows constraint labels. Response biases deferred to Phase 3 (F-09 dependency).
 
 ---
 
 ### F-25: Sleep-cycle heuristic re-evaluation with stratified random selection
 
-**Status**: captured (PoC 2 scope — Decision Strategy must not preclude it)
+**Status**: captured (Phase 2 scope — Decision Strategy must not preclude it)
 **Affects**: Decision strategy, learning strategy, confidence model
 
 **Observation**: Creativity is how new solutions are found. A "sleep cycle" process could randomly select heuristics, send their context to an LLM without any candidate options, and ask for a suggested response. Because it's a sleep cycle (not real-time), enriched context can be provided.
@@ -939,16 +939,16 @@ Each tier provides different learning benefits. The number selected per tier (X 
 
 **Primary goal: creativity.** The sleep cycle is an exploration tool that also produces convergence signals as a side effect. LLM response variance is the feature, not noise — divergent responses are creative output that can improve or replace existing heuristics.
 
-**Enriched context = episodic memory.** During live processing, context is a single event. During sleep, context can be the episodic memory — the sequence of events that led to a heuristic firing. This is qualitatively different input. It also creates an opportunity for **episodic heuristics** — heuristics grounded in event sequences, not single events. (Requires episodes to be implemented first — later PoC work.)
+**Enriched context = episodic memory.** During live processing, context is a single event. During sleep, context can be the episodic memory — the sequence of events that led to a heuristic firing. This is qualitatively different input. It also creates an opportunity for **episodic heuristics** — heuristics grounded in event sequences, not single events. (Requires episodes to be implemented first — later Phase work.)
 
-**Single LLM constraint.** For current and near-term PoCs, one reasoning LLM handles both live and sleep-cycle work. Accepted limitation. Using separate LLMs for independent validation is a potential future exploration.
+**Single LLM constraint.** For current and near-term phases, one reasoning LLM handles both live and sleep-cycle work. Accepted limitation. Using separate LLMs for independent validation is a potential future exploration.
 
 **Key properties:**
 - No candidates shown → clean convergence signal (unlike real-time F-04)
 - Enriched context (episodic memory) possible because not latency-bound
 - Divergence is productive — generates better responses, not just a measurement
 - Convergence is a side-effect signal, not the primary goal
-- Relates to existing deferred item (exploration epsilon) and PoC 2 W5 (sleep-mode consolidation)
+- Relates to existing deferred item (exploration epsilon) and Phase 2 W5 (sleep-mode consolidation)
 
 **Design questions:**
 1. What defines the confidence tier boundaries? (e.g., low < 0.4, medium 0.4-0.7, high > 0.7)
@@ -956,7 +956,7 @@ Each tier provides different learning benefits. The number selected per tier (X 
 3. What enriched context is available? (Episodic memory, recent events from same source, related heuristics, user goals)
 4. How is the convergence/divergence signal fed back into the confidence model?
 5. How often does the sleep cycle run? (Nightly? After N events? Configurable?)
-6. How are episodic heuristics represented? (Depends on episode design — later PoC)
+6. How are episodic heuristics represented? (Depends on episode design — later Phase)
 
 **For Decision Strategy spec**: The Protocol must not preclude sleep-cycle evaluation. The `decide()` method should work for both real-time (with candidates) and sleep-cycle (without candidates, for re-evaluation). This is naturally satisfied by `candidates: list[HeuristicCandidate]` being an empty list.
 
@@ -1008,3 +1008,6 @@ These findings directly inform the composable event interface model:
 | F-19 | Field-level data classification (`normal`, `evaluation_only`, `internal`) |
 | F-20 | Event intent field (`actionable`, `informational`, `unknown`) |
 | F-21 | Backfill/historical flag for pre-connection state dumps |
+
+
+

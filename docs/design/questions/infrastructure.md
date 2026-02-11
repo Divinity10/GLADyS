@@ -8,7 +8,7 @@ Deployment models, latency profiles, operational concerns, and maintenance.
 
 ## Open Questions
 
-### Q: Deployment Model and Resource Constraints (§15)
+### Q: Deployment Model and Resource Constraints (Â§15)
 
 **Status**: Gap - needs design
 **Priority**: High (affects architecture decisions)
@@ -54,7 +54,7 @@ The LLM is a black box. The question is: where does that black box live?
 
 ---
 
-### Q: Gemini Code Review Action Items (§26)
+### Q: Gemini Code Review Action Items (Â§26)
 
 **Status**: Tracked
 **Priority**: Medium
@@ -62,7 +62,7 @@ The LLM is a black box. The question is: where does that black box live?
 
 #### Context
 
-Gemini performed a comprehensive 9-chunk code review. After assessment, most concerns were either misunderstandings (conflating ADR vision with PoC scope), already resolved, or future work.
+Gemini performed a comprehensive 9-chunk code review. After assessment, most concerns were either misunderstandings (conflating ADR vision with Phase scope), already resolved, or future work.
 
 #### Action Items (Worth Doing)
 
@@ -104,22 +104,22 @@ ILIKE '%fire%warning%'  # Fragile
 WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warning')
 ```
 
-**Priority**: Low - current search is working for PoC.
+**Priority**: Low - current search is working for Phase.
 
 #### Resolved/Non-Issues
 
 | Item | Assessment |
 |------|------------|
-| ADR trait scale mismatch | Already fixed - ADR-0003 §7.1 correctly uses -1 to +1 |
+| ADR trait scale mismatch | Already fixed - ADR-0003 Â§7.1 correctly uses -1 to +1 |
 | Episode ID nullability | No issue - Both ADRs agree it's optional |
-| Skill Registry blocking | Disagree - Learning is higher priority for PoC |
-| Over-engineering concerns | Disagree - ADRs describe vision; PoC implements subset |
+| Skill Registry blocking | Disagree - Learning is higher priority for Phase |
+| Over-engineering concerns | Disagree - ADRs describe vision; Phase implements subset |
 
 ---
 
 ## Resolved
 
-### R: Latency Profiles (§4, §11)
+### R: Latency Profiles (Â§4, Â§11)
 
 **Decision**: Profile-based latency budgets
 **Date**: 2026-01-XX
@@ -169,3 +169,4 @@ System Default → Feature/Actuator Override → User Override
 - Security review: malicious plugins claiming `background`, bundle trust verification
 - ADR-0005: Needs update to define profiles instead of single 1000ms budget
 - ADR-0011: Actuator latency becomes profile-based
+

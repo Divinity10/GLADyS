@@ -8,7 +8,7 @@ Plugin architecture, sensors, skills, actuators, integration models, and skill d
 
 ## Open Questions
 
-### Q: Preprocessor Plugin Constraints (§37)
+### Q: Preprocessor Plugin Constraints (Â§37)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -31,7 +31,7 @@ Raw sensor data is often noisy. Preprocessors are optional plugins between a sen
 
 ---
 
-### Q: Actuator/Effector Gap (§1)
+### Q: Actuator/Effector Gap (Â§1)
 
 **Status**: Stale - predates ADR-0011
 **Priority**: High (if actuators proceed)
@@ -50,13 +50,13 @@ The architecture shows sensors (input) flowing to Executive which produces speec
 #### Original Questions (Now Mostly Resolved by ADR-0011)
 
 - Should actuators be a new plugin type or an extension of skills? → **New type (ADR-0011)**
-- What's the command validation / safety bounds model? → **See ADR-0011 §4**
-- Rate limiting to prevent oscillation? → **See ADR-0011 §5**
-- Confirmation requirements for high-impact actions? → **See ADR-0011 §6**
+- What's the command validation / safety bounds model? → **See ADR-0011 Â§4**
+- Rate limiting to prevent oscillation? → **See ADR-0011 Â§5**
+- Confirmation requirements for high-impact actions? → **See ADR-0011 Â§6**
 
 ---
 
-### Q: Tiered Actuator Security (§3)
+### Q: Tiered Actuator Security (Â§3)
 
 **Status**: Open - partially addressed in ADR-0011
 **Priority**: High (if actuators proceed)
@@ -82,7 +82,7 @@ ADR-0008 security model is good for data privacy, but physical actuators have di
 
 ---
 
-### Q: Plugin Taxonomy and Processing Pipeline (§9)
+### Q: Plugin Taxonomy and Processing Pipeline (Â§9)
 
 **Status**: Open - design captured but DAG questions remain
 **Priority**: High
@@ -92,7 +92,7 @@ ADR-0008 security model is good for data privacy, but physical actuators have di
 | Type | Direction | Trigger | Purpose |
 |------|-----------|---------|---------|
 | **Sensor** | World → Brain | Push | Produces **events** |
-| **Skill** | Brain ↔ Brain | Varies | Transforms, analyzes, provides knowledge |
+| **Skill** | Brain â†” Brain | Varies | Transforms, analyzes, provides knowledge |
 | **Actuator** | Brain → World | Push | Executes **commands** |
 
 #### Skill Subtypes
@@ -109,10 +109,10 @@ Preprocessors form a DAG, not a linear chain:
 
 ```
 Audio Stream
-     │
-     ├──→ [Word Recognition] ──┬──→ [Semantic Meaning] → Salience
-     │                         │
-     └──→ [Tone Detection] ────┘
+     â”‚
+     â”œâ”€â”€→ [Word Recognition] â”€â”€â”¬â”€â”€→ [Semantic Meaning] → Salience
+     â”‚                         â”‚
+     â””â”€â”€→ [Tone Detection] â”€â”€â”€â”€â”˜
 ```
 
 Manifest declares dependencies:
@@ -144,15 +144,15 @@ requires:
 
 ---
 
-### Q: Skill Architecture Design Direction (§25)
+### Q: Skill Architecture Design Direction (Â§25)
 
-**Status**: Design captured (pre-PoC)
-**Priority**: Medium (PoC uses simple model; full design for post-PoC)
+**Status**: Design captured (pre-Phase)
+**Priority**: Medium (Phase uses simple model; full design for post-Phase)
 **Created**: 2026-01-24
 
 #### Context
 
-During Phase 3 planning, questions emerged about how skills interact with core services. These decisions are captured here but **not implemented in PoC**.
+During Phase 3 planning, questions emerged about how skills interact with core services. These decisions are captured here but **not implemented in Phase**.
 
 #### Skill Categories (from ADR-0003)
 
@@ -164,7 +164,7 @@ During Phase 3 planning, questions emerged about how skills interact with core s
 | `language` | Translation/localization | spanish, pirate_speak |
 | `outcome_evaluator` | Assess results | was_helpful |
 
-#### Design Decisions (Post-PoC)
+#### Design Decisions (Post-Phase)
 
 | Topic | Direction | Rationale |
 |-------|-----------|-----------|
@@ -174,7 +174,7 @@ During Phase 3 planning, questions emerged about how skills interact with core s
 | **Skill heuristics** | Skills can contribute heuristics on load | Pack ships with fast-path rules |
 | **Memory access** | Two-tier: Executive mediates simple cases; autonomous skills get Memory client | Based on complexity |
 
-#### Manifest Extension (Post-PoC)
+#### Manifest Extension (Post-Phase)
 
 ```yaml
 plugin_id: evony-expertise
@@ -196,7 +196,7 @@ contributes_heuristics:
     action: {delegate: "evony-expertise", method: "plan_attack"}
 ```
 
-#### Why PoC Uses Simple Model
+#### Why Phase Uses Simple Model
 
 | Reason | Detail |
 |--------|--------|
@@ -204,9 +204,7 @@ contributes_heuristics:
 | **Avoid infrastructure** | No managed LLM client, no skill sandboxing |
 | **Focus** | Heuristic learning is the differentiator |
 
-#### Open for Post-PoC
-
-1. Skill sandboxing (prevent misbehaving skills from overwhelming Memory/LLM)
+#### Open for Post-Phase 1. Skill sandboxing (prevent misbehaving skills from overwhelming Memory/LLM)
 2. Managed LLM client API (rate limiting, cost tracking)
 3. Skill lifecycle (hot reload, version conflicts)
 4. Multi-skill coordination (when multiple skills could handle a query)
@@ -216,7 +214,7 @@ contributes_heuristics:
 
 ## Resolved
 
-### R: Actuator System Design (§6)
+### R: Actuator System Design (Â§6)
 
 **Decision**: See ADR-0011
 **Date**: 2026-01-XX
@@ -234,7 +232,7 @@ All original questions resolved:
 
 ---
 
-### R: Integration Plugin Model (§10)
+### R: Integration Plugin Model (Â§10)
 
 **Decision**: Start with Home Assistant; design generic Integration interface
 **Date**: 2026-01-XX
@@ -304,18 +302,20 @@ expose:
 ### UC1: Gaming Companion (Aperture)
 ```
 [Game State Sensor] → [Threat Analyzer Skill] → Salience → Executive → Speech
-                                                                    ↘ [Game Input Actuator]
+                                                                    â†˜ [Game Input Actuator]
 ```
 
 ### UC2: Environmental Comfort
 ```
-[Temp Sensor] ─────┐
-[Humidity Sensor] ─┼→ [Comfort Analyzer] → Salience → Executive → [HVAC Actuator]
-[CO2 Sensor] ──────┘
+[Temp Sensor] â”€â”€â”€â”€â”€â”
+[Humidity Sensor] â”€â”¼→ [Comfort Analyzer] → Salience → Executive → [HVAC Actuator]
+[CO2 Sensor] â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### UC4: Physical Security (High-Risk)
 ```
 [Motion Sensor] → [Person Detector] → Salience → Executive → [Door Lock Actuator]
-                                                          ↘ User Confirmation
+                                                          â†˜ User Confirmation
 ```
+
+

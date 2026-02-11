@@ -17,5 +17,6 @@ Confidence model weights (feedback stage multipliers, LLM endorsement weight, us
 
 ## Scope
 
-- **PoC 2**: Ensure data capture is sufficient for later replay
-- **PoC 3+**: Build the harness, run first comparisons
+- **Phase 2**: Ensure data capture is sufficient for later replay
+- **Phase 3+**: Build the harness, run first comparisons
+

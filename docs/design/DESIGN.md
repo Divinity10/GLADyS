@@ -6,11 +6,11 @@
 ## How to Use This Document
 - Each section covers one subsystem's **current implementation state**
 - "Current Implementation" = what's actually built
-- "PoC Deviations" = where we cut corners from ADRs
+- "Phase Deviations" = where we cut corners from ADRs
 - "Open Questions" = unresolved issues
 - For **architectural decisions**: [ARCHITECTURE.md](ARCHITECTURE.md)
 - For **interface contracts**: [INTERFACES.md](INTERFACES.md)
-- For **PoC phases and success criteria**: [POC_LIFECYCLE.md](POC_LIFECYCLE.md)
+- For **Phases and success criteria**: [ITERATIVE_DESIGN.md](ITERATIVE_DESIGN.md)
 - For session-specific decisions, see `efforts/working_memory.md`
 - For conceptual overview and onboarding, see [SUBSYSTEM_OVERVIEW.md](SUBSYSTEM_OVERVIEW.md)
 
@@ -22,13 +22,13 @@
 
 | Capability | Alexa/Siri | ChatGPT | GLADyS |
 |------------|------------|---------|--------|
-| Responds to commands | ✅ | ✅ | ✅ |
-| Learns preferences | ✅ shallow | ❌ | ✅ deep (behavioral patterns) |
-| Proactive actions | ✅ notifications | ❌ | ✅ salience-driven, context-aware |
-| Cross-domain awareness | ❌ siloed | ❌ no state | ✅ unified memory |
-| Gets faster with use | ❌ | ❌ | ✅ heuristic learning |
-| Local/private by default | ❌ cloud | ❌ cloud | ✅ local-first |
-| Customizable personality | ❌ fixed | ❌ | ✅ configurable |
+| Responds to commands | âœ… | âœ… | âœ… |
+| Learns preferences | âœ… shallow | âŒ | âœ… deep (behavioral patterns) |
+| Proactive actions | âœ… notifications | âŒ | âœ… salience-driven, context-aware |
+| Cross-domain awareness | âŒ siloed | âŒ no state | âœ… unified memory |
+| Gets faster with use | âŒ | âŒ | âœ… heuristic learning |
+| Local/private by default | âŒ cloud | âŒ cloud | âœ… local-first |
+| Customizable personality | âŒ fixed | âŒ | âœ… configurable |
 
 ### Killer Features (Priority Order)
 
@@ -49,9 +49,9 @@
 
 ---
 
-## PoC Validation
+## Phase Validation
 
-PoC phases, success criteria, and abort signals are defined in [POC_LIFECYCLE.md](POC_LIFECYCLE.md).
+Phases, success criteria, and abort signals are defined in [ITERATIVE_DESIGN.md](ITERATIVE_DESIGN.md).
 
 ---
 
@@ -69,7 +69,7 @@ A multi-tiered storage system for episodic (events), semantic (facts), and proce
     - `heuristics`: Learned rules with confidence scores.
 - **Search**: Hybrid search using embedding similarity (cosine) + metadata filtering.
 
-### PoC Deviations
+### Phase Deviations
 - **L1/L2 Cache**: Skipped. System jumps from L0 (in-memory) to L3 (PostgreSQL).
 - **Compaction**: Basic implementation. Advanced summarization pipelines are future work.
 
@@ -90,7 +90,7 @@ The "attention filter" of the brain. Determines if an event is important enough 
 - **Novelty**: Computes embedding distance to recent events to detect anomalies.
 - **Scoring**: Calculates a `SalienceVector` (threat, opportunity, etc.). Scores determine priority in the EventQueue; emergency fast-path requires both high confidence and high threat.
 
-### PoC Deviations
+### Phase Deviations
 - **Deep Evaluation**: Skipped. No secondary ML model for complex salience; relies purely on heuristics + novelty.
 - **Habituation**: Simple exponential decay based on repetition.
 
@@ -114,8 +114,8 @@ A dual-process learning engine. System 1 (Heuristics) learns from feedback to ha
 - **Storage**: Heuristics stored with `confidence`, `fire_count`, `success_count` in Postgres.
 - **Learning Module**: `src/services/orchestrator/gladys_orchestrator/learning.py` — facade that consolidates all learning operations. The router only interacts with `LearningModule` for learning. Implements three implicit feedback signals: timeout=positive, undo within 60s=negative, ignored 3x=negative. Delegates pattern-based outcome detection to `OutcomeWatcher`.
 
-### PoC Deviations
-- **Full Bayesian**: ADR-0010 allows for more sophisticated modeling (e.g., hierarchical priors, context-dependent updates). PoC uses simple Beta-Binomial.
+### Phase Deviations
+- **Full Bayesian**: ADR-0010 allows for more sophisticated modeling (e.g., hierarchical priors, context-dependent updates). Phase uses simple Beta-Binomial.
 - **Pattern Extraction**: Manual or simple LLM prompting, rather than automated background batch processing.
 
 ### Open Questions
@@ -134,7 +134,7 @@ The decision-making core (System 2). Uses Large Language Models (LLMs) to reason
 - **Loop**: OODA-style loop (Observe, Orient, Decide, Act).
 - **Context**: RAG-like retrieval of relevant Memory (Entities, Past Events) before prompting.
 
-### PoC Deviations
+### Phase Deviations
 - **Complexity**: "Stub" implementation is lighter than the full C# design in ADR-0001.
 - **Planning**: Multi-step planning is nascent; mostly stimulus-response.
 
@@ -158,7 +158,7 @@ The central nervous system. Routes messages between Sensors, Salience, Executive
     - **Timeout**: Events expire after 30s (configurable) with error response.
 - **EventQueue**: Priority queue (heapq) ordered by salience. Background worker dequeues and calls Executive.
 
-### PoC Deviations
+### Phase Deviations
 - **Queues**: Using in-memory `EventQueue` instead of persistent brokers (RabbitMQ/Kafka). Events lost on restart is acceptable.
 - **DAG**: Preprocessor DAG is linear/hardcoded rather than dynamic.
 
@@ -184,3 +184,5 @@ Events expire after 30s (configurable) with a timeout response. Key design decis
 ### Open Questions
 - **Backpressure**: Handling event floods (e.g., combat logs) without dropping critical signals.
 - **Priority Inversion**: High-salience events should preempt in-flight low-salience processing.
+
+

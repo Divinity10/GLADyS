@@ -88,7 +88,7 @@ These are **not** open research questions — they're questions with likely answ
 
 **Where to apply**: TD learning confidence updates, outcome evaluation.
 
-**Current implementation**: Binary feedback (thumbs up/down). Graded outcomes are a post-PoC goal.
+**Current implementation**: Binary feedback (thumbs up/down). Graded outcomes are a post-Phase goal.
 
 ---
 
@@ -101,6 +101,6 @@ These are **not** open research questions — they're questions with likely answ
 - Does the learning curve follow a power law, exponential, or logarithmic shape?
 - What's the relationship between domain complexity (number of distinct situations) and convergence rate?
 
-**Where to apply**: Monitoring metrics, PoC success criteria for learning effectiveness.
+**Where to apply**: Monitoring metrics, Phase success criteria for learning effectiveness.
 
 **Current implementation**: No formal model — we measure S1 hit rate empirically.

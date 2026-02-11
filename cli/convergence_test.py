@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GLADyS PoC 1 Convergence Test — "the second time is faster."
+"""GLADyS Phase 1 Convergence Test — "the second time is faster."
 
 Exercises the full closed loop:
 1. Event → no heuristic → LLM responds
@@ -376,7 +376,7 @@ def step_10_cross_domain(orch_stub, sudoku_heuristic_id: str) -> None:
 def main():
     global logger
 
-    parser = argparse.ArgumentParser(description="GLADyS PoC 1 Convergence Test")
+    parser = argparse.ArgumentParser(description="GLADyS Phase 1 Convergence Test")
     parser.add_argument("--env", choices=["local", "docker"], default="local",
                         help="Environment to test against (default: local)")
     parser.add_argument("--outcome-timeout", type=int, default=120,
@@ -401,7 +401,7 @@ def main():
     # State carried between steps
     state = {}
 
-    print(f"\n{BOLD}=== GLADyS PoC 1 Convergence Test (env={args.env}) ==={RESET}\n")
+    print(f"\n{BOLD}=== GLADyS Phase 1 Convergence Test (env={args.env}) ==={RESET}\n")
 
     passed = 0
     total = 10
@@ -481,12 +481,13 @@ def main():
     print()
     if passed == total:
         print(f"{BOLD}{GREEN}=== RESULT: {passed}/{total} PASSED ==={RESET}")
-        print(f"{GREEN}PoC 1 convergence test SUCCEEDED. The second time IS faster.{RESET}")
+        print(f"{GREEN}Phase 1 convergence test SUCCEEDED. The second time IS faster.{RESET}")
     else:
         print(f"{BOLD}{RED}=== RESULT: {passed}/{total} PASSED ==={RESET}")
-        print(f"{RED}PoC 1 convergence test FAILED.{RESET}")
+        print(f"{RED}Phase 1 convergence test FAILED.{RESET}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
+

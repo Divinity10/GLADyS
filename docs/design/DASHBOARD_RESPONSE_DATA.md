@@ -9,7 +9,7 @@
 
 ## Problem
 
-PoC 1 assessment requires three analysis capabilities:
+Phase 1 assessment requires three analysis capabilities:
 
 1. **Spot-checking**: "I see heuristic X has low confidence — why?"
 2. **Pattern analysis**: "Are learned heuristics generally working?"
@@ -56,7 +56,7 @@ The Response tab uses `matched_heuristic_id` to show "this heuristic was part of
 
 #### `heuristic_fallback` — reserved, not yet implemented
 
-The `heuristic_fallback` value is forward-compatible schema prep for when the system falls back to a low-confidence heuristic on LLM timeout. This behavior does not exist yet. The value will not be populated until fallback behavior is implemented (potentially PoC 2). The Response tab filter includes it for completeness — it will simply return no results until the behavior exists.
+The `heuristic_fallback` value is forward-compatible schema prep for when the system falls back to a low-confidence heuristic on LLM timeout. This behavior does not exist yet. The value will not be populated until fallback behavior is implemented (potentially Phase 2). The Response tab filter includes it for completeness — it will simply return no results until the behavior exists.
 
 ### New `episodes` table
 
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS episodes (
 ALTER TABLE episodic_events ADD COLUMN episode_id UUID REFERENCES episodes(id) ON DELETE SET NULL;
 ```
 
-Minimal for now. Groups related events into episodes. Not used by the dashboard tabs in this design — schema-only prep for future use. Episodes are single-source (`source NOT NULL`). Multi-source grouping (e.g., "Tuesday evening session" spanning sudoku + melvor) is a higher-level concept (sessions/meta-episodes) deferred to PoC 3+.
+Minimal for now. Groups related events into episodes. Not used by the dashboard tabs in this design — schema-only prep for future use. Episodes are single-source (`source NOT NULL`). Multi-source grouping (e.g., "Tuesday evening session" spanning sudoku + melvor) is a higher-level concept (sessions/meta-episodes) deferred to Phase 3+.
 
 ### Data note
 
@@ -120,7 +120,7 @@ Read-only chronological view of the decision chain for every event. Answers: "Wh
 
 | Column | Width | Source | Notes |
 |--------|-------|--------|-------|
-| ▸ | narrow | — | Chevron expand |
+| â–¸ | narrow | — | Chevron expand |
 | Timestamp | ~120px | `episodic_events.timestamp` | Relative time, full on hover |
 | Source | ~80px | `episodic_events.source` | Badge |
 | Event | flex | `episodic_events.raw_text` | Truncated 4-6 words |
@@ -167,7 +167,7 @@ Flat sequential sections (not two-column). Matches the chronological decision ch
 
 ### Pagination
 
-The API supports `limit` and `offset` parameters. Frontend pagination (or infinite scroll) is deferred for PoC — the volume from assessment sessions is manageable. The API is ready when it's needed.
+The API supports `limit` and `offset` parameters. Frontend pagination (or infinite scroll) is deferred for Phase — the volume from assessment sessions is manageable. The API is ready when it's needed.
 
 ---
 
@@ -181,8 +181,8 @@ Heuristic management: inspect, edit, delete, bulk operations. Replaces the curre
 
 | Column | Width | Notes |
 |--------|-------|-------|
-| ☐ | narrow | Checkbox for multi-select |
-| ▸ | narrow | Chevron expand |
+| â˜ | narrow | Checkbox for multi-select |
+| â–¸ | narrow | Chevron expand |
 | Origin | ~80px | Badge: learned / user / built_in |
 | ID | ~80px | Truncated UUID |
 | Condition | flex | Truncated 4-6 words, click-to-edit (expands to textarea showing full text) |
@@ -386,3 +386,5 @@ DELETE /api/heuristics (body: {ids}) — bulk delete (already exists at heuristi
 13. Cross-tab linking mechanism
 14. Inline click-to-edit pattern (reusable across both tabs)
 15. Multi-select + bulk action bar pattern
+
+

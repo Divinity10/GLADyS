@@ -37,13 +37,13 @@ Design is complete when we can trace every scenario end-to-end on paper without 
 
 | # | Scenario | Status | Implementation Notes |
 |---|----------|--------|---------------------|
-| 1 | High-conf heuristic fires | ✅ Works | Router uses cached action from `effects_json` |
-| 2 | Low-conf → LLM with suggestion | ✅ **Implemented** | HeuristicSuggestion passed through pipeline (2026-01-28) |
-| 3 | No heuristic → LLM | ✅ Works | Event queued, Executive calls LLM |
-| 4 | Positive feedback | ✅ Works | `ProvideFeedback` RPC implemented |
-| 5 | Negative feedback | ✅ Works | `ProvideFeedback` RPC implemented |
-| 6 | Outcome → confidence | ✅ Works | `OutcomeWatcher` correlates events |
-| 7 | New heuristic formation | ✅ Works | LLM pattern extraction on positive feedback |
+| 1 | High-conf heuristic fires | âœ… Works | Router uses cached action from `effects_json` |
+| 2 | Low-conf → LLM with suggestion | âœ… **Implemented** | HeuristicSuggestion passed through pipeline (2026-01-28) |
+| 3 | No heuristic → LLM | âœ… Works | Event queued, Executive calls LLM |
+| 4 | Positive feedback | âœ… Works | `ProvideFeedback` RPC implemented |
+| 5 | Negative feedback | âœ… Works | `ProvideFeedback` RPC implemented |
+| 6 | Outcome → confidence | âœ… Works | `OutcomeWatcher` correlates events |
+| 7 | New heuristic formation | âœ… Works | LLM pattern extraction on positive feedback |
 
 **Note**: All scenarios now have working implementations. Scenario 2 was completed 2026-01-28.
 
@@ -51,7 +51,7 @@ Design is complete when we can trace every scenario end-to-end on paper without 
 
 ## Identified Gaps
 
-### Gap 1: HeuristicSuggestion Not Passed to Executive ✅ FIXED (2026-01-28)
+### Gap 1: HeuristicSuggestion Not Passed to Executive âœ… FIXED (2026-01-28)
 
 **Problem** (resolved): When a low-confidence heuristic matches, the router queues the event but discards the heuristic information.
 
@@ -87,7 +87,7 @@ message ProcessEventRequest {
 **Current State**: Static JSON config string parsed at server initialization.
 
 **Fix**:
-- PoC: Continue using static config (sufficient for testing)
+- Phase: Continue using static config (sufficient for testing)
 - Release: Filesystem manifest scan (packs declare patterns in `manifest.yaml`)
 
 ### Gap 3: Domain Context for LLM
@@ -104,11 +104,11 @@ message ProcessEventRequest {
 
 | Option | Description | Verdict |
 |--------|-------------|---------|
-| A: Startup config | Load from JSON config at startup | **PoC** |
+| A: Startup config | Load from JSON config at startup | **Phase** |
 | B: gRPC RegisterPack | Dynamic registration via RPC | Rejected (over-engineering) |
 | C: Filesystem manifest | Scan pack directories for `manifest.yaml` | **Release** |
 
-**Rationale**: Option A is already implemented and sufficient for PoC. Option C aligns with existing plugin manifest pattern (ADR-0003). Option B adds unnecessary complexity.
+**Rationale**: Option A is already implemented and sufficient for Phase. Option C aligns with existing plugin manifest pattern (ADR-0003). Option B adds unnecessary complexity.
 
 ### Decision 2: HeuristicSuggestion Scope
 
@@ -161,34 +161,34 @@ Consider this suggestion in your response. You may agree, disagree, or refine it
 ### Core Executive (Generalized, Pack-Agnostic)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      EXECUTIVE SERVICE                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
-│  │   Process    │    │   Provide    │    │    Pack      │  │
-│  │    Event     │    │   Feedback   │    │   Registry   │  │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘  │
-│         │                    │                   │          │
-│         ▼                    ▼                   ▼          │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                  RESPONSE GENERATOR                  │   │
-│  │  ┌─────────────┐              ┌─────────────────┐   │   │
-│  │  │  System 1   │              │    System 2     │   │   │
-│  │  │ (Heuristic) │              │     (LLM)       │   │   │
-│  │  └─────────────┘              └─────────────────┘   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                           │                                 │
-│                           ▼                                 │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                  LEARNING SUBSYSTEM                  │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │   │
-│  │  │  Fire    │  │ Outcome  │  │   Confidence     │   │   │
-│  │  │ Recorder │  │ Watcher  │  │    Updater       │   │   │
-│  │  └──────────┘  └──────────┘  └──────────────────┘   │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                      EXECUTIVE SERVICE                       â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚                                                              â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”‚
+â”‚  â”‚   Process    â”‚    â”‚   Provide    â”‚    â”‚    Pack      â”‚  â”‚
+â”‚  â”‚    Event     â”‚    â”‚   Feedback   â”‚    â”‚   Registry   â”‚  â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜    â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜    â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”˜  â”‚
+â”‚         â”‚                    â”‚                   â”‚          â”‚
+â”‚         â–¼                    â–¼                   â–¼          â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚
+â”‚  â”‚                  RESPONSE GENERATOR                  â”‚   â”‚
+â”‚  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚   â”‚
+â”‚  â”‚  â”‚  System 1   â”‚              â”‚    System 2     â”‚   â”‚   â”‚
+â”‚  â”‚  â”‚ (Heuristic) â”‚              â”‚     (LLM)       â”‚   â”‚   â”‚
+â”‚  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜              â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚   â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚
+â”‚                           â”‚                                 â”‚
+â”‚                           â–¼                                 â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚
+â”‚  â”‚                  LEARNING SUBSYSTEM                  â”‚   â”‚
+â”‚  â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚   â”‚
+â”‚  â”‚  â”‚  Fire    â”‚  â”‚ Outcome  â”‚  â”‚   Confidence     â”‚   â”‚   â”‚
+â”‚  â”‚  â”‚ Recorder â”‚  â”‚ Watcher  â”‚  â”‚    Updater       â”‚   â”‚   â”‚
+â”‚  â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚   â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚
+â”‚                                                              â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Responsibilities
@@ -306,16 +306,16 @@ class PendingOutcome:
 ### Heuristic Fire Outcome
 
 ```
-                    ┌─────────────┐
-                    │   UNKNOWN   │
-                    └──────┬──────┘
-                           │
-            ┌──────────────┼──────────────┐
-            │              │              │
-            ▼              ▼              ▼
-     ┌──────────┐   ┌──────────┐   ┌──────────┐
-     │ SUCCESS  │   │   FAIL   │   │ TIMEOUT  │
-     └──────────┘   └──────────┘   └──────────┘
+                    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                    â”‚   UNKNOWN   â”‚
+                    â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”˜
+                           â”‚
+            â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+            â”‚              â”‚              â”‚
+            â–¼              â–¼              â–¼
+     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+     â”‚ SUCCESS  â”‚   â”‚   FAIL   â”‚   â”‚ TIMEOUT  â”‚
+     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 | Transition | Trigger | Action |
@@ -327,19 +327,19 @@ class PendingOutcome:
 ### Heuristic Lifecycle
 
 ```
-     ┌─────────────┐
-     │   ACTIVE    │  confidence >= 0.3
-     └──────┬──────┘
-            │ confidence < 0.3
-            ▼
-     ┌─────────────┐
-     │ DEPRECATED  │  Still fires, flagged for review
-     └──────┬──────┘
-            │ manual freeze OR confidence < 0.1
-            ▼
-     ┌─────────────┐
-     │   FROZEN    │  Never fires
-     └─────────────┘
+     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+     â”‚   ACTIVE    â”‚  confidence >= 0.3
+     â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”˜
+            â”‚ confidence < 0.3
+            â–¼
+     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+     â”‚ DEPRECATED  â”‚  Still fires, flagged for review
+     â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”˜
+            â”‚ manual freeze OR confidence < 0.1
+            â–¼
+     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+     â”‚   FROZEN    â”‚  Never fires
+     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 **Note**: Lifecycle transitions are currently manual (via `frozen` flag). Automatic deprecation based on confidence threshold is a release feature.
@@ -349,31 +349,31 @@ class PendingOutcome:
 ## Component Interactions
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              ORCHESTRATOR                                    │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────────────┐ │
-│  │   Router    │───▶│ EventQueue  │───▶│        ExecutiveClient          │ │
-│  └──────┬──────┘    └─────────────┘    └────────────────┬────────────────┘ │
-│         │                                                │                  │
-│         │ query heuristics                               │ ProcessEvent RPC │
-│         ▼                                                ▼                  │
-│  ┌─────────────┐                              ┌─────────────────────────┐  │
-│  │  Salience   │                              │      EXECUTIVE          │  │
-│  │   Client    │                              │  ┌─────────────────┐    │  │
-│  └──────┬──────┘                              │  │ ProcessEvent    │    │  │
-│         │                                     │  │ ProvideFeedback │    │  │
-│         │                                     │  └────────┬────────┘    │  │
-└─────────┼─────────────────────────────────────┴───────────┼─────────────┴──┘
-          │                                                  │
-          │ QueryHeuristics                                  │ UpdateConfidence
-          ▼                                                  ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              MEMORY SERVICE                                  │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐ │
-│  │   heuristics    │  │ heuristic_fires │  │     feedback_events         │ │
-│  │     table       │  │     table       │  │         table               │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                              ORCHESTRATOR                                    â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”    â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚   Router    â”‚â”€â”€â”€â–¶â”‚ EventQueue  â”‚â”€â”€â”€â–¶â”‚        ExecutiveClient          â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”˜    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜    â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚         â”‚                                                â”‚                  â”‚
+â”‚         â”‚ query heuristics                               â”‚ ProcessEvent RPC â”‚
+â”‚         â–¼                                                â–¼                  â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”                              â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”‚
+â”‚  â”‚  Salience   â”‚                              â”‚      EXECUTIVE          â”‚  â”‚
+â”‚  â”‚   Client    â”‚                              â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”    â”‚  â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”˜                              â”‚  â”‚ ProcessEvent    â”‚    â”‚  â”‚
+â”‚         â”‚                                     â”‚  â”‚ ProvideFeedback â”‚    â”‚  â”‚
+â”‚         â”‚                                     â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”˜    â”‚  â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”˜
+          â”‚                                                  â”‚
+          â”‚ QueryHeuristics                                  â”‚ UpdateConfidence
+          â–¼                                                  â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚                              MEMORY SERVICE                                  â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚   heuristics    â”‚  â”‚ heuristic_fires â”‚  â”‚     feedback_events         â”‚ â”‚
+â”‚  â”‚     table       â”‚  â”‚     table       â”‚  â”‚         table               â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Key Interactions
@@ -437,48 +437,48 @@ executive:
 
 ```
 1. Sensor publishes event
-         │
-         ▼
+         â”‚
+         â–¼
 2. Router.route_event()
    - Query Salience for heuristic match
    - Heuristic found with confidence=0.65 (< 0.7 threshold)
-         │
-         ▼
+         â”‚
+         â–¼
 3. EventQueue.enqueue(event, salience, matched_heuristic_id)
-         │
-         ▼
+         â”‚
+         â–¼
 4. Queue worker dequeues event (highest salience first)
-         │
-         ▼
+         â”‚
+         â–¼
 5. Build HeuristicSuggestion from matched heuristic  [NEW]
    - Fetch heuristic from Memory via GetHeuristic RPC
    - Extract: id, effects_json.message, confidence, condition_text
-         │
-         ▼
+         â”‚
+         â–¼
 6. ExecutiveClient.send_event_immediate(event, suggestion)  [MODIFIED]
-         │
-         ▼
+         â”‚
+         â–¼
 7. Executive.ProcessEvent()  [MODIFIED]
    - Include suggestion in LLM prompt:
      "A learned pattern suggests: {action} (65% confidence)"
    - Generate LLM response
    - Store ReasoningTrace (links response_id → heuristic_id)
-         │
-         ▼
+         â”‚
+         â–¼
 8. Record heuristic fire in Memory
    - INSERT into heuristic_fires (heuristic_id, event_id, outcome='unknown')
    - Register with OutcomeWatcher for implicit feedback
-         │
-         ▼
+         â”‚
+         â–¼
 9. Return ProcessEventResponse to queue worker
    - response_id, response_text, predicted_success
-         │
-         ▼
+         â”‚
+         â–¼
 10. Router.broadcast_response()
     - Subscribers (UI, sensors) receive response
     - response_id enables ProvideFeedback correlation
-         │
-         ▼
+         â”‚
+         â–¼
 11. [Later] User provides feedback OR OutcomeWatcher detects outcome
     - ProvideFeedback(response_id, positive) → updates confidence
     - OutcomeWatcher matches outcome event → updates confidence
@@ -493,7 +493,7 @@ executive:
 
 ## Confidence Update Logic
 
-Per [ADR-0010 §3.12.2](../adr/ADR-0010-Learning-and-Inference.md):
+Per [ADR-0010 Â§3.12.2](../adr/ADR-0010-Learning-and-Inference.md):
 
 **Confidence measures**: Probability that heuristic's response leads to a **good outcome**.
 
@@ -535,12 +535,12 @@ confidence = (1 + success_count) / (2 + fire_count)
 
 ## Implementation Checklist
 
-- [x] Add `HeuristicSuggestion` to `executive.proto` ✅ (2026-01-28)
-- [x] Update `ProcessEventRequest` with `suggestion` field ✅ (2026-01-28)
-- [x] Run `proto_gen.py` ✅ (2026-01-28)
-- [x] Update `EventQueue` to build suggestion from matched heuristic ✅ (2026-01-28)
-- [x] Update `ExecutiveClient` to pass suggestion ✅ (2026-01-28)
-- [x] Update Executive server to include suggestion in LLM prompt ✅ (2026-01-28)
+- [x] Add `HeuristicSuggestion` to `executive.proto` âœ… (2026-01-28)
+- [x] Update `ProcessEventRequest` with `suggestion` field âœ… (2026-01-28)
+- [x] Run `proto_gen.py` âœ… (2026-01-28)
+- [x] Update `EventQueue` to build suggestion from matched heuristic âœ… (2026-01-28)
+- [x] Update `ExecutiveClient` to pass suggestion âœ… (2026-01-28)
+- [x] Update Executive server to include suggestion in LLM prompt âœ… (2026-01-28)
 - [ ] Add pack manifest schema for `executive` section (deferred to release)
 - [ ] Implement pack manifest loading (deferred to release)
 
@@ -548,9 +548,9 @@ confidence = (1 + success_count) / (2 + fire_count)
 
 ## Future Improvements
 
-### Heuristic Selection Scoring (Post-PoC)
+### Heuristic Selection Scoring (Post-Phase)
 
-**Problem**: When multiple heuristics match an event, current scoring uses only `similarity × confidence`. This ignores useful signals that could improve selection quality.
+**Problem**: When multiple heuristics match an event, current scoring uses only `similarity Ã— confidence`. This ignores useful signals that could improve selection quality.
 
 **Current implementation** ([storage.py:355](../../../src/memory/python/gladys_memory/storage.py)):
 ```python
@@ -562,8 +562,8 @@ score = similarity * confidence
 | Signal | Why It Matters | Proposed Weight |
 |--------|----------------|-----------------|
 | **Recency** | Recently successful heuristics more trustworthy | +20% if succeeded in last hour |
-| **Origin** | `skill_pack` (human-authored) > `learned` (LLM-generated) until proven | skill_pack: 1.2×, learned: 1.0×, seeded: 0.8× |
-| **Habituation** | Avoid spamming same suggestion repeatedly | Decay if fired >3× in 5 minutes |
+| **Origin** | `skill_pack` (human-authored) > `learned` (LLM-generated) until proven | skill_pack: 1.2Ã—, learned: 1.0Ã—, seeded: 0.8Ã— |
+| **Habituation** | Avoid spamming same suggestion repeatedly | Decay if fired >3Ã— in 5 minutes |
 
 **Proposed formula**:
 ```python
@@ -576,7 +576,7 @@ score = similarity * confidence * recency_boost * origin_weight * habituation_de
 
 Current scoring picks #1 (higher base score). But #2 is likely better — it's from a skill pack and recently succeeded.
 
-**Status**: Deferred. Current `similarity × confidence` is sufficient for PoC. Implement when we observe poor heuristic selection in practice.
+**Status**: Deferred. Current `similarity Ã— confidence` is sufficient for Phase. Implement when we observe poor heuristic selection in practice.
 
 **Prerequisite**: Need enough heuristics in production to see selection problems. This is an optimization, not a correctness issue.
 
@@ -593,3 +593,4 @@ Current scoring picks #1 (higher base score). But #2 is likely better — it's f
 | Outcome watcher | `src/orchestrator/gladys_orchestrator/outcome_watcher.py` |
 | Executive proto | `proto/executive.proto` |
 | Heuristic storage | `src/memory/python/gladys_memory/storage.py` |
+

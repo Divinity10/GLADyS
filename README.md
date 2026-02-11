@@ -29,7 +29,7 @@ Key principles:
 
 ## Current Focus
 
-1. Memory subsystem (PoC complete)
+1. Memory subsystem (Phase complete)
 2. Orchestrator
 3. Learning pipeline
 4. First sensor integration
@@ -38,11 +38,11 @@ Key principles:
 
 | Component | Status |
 |-----------|--------|
-| Architecture Design | 🔄 Core defined, evolving |
-| Memory Subsystem | 🧪 Proof of concept |
-| Orchestrator | 🧪 Proof of concept |
-| Executive | 🧪 Proof of concept (stub) |
-| Sensors | ⏳ Not started |
+| Architecture Design | ðŸ”„ Core defined, evolving |
+| Memory Subsystem | ðŸ§ª Proof of concept |
+| Orchestrator | ðŸ§ª Proof of concept |
+| Executive | ðŸ§ª Proof of concept (stub) |
+| Sensors | â³ Not started |
 
 ## Tech Stack
 
@@ -98,3 +98,4 @@ Apache 2.0 — see [LICENSE](LICENSE).
   <i>Named in memory of Gladys — grandmother, great-grandmother, inspiration.<br/>
   Any resemblance to murderous AI constructs is purely coincidental. The cake is not a lie.</i>
 </p>
+

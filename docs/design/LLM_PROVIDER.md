@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Define an abstract interface for LLM text generation so that PoC 2 can swap providers (Ollama, OpenAI, vLLM, local inference) without modifying decision logic.
+Define an abstract interface for LLM text generation so that Phase 2 can swap providers (Ollama, OpenAI, vLLM, local inference) without modifying decision logic.
 
 ## Current State
 
@@ -167,5 +167,6 @@ def create_llm_provider(provider_type: str, **kwargs) -> LLMProvider | None:
 
 ## Out of Scope
 
-- OpenAI, vLLM, or other providers — add in PoC 2 as needed
+- OpenAI, vLLM, or other providers — add in Phase 2 as needed
 - Streaming responses — not needed for current use case
+

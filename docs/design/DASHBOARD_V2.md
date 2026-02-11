@@ -64,38 +64,38 @@ Gemini generates the frontend from this spec. Claude builds the FastAPI backend.
 ### Three zones
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  [Metrics Strip - always visible]                        │
-│  Events: 142  |  Heuristics: 8  |  LLM Calls: 34  |   │
-│  Fast Path: 76%  |  Cache Hit: 89%                      │
-├──────────┬───────────────────────────────────────────────┤
-│ Sidebar  │  [Tab Bar]                                    │
-│          │  Lab | Response | Heuristics | Learning | LLM | Logs | ⚙ │
-│ ENV      │                                               │
-│ [Docker] │  ┌───────────────────────────────────────┐   │
-│ [Local]  │  │                                       │   │
-│          │  │          Tab Content Area              │   │
-│ SERVICES │  │                                       │   │
-│ ● orch   │  │                                       │   │
-│   :50050 │  │                                       │   │
-│ ● memory │  │                                       │   │
-│   :50051 │  │                                       │   │
-│ ● rust   │  │                                       │   │
-│   :50052 │  │                                       │   │
-│ ● exec   │  │                                       │   │
-│   :50053 │  │                                       │   │
-│ ● db     │  │                                       │   │
-│   :5432  │  │                                       │   │
-│ ● llm    │  │                                       │   │
-│   qwen   │  │                                       │   │
-│ ● stream │  │                                       │   │
-│   connected│ │                                       │   │
-│          │  │                                       │   │
-│ CONTROLS │  │                                       │   │
-│ [Start]  │  │                                       │   │
-│ [Restart]│  │                                       │   │
-│ [Stop]   │  └───────────────────────────────────────┘   │
-└──────────┴───────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  [Metrics Strip - always visible]                        â”‚
+â”‚  Events: 142  |  Heuristics: 8  |  LLM Calls: 34  |   â”‚
+â”‚  Fast Path: 76%  |  Cache Hit: 89%                      â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚ Sidebar  â”‚  [Tab Bar]                                    â”‚
+â”‚          â”‚  Lab | Response | Heuristics | Learning | LLM | Logs | âš™ â”‚
+â”‚ ENV      â”‚                                               â”‚
+â”‚ [Docker] â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚
+â”‚ [Local]  â”‚  â”‚                                       â”‚   â”‚
+â”‚          â”‚  â”‚          Tab Content Area              â”‚   â”‚
+â”‚ SERVICES â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— orch   â”‚  â”‚                                       â”‚   â”‚
+â”‚   :50050 â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— memory â”‚  â”‚                                       â”‚   â”‚
+â”‚   :50051 â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— rust   â”‚  â”‚                                       â”‚   â”‚
+â”‚   :50052 â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— exec   â”‚  â”‚                                       â”‚   â”‚
+â”‚   :50053 â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— db     â”‚  â”‚                                       â”‚   â”‚
+â”‚   :5432  â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— llm    â”‚  â”‚                                       â”‚   â”‚
+â”‚   qwen   â”‚  â”‚                                       â”‚   â”‚
+â”‚ â— stream â”‚  â”‚                                       â”‚   â”‚
+â”‚   connectedâ”‚ â”‚                                       â”‚   â”‚
+â”‚          â”‚  â”‚                                       â”‚   â”‚
+â”‚ CONTROLS â”‚  â”‚                                       â”‚   â”‚
+â”‚ [Start]  â”‚  â”‚                                       â”‚   â”‚
+â”‚ [Restart]â”‚  â”‚                                       â”‚   â”‚
+â”‚ [Stop]   â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Sidebar (always visible)
@@ -104,7 +104,7 @@ Gemini generates the frontend from this spec. Claude builds the FastAPI backend.
 
 **Service health list**: Each service displayed as:
 ```
-● service-name
+â— service-name
   host:port
 ```
 Status dot colors:
@@ -149,7 +149,7 @@ The primary workspace. Where events are submitted and their lifecycle is observe
 
 **Sticky single-event bar** (always visible at top of Lab tab):
 ```
-[source ▾]  [event text___________________________]  [salience ▾]  [Submit]
+[source â–¾]  [event text___________________________]  [salience â–¾]  [Submit]
 ```
 
 - Source: dropdown with presets (minecraft, kitchen, smart_home, work, health) + custom text option
@@ -402,7 +402,7 @@ These apply to all tabs and components.
 
 ## Extensibility
 
-As the PoC grows, new features will be added (sensors, personality config, response model tuning, domain pack management).
+As the Phase grows, new features will be added (sensors, personality config, response model tuning, domain pack management).
 
 **Adding a new tab**: Core tabs are always present. New features add tabs to the tab bar. Plugin/pack-specific UI can register tabs dynamically.
 
@@ -507,43 +507,43 @@ The FastAPI backend bridges HTTP/SSE to gRPC. These are the endpoints the fronte
 
 ```
 src/services/dashboard/
-├── backend/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app, CORS, static files
-│   ├── routers/
-│   │   ├── events.py        # Event submission, listing, SSE
-│   │   ├── heuristics.py    # CRUD operations
-│   │   ├── memory.py        # Similarity probe
-│   │   ├── cache.py         # Cache stats and management
-│   │   ├── fires.py         # Flight recorder
-│   │   ├── services.py      # Health, start/stop/restart
-│   │   ├── logs.py          # Log retrieval
-│   │   ├── llm.py           # Ollama management
-│   │   ├── metrics.py       # Aggregated metrics
-│   │   └── config.py        # Environment and settings
-│   └── grpc_bridge.py       # gRPC client management (channel lifecycle)
-│
-├── frontend/
-│   ├── index.html           # Main page (layout shell, tab structure)
-│   ├── css/
-│   │   └── style.css        # Dark theme, dense layout, monospace
-│   ├── js/
-│   │   ├── app.js           # Alpine.js app state, tab management
-│   │   ├── events.js        # SSE handling, event table logic
-│   │   └── utils.js         # Timestamp formatting, filters
-│   └── components/
-│       ├── sidebar.html     # Service rows only (htmx partial)
-│       ├── metrics.html     # Metrics strip partial
-│       ├── lab.html         # Lab tab content
-│       ├── event_row.html   # Single event row + drill-down (reusable)
-│       ├── queue_row.html   # Queue panel row
-│       ├── heuristics.html  # Heuristics tab content
-│       ├── learning.html    # Learning tab content
-│       ├── llm.html         # LLM tab content
-│       ├── logs.html        # Logs tab content
-│       └── settings.html    # Settings tab content
-│
-└── pyproject.toml           # Backend dependencies
+â”œâ”€â”€ backend/
+â”‚   â”œâ”€â”€ __init__.py
+â”‚   â”œâ”€â”€ main.py              # FastAPI app, CORS, static files
+â”‚   â”œâ”€â”€ routers/
+â”‚   â”‚   â”œâ”€â”€ events.py        # Event submission, listing, SSE
+â”‚   â”‚   â”œâ”€â”€ heuristics.py    # CRUD operations
+â”‚   â”‚   â”œâ”€â”€ memory.py        # Similarity probe
+â”‚   â”‚   â”œâ”€â”€ cache.py         # Cache stats and management
+â”‚   â”‚   â”œâ”€â”€ fires.py         # Flight recorder
+â”‚   â”‚   â”œâ”€â”€ services.py      # Health, start/stop/restart
+â”‚   â”‚   â”œâ”€â”€ logs.py          # Log retrieval
+â”‚   â”‚   â”œâ”€â”€ llm.py           # Ollama management
+â”‚   â”‚   â”œâ”€â”€ metrics.py       # Aggregated metrics
+â”‚   â”‚   â””â”€â”€ config.py        # Environment and settings
+â”‚   â””â”€â”€ grpc_bridge.py       # gRPC client management (channel lifecycle)
+â”‚
+â”œâ”€â”€ frontend/
+â”‚   â”œâ”€â”€ index.html           # Main page (layout shell, tab structure)
+â”‚   â”œâ”€â”€ css/
+â”‚   â”‚   â””â”€â”€ style.css        # Dark theme, dense layout, monospace
+â”‚   â”œâ”€â”€ js/
+â”‚   â”‚   â”œâ”€â”€ app.js           # Alpine.js app state, tab management
+â”‚   â”‚   â”œâ”€â”€ events.js        # SSE handling, event table logic
+â”‚   â”‚   â””â”€â”€ utils.js         # Timestamp formatting, filters
+â”‚   â””â”€â”€ components/
+â”‚       â”œâ”€â”€ sidebar.html     # Service rows only (htmx partial)
+â”‚       â”œâ”€â”€ metrics.html     # Metrics strip partial
+â”‚       â”œâ”€â”€ lab.html         # Lab tab content
+â”‚       â”œâ”€â”€ event_row.html   # Single event row + drill-down (reusable)
+â”‚       â”œâ”€â”€ queue_row.html   # Queue panel row
+â”‚       â”œâ”€â”€ heuristics.html  # Heuristics tab content
+â”‚       â”œâ”€â”€ learning.html    # Learning tab content
+â”‚       â”œâ”€â”€ llm.html         # LLM tab content
+â”‚       â”œâ”€â”€ logs.html        # Logs tab content
+â”‚       â””â”€â”€ settings.html    # Settings tab content
+â”‚
+â””â”€â”€ pyproject.toml           # Backend dependencies
 ```
 
 V1 Streamlit dashboard has been removed. V2 is the active dashboard.
@@ -600,3 +600,4 @@ Frontend (CDN, no npm):
 **When to implement**: Sensors stage. When external sensors start submitting events, the orchestrator proto will be changing anyway (sensor registration, metadata). Adding lifecycle streaming at that point is incremental. The pipeline should also be more stable by then, so the lifecycle states won't change under us.
 
 **Scope**: Proto definition, Rust orchestrator emit points, dashboard SSE consumer update. Runtime cost is negligible (one more gRPC stream).
+
