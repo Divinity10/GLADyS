@@ -108,18 +108,18 @@ class TestCacheEndpoints:
     def mock_cache_entries_response(self):
         """Mock response from ListCachedHeuristics gRPC call."""
         mock_h1 = MagicMock()
-        mock_h1.id = "h-001"
+        mock_h1.heuristic_id = "h-001"
         mock_h1.name = "Test Heuristic 1"
-        mock_h1.condition_text = "when user says hello"
-        mock_h1.confidence = 0.85
         mock_h1.hit_count = 10
+        mock_h1.cached_at_unix = 1707500000
+        mock_h1.last_hit_unix = 1707510000
 
         mock_h2 = MagicMock()
-        mock_h2.id = "h-002"
+        mock_h2.heuristic_id = "h-002"
         mock_h2.name = "Test Heuristic 2"
-        mock_h2.condition_text = "when timer expires"
-        mock_h2.confidence = 0.72
         mock_h2.hit_count = 5
+        mock_h2.cached_at_unix = 1707500000
+        mock_h2.last_hit_unix = 1707508000
 
         mock_resp = MagicMock()
         mock_resp.heuristics = [mock_h1, mock_h2]
@@ -193,9 +193,9 @@ class TestCacheEndpoints:
             entry1 = data["entries"][0]
             assert entry1["heuristic_id"] == "h-001"
             assert entry1["name"] == "Test Heuristic 1"
-            assert entry1["condition_text"] == "when user says hello"
-            assert entry1["confidence"] == 0.85
             assert entry1["hit_count"] == 10
+            assert entry1["cached_at_unix"] == 1707500000
+            assert entry1["last_hit_unix"] == 1707510000
 
     @pytest.mark.anyio
     async def test_cache_entries_no_stub(self):

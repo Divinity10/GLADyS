@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: executive
+          - service: orchestrator
+          - service: memory
+          - service: dashboard
+            pytest_args: "--ignore=tests/test_integration.py"
+    name: "python / ${{ matrix.service }}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: src/services/${{ matrix.service }}
+        run: uv sync --all-extras
+
+      - name: Run tests
+        working-directory: src/services/${{ matrix.service }}
+        run: uv run python -m pytest tests/ -x -q ${{ matrix.pytest_args }}
+
+  rust-tests:
+    runs-on: ubuntu-latest
+    name: rust / salience
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Run tests
+        working-directory: src/services/salience
+        run: cargo test
