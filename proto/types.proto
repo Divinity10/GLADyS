@@ -10,18 +10,27 @@ package gladys.types;
 // it belongs here. This prevents class mismatch errors when copying between
 // proto messages from different packages.
 
-// Salience dimensions for event evaluation.
+// Salience assessment for event evaluation.
 // Used in both Event (orchestrator routing) and EpisodicEvent (memory storage).
-message SalienceVector {
-    float threat = 1;               // 0-1
-    float opportunity = 2;          // 0-1
-    float humor = 3;                // 0-1
-    float novelty = 4;              // 0-1
-    float goal_relevance = 5;       // 0-1
-    float social = 6;               // 0-1
-    float emotional = 7;            // -1 to 1
-    float actionability = 8;        // 0-1
-    float habituation = 9;          // 0-1
+//
+// Design: docs/design/SALIENCE_MODEL.md (finalized 2026-02-11)
+// - 3 scalars: threat (bypass), salience (priority), habituation (suppression)
+// - Vector: extensible map for response-shaping dimensions
+// - Standard dimensions: novelty, goal_relevance, opportunity, actionability, social
+// - Sensors can populate threat + limited vector fields; system computes salience scalar
+message SalienceResult {
+    // Scalars (routing/filtering)
+    float threat = 1;               // 0-1: Interrupt signal, bypasses queue + habituation
+    float salience = 2;             // 0-1: Queue priority (computed from vector via weighted sum)
+    float habituation = 3;          // 0-1: Temporal suppression (0=fresh, 1=fully habituated)
+
+    // Vector (response-shaping dimensions, extensible)
+    // Standard dimensions: novelty, goal_relevance, opportunity, actionability, social
+    // Models/sensors can add custom dimensions as needed
+    map<string, float> vector = 4;  // dimension_name -> value (0-1 range)
+
+    // Metadata
+    string model_id = 5;            // Which model/sensor populated this (e.g., "security_sensor_v1", "heuristic_boost_v2")
 }
 
 // ============================================================================

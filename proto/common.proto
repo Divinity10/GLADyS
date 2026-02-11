@@ -30,8 +30,8 @@ message Event {
     string raw_text = 4;                        // Natural language description
     google.protobuf.Struct structured = 5;     // Domain-specific fields
 
-    // Salience (populated by Salience Gateway)
-    gladys.types.SalienceVector salience = 6;
+    // Salience (sensors can populate threat + limited fields, system completes)
+    gladys.types.SalienceResult salience = 6;
 
     // Entity references (populated by Entity Extractor)
     repeated string entity_ids = 7;

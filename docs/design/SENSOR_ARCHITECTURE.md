@@ -88,7 +88,7 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 | `source` | string | Sensor identifier |
 | `raw_text` | string | Natural language description of the event |
 | `structured` | Struct | Domain-specific fields (JSON) |
-| `salience` | SalienceVector | Populated by salience service (not by sensor) |
+| `salience` | SalienceResult | Sensors CAN populate threat + limited vector fields; system completes (see Â§2.6) |
 | `entity_ids` | repeated string | Populated by entity extractor (not by sensor) |
 | `matched_heuristic_id` | string | Populated downstream (not by sensor) |
 | `metadata` | RequestMetadata | Trace/request context |
@@ -146,6 +146,56 @@ Each pattern has different volume management characteristics. The `structured` f
 - Flat string sufficient for Phase 2
 - Used as hard filter in heuristic matching (F-01) — prevents cross-domain false matches
 - Multi-driver sensors may differentiate source per driver instance or use a shared source — sensor's decision
+
+### 2.6 Sensor Salience Guidance
+
+**Design**: [`SALIENCE_MODEL.md`](SALIENCE_MODEL.md) (finalized 2026-02-11)
+
+Sensors **can** populate salience fields when they have domain-specific knowledge. The system will complete/refine the salience assessment downstream. This is optional — sensors that don't know about salience can omit it entirely.
+
+#### When Sensors SHOULD Populate Salience
+
+**Set `threat` when obvious:**
+- Security events: intrusion detected, anomaly, alert
+- Safety events: smoke alarm, CO detector, health monitor critical
+- Time-critical: imminent deadline, urgent message, countdown expiration
+
+Example: Security camera detects unrecognized person:
+```python
+salience = SalienceResult(
+    threat=0.8,
+    model_id="security_camera_v1"
+)
+```
+
+**Set domain-obvious vector dimensions:**
+- `social`: Chat/email sensors know if sender is a known contact
+- `novelty`: Game sensors know if enemy type is new
+- `goal_relevance`: Calendar sensors know if meeting relates to active project
+
+Example: Email from known sender:
+```python
+salience = SalienceResult(
+    vector={"social": 0.9},  # Known contact
+    model_id="email_adapter_v1"
+)
+```
+
+#### What Sensors SHOULD NOT Compute
+
+- **habituation**: Requires temporal history across events (system concern)
+- **salience scalar**: Requires user-configurable weights (system concern)
+- **Cross-domain dimensions**: Don't guess at dimensions you can't reliably assess
+
+#### Sensor Salience Philosophy
+
+**Sensors have local knowledge (this event), system has global knowledge (user goals, history, weights).**
+
+- Sensors set what they *know* from domain expertise
+- System completes what requires cross-domain context
+- Partial salience is fine — system will fill gaps
+
+**Phase 2 scope**: Sensors can populate fields; full salience calculation deferred to Phase 3+. Phase 2 focuses on data structure and sensor guidance.
 
 ---
 
