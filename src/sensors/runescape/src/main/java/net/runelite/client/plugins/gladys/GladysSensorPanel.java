@@ -2,13 +2,11 @@ package net.runelite.client.plugins.gladys;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.swing.BorderFactory;
@@ -16,7 +14,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
@@ -61,7 +58,6 @@ public class GladysSensorPanel extends PluginPanel
 	private final Map<String, JLabel> countLabels = new LinkedHashMap<>();
 	private final Map<String, JCheckBox> toggleBoxes = new LinkedHashMap<>();
 	private GladysSensorPlugin plugin;
-	private JLabel outputPathLabel;
 
 	public GladysSensorPanel()
 	{
@@ -116,38 +112,25 @@ public class GladysSensorPanel extends PluginPanel
 
 		add(Box.createRigidArea(new Dimension(0, 10)));
 
-		// ── Output Directory ────────────────────────────────────
-		JLabel outputTitle = new JLabel("Output Directory");
-		outputTitle.setForeground(DIM);
-		outputTitle.setFont(outputTitle.getFont().deriveFont(Font.BOLD, FONT_SM));
-		outputTitle.setAlignmentX(LEFT_ALIGNMENT);
-		outputTitle.setBorder(BorderFactory.createEmptyBorder(0, 2, 4, 0));
-		add(outputTitle);
+		// ── Connection Status ──────────────────────────────────
+		JLabel connTitle = new JLabel("Orchestrator");
+		connTitle.setForeground(DIM);
+		connTitle.setFont(connTitle.getFont().deriveFont(Font.BOLD, FONT_SM));
+		connTitle.setAlignmentX(LEFT_ALIGNMENT);
+		connTitle.setBorder(BorderFactory.createEmptyBorder(0, 2, 4, 0));
+		add(connTitle);
 
-		JPanel outputPanel = new JPanel(new BorderLayout(6, 0));
-		outputPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		outputPanel.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
-		outputPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+		String host = cm.getConfiguration("gladys", "orchestratorHost");
+		String port = cm.getConfiguration("gladys", "orchestratorPort");
+		if (host == null || host.isEmpty()) host = "localhost";
+		if (port == null || port.isEmpty()) port = "50051";
 
-		String currentPath = cm.getConfiguration("gladys", "outputDirectory");
-		if (currentPath == null || currentPath.isEmpty())
-		{
-			currentPath = System.getProperty("user.home") + "/.gladys/events";
-		}
-
-		outputPathLabel = new JLabel("<html>" + truncatePath(currentPath) + "</html>");
-		outputPathLabel.setForeground(Color.WHITE);
-		outputPathLabel.setFont(outputPathLabel.getFont().deriveFont(Font.PLAIN, 11f));
-		outputPathLabel.setToolTipText(currentPath);
-
-		JButton browseButton = new JButton("Browse...");
-		browseButton.setFont(browseButton.getFont().deriveFont(Font.PLAIN, FONT_SM));
-		browseButton.setPreferredSize(new Dimension(80, 24));
-		browseButton.addActionListener(e -> openFolderChooser());
-
-		outputPanel.add(outputPathLabel, BorderLayout.CENTER);
-		outputPanel.add(browseButton, BorderLayout.EAST);
-		add(outputPanel);
+		JLabel connLabel = new JLabel(host + ":" + port);
+		connLabel.setForeground(GREEN);
+		connLabel.setFont(connLabel.getFont().deriveFont(Font.PLAIN, FONT_SM));
+		connLabel.setAlignmentX(LEFT_ALIGNMENT);
+		connLabel.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 0));
+		add(connLabel);
 
 		add(Box.createRigidArea(new Dimension(0, 10)));
 
@@ -295,39 +278,4 @@ public class GladysSensorPanel extends PluginPanel
 		});
 	}
 
-	private void openFolderChooser()
-	{
-		ConfigManager cm = plugin.getConfigManager();
-		String currentPath = cm.getConfiguration("gladys", "outputDirectory");
-		if (currentPath == null || currentPath.isEmpty())
-		{
-			currentPath = System.getProperty("user.home");
-		}
-
-		JFileChooser chooser = new JFileChooser(currentPath);
-		chooser.setDialogTitle("Select Output Directory");
-		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-		chooser.setAcceptAllFileFilterUsed(false);
-
-		int result = chooser.showOpenDialog(SwingUtilities.getWindowAncestor((Component) this));
-		if (result == JFileChooser.APPROVE_OPTION)
-		{
-			File selected = chooser.getSelectedFile();
-			String newPath = selected.getAbsolutePath();
-			cm.setConfiguration("gladys", "outputDirectory", newPath);
-			outputPathLabel.setText("<html>" + truncatePath(newPath) + "</html>");
-			outputPathLabel.setToolTipText(newPath);
-			plugin.updateOutputDirectory(newPath);
-		}
-	}
-
-	private String truncatePath(String path)
-	{
-		if (path.length() <= 35)
-		{
-			return path;
-		}
-		// Show last 32 chars with ellipsis
-		return "..." + path.substring(path.length() - 32);
-	}
 }

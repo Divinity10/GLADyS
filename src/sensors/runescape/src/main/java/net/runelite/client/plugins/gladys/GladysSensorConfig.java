@@ -9,22 +9,34 @@ import net.runelite.client.config.ConfigSection;
 public interface GladysSensorConfig extends Config
 {
 	@ConfigSection(
-		name = "Output",
-		description = "Configure where event logs are saved",
+		name = "Connection",
+		description = "GLADyS orchestrator connection settings",
 		position = 0
 	)
-	String outputSection = "output";
+	String connectionSection = "connection";
 
 	@ConfigItem(
-		keyName = "outputDirectory",
-		name = "Output Directory",
-		description = "Directory where JSONL event files are written",
-		section = outputSection,
+		keyName = "orchestratorHost",
+		name = "Orchestrator Host",
+		description = "Hostname of the GLADyS orchestrator",
+		section = connectionSection,
 		position = 0
 	)
-	default String outputDirectory()
+	default String orchestratorHost()
 	{
-		return System.getProperty("user.home") + "/.gladys/events";
+		return "localhost";
+	}
+
+	@ConfigItem(
+		keyName = "orchestratorPort",
+		name = "Orchestrator Port",
+		description = "gRPC port of the GLADyS orchestrator",
+		section = connectionSection,
+		position = 1
+	)
+	default int orchestratorPort()
+	{
+		return 50051;
 	}
 
 	@ConfigSection(
