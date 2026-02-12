@@ -24,13 +24,45 @@ BOM = b"\xef\xbb\xbf"
 # Common mojibake: UTF-8 bytes read as Windows-1252 then re-encoded as UTF-8.
 # Each key is the garbled string, value is the correct character.
 MOJIBAKE_REPAIRS = {
+    # Box-drawing characters (U+2500-U+257F)
+    "\u00e2\u0094\u008c": "\u250c",  # ┌ (box drawings light down and right)
+    "\u00e2\u0094\u0080": "\u2500",  # ─ (box drawings light horizontal)
+    "\u00e2\u0094\u0082": "\u2502",  # │ (box drawings light vertical)
+    "\u00e2\u0094\u0094": "\u2514",  # └ (box drawings light up and right)
+    "\u00e2\u0094\u0098": "\u2518",  # ┘ (box drawings light up and left)
+    "\u00e2\u0094\u00ac": "\u252c",  # ┬ (box drawings light down and horizontal)
+    "\u00e2\u0094\u00b4": "\u2534",  # ┴ (box drawings light up and horizontal)
+    "\u00e2\u0094\u009c": "\u251c",  # ├ (box drawings light vertical and right)
+    "\u00e2\u0094\u00a4": "\u2524",  # ┤ (box drawings light vertical and left)
+    "\u00e2\u0094\u00bc": "\u253c",  # ┼ (box drawings light vertical and horizontal)
+    "\u00e2\u0094\u0090": "\u2510",  # ┐ (box drawings light down and left)
+    "\u00e2\u0096\u00bc": "\u25bc",  # ▼ (black down-pointing triangle)
+    "\u00e2\u0096\u00ba": "\u25ba",  # ► (black right-pointing pointer)
+
+    # Typography
+    "\u00e2\u20ac\u00a2": "\u2022",  # • (bullet)
+    "\u00e2\u0086\u2019": "\u2192",  # → (rightwards arrow)
+    "\u00e2\u0086\u0090": "\u2190",  # ← (leftwards arrow)
+    "\u00e2\u2020\u2019": "\u2192",  # → (right arrow, alt encoding)
+    "\u00c2\u00a7": "\u00a7",        # § (section sign)
+    "\u00e2\u0153\u2026": "\u2705",  # ✅ (white heavy check mark)
+    "\u00e2\u008c": "\u274c",        # ❌ (cross mark)
+    "\u00c2\u00b0": "\u00b0",        # ° (degree sign)
+    "\u00c3\u0097": "\u00d7",        # × (multiplication sign)
+
+    # Quotes and dashes
     "\u00e2\u20ac\u201c": "\u2014",  # — (em dash)
     "\u00e2\u20ac\u201d": "\u2014",  # — (em dash, alt)
-    "\u00e2\u20ac\u2122": "\u2019",  # ' (right single quote)
-    "\u00e2\u20ac\u0153": "\u201c",  # " (left double quote)
-    "\u00e2\u20ac\u009d": "\u201d",  # " (right double quote)
-    "\u00e2\u2020\u2019": "\u2192",  # → (right arrow)
-    "\u00e2\u0080\u0093": "\u2013",  # – (en dash)
+    "\u00e2\u0080\u0094": "\u2014",  # — (em dash, another encoding)
+    "\u00e2\u20ac\u0093": "\u2013",  # – (en dash)
+    "\u00e2\u0080\u0093": "\u2013",  # – (en dash, alt)
+    "\u00e2\u20ac\u2122": "\u2019",  # ' (right single quotation mark)
+    "\u00e2\u0080\u2122": "\u2019",  # ' (right single quote, alt)
+    "\u00e2\u20ac\u0153": "\u201c",  # " (left double quotation mark)
+    "\u00e2\u0080\u009c": "\u201c",  # " (left double quote, alt)
+    "\u00e2\u20ac\u009d": "\u201d",  # " (right double quotation mark)
+    "\u00e2\u0080\u009d": "\u201d",  # " (right double quote, alt)
+    "\u00e2\u0080\u00a6": "\u2026",  # … (horizontal ellipsis)
 }
 
 
