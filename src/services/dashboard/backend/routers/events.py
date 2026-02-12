@@ -5,12 +5,13 @@ import json
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import grpc
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 import structlog
@@ -49,6 +50,17 @@ SALIENCE_VECTOR_DIMENSIONS = (
     ("actionability", 0.0, 1.0),
     ("social", 0.0, 1.0),
 )
+
+
+class BatchEvent(BaseModel):
+    """Schema for batch event submission via JSON API."""
+    source: str = "batch"
+    text: str
+    intent: str | None = None
+    structured: dict[str, Any] | None = None
+    evaluation_data: dict[str, Any] | None = None
+    entity_ids: list[str] | None = None
+    id: str | None = None
 
 
 def _parse_optional_float(value) -> float | None:
@@ -343,6 +355,59 @@ async def submit_event(request: Request):
         f'<span class="text-green-400" data-event-id="{event_id}" '
         f'data-source="{source}" data-text="{text[:60]}">Sent (id: {event_id[:8]})</span>'
     )
+
+
+@router.post("/events/batch")
+async def submit_batch(request: Request):
+    """Submit a batch of events from JSON body."""
+    body = await request.json()
+    if not isinstance(body, list):
+        return JSONResponse({"error": "Body must be a JSON array of events"}, status_code=400)
+
+    if len(body) > 50:
+        return JSONResponse({"error": "Maximum 50 events per batch"}, status_code=400)
+
+    try:
+        validated = [BatchEvent(**item) for item in body]
+    except Exception as e:
+        return JSONResponse({"error": f"Validation error: {e}"}, status_code=400)
+
+    # Use sync stub since _publish_all runs in a thread
+    stub = env.sync_orchestrator_stub()
+    if not stub:
+        return JSONResponse({"error": "Proto stubs not available"}, status_code=503)
+
+    event_ids = []
+    events = []
+    for item in validated:
+        event_id = item.id or str(uuid.uuid4())
+        event_ids.append(event_id)
+        event = common_pb2.Event(
+            id=event_id,
+            source=item.source,
+            raw_text=item.text,
+            intent=item.intent or "",
+        )
+
+        if item.structured is not None:
+            event.structured.update(item.structured)
+        if item.evaluation_data is not None:
+            event.evaluation_data.update(item.evaluation_data)
+        if item.entity_ids:
+            event.entity_ids.extend(item.entity_ids)
+
+        events.append(event)
+
+    def _publish_all():
+        for event in events:
+            try:
+                stub.PublishEvent(orchestrator_pb2.PublishEventRequest(event=event))
+            except grpc.RpcError as e:
+                logger.error("Batch PublishEvent gRPC failed", event_id=event.id, error=str(e))
+
+    threading.Thread(target=_publish_all, daemon=True).start()
+
+    return JSONResponse({"accepted": len(events), "event_ids": event_ids})
 
 
 @router.get("/events")
