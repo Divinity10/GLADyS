@@ -7,7 +7,7 @@
    Must match header in lab.html
 #}
 
-{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_50px_1fr_80px_70px]') }}
+{{ expandable_row_start(event.id, 'grid-cols-[30px_90px_70px_66px_1fr_80px_70px]') }}
 
     {{ checkbox_cell(event.id, 'window.eventsSelection') }}
 
@@ -84,26 +84,30 @@
         {% if event.salience_breakdown %}
         <div class="border-t border-gray-700 pt-2">
             <div class="text-[10px] font-semibold text-gray-400 mb-1">Salience Breakdown</div>
-            <div class="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-1 text-[10px]">
-                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
-                    <span class="text-gray-400">threat:</span>
-                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.threat) }}</span>
-                </div>
-                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
-                    <span class="text-gray-400">salience:</span>
-                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.salience) }}</span>
-                </div>
-                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
-                    <span class="text-gray-400">habituation:</span>
-                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.habituation) }}</span>
+            <div class="space-y-1">
+                <div class="text-[11px]" style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span>
+                        <span class="text-gray-400">threat:</span>
+                        <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.threat) }}</span>
+                    </span>
+                    <span>
+                        <span class="text-gray-400">salience:</span>
+                        <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.salience) }}</span>
+                    </span>
+                    <span>
+                        <span class="text-gray-400">habituation:</span>
+                        <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.habituation) }}</span>
+                    </span>
                 </div>
 
-                {% for dim in ['novelty', 'goal_relevance', 'opportunity', 'actionability', 'social'] %}
-                <div class="px-2 py-1 bg-gray-800 rounded">
-                    <span class="text-gray-400">{{ dim }}:</span>
-                    <span class="text-gray-300 font-mono">{{ "%.2f"|format(event.salience_breakdown[dim]) }}</span>
+                <div class="text-[11px]" style="display: flex; align-items: center; gap: 0.75rem;">
+                    {% for dim, label in [('novelty', 'novelty'), ('goal_relevance', 'goal relevance'), ('opportunity', 'opportunity'), ('actionability', 'actionability'), ('social', 'social')] %}
+                    <span title="{{ dim }}">
+                        <span class="text-gray-400">{{ label }}:</span>
+                        <span class="text-gray-300 font-mono">{{ "%.2f"|format(event.salience_breakdown[dim]) }}</span>
+                    </span>
+                    {% endfor %}
                 </div>
-                {% endfor %}
             </div>
         </div>
         {% endif %}

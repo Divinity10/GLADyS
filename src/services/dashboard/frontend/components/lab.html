@@ -2,8 +2,20 @@
 
 <div id="lab-tab" class="flex flex-col h-full gap-4">
     <!-- Event Submission Form -->
-    <div class="bg-gray-800 p-3 border border-gray-700 rounded sticky top-0 z-10">
-        <form hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
+    <div class="bg-gray-800 p-3 border border-gray-700 rounded sticky top-0 z-10"
+         x-data="{ createFormOpen: false }">
+        <button type="button"
+                class="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-secondary uppercase tracking-wide border-b border-gray-700"
+                @click="createFormOpen = !createFormOpen"
+                :aria-expanded="createFormOpen.toString()"
+                aria-controls="create-event-form">
+            <span>Create Event</span>
+            <span class="text-gray-300 transition-transform leading-none"
+                  :class="{ 'rotate-90': createFormOpen }">&#x203A;</span>
+        </button>
+
+        <form id="create-event-form"
+              hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
               x-data="{
                   advancedOpen: false,
                   salienceOpen: false,
@@ -52,13 +64,16 @@
                   }
               }"
               x-init="init()"
+              x-show="createFormOpen"
+              x-transition.duration.200ms
+              x-cloak
               x-on:event-form-reset="resetForm()"
               hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.dispatchEvent(new CustomEvent('event-form-reset', { bubbles: true })); if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
-              class="space-y-3">
-            <div class="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-2">
-                <div>
-                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Source</label>
-                    <select name="source" class="input-dense bg-gray-900 w-full mt-1">
+              class="space-y-3 pt-3">
+            <div class="flex items-end justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] text-gray-400 uppercase tracking-wide" style="white-space: nowrap;">Source</label>
+                    <select name="source" class="input-dense bg-gray-900" style="width: 90px;">
                         <option value="sudoku">sudoku</option>
                         <option value="melvor">melvor</option>
                         <option value="minecraft">minecraft</option>
@@ -69,11 +84,18 @@
                         <option value="custom">custom...</option>
                     </select>
                 </div>
-                <div>
-                    <label class="text-[10px] text-gray-400 uppercase tracking-wide">Event Text</label>
-                    <textarea name="text" placeholder="Enter event text..." required rows="2"
-                              class="input-dense bg-gray-900 w-full mt-1"></textarea>
+                <div class="flex items-end justify-end">
+                    <button type="button" onclick="document.getElementById('batch-file').click()"
+                            class="btn px-4 py-1 whitespace-nowrap" title="Load events from a JSON file">Load JSON</button>
+                    <input type="file" id="batch-file" accept=".json" class="hidden"
+                           onchange="uploadBatchFile(this)" style="display:none">
                 </div>
+            </div>
+
+            <div>
+                <label class="text-[10px] text-gray-400 uppercase tracking-wide">Event Text</label>
+                <textarea name="text" placeholder="Enter event text..." required rows="2"
+                          class="input-dense bg-gray-900 w-full mt-1"></textarea>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
@@ -86,13 +108,9 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary px-4 py-1 mt-4">Submit</button>
-                <button type="button" onclick="document.getElementById('batch-file').click()"
-                        class="btn px-4 py-1 mt-4" title="Load events from a JSON file">Load JSON</button>
                 <button type="button" class="btn px-4 py-1 mt-4"
                         @click="advancedOpen = !advancedOpen"
                         x-text="advancedOpen ? 'Hide Advanced Fields' : 'Show Advanced Fields'"></button>
-                <input type="file" id="batch-file" accept=".json" class="hidden"
-                       onchange="uploadBatchFile(this)" style="display:none">
             </div>
 
             <div x-show="advancedOpen" x-cloak class="space-y-3 border-t border-gray-700 pt-3 bg-gray-200 text-black rounded p-3">
@@ -115,43 +133,43 @@
                             Enable manual salience values
                         </label>
 
-                        <div class="grid gap-2 text-xs border rounded p-2 transition-colors md:grid-cols-3"
+                        <div class="grid grid-cols-3 gap-2 text-xs border rounded p-2 transition-colors"
                              :class="salienceEnabled ? 'bg-white border-gray-400' : 'bg-gray-300 border-gray-400'">
-                            <label class="space-y-1 min-w-0">
-                                <span class="text-[10px] font-medium text-black">Threat (0-1)</span>
-                                <input type="number" min="0" max="1" step="0.1" name="threat" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                            <label class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-[10px] font-medium text-black" style="white-space: nowrap;">Threat (0-1)</span>
+                                <input type="number" min="0" max="1" step="0.001" name="threat" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
-                                <span class="text-[10px] font-medium text-black">Salience Priority (0-1)</span>
-                                <input type="number" min="0" max="1" step="0.1" name="salience_scalar" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                            <label class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-[10px] font-medium text-black" style="white-space: nowrap;">Salience Priority (0-1)</span>
+                                <input type="number" min="0" max="1" step="0.001" name="salience_scalar" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
-                                <span class="text-[10px] font-medium text-black">Habituation (0-1)</span>
-                                <input type="number" min="0" max="1" step="0.1" name="habituation" value="0.0" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                            <label class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-[10px] font-medium text-black" style="white-space: nowrap;">Habituation (0-1)</span>
+                                <input type="number" min="0" max="1" step="0.001" name="habituation" value="0.0" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
                         </div>
 
-                        <div class="grid gap-2 text-xs border rounded p-2 transition-colors md:grid-cols-5"
+                        <div class="grid grid-cols-5 gap-2 text-xs border rounded p-2 transition-colors"
                              :class="salienceEnabled ? 'bg-white border-gray-400' : 'bg-gray-300 border-gray-400'">
-                            <label class="space-y-1 min-w-0">
+                            <label class="inline-flex items-center gap-1" style="white-space: nowrap;">
                                 <span class="text-[10px] font-medium text-black">Novelty</span>
-                                <input type="number" min="0" max="1" step="0.1" name="novelty" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                                <input type="number" min="0" max="1" step="0.001" name="novelty" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
-                                <span class="text-[10px] font-medium text-black">Goal Relevance</span>
-                                <input type="number" min="0" max="1" step="0.1" name="goal_relevance" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                            <label class="inline-flex items-center gap-1" style="white-space: nowrap;">
+                                <span class="text-[10px] font-medium text-black">Goal</span>
+                                <input type="number" min="0" max="1" step="0.001" name="goal_relevance" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
+                            <label class="inline-flex items-center gap-1" style="white-space: nowrap;">
                                 <span class="text-[10px] font-medium text-black">Opportunity</span>
-                                <input type="number" min="0" max="1" step="0.1" name="opportunity" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                                <input type="number" min="0" max="1" step="0.001" name="opportunity" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
+                            <label class="inline-flex items-center gap-1" style="white-space: nowrap;">
                                 <span class="text-[10px] font-medium text-black">Actionability</span>
-                                <input type="number" min="0" max="1" step="0.1" name="actionability" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                                <input type="number" min="0" max="1" step="0.001" name="actionability" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
-                            <label class="space-y-1 min-w-0">
+                            <label class="inline-flex items-center gap-1" style="white-space: nowrap;">
                                 <span class="text-[10px] font-medium text-black">Social</span>
-                                <input type="number" min="0" max="1" step="0.1" name="social" value="0.5" :disabled="!salienceEnabled" class="w-full rounded border border-gray-500 bg-white px-2 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="box-sizing: border-box;">
+                                <input type="number" min="0" max="1" step="0.001" name="social" value="0.5" :disabled="!salienceEnabled" class="rounded border border-gray-500 bg-white px-1 py-1 text-xs text-black disabled:bg-gray-300 disabled:text-gray-600 disabled:border-gray-400 disabled:cursor-not-allowed" style="width: 5ch; box-sizing: border-box;">
                             </label>
                         </div>
                     </div>
@@ -165,15 +183,17 @@
                     </button>
                     <div x-show="structuredOpen" x-cloak class="px-3 pb-3 space-y-2">
                         <template x-for="(pair, index) in structuredPairs" :key="'structured-' + index">
-                            <div class="grid grid-cols-[1fr_1fr_auto] gap-2">
+                            <div class="grid gap-2" style="grid-template-columns: 10ch minmax(0, 1fr);">
                                 <input type="text" name="structured_keys[]" x-model="pair.key" placeholder="key"
                                        class="input-dense bg-gray-900 w-full">
                                 <input type="text" name="structured_values[]" x-model="pair.value" placeholder="value"
                                        class="input-dense bg-gray-900 w-full">
-                                <button type="button" class="btn px-3 py-1" @click="removeStructuredPair(index)">Remove</button>
                             </div>
                         </template>
-                        <button type="button" class="btn px-3 py-1 text-xs" @click="addStructuredPair()">Add Field</button>
+                        <div class="flex items-center justify-between">
+                            <button type="button" class="btn px-3 py-1 text-xs" @click="addStructuredPair()">Add Field</button>
+                            <button type="button" class="btn px-3 py-1 text-xs" @click="removeStructuredPair(structuredPairs.length - 1)">Remove</button>
+                        </div>
                     </div>
                 </div>
 
@@ -185,15 +205,17 @@
                     </button>
                     <div x-show="evaluationOpen" x-cloak class="px-3 pb-3 space-y-2">
                         <template x-for="(pair, index) in evaluationPairs" :key="'evaluation-' + index">
-                            <div class="grid grid-cols-[1fr_1fr_auto] gap-2">
+                            <div class="grid gap-2" style="grid-template-columns: 10ch minmax(0, 1fr);">
                                 <input type="text" name="evaluation_keys[]" x-model="pair.key" placeholder="key"
                                        class="input-dense bg-gray-900 w-full">
                                 <input type="text" name="evaluation_values[]" x-model="pair.value" placeholder="value"
                                        class="input-dense bg-gray-900 w-full">
-                                <button type="button" class="btn px-3 py-1" @click="removeEvaluationPair(index)">Remove</button>
                             </div>
                         </template>
-                        <button type="button" class="btn px-3 py-1 text-xs" @click="addEvaluationPair()">Add Field</button>
+                        <div class="flex items-center justify-between">
+                            <button type="button" class="btn px-3 py-1 text-xs" @click="addEvaluationPair()">Add Field</button>
+                            <button type="button" class="btn px-3 py-1 text-xs" @click="removeEvaluationPair(evaluationPairs.length - 1)">Remove</button>
+                        </div>
                     </div>
                 </div>
 
@@ -244,7 +266,7 @@
         <!-- Header -->
         <div class="sticky top-0 z-10 bg-gray-800 shadow-md">
             <!-- Column Headers -->
-            <div class="grid grid-cols-[30px_90px_70px_50px_1fr_80px_70px] gap-4 px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
+            <div class="grid grid-cols-[30px_90px_70px_66px_1fr_80px_70px] gap-4 px-4 py-2 text-xs font-medium text-gray-400 uppercase tracking-wider border-b border-gray-700">
                 <div class="flex items-center">
                     <input type="checkbox" onclick="toggleSelectAllEvents()" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0 focus:ring-offset-0">
                 </div>
@@ -256,7 +278,7 @@
                 <div>Path</div>
             </div>
             <!-- Filter Row -->
-            <div class="grid grid-cols-[30px_90px_70px_50px_1fr_80px_70px] gap-4 px-4 py-1 bg-gray-850 border-b border-gray-700">
+            <div class="grid grid-cols-[30px_90px_70px_66px_1fr_80px_70px] gap-4 px-4 py-1 bg-gray-850 border-b border-gray-700">
                 <div></div>
                 <div></div>
                 <div>
