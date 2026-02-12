@@ -15,7 +15,33 @@ Windows. Use PowerShell or cross-platform commands. Do NOT use Unix-only syntax 
 
 ## File Encoding
 
-All files: UTF-8 **without BOM**, LF line endings (not CRLF). Never write a byte order mark. Enforced by `.editorconfig`.
+All files: UTF-8 **without BOM**, LF line endings (not CRLF). Never write a byte order mark. Enforced by `.editorconfig` and git pre-commit hook.
+
+**Pre-commit hook**: `.git/hooks/pre-commit` automatically runs `cli/fix_encoding.py --staged` before every commit. If encoding issues are found and fixed, the commit is rejected. Review fixes, re-stage, and commit again. Bypass only in emergencies: `git commit --no-verify`
+
+### Avoiding Encoding Corruption
+
+**CRITICAL for bulk operations** (multi-file find/replace, renaming, reformatting):
+
+1. **After ANY bulk file operation**, verify encoding before committing:
+
+   ```bash
+   git diff | grep -E "â|Â|€|™|┌|─|│"
+   ```
+
+   If this shows garbled characters, encoding was corrupted.
+
+2. **If corruption detected**, do NOT commit. Instead:
+   - Restore from last good commit: `git checkout -- <files>`
+   - Re-do the operation with explicit UTF-8 encoding
+   - Or use `cli/fix_encoding.py --modified` to attempt auto-repair
+
+3. **For find/replace operations**:
+   - Use editor features (VSCode find/replace respects `.editorconfig`)
+   - Or use tools that explicitly handle UTF-8: `rg --passthru 's/old/new/g'`
+   - NEVER pipe through tools that assume ASCII/Latin-1
+
+4. **Gemini agents**: You are prone to UTF-8 corruption on bulk operations. After editing multiple files, ALWAYS run encoding verification (step 1) before claiming completion.
 
 ## Commit Convention
 
