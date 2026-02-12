@@ -2,21 +2,11 @@
 
 <div id="lab-tab" class="flex flex-col h-full gap-4">
     <!-- Event Submission Form -->
-    <div class="bg-gray-800 p-3 border border-gray-700 rounded sticky top-0 z-10"
-         x-data="{ createFormOpen: false }">
-        <button type="button"
-                class="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-secondary uppercase tracking-wide border-b border-gray-700"
-                @click="createFormOpen = !createFormOpen"
-                :aria-expanded="createFormOpen.toString()"
-                aria-controls="create-event-form">
-            <span>Create Event</span>
-            <span class="text-gray-300 transition-transform leading-none"
-                  :class="{ 'rotate-90': createFormOpen }">&#x203A;</span>
-        </button>
-
+    <div class="bg-gray-800 p-3 border border-gray-700 rounded sticky top-0 z-10">
         <form id="create-event-form"
               hx-post="/api/events" hx-target="#submit-status" hx-swap="innerHTML"
               x-data="{
+                  createFormOpen: false,
                   advancedOpen: false,
                   salienceOpen: false,
                   salienceEnabled: false,
@@ -26,7 +16,11 @@
                   timestamp: '',
                   structuredPairs: [{ key: '', value: '' }],
                   evaluationPairs: [{ key: '', value: '' }],
-                  init() { this.setTimestampNow(); },
+                  init() {
+                      this.createFormOpen = false;
+                      this.setTimestampNow();
+                      this.$nextTick(() => { this.createFormOpen = false; });
+                  },
                   setTimestampNow() {
                       const now = new Date();
                       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -64,12 +58,26 @@
                   }
               }"
               x-init="init()"
-              x-show="createFormOpen"
-              x-transition.duration.200ms
-              x-cloak
               x-on:event-form-reset="resetForm()"
+              x-on:lab-tab-activated.window="createFormOpen = false"
+              x-on:lab-tab-deactivated.window="createFormOpen = false"
               hx-on::after-request="if(event.detail.successful) { var s=document.getElementById('submit-status'); var el=s&&s.querySelector('[data-event-id]'); if(el) addPendingEvent(el.dataset.eventId, el.dataset.source, el.dataset.text); this.dispatchEvent(new CustomEvent('event-form-reset', { bubbles: true })); if(typeof boostQueuePolling==='function') boostQueuePolling(); if(typeof clearStatusAfterDelay==='function') clearStatusAfterDelay(); }"
-              class="space-y-3 pt-3">
+              class="space-y-3">
+            <button type="button"
+                    class="w-full flex items-center justify-between px-2 py-1 text-xs font-bold text-secondary uppercase tracking-wide border-b border-gray-700"
+                    @click="createFormOpen = !createFormOpen"
+                    :aria-expanded="createFormOpen.toString()"
+                    aria-controls="create-event-fields">
+                <span>Create Event</span>
+                <span class="text-gray-300 transition-transform leading-none"
+                      :class="{ 'rotate-90': createFormOpen }">&#x203A;</span>
+            </button>
+
+            <div id="create-event-fields"
+                 x-show="createFormOpen"
+                 x-cloak
+                 style="display: none;"
+                 class="space-y-3 pt-3">
             <div class="flex items-end justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <label class="text-[10px] text-gray-400 uppercase tracking-wide" style="white-space: nowrap;">Source</label>
@@ -230,6 +238,7 @@
                                class="input-dense bg-gray-900 w-full">
                     </div>
                 </div>
+            </div>
             </div>
         </form>
         <div id="submit-status" class="text-[10px] mt-1"></div>

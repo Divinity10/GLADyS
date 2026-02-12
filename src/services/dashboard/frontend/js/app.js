@@ -11,9 +11,13 @@ function appState() {
         init() {
             this.$watch('activeTab', (val) => {
                 localStorage.setItem('activeTab', val);
+                if (val !== 'lab') {
+                    window.dispatchEvent(new CustomEvent('lab-tab-deactivated'));
+                }
                 // Trigger data refresh when switching tabs
                 this.$nextTick(() => {
                     if (val === 'lab') {
+                        window.dispatchEvent(new CustomEvent('lab-tab-activated'));
                         // Re-fetch event rows for the Lab tab
                         const tbody = document.getElementById('event-table-body');
                         if (tbody) {
@@ -167,3 +171,11 @@ function appState() {
         }
     }
 }
+
+// Ensure Alpine directives in HTMX-swapped fragments are initialized.
+document.addEventListener('alpine:init', () => {
+    if (!window.htmx) return;
+    htmx.onLoad((content) => {
+        window.Alpine.initTree(content);
+    });
+});
