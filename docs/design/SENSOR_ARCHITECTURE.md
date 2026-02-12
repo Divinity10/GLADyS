@@ -426,6 +426,13 @@ Sensors detect and report when their target application starts, stops, or hangs.
 - **Gmail**: Check for open Gmail tabs
 - **Future remote sensors**: Network ping, service health check, etc.
 
+**Implementation details:**
+
+- **Multi-driver sensors**: Send single event with driver statuses in `structured` field (atomic, prevents race conditions). Example: Gmail sensor with 3 accounts sends one `app_status: stopped` event with `structured.drivers` array containing per-account status.
+- **Heartbeats when idle**: Sensors continue sending heartbeats while idle (target stopped but sensor running). Heartbeats prove sensor process is alive; absence indicates sensor crash, not just idle state.
+- **Idle timeout**: Global orchestrator configuration, default 10 minutes. After timeout, orchestrator shuts down idle sensor (resource-aware: immediate shutdown when constrained, timeout-based when resources available).
+- **Query method**: Sensor protocol includes `is_target_active() → bool` for orchestrator/dashboard to check current state without parsing event history.
+
 This is distinct from sensor health (§9.2): a sensor can be healthy while its target app is stopped.
 
 ---
