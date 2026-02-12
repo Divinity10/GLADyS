@@ -73,7 +73,9 @@ class TestMemoryStorageServicer:
     @pytest.fixture
     def embeddings(self):
         """Create embedding generator."""
-        return EmbeddingGenerator()
+        mock = MagicMock(spec=EmbeddingGenerator)
+        mock.generate.return_value = np.ones(384, dtype=np.float32)
+        return mock
 
     @pytest.fixture
     async def servicer(self, storage, embeddings):
@@ -113,10 +115,11 @@ class TestMemoryStorageServicer:
         cleanup_events.append(event_id)
 
         embedding = np.random.randn(384).astype(np.float32)
-        salience = types_pb2.SalienceVector(
+        salience = types_pb2.SalienceResult(
             threat=0.1,
-            novelty=0.8,
-            goal_relevance=0.5,
+            salience=0.8,
+            habituation=0.0,
+            vector={"novelty": 0.8, "goal_relevance": 0.5},
         )
         event = memory_pb2.EpisodicEvent(
             id=str(event_id),

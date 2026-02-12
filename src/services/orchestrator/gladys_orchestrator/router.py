@@ -319,11 +319,11 @@ class EventRouter:
         if not hasattr(event, "salience") or not event.salience:
             return False
         s = event.salience
-        # Check if any salience dimension is non-zero
-        return any([
-            s.threat, s.opportunity, s.humor, s.novelty, s.goal_relevance,
-            s.social, s.emotional, s.actionability, s.habituation
-        ])
+        threat = getattr(s, "threat", 0.0)
+        salience_score = getattr(s, "salience", 0.0)
+        habituation = getattr(s, "habituation", 0.0)
+        vector = getattr(s, "vector", None)
+        return (threat > 0.0 or salience_score > 0.0 or habituation > 0.0 or bool(vector))
 
     async def _get_salience(self, event: Any) -> dict:
         """
@@ -338,16 +338,17 @@ class EventRouter:
         # First check: if event has explicit salience, use it (override for testing)
         if self._has_explicit_salience(event):
             logger.debug("Using explicit salience from event", event_id=getattr(event, "id", "unknown"))
+            vector = dict(getattr(event.salience, "vector", {}))
+            if not vector:
+                for dim in ("novelty", "goal_relevance", "opportunity", "actionability", "social"):
+                    if hasattr(event.salience, dim):
+                        vector[dim] = float(getattr(event.salience, dim))
             return {
                 "threat": event.salience.threat,
-                "opportunity": event.salience.opportunity,
-                "humor": event.salience.humor,
-                "novelty": event.salience.novelty,
-                "goal_relevance": event.salience.goal_relevance,
-                "social": event.salience.social,
-                "emotional": event.salience.emotional,
-                "actionability": event.salience.actionability,
+                "salience": getattr(event.salience, "salience", 0.0),
                 "habituation": event.salience.habituation,
+                "vector": vector,
+                "model_id": getattr(event.salience, "model_id", ""),
             }
 
         # If salience client is available, use it
@@ -356,41 +357,35 @@ class EventRouter:
 
         # Fallback: use event's existing salience if present (shouldn't reach here normally)
         if hasattr(event, "salience") and event.salience:
+            vector = dict(getattr(event.salience, "vector", {}))
+            if not vector:
+                for dim in ("novelty", "goal_relevance", "opportunity", "actionability", "social"):
+                    if hasattr(event.salience, dim):
+                        vector[dim] = float(getattr(event.salience, dim))
             return {
                 "threat": event.salience.threat,
-                "opportunity": event.salience.opportunity,
-                "humor": event.salience.humor,
-                "novelty": event.salience.novelty,
-                "goal_relevance": event.salience.goal_relevance,
-                "social": event.salience.social,
-                "emotional": event.salience.emotional,
-                "actionability": event.salience.actionability,
+                "salience": getattr(event.salience, "salience", 0.0),
                 "habituation": event.salience.habituation,
+                "vector": vector,
+                "model_id": getattr(event.salience, "model_id", ""),
             }
 
-        # Default: HIGH salience when no service available
-        # If we can't evaluate salience, err on side of responsiveness (immediate routing)
-        # rather than accumulation (delayed/no response for interactive use cases)
-        logger.debug("No salience service available, defaulting to HIGH salience for immediate routing")
+        logger.debug("No salience service available, defaulting to neutral salience values")
         return self._default_salience()
 
     def _default_salience(self) -> dict:
-        """Default salience values when service unavailable.
-
-        Defaults to HIGH salience (above threshold) to ensure immediate routing.
-        If we can't evaluate salience, it's better to be responsive than to
-        accumulate events that may need immediate attention.
-        """
+        """Default neutral salience values when service unavailable."""
         return {
-            "threat": 0.0,
-            "opportunity": 0.0,
-            "humor": 0.0,
-            "novelty": self.config.fallback_novelty,  # High enough to trigger immediate routing (threshold is 0.7)
-            "goal_relevance": 0.0,
-            "social": 0.0,
-            "emotional": 0.0,
-            "actionability": 0.0,
-            "habituation": 0.0,
+            "threat": 0.5,
+            "salience": 0.5,
+            "habituation": 0.5,
+            "vector": {
+                "novelty": 0.5,
+                "goal_relevance": 0.5,
+                "opportunity": 0.5,
+                "actionability": 0.5,
+                "social": 0.5,
+            },
         }
 
     def _attach_salience(self, event: Any, salience: dict) -> None:
@@ -408,21 +403,30 @@ class EventRouter:
 
         # Check if the event's salience field supports proto CopyFrom
         if hasattr(event.salience, "CopyFrom"):
-            # Create SalienceVector proto and populate it
-            salience_vector = types_pb2.SalienceVector(
-                threat=salience.get("threat", 0.0),
-                opportunity=salience.get("opportunity", 0.0),
-                humor=salience.get("humor", 0.0),
-                novelty=salience.get("novelty", 0.0),
-                goal_relevance=salience.get("goal_relevance", 0.0),
-                social=salience.get("social", 0.0),
-                emotional=salience.get("emotional", 0.0),
-                actionability=salience.get("actionability", 0.0),
-                habituation=salience.get("habituation", 0.0),
+            def _as_float(value: Any) -> float:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            salience_result = types_pb2.SalienceResult(
+                threat=_as_float(salience.get("threat", 0.0)),
+                salience=_as_float(salience.get("salience", 0.0)),
+                habituation=_as_float(salience.get("habituation", 0.0)),
+                model_id=salience.get("model_id", "") or "",
             )
 
-            # Copy the salience vector into the event's salience field
-            event.salience.CopyFrom(salience_vector)
+            vector = salience.get("vector")
+            if isinstance(vector, dict):
+                for dim, value in vector.items():
+                    if dim in {"novelty", "goal_relevance", "opportunity", "actionability", "social"}:
+                        salience_result.vector[dim] = _as_float(value)
+            else:
+                for dim in ("novelty", "goal_relevance", "opportunity", "actionability", "social"):
+                    if dim in salience:
+                        salience_result.vector[dim] = _as_float(salience.get(dim))
+
+            event.salience.CopyFrom(salience_result)
 
             # Attach matched heuristic ID for TD learning (if present)
             matched_heuristic = salience.get("_matched_heuristic", "")
@@ -433,19 +437,20 @@ class EventRouter:
             logger.debug("Event has non-proto salience, skipping attach", event_id=getattr(event, "id", "unknown"))
 
     def _get_max_salience(self, salience: dict) -> float:
-        """Get the maximum salience dimension value."""
-        # Exclude habituation from max calculation (it's a modifier, not a trigger)
-        dimensions = [
-            salience.get("threat", 0),
-            salience.get("opportunity", 0),
-            salience.get("humor", 0),
-            salience.get("novelty", 0),
-            salience.get("goal_relevance", 0),
-            salience.get("social", 0),
-            abs(salience.get("emotional", 0)),  # emotional is -1 to 1
-            salience.get("actionability", 0),
-        ]
-        return max(dimensions)
+        """Get scalar salience for routing priority."""
+        try:
+            salience_score = float(salience.get("salience", 0.0))
+        except (TypeError, ValueError):
+            salience_score = 0.0
+
+        try:
+            threat = float(salience.get("threat", 0.0))
+        except (TypeError, ValueError):
+            threat = 0.0
+
+        if salience_score == 0.0 and threat > 0.0:
+            return threat
+        return salience_score
 
     async def _send_immediate(
         self,

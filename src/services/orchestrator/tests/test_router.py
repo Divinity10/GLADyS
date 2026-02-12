@@ -59,15 +59,20 @@ class TestEventRouter:
 
         @dataclass
         class MockSalience:
-            threat: float = 0.9  # HIGH salience
-            opportunity: float = 0.0
-            humor: float = 0.0
-            novelty: float = 0.0
-            goal_relevance: float = 0.0
-            social: float = 0.0
-            emotional: float = 0.0
-            actionability: float = 0.0
+            threat: float = 0.9
+            salience: float = 0.9
             habituation: float = 0.0
+            vector: dict[str, float] = None
+
+            def __post_init__(self):
+                if self.vector is None:
+                    self.vector = {
+                        "novelty": 0.0,
+                        "goal_relevance": 0.0,
+                        "opportunity": 0.0,
+                        "actionability": 0.0,
+                        "social": 0.0,
+                    }
 
         event = HighSalienceEvent(id="urgent-1", salience=MockSalience())
 
@@ -117,26 +122,34 @@ class TestEventRouter:
         assert queue2.qsize() == 0
 
     def test_get_max_salience(self):
-        """Max salience correctly excludes habituation."""
+        """Routing salience uses the scalar score directly."""
         config = OrchestratorConfig()
         router = EventRouter(config)
 
         salience = {
+            "salience": 0.8,
             "threat": 0.5,
-            "opportunity": 0.3,
-            "humor": 0.2,
-            "novelty": 0.1,
-            "goal_relevance": 0.0,
-            "social": 0.0,
-            "emotional": -0.8,  # negative, should use abs
-            "actionability": 0.0,
-            "habituation": 0.9,  # should be excluded
+            "habituation": 0.9,
+            "vector": {"novelty": 0.1},
         }
 
         max_val = router._get_max_salience(salience)
-
-        # Should be abs(-0.8) = 0.8, not 0.9 (habituation excluded)
         assert max_val == 0.8
+
+    def test_get_max_salience_falls_back_to_threat(self):
+        """When scalar salience is zero, threat is used as fallback priority."""
+        config = OrchestratorConfig()
+        router = EventRouter(config)
+
+        salience = {
+            "salience": 0.0,
+            "threat": 0.65,
+            "habituation": 0.4,
+            "vector": {"novelty": 0.9},
+        }
+
+        max_val = router._get_max_salience(salience)
+        assert max_val == 0.65
 
     @pytest.mark.asyncio
     async def test_emergency_both_thresholds(self):
@@ -214,14 +227,21 @@ class TestEventRouter:
         assert result.get("response_text", "") == ""
         assert result["queued"] is True
 
-    def test_default_salience_uses_config(self):
-        """_default_salience() uses config value."""
+    def test_default_salience_returns_neutral_result(self):
+        """_default_salience() returns SalienceResult-shaped neutral values."""
         config = OrchestratorConfig(fallback_novelty=0.99)
         router = EventRouter(config)
-        
+
         salience = router._default_salience()
-        assert salience["novelty"] == 0.99
-        
+        assert salience["threat"] == pytest.approx(0.5)
+        assert salience["salience"] == pytest.approx(0.5)
+        assert salience["habituation"] == pytest.approx(0.5)
+        assert salience["vector"]["novelty"] == pytest.approx(0.5)
+        assert salience["vector"]["goal_relevance"] == pytest.approx(0.5)
+        assert salience["vector"]["opportunity"] == pytest.approx(0.5)
+        assert salience["vector"]["actionability"] == pytest.approx(0.5)
+        assert salience["vector"]["social"] == pytest.approx(0.5)
+
     def test_config_defaults(self):
         """Verify new config fields have correct defaults."""
         config = OrchestratorConfig()
