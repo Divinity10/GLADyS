@@ -83,11 +83,26 @@
         <!-- Salience Breakdown (unique to events, keep inline) -->
         {% if event.salience_breakdown %}
         <div class="border-t border-gray-700 pt-2">
-            <div class="text-gray-400 font-bold uppercase text-xs mb-1">Salience Breakdown:</div>
-            <div class="grid grid-cols-[100px_40px_100px_40px_100px_40px_100px_40px_100px_40px] gap-x-1 gap-y-1 text-xs select-text">
-                {% for key, val in event.salience_breakdown.items() %}
-                <span class="text-gray-400 truncate">{{ key.replace('_', ' ') }}:</span>
-                <span class="font-bold text-gray-300 text-right">{{ val }}</span>
+            <div class="text-[10px] font-semibold text-gray-400 mb-1">Salience Breakdown</div>
+            <div class="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-1 text-[10px]">
+                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
+                    <span class="text-gray-400">threat:</span>
+                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.threat) }}</span>
+                </div>
+                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
+                    <span class="text-gray-400">salience:</span>
+                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.salience) }}</span>
+                </div>
+                <div class="px-2 py-1 bg-blue-900/30 border border-blue-700/50 rounded">
+                    <span class="text-gray-400">habituation:</span>
+                    <span class="text-blue-300 font-mono">{{ "%.2f"|format(event.salience_breakdown.habituation) }}</span>
+                </div>
+
+                {% for dim in ['novelty', 'goal_relevance', 'opportunity', 'actionability', 'social'] %}
+                <div class="px-2 py-1 bg-gray-800 rounded">
+                    <span class="text-gray-400">{{ dim }}:</span>
+                    <span class="text-gray-300 font-mono">{{ "%.2f"|format(event.salience_breakdown[dim]) }}</span>
+                </div>
                 {% endfor %}
             </div>
         </div>

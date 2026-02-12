@@ -36,16 +36,18 @@ router = APIRouter(prefix="/api")
 FRONTEND_DIR = PROJECT_ROOT / "src" / "services" / "dashboard" / "frontend"
 templates = Jinja2Templates(directory=str(FRONTEND_DIR))
 
-SALIENCE_DIMENSIONS = (
+SALIENCE_SCALARS = (
     ("threat", 0.0, 1.0),
-    ("opportunity", 0.0, 1.0),
-    ("humor", 0.0, 1.0),
+    ("salience_scalar", 0.0, 1.0),
+    ("habituation", 0.0, 1.0),
+)
+
+SALIENCE_VECTOR_DIMENSIONS = (
     ("novelty", 0.0, 1.0),
     ("goal_relevance", 0.0, 1.0),
-    ("social", 0.0, 1.0),
-    ("emotional", 0.0, 1.0),
+    ("opportunity", 0.0, 1.0),
     ("actionability", 0.0, 1.0),
-    ("habituation", 0.0, 1.0),
+    ("social", 0.0, 1.0),
 )
 
 
@@ -109,10 +111,16 @@ def _make_event_dict(event_id: str, source: str, text: str,
 
     salience_breakdown = {}
     if isinstance(salience, dict):
-        for key in ("threat", "opportunity", "humor", "novelty", "goal_relevance",
-                     "social", "emotional", "actionability", "habituation"):
-            if key in salience:
-                salience_breakdown[key] = f"{salience[key]:.2f}"
+        salience_breakdown = {
+            "threat": salience.get("threat", 0.0),
+            "salience": salience.get("salience", 0.0),
+            "habituation": salience.get("habituation", 0.0),
+            "novelty": salience.get("novelty", 0.0),
+            "goal_relevance": salience.get("goal_relevance", 0.0),
+            "opportunity": salience.get("opportunity", 0.0),
+            "actionability": salience.get("actionability", 0.0),
+            "social": salience.get("social", 0.0),
+        }
 
     time_abs = timestamp.strftime("%H:%M:%S") if timestamp else now.strftime("%H:%M:%S")
     time_rel = format_relative_time(timestamp) if timestamp else "just now"
@@ -122,7 +130,7 @@ def _make_event_dict(event_id: str, source: str, text: str,
     if predicted_success is not None:
         salience_score = f"{predicted_success:.2f}"
     elif salience_breakdown:
-        vals = [float(v) for v in salience_breakdown.values()]
+        vals = list(salience_breakdown.values())
         salience_score = f"{sum(vals) / len(vals):.2f}"
 
     return {
@@ -153,9 +161,14 @@ def _proto_event_to_dict(ev) -> dict:
     """Convert a memory_pb2.EpisodicEvent proto to template-ready dict."""
     salience_data = {}
     if ev.salience:
-        for key in ("threat", "opportunity", "humor", "novelty", "goal_relevance",
-                     "social", "emotional", "actionability", "habituation"):
-            salience_data[key] = getattr(ev.salience, key, 0.0)
+        salience_data = {
+            "threat": ev.salience.threat,
+            "salience": ev.salience.salience,
+            "habituation": ev.salience.habituation,
+            "model_id": ev.salience.model_id,
+        }
+        for dim, value in ev.salience.vector.items():
+            salience_data[dim] = value
 
     ts = datetime.fromtimestamp(ev.timestamp_ms / 1000, tz=timezone.utc) if ev.timestamp_ms else None
     try:
@@ -220,7 +233,6 @@ async def submit_event(request: Request):
     form = await request.form()
     source = form.get("source", "dashboard")
     text = form.get("text", "")
-    salience_override = form.get("salience_override", "")
     intent = form.get("intent", "unknown")
     timestamp_str = (form.get("timestamp", "") or "").strip()
     entity_ids_str = (form.get("entity_ids", "") or "").strip()
@@ -255,41 +267,33 @@ async def submit_event(request: Request):
             origin_dt = origin_dt.replace(tzinfo=local_tz)
         event.timestamp.FromDatetime(origin_dt.astimezone(timezone.utc))
 
-    manual_salience: dict[str, float] = {}
-    for dimension, min_value, max_value in SALIENCE_DIMENSIONS:
-        parsed = _parse_optional_float(form.get(f"salience_{dimension}"))
+    scalar_values: dict[str, float] = {}
+    for scalar, min_val, max_val in SALIENCE_SCALARS:
+        parsed = _parse_optional_float(form.get(scalar))
         if parsed is None:
-            continue
-        manual_salience[dimension] = _clamp(parsed, min_value, max_value)
+            default = 0.0 if scalar == "habituation" else 0.5
+            scalar_values[scalar] = default
+        else:
+            scalar_values[scalar] = _clamp(parsed, min_val, max_val)
 
-    salience = None
-    if manual_salience:
-        salience = types_pb2.SalienceVector(
-            threat=manual_salience.get("threat", 0.0),
-            opportunity=manual_salience.get("opportunity", 0.0),
-            humor=manual_salience.get("humor", 0.0),
-            novelty=manual_salience.get("novelty", 0.0),
-            goal_relevance=manual_salience.get("goal_relevance", 0.0),
-            social=manual_salience.get("social", 0.0),
-            emotional=manual_salience.get("emotional", 0.0),
-            actionability=manual_salience.get("actionability", 0.0),
-            habituation=manual_salience.get("habituation", 0.0),
-        )
-    elif salience_override == "high":
-        salience = types_pb2.SalienceVector(
-            novelty=0.95,
-            actionability=0.95,
-            threat=0.0,
-        )
-    elif salience_override == "low":
-        salience = types_pb2.SalienceVector(
-            novelty=0.1,
-            actionability=0.1,
-            threat=0.0,
-        )
+    vector_dims: dict[str, float] = {}
+    for dim, min_val, max_val in SALIENCE_VECTOR_DIMENSIONS:
+        parsed = _parse_optional_float(form.get(dim))
+        if parsed is not None:
+            vector_dims[dim] = _clamp(parsed, min_val, max_val)
+        else:
+            vector_dims[dim] = 0.5
 
-    if salience:
-        event.salience.CopyFrom(salience)
+    salience_result = types_pb2.SalienceResult(
+        threat=scalar_values["threat"],
+        salience=scalar_values["salience_scalar"],
+        habituation=scalar_values["habituation"],
+        model_id="dashboard_manual",
+    )
+    for dim, value in vector_dims.items():
+        salience_result.vector[dim] = value
+
+    event.salience.CopyFrom(salience_result)
 
     structured_data = _pairs_to_dict(
         form.getlist("structured_keys[]"),

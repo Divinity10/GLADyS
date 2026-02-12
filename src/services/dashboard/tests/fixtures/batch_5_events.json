@@ -3,6 +3,19 @@
     "source": "minecraft",
     "text": "Fixture A: skeleton spotted in cave entrance with low health",
     "intent": "actionable",
+    "salience": {
+      "threat": 0.9,
+      "salience": 0.85,
+      "habituation": 0.0,
+      "vector": {
+        "novelty": 0.7,
+        "goal_relevance": 0.9,
+        "opportunity": 0.3,
+        "actionability": 0.8,
+        "social": 0.1
+      },
+      "model_id": "test_high_threat"
+    },
     "structured": {
       "domain": "minecraft",
       "location": "cave_entrance",
@@ -23,6 +36,19 @@
     "source": "kitchen",
     "text": "Fixture B: oven preheated and bake timer started",
     "intent": "informational",
+    "salience": {
+      "threat": 0.1,
+      "salience": 0.25,
+      "habituation": 0.75,
+      "vector": {
+        "novelty": 0.2,
+        "goal_relevance": 0.4,
+        "opportunity": 0.3,
+        "actionability": 0.2,
+        "social": 0.0
+      },
+      "model_id": "test_high_habituation"
+    },
     "structured": {
       "device": "oven",
       "temp_f": 375,
@@ -33,6 +59,19 @@
     "source": "smart_home",
     "text": "Fixture C: backyard motion event evaluated as medium confidence",
     "intent": "actionable",
+    "salience": {
+      "threat": 0.45,
+      "salience": 0.66,
+      "habituation": 0.15,
+      "vector": {
+        "novelty": 0.55,
+        "goal_relevance": 0.6,
+        "opportunity": 0.35,
+        "actionability": 0.75,
+        "social": 0.4
+      },
+      "model_id": "test_balanced_actionable"
+    },
     "evaluation_data": {
       "model": "motion-eval-1",
       "confidence": 0.61,
@@ -43,6 +82,19 @@
     "source": "work",
     "text": "Fixture D: issue triage mentions two known entities",
     "intent": "unknown",
+    "salience": {
+      "threat": 0.2,
+      "salience": 0.58,
+      "habituation": 0.3,
+      "vector": {
+        "novelty": 0.35,
+        "goal_relevance": 0.7,
+        "opportunity": 0.65,
+        "actionability": 0.55,
+        "social": 0.8
+      },
+      "model_id": "test_social_opportunity"
+    },
     "entity_ids": [
       "33333333-3333-3333-3333-333333333333"
     ]

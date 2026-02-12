@@ -84,8 +84,8 @@ class TestMakeEventDict:
             event_id="e1", source="s", text="t",
             salience={"threat": 0.0, "novelty": 0.5},
         )
-        assert result["salience_breakdown"]["threat"] == "0.00"
-        assert result["salience_breakdown"]["novelty"] == "0.50"
+        assert result["salience_breakdown"]["threat"] == 0.0
+        assert result["salience_breakdown"]["novelty"] == 0.5
 
     def test_predicted_success_none_shows_dash(self):
         result = _make_event_dict(
@@ -151,7 +151,7 @@ class TestProtoEventToDict:
 
         salience = kwargs.pop("salience", None)
         if salience is None:
-            salience = types_pb2.SalienceVector()
+            salience = types_pb2.SalienceResult()
 
         return memory_pb2.EpisodicEvent(
             salience=salience,
@@ -173,29 +173,41 @@ class TestProtoEventToDict:
 
     def test_salience_zero_values_preserved(self):
         """Salience dimensions with 0.0 should appear in breakdown, not be dropped."""
-        salience = types_pb2.SalienceVector(
+        salience = types_pb2.SalienceResult(
             threat=0.0,
-            novelty=0.75,
-            humor=0.0,
-            goal_relevance=0.3,
+            salience=0.62,
+            habituation=0.1,
+            model_id="test-salience",
         )
+        salience.vector["novelty"] = 0.75
+        salience.vector["goal_relevance"] = 0.3
+        salience.vector["opportunity"] = 0.2
+        salience.vector["actionability"] = 0.9
+        salience.vector["social"] = 0.0
         ev = self._make_proto_event(salience=salience)
         result = _proto_event_to_dict(ev)
         bd = result["salience_breakdown"]
-        # All 9 dimensions should be present (proto3 defaults unset to 0.0)
+        # All 8 dimensions should be present (3 scalars + 5 vector dimensions)
         assert "threat" in bd
-        assert bd["threat"] == "0.00"
-        assert bd["novelty"] == "0.75"
-        assert bd["humor"] == "0.00"
-        assert bd["goal_relevance"] == "0.30"
+        assert bd["threat"] == 0.0
+        assert bd["novelty"] == 0.75
+        assert bd["social"] == 0.0
+        assert bd["goal_relevance"] == pytest.approx(0.3)
 
     def test_salience_all_dimensions_present(self):
-        """All 9 salience dimensions should always be in breakdown."""
+        """All 8 salience dimensions should always be in breakdown."""
         ev = self._make_proto_event()
         result = _proto_event_to_dict(ev)
-        expected_keys = {"threat", "opportunity", "humor", "novelty",
-                         "goal_relevance", "social", "emotional",
-                         "actionability", "habituation"}
+        expected_keys = {
+            "threat",
+            "salience",
+            "habituation",
+            "novelty",
+            "goal_relevance",
+            "opportunity",
+            "actionability",
+            "social",
+        }
         assert set(result["salience_breakdown"].keys()) == expected_keys
 
     def test_matched_heuristic_sets_path(self):
