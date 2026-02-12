@@ -909,10 +909,10 @@ def format_event_for_llm(event: Any) -> str:
         parts = []
         if event.salience.threat > 0.1:
             parts.append(f"threat={event.salience.threat:.2f}")
-        if event.salience.opportunity > 0.1:
-            parts.append(f"opportunity={event.salience.opportunity:.2f}")
-        if event.salience.novelty > 0.1:
-            parts.append(f"novelty={event.salience.novelty:.2f}")
+        if event.salience.vector.get("opportunity", 0.0) > 0.1:
+            parts.append(f"opportunity={event.salience.vector['opportunity']:.2f}")
+        if event.salience.vector.get("novelty", 0.0) > 0.1:
+            parts.append(f"novelty={event.salience.vector['novelty']:.2f}")
         if parts:
             salience_str = f" [{', '.join(parts)}]"
     return f"[{event.source}]{salience_str}: {event.raw_text}"
@@ -1043,11 +1043,19 @@ class ExecutiveServicer(executive_pb2_grpc.ExecutiveServiceServicer):
         """Extract salience dimensions from proto."""
         if not salience_proto:
             return {}
-        return {
+
+        # Extract all 3 scalars + 5 vector dimensions from SalienceResult
+        result = {
             "threat": salience_proto.threat,
-            "opportunity": salience_proto.opportunity,
-            "novelty": salience_proto.novelty,
+            "salience": salience_proto.salience,
+            "habituation": salience_proto.habituation,
         }
+
+        # Extract vector dimensions
+        for dim in ["novelty", "opportunity", "goal_relevance", "actionability", "social"]:
+            result[dim] = salience_proto.vector.get(dim, 0.0)
+
+        return result
 
     @staticmethod
     def _check_heuristic_quality(condition: str, action: dict) -> str | None:
