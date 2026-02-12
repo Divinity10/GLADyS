@@ -39,6 +39,19 @@ MOJIBAKE_REPAIRS = {
     "\u00e2\u0096\u00bc": "\u25bc",  # ▼ (black down-pointing triangle)
     "\u00e2\u0096\u00ba": "\u25ba",  # ► (black right-pointing pointer)
 
+    # Windows-1252 variants (bytes 0x80-0x9F interpreted as cp1252)
+    "\u00e2\u201d\u20ac": "\u2500",  # ─
+    "\u00e2\u201d\u201a": "\u2502",  # │
+    "\u00e2\u201d\u0152": "\u250c",  # ┌
+    "\u00e2\u201d\u2018": "\u2510",  # ┐
+    "\u00e2\u201d\u201d": "\u2514",  # └
+    "\u00e2\u201d\u02dc": "\u2518",  # ┘
+    "\u00e2\u201d\u0153": "\u251c",  # ├
+    "\u00e2\u201d\u00a4": "\u2524",  # ┤
+    "\u00e2\u201d\u00ac": "\u252c",  # ┬
+    "\u00e2\u201d\u00b4": "\u2534",  # ┴
+    "\u00e2\u201d\u00bc": "\u253c",  # ┼
+
     # Typography
     "\u00e2\u20ac\u00a2": "\u2022",  # • (bullet)
     "\u00e2\u0086\u2019": "\u2192",  # → (rightwards arrow)
