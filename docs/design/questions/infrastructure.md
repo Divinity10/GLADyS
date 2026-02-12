@@ -8,7 +8,7 @@ Deployment models, latency profiles, operational concerns, and maintenance.
 
 ## Open Questions
 
-### Q: Deployment Model and Resource Constraints (Â§15)
+### Q: Deployment Model and Resource Constraints (§15)
 
 **Status**: Gap - needs design
 **Priority**: High (affects architecture decisions)
@@ -54,7 +54,7 @@ The LLM is a black box. The question is: where does that black box live?
 
 ---
 
-### Q: Gemini Code Review Action Items (Â§26)
+### Q: Gemini Code Review Action Items (§26)
 
 **Status**: Tracked
 **Priority**: Medium
@@ -110,7 +110,7 @@ WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warni
 
 | Item | Assessment |
 |------|------------|
-| ADR trait scale mismatch | Already fixed - ADR-0003 Â§7.1 correctly uses -1 to +1 |
+| ADR trait scale mismatch | Already fixed - ADR-0003 §7.1 correctly uses -1 to +1 |
 | Episode ID nullability | No issue - Both ADRs agree it's optional |
 | Skill Registry blocking | Disagree - Learning is higher priority for Phase |
 | Over-engineering concerns | Disagree - ADRs describe vision; Phase implements subset |
@@ -119,7 +119,7 @@ WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warni
 
 ## Resolved
 
-### R: Latency Profiles (Â§4, Â§11)
+### R: Latency Profiles (§4, §11)
 
 **Decision**: Profile-based latency budgets
 **Date**: 2026-01-XX

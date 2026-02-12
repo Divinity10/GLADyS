@@ -31,7 +31,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 
 | Type | File | Purpose |
 | :--- | :--- | :--- |
-| **Truth** | [ADR-0010](adr/ADR-0010-Learning-and-Inference.md) | **Bayesian definitions**, System 1 vs 2, Learning Pipeline, **Outcome evaluation** (Â§3.11), **Deferred validation** (Â§3.12). |
+| **Truth** | [ADR-0010](adr/ADR-0010-Learning-and-Inference.md) | **Bayesian definitions**, System 1 vs 2, Learning Pipeline, **Outcome evaluation** (§3.11), **Deferred validation** (§3.12). |
 | **Truth** | [ADR-0007](adr/ADR-0007-Adaptive-Algorithms.md) | **EWMA**, User Preference tracking logic. |
 | **Design** | [DESIGN.md#learning-subsystem](design/DESIGN.md#learning-subsystem) | TD Learning, Confidence update design and deviations from ADRs. |
 | **Debate** | [Q&A](design/questions/learning.md) | Open questions on **TD Learning** and Heuristics. |

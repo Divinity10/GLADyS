@@ -8,7 +8,7 @@ Heuristics, TD learning, pattern formation, and how GLADyS learns from experienc
 
 ## Open Questions
 
-### Q: TD Learning for Heuristics (Â§20)
+### Q: TD Learning for Heuristics (§20)
 
 **Status**: Open - needs minimal Phase design
 **Priority**: High (core learning mechanism)
@@ -18,7 +18,7 @@ Heuristics, TD learning, pattern formation, and how GLADyS learns from experienc
 
 ADR-0010 defines the Learning Pipeline with System 1 (heuristics) and System 2 (LLM reasoning). The question: **how do heuristics get created and updated from successful reasoning?**
 
-Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 Â§5.6), but the mechanism for:
+Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 §5.6), but the mechanism for:
 1. Creating heuristics from novel reasoning
 2. Updating heuristic confidence based on outcomes
 
@@ -77,7 +77,7 @@ To prove this architecture is achievable, we need:
 
 ---
 
-### Q: Heuristic Learning Infrastructure (Â§23)
+### Q: Heuristic Learning Infrastructure (§23)
 
 **Status**: Partial - credit assignment UX designed; implementation deferred
 **Priority**: Medium (needed for real learning, not Phase)
@@ -131,7 +131,7 @@ The key insight: **implicit feedback > explicit feedback**. User actions (undo, 
 
 ---
 
-### Q: Prediction Baseline Strategy (Â§27)
+### Q: Prediction Baseline Strategy (§27)
 
 **Status**: Designed (Phase: Instrument only; Post-Phase: Implement learning)
 **Priority**: Medium
@@ -199,7 +199,7 @@ CREATE TABLE heuristic_fires (
 
 ---
 
-### Q: Learning Loop Integration Gaps (Â§29)
+### Q: Learning Loop Integration Gaps (§29)
 
 **Status**: Resolved (W2 + prior PRs)
 **Priority**: High (blocks full E2E validation)
@@ -278,7 +278,7 @@ Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Im
 
 ---
 
-### Q: Similarity Threshold Strategy (Â§31)
+### Q: Similarity Threshold Strategy (§31)
 
 **Status**: Open — needs empirical data
 **Priority**: Medium (affects matching quality)
@@ -297,11 +297,11 @@ At 0.7, "user wants ice cream" matches "user wants frozen dessert" (0.78) but no
 
 **Relevant**: ADR-0010 Section 3.2, `heuristics.similarity_threshold`
 
-**When to revisit**: When running load tests or real workloads with meaningful heuristics. See also Â§23.3 (Tuning Mode).
+**When to revisit**: When running load tests or real workloads with meaningful heuristics. See also §23.3 (Tuning Mode).
 
 ---
 
-### Q: Conflicting Heuristic Resolution (Â§32)
+### Q: Conflicting Heuristic Resolution (§32)
 
 **Status**: Open — design decision needed
 **Priority**: Medium
@@ -322,7 +322,7 @@ When multiple heuristics match an event, the highest `similarity * confidence` s
 
 ## Resolved
 
-### R: Semantic Heuristic Matching (Â§28)
+### R: Semantic Heuristic Matching (§28)
 
 **Status**: Resolved (2026-01-25)
 **Priority**: Critical - Fixed
@@ -341,13 +341,13 @@ The current heuristic matching system uses word overlap to find relevant heurist
 
 Replace word overlap with vector similarity using embeddings. "killing neighbor" and "meeting at 1pm" will have very different vectors despite sharing structural words.
 
-**Implementation**: See [Â§22 Heuristic Data Structure](#r-heuristic-data-structure---cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
+**Implementation**: See [§22 Heuristic Data Structure](#r-heuristic-data-structure---cbr--fuzzy-matching-22) for the schema and matching algorithm using pgvector.
 
 **Status**: Migration 008 deployed, embeddings backfilled, semantic matching verified working.
 
 ---
 
-### R: Learning System Design (Â§5)
+### R: Learning System Design (§5)
 
 **Decision**: See ADR-0010
 **Date**: 2026-01-XX
@@ -363,19 +363,19 @@ Resolved questions:
 
 ---
 
-### R: Heuristic Condition Matching (Â§17)
+### R: Heuristic Condition Matching (§17)
 
-**Status**: Superseded by Â§22
+**Status**: Superseded by §22
 **Date**: 2026-01-23
 
-Original design used exact key-value matching. Superseded by embedding-based fuzzy matching in Â§22 because:
+Original design used exact key-value matching. Superseded by embedding-based fuzzy matching in §22 because:
 - Exact matching is too brittle for natural language conditions
 - Without fuzzy logic, GLADyS is just an expert system
 - Semantic similarity via embeddings is brain-like and well-studied
 
 ---
 
-### R: Heuristic Storage Model (Â§21)
+### R: Heuristic Storage Model (§21)
 
 **Decision**: Transaction log pattern
 **Date**: 2026-01-23
@@ -417,7 +417,7 @@ CREATE TABLE heuristic_history (
 
 ---
 
-### R: Heuristic Data Structure - CBR + Fuzzy Matching (Â§22)
+### R: Heuristic Data Structure - CBR + Fuzzy Matching (§22)
 
 **Decision**: Case-Based Reasoning with embedding similarity
 **Date**: 2026-01-23

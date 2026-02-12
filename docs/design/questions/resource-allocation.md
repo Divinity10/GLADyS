@@ -63,9 +63,9 @@ These are known fields that study this class of problem. Research needed to eval
 #### Relationship to Existing Design
 
 - **System 1/2 (ADR-0010)**: Already the core architecture. This question asks: is the switching logic optimal?
-- **Latency profiles (infrastructure.md Â§4/Â§11)**: Defines latency budgets per context. This question asks: how to stay within budget while maximizing accuracy?
+- **Latency profiles (infrastructure.md §4/§11)**: Defines latency budgets per context. This question asks: how to stay within budget while maximizing accuracy?
 - **Confidence threshold**: Currently a static config value. This question asks: should it be dynamic?
-- **Â§30 (Orchestrator vs Executive boundary)**: Proposes Executive decides heuristic-vs-LLM. This question provides the theoretical basis for HOW it decides.
+- **§30 (Orchestrator vs Executive boundary)**: Proposes Executive decides heuristic-vs-LLM. This question provides the theoretical basis for HOW it decides.
 
 ---
 
@@ -144,7 +144,7 @@ These mechanisms could be:
 - **Complementary layers** (preprocessor handles domain-specific, orchestrator handles general)
 - **Evolutionary** (start with #1, add #2 when data shows which changes matter)
 
-See also: Â§36 (Event Condensation Strategy) in cross-cutting.md — overlapping concern.
+See also: §36 (Event Condensation Strategy) in cross-cutting.md — overlapping concern.
 
 ---
 

@@ -89,7 +89,7 @@ service MemoryStorage {
 }
 
 // Salience Gateway Service - the "amygdala"
-// Co-located with Memory per ADR-0001 Â§5.1
+// Co-located with Memory per ADR-0001 §5.1
 // Provides fast salience evaluation for incoming events
 service SalienceGateway {
     // Evaluate salience of an event

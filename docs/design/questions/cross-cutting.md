@@ -8,7 +8,7 @@ Topics that span multiple subsystems: audit, output routing, integration, and ar
 
 ## Open Questions
 
-### Q: Cross-Context Salience Strategy (Â§35)
+### Q: Cross-Context Salience Strategy (§35)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -26,7 +26,7 @@ When a doorbell rings during a gaming session, two contexts apply: gaming (prima
 
 ---
 
-### Q: Event Condensation Strategy (Â§36)
+### Q: Event Condensation Strategy (§36)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -45,13 +45,13 @@ Some sensors produce high-frequency data — a motion sensor firing hundreds of 
 - What's the right condensation unit? By exact match, embedding similarity, or source?
 - Does condensation interact with habituation? (Double-filtering risk)
 - What temporal features matter enough to preserve? (Bursts, periodicity, acceleration)
-- Should condensation be a preprocessor function? (Requires state — see Â§37)
+- Should condensation be a preprocessor function? (Requires state — see §37)
 
 **Relevant**: ADR-0013 Section 6.3 (overload handling), ADR-0004 Section 4 (memory hierarchy)
 
 ---
 
-### Q: Orchestrator vs Executive Responsibility Boundary (Â§30)
+### Q: Orchestrator vs Executive Responsibility Boundary (§30)
 
 **Status**: Resolved — implemented in W3 (branch `poc1/closed-loop-learning`)
 **Priority**: High (affects Phase architecture)
@@ -153,12 +153,12 @@ Key implementation files:
 
 ---
 
-### Q: Orchestrator Coordination Model (Â§31)
+### Q: Orchestrator Coordination Model (§31)
 
 **Status**: Open - needs design
 **Priority**: High (affects scalability and reliability)
 **Created**: 2026-01-26
-**See also**: [resource-allocation.md](resource-allocation.md) — Concurrent Event Processing section addresses Â§31.1 and Â§31.5 specifically
+**See also**: [resource-allocation.md](resource-allocation.md) — Concurrent Event Processing section addresses §31.1 and §31.5 specifically
 
 #### Context
 
@@ -238,7 +238,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 
 ---
 
-### Q: Phase Validation Scope (Â§32)
+### Q: Phase Validation Scope (§32)
 
 **Status**: Open - needs definition
 **Priority**: High (guides all implementation decisions)
@@ -305,7 +305,7 @@ What knobs exist for tuning system behavior?
 
 ##### 32.6 Testing Strategy
 
-**Questions** (also in Â§14.8):
+**Questions** (also in §14.8):
 - How do you regression test a learning system?
 - What's deterministic vs non-deterministic?
 - Simulation environments for sensors?
@@ -313,7 +313,7 @@ What knobs exist for tuning system behavior?
 
 ---
 
-### Q: Cross-Cutting Integration Questions (Â§12)
+### Q: Cross-Cutting Integration Questions (§12)
 
 **Status**: Open
 **Priority**: Medium
@@ -327,7 +327,7 @@ What knobs exist for tuning system behavior?
 
 ---
 
-### Q: Output Routing and User Presence (Â§13)
+### Q: Output Routing and User Presence (§13)
 
 **Status**: Gap - needs design
 **Priority**: High
@@ -413,7 +413,7 @@ Decision needed: unified model or separate concepts?
 
 ---
 
-### Q: Architectural Gaps Inventory (Â§14)
+### Q: Architectural Gaps Inventory (§14)
 
 **Status**: Partial - some resolved, some open
 **Priority**: Varies
@@ -432,7 +432,7 @@ Gap analysis performed after ADR-0010/0011/0012 completion.
 #### Medium Priority (User Experience)
 
 ##### 14.3 Output Routing / User Presence
-See [Â§13 above](#q-output-routing-and-user-presence-13)
+See [§13 above](#q-output-routing-and-user-presence-13)
 
 ##### 14.5 Multi-User / Household
 **Gap**: Mentioned as open question in ADR-0010 but it's architectural.
@@ -484,7 +484,7 @@ See [Â§13 above](#q-output-routing-and-user-presence-13)
 
 ---
 
-### Q: Phase vs ADR-0005 Spec Gaps (Â§19)
+### Q: Phase vs ADR-0005 Spec Gaps (§19)
 
 **Status**: Tracked for post-MVP (intentional simplification)
 **Priority**: Low
@@ -496,7 +496,7 @@ The Phase implementation uses simplified gRPC contracts compared to ADR-0005 spe
 
 #### SalienceGateway Service
 
-| Aspect | ADR-0005 Â§4.5 Spec | Phase Implementation |
+| Aspect | ADR-0005 §4.5 Spec | Phase Implementation |
 |--------|--------------------|--------------------|
 | Package | `gladys.v1` | `gladys.memory` |
 | Service name | `SalienceGatewayService` | `SalienceGateway` |
@@ -525,7 +525,7 @@ The Phase implementation uses simplified gRPC contracts compared to ADR-0005 spe
 
 ## Resolved
 
-### R: Audit System Design (Â§7)
+### R: Audit System Design (§7)
 
 **Decision**: See ADR-0012
 **Date**: 2026-01-18
@@ -563,13 +563,13 @@ The Phase implementation uses simplified gRPC contracts compared to ADR-0005 spe
 
 ---
 
-### R: Orchestrator Language (Â§18)
+### R: Orchestrator Language (§18)
 
 **Decision**: Python
 **Date**: 2026-01-22
 
 See:
-- [SUBSYSTEM_OVERVIEW.md Â§3](../SUBSYSTEM_OVERVIEW.md)
+- [SUBSYSTEM_OVERVIEW.md §3](../SUBSYSTEM_OVERVIEW.md)
 
 Rationale: ML ecosystem, rapid prototyping, team familiarity. Performance-critical paths handled by Rust memory fast-path.
 

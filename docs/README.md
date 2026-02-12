@@ -49,7 +49,7 @@
 |--------------|-----|
 | See events and heuristics visually | [Dashboard](../src/services/dashboard/) |
 | Query the database directly | `python cli/docker.py psql` |
-| Understand why confidence changed | [learning.md Â§20](design/questions/learning.md) |
+| Understand why confidence changed | [learning.md §20](design/questions/learning.md) |
 | Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |
 
 ### Building Features

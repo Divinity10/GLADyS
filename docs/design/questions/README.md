@@ -133,7 +133,7 @@ Each category file follows this format:
 
 ## Migration Notes
 
-This structure was created from the original `OPEN_QUESTIONS.md` (2400+ lines). Section numbers (Â§1-Â§28) are preserved in the category files for historical reference.
+This structure was created from the original `OPEN_QUESTIONS.md` (2400+ lines). Section numbers (§1-§28) are preserved in the category files for historical reference.
 
 The original file is archived at `OPEN_QUESTIONS.md.archive` and the main `OPEN_QUESTIONS.md` now redirects here.
 

@@ -16,13 +16,13 @@ The Phase is successful when we can demonstrate (with mocked sensors/actuators) 
 
 | Capability | Alexa/Siri | ChatGPT | GLADyS |
 |------------|------------|---------|--------|
-| Responds to commands | âœ… | âœ… | âœ… |
-| Learns preferences | âœ… shallow | âŒ | âœ… deep (behavioral patterns) |
-| Proactive actions | âœ… notifications | âŒ | âœ… salience-driven, context-aware |
-| Cross-domain awareness | âŒ siloed | âŒ no state | âœ… unified memory |
-| Gets faster with use | âŒ | âŒ | âœ… heuristic learning |
-| Local/private by default | âŒ cloud | âŒ cloud | âœ… local-first |
-| Customizable personality | âŒ fixed | âŒ | âœ… configurable |
+| Responds to commands | ✅ | ✅ | ✅ |
+| Learns preferences | ✅ shallow | âŒ | ✅ deep (behavioral patterns) |
+| Proactive actions | ✅ notifications | âŒ | ✅ salience-driven, context-aware |
+| Cross-domain awareness | âŒ siloed | âŒ no state | ✅ unified memory |
+| Gets faster with use | âŒ | âŒ | ✅ heuristic learning |
+| Local/private by default | âŒ cloud | âŒ cloud | ✅ local-first |
+| Customizable personality | âŒ fixed | âŒ | ✅ configurable |
 
 ### Killer Features (Priority Order)
 
@@ -50,8 +50,8 @@ The Phase is successful when we can demonstrate (with mocked sensors/actuators) 
 | Feature | Phase Requirement | Status |
 |---------|-----------------|--------|
 | Heuristic creation | Explicit feedback → new heuristic stored | âš ï¸ Needs validation |
-| Heuristic matching | Similar event → heuristic fires | âœ… Proven |
-| Cross-domain query | Multi-hop reasoning works | âœ… Proven |
+| Heuristic matching | Similar event → heuristic fires | ✅ Proven |
+| Cross-domain query | Multi-hop reasoning works | ✅ Proven |
 | Proactive action | Real sensor → system responds | ðŸ”´ No real sensor yet |
 
 ---
@@ -60,12 +60,12 @@ The Phase is successful when we can demonstrate (with mocked sensors/actuators) 
 
 | Phase | Component | Status | Test/Proof |
 |-------|-----------|--------|------------|
-| **Phase 1** | Semantic Memory | âœ… Complete | `test_semantic_memory.py` |
+| **Phase 1** | Semantic Memory | ✅ Complete | `test_semantic_memory.py` |
 | **Phase 2** | Episodic Retrieval | âš ï¸ Partial | Time-based works, similarity untested |
-| **Phase 3** | Skill Registry | âœ… Complete | `test_skill_registry.py` |
-| **Phase 4** | E2E Query Flow | âœ… Complete | `test_e2e_query.py` |
-| **Learning** | TD Learning | âœ… Complete | `test_td_learning.py` |
-| **Learning** | Heuristic Matching | âœ… Complete | `test_killer_feature.py` |
+| **Phase 3** | Skill Registry | ✅ Complete | `test_skill_registry.py` |
+| **Phase 4** | E2E Query Flow | ✅ Complete | `test_e2e_query.py` |
+| **Learning** | TD Learning | ✅ Complete | `test_td_learning.py` |
+| **Learning** | Heuristic Matching | ✅ Complete | `test_killer_feature.py` |
 | **Learning** | Full Loop | âš ï¸ Issues | `test_scenario_5_learning_loop.py` - reliability issues |
 
 ---
@@ -97,13 +97,13 @@ These scenarios guide what we build. Each exposes layers that must work.
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 0 | Storage | PostgreSQL stores all data | âœ… Proven |
-| 1a | Episodic Memory | Store/retrieve events | âœ… Proven |
-| 1b | Semantic Memory | Store/retrieve entities & relationships | âœ… Proven (test_semantic_memory.py) |
-| 2 | Retrieval | Query relevant entities, traverse relationships | âœ… Proven (2-hop context expansion) |
-| 3 | Skill Registry | Know what skills exist and their capabilities | âœ… Proven (test_skill_registry.py) |
-| 4 | Routing/Planning | Connect query to correct skill | âœ… Proven (test_e2e_query.py) |
-| 5 | Execution | Call skill, return result | âœ… Proven (mocked execution) |
+| 0 | Storage | PostgreSQL stores all data | ✅ Proven |
+| 1a | Episodic Memory | Store/retrieve events | ✅ Proven |
+| 1b | Semantic Memory | Store/retrieve entities & relationships | ✅ Proven (test_semantic_memory.py) |
+| 2 | Retrieval | Query relevant entities, traverse relationships | ✅ Proven (2-hop context expansion) |
+| 3 | Skill Registry | Know what skills exist and their capabilities | ✅ Proven (test_skill_registry.py) |
+| 4 | Routing/Planning | Connect query to correct skill | ✅ Proven (test_e2e_query.py) |
+| 5 | Execution | Call skill, return result | ✅ Proven (mocked execution) |
 
 ---
 
@@ -127,7 +127,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1b | Semantic Memory | Know Mike's email address | âœ… Ready (entity storage works) |
+| 1b | Semantic Memory | Know Mike's email address | ✅ Ready (entity storage works) |
 | 3 | Skill Registry | Email skill registered | ðŸ”´ Need email skill manifest |
 | 5 | Execution | Call email actuator | ðŸ”´ Need email actuator |
 
@@ -172,10 +172,10 @@ These scenarios guide what we build. Each exposes layers that must work.
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1a | Episodic Memory | Store events | âœ… Proven |
-| 1c | Procedural Memory | Store heuristics | âœ… Proven |
-| 2 | Heuristic Matching | Find matching heuristics | âœ… Proven (word overlap) |
-| 4 | LLM Integration | Reason about events | âœ… Proven (Ollama) |
+| 1a | Episodic Memory | Store events | ✅ Proven |
+| 1c | Procedural Memory | Store heuristics | ✅ Proven |
+| 2 | Heuristic Matching | Find matching heuristics | ✅ Proven (word overlap) |
+| 4 | LLM Integration | Reason about events | ✅ Proven (Ollama) |
 | 4 | Pattern Extraction | Extract heuristic from feedback | âš ï¸ Partially proven |
 
 ---
@@ -210,23 +210,23 @@ Second time (next day):
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| All from Scenario 1 | — | Full query flow | âœ… Proven (test_e2e_query.py) |
+| All from Scenario 1 | — | Full query flow | ✅ Proven (test_e2e_query.py) |
 | 4b | Pattern Extraction | LLM generates useful heuristic | âš ï¸ Works but quality varies |
-| 1c | Heuristic Persistence | Survives restart | âœ… Proven (PostgreSQL) |
-| 2c | Natural Language Matching | Handles query variations | âœ… Semantic embeddings (0.7 threshold) |
+| 1c | Heuristic Persistence | Survives restart | ✅ Proven (PostgreSQL) |
+| 2c | Natural Language Matching | Handles query variations | ✅ Semantic embeddings (0.7 threshold) |
 
 ---
 
 ### Scenario 6: Proactive Sensor Response
 
-**Sensor event**: Temperature sensor reports 60Â°F (dropped from 72Â°F)
+**Sensor event**: Temperature sensor reports 60°F (dropped from 72°F)
 
 **Expected flow**:
 1. Sensor sends event → Orchestrator receives
 2. Salience evaluation → High (temperature drop is significant)
-3. Heuristic check → "When temp drops below 65Â°F, adjust thermostat"
+3. Heuristic check → "When temp drops below 65°F, adjust thermostat"
 4. Action → Call thermostat actuator to increase heat
-5. Notification → "Temperature dropped to 60Â°F. Adjusting thermostat."
+5. Notification → "Temperature dropped to 60°F. Adjusting thermostat."
 
 **Why this scenario matters**:
 - System-initiated, not user-initiated (proactive)
@@ -239,8 +239,8 @@ Second time (next day):
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
 | 0 | Sensor Integration | Receive sensor events | ðŸ”´ Not built |
-| 1a | Episodic Memory | Store temperature events | âœ… Proven |
-| 2c | Heuristic Matching | Match condition to event | âœ… Proven |
+| 1a | Episodic Memory | Store temperature events | ✅ Proven |
+| 2c | Heuristic Matching | Match condition to event | ✅ Proven |
 | 5 | Actuator Execution | Call thermostat | ðŸ”´ Not built |
 | — | Salience Thresholds | Determine significance | âš ï¸ Structure exists |
 
@@ -267,7 +267,7 @@ Second time (next day):
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1a | Episodic Memory | Track repeated events | âœ… Proven |
+| 1a | Episodic Memory | Track repeated events | ✅ Proven |
 | 2a | Pattern Detection | Identify recurring patterns | ðŸ”´ Not built |
 | — | Confidence Accumulation | Build confidence over time | ðŸ”´ Not built |
 | 4 | Suggestion Generation | Propose automation | ðŸ”´ Not built |
@@ -295,7 +295,7 @@ Second time (next day):
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1b | Semantic Memory | Store multiple entities with same name | âœ… Done |
+| 1b | Semantic Memory | Store multiple entities with same name | ✅ Done |
 | 2b | Entity Resolution | Detect ambiguity | ðŸ”´ Not built |
 | — | Clarification Flow | Ask user, process response | ðŸ”´ Not built |
 | 4 | Context Tracking | Remember clarification in conversation | ðŸ”´ Not built |
@@ -307,15 +307,15 @@ Second time (next day):
 **User experience**:
 
 ```
-Event: Temperature drops to 68Â°F
-System: [Heuristic fires] "Adjusting thermostat to 72Â°F"
+Event: Temperature drops to 68°F
+System: [Heuristic fires] "Adjusting thermostat to 72°F"
 User: "No, don't do that. I like it cool."
 System: [Decreases heuristic confidence]
-         "Got it. I won't adjust the thermostat when it's 68Â°F."
+         "Got it. I won't adjust the thermostat when it's 68°F."
 
-Next time: Temperature drops to 68Â°F
+Next time: Temperature drops to 68°F
 System: [Heuristic confidence too low, doesn't fire]
-        [May ask: "Temperature is 68Â°F. Want me to adjust the thermostat?"]
+        [May ask: "Temperature is 68°F. Want me to adjust the thermostat?"]
 ```
 
 **Why this scenario matters**:
@@ -328,10 +328,10 @@ System: [Heuristic confidence too low, doesn't fire]
 
 | Layer | Component | What It Does | Status |
 |-------|-----------|--------------|--------|
-| 1c | Procedural Memory | Update heuristic confidence | âœ… Proven (test_td_learning.py) |
-| — | Credit Assignment | Know which heuristic caused action | âœ… matched_heuristic_id propagated |
-| — | Confidence Threshold | Don't fire low-confidence heuristics | âœ… Threshold = 0.5 |
-| 4 | Feedback Processing | Handle negative feedback | âœ… UpdateHeuristicConfidence RPC |
+| 1c | Procedural Memory | Update heuristic confidence | ✅ Proven (test_td_learning.py) |
+| — | Credit Assignment | Know which heuristic caused action | ✅ matched_heuristic_id propagated |
+| — | Confidence Threshold | Don't fire low-confidence heuristics | ✅ Threshold = 0.5 |
+| 4 | Feedback Processing | Handle negative feedback | ✅ UpdateHeuristicConfidence RPC |
 
 ---
 
@@ -339,24 +339,24 @@ System: [Heuristic confidence too low, doesn't fire]
 
 | Layer | Component | Description | Status | Proven By |
 |-------|-----------|-------------|--------|-----------|
-| 0 | Storage | PostgreSQL + pgvector | âœ… Done | Local DB working |
-| 1a | Episodic Memory | Event storage/retrieval | âœ… Done | Events store, query works |
-| 1b | Semantic Memory | Entity + relationship storage | âœ… Done | test_semantic_memory.py |
-| 1c | Procedural Memory | Heuristic storage + confidence | âœ… Done | test_td_learning.py |
+| 0 | Storage | PostgreSQL + pgvector | ✅ Done | Local DB working |
+| 1a | Episodic Memory | Event storage/retrieval | ✅ Done | Events store, query works |
+| 1b | Semantic Memory | Entity + relationship storage | ✅ Done | test_semantic_memory.py |
+| 1c | Procedural Memory | Heuristic storage + confidence | ✅ Done | test_td_learning.py |
 | 2a | Event Retrieval | Query events by time/similarity | âš ï¸ Partial | Time works, similarity untested |
-| 2b | Entity Retrieval | Query entities, traverse relationships | âœ… Done | test_semantic_memory.py |
-| 2c | Heuristic Matching | Match events to heuristics (semantic) | âœ… Done | test_killer_feature.py |
-| 3 | Skill Registry | Capability discovery | âœ… Done | test_skill_registry.py |
-| 4a | LLM Reasoning | Process events with LLM | âœ… Done | Executive stub + Ollama |
+| 2b | Entity Retrieval | Query entities, traverse relationships | ✅ Done | test_semantic_memory.py |
+| 2c | Heuristic Matching | Match events to heuristics (semantic) | ✅ Done | test_killer_feature.py |
+| 3 | Skill Registry | Capability discovery | ✅ Done | test_skill_registry.py |
+| 4a | LLM Reasoning | Process events with LLM | ✅ Done | Executive stub + Ollama |
 | 4b | Pattern Extraction | Extract heuristic from feedback | âš ï¸ Partial | Works, quality varies |
-| 4c | Query Routing | Route queries to skills | âœ… Done | test_e2e_query.py |
+| 4c | Query Routing | Route queries to skills | ✅ Done | test_e2e_query.py |
 | 5 | Skill Execution | Call sensors/actuators | âš ï¸ Mocked | test_e2e_query.py (mock executor)
 
 ---
 
 ## Next Steps (Ordered)
 
-### Phase 1: Semantic Memory Foundation âœ… COMPLETE
+### Phase 1: Semantic Memory Foundation ✅ COMPLETE
 **Goal**: Prove we can store and retrieve entities with relationships
 
 **Completed**: test_semantic_memory.py proves all criteria met.
@@ -364,19 +364,19 @@ System: [Heuristic confidence too low, doesn't fire]
 ### Phase 2: Episodic Retrieval Quality âš ï¸ PARTIAL
 **Goal**: Prove similarity-based retrieval works
 
-1. âœ… Storage works with embeddings
+1. ✅ Storage works with embeddings
 2. âš ï¸ Similarity-based retrieval not explicitly tested
 3. âš ï¸ Threshold tuning needs validation
 
 **Remaining**:
 - Add test_episodic_similarity.py to prove semantic retrieval
 
-### Phase 3: Skill Registry (Mock) âœ… COMPLETE
+### Phase 3: Skill Registry (Mock) ✅ COMPLETE
 **Goal**: Prove skills can advertise capabilities
 
 **Completed**: test_skill_registry.py proves all criteria met.
 
-### Phase 4: End-to-End Query Flow âœ… COMPLETE
+### Phase 4: End-to-End Query Flow ✅ COMPLETE
 **Goal**: Prove "Is Steve online?" works with mocks
 
 **Completed**: test_e2e_query.py proves full flow with mocked skill execution.
@@ -422,24 +422,24 @@ System: [Heuristic confidence too low, doesn't fire]
 
 | Test | File | What It Proves | Status |
 |------|------|----------------|--------|
-| Heuristic storage | test_heuristic_flow.py | LLM extracts pattern, stores to DB | âœ… Pass |
-| Heuristic matching | test_killer_feature.py | Semantic matching skips LLM | âœ… Pass |
-| TD Learning | test_td_learning.py | Confidence updates work, clamping works | âœ… Pass |
-| Semantic Memory | test_semantic_memory.py | Entity + relationship storage, 2-hop expansion | âœ… Pass |
-| Skill Registry | test_skill_registry.py | YAML manifests, capability query | âœ… Pass |
-| E2E Query | test_e2e_query.py | Full "Is Steve online?" flow | âœ… Pass |
+| Heuristic storage | test_heuristic_flow.py | LLM extracts pattern, stores to DB | ✅ Pass |
+| Heuristic matching | test_killer_feature.py | Semantic matching skips LLM | ✅ Pass |
+| TD Learning | test_td_learning.py | Confidence updates work, clamping works | ✅ Pass |
+| Semantic Memory | test_semantic_memory.py | Entity + relationship storage, 2-hop expansion | ✅ Pass |
+| Skill Registry | test_skill_registry.py | YAML manifests, capability query | ✅ Pass |
+| E2E Query | test_e2e_query.py | Full "Is Steve online?" flow | ✅ Pass |
 | Learning Loop | test_scenario_5_learning_loop.py | Full S2→S1 handoff scenarios | âš ï¸ Intermittent |
-| Lab Bench | test_lab_bench.py | Evaluation UI integration | âœ… Pass |
-| Evaluation RPCs | test_evaluation_rpcs.py | Response streaming for UI | âœ… Pass |
+| Lab Bench | test_lab_bench.py | Evaluation UI integration | ✅ Pass |
+| Evaluation RPCs | test_evaluation_rpcs.py | Response streaming for UI | ✅ Pass |
 
 ---
 
 ## Resolved Questions
 
-1. **Entity schema**: âœ… Relational (entities + relationships tables in PostgreSQL)
-2. **Skill manifest format**: âœ… YAML (see plugins/skills/minecraft-skill.yaml)
-3. **Query routing**: âœ… Capability-based lookup via SkillRegistry
-4. **Heuristic matching**: âœ… Semantic embeddings with 0.7 cosine similarity threshold
+1. **Entity schema**: ✅ Relational (entities + relationships tables in PostgreSQL)
+2. **Skill manifest format**: ✅ YAML (see plugins/skills/minecraft-skill.yaml)
+3. **Query routing**: ✅ Capability-based lookup via SkillRegistry
+4. **Heuristic matching**: ✅ Semantic embeddings with 0.7 cosine similarity threshold
 
 ## Open Questions
 

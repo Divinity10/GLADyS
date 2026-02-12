@@ -36,5 +36,5 @@ Success is goal-dependent. "Killing teammates" is a success if that's the player
 
 **Phase 2 approach**: Static per-domain goals from config. Dynamic selection deferred. Design interfaces to accept goal context so future implementations can provide richer goal awareness.
 
-**Related**: EXECUTIVE_DESIGN.md, DECISION_STRATEGY.md (F-07), CONFIDENCE_BOOTSTRAPPING.md Â§Three Measurement Dimensions, ADR-0010 Â§3.11 (outcome evaluation)
+**Related**: EXECUTIVE_DESIGN.md, DECISION_STRATEGY.md (F-07), CONFIDENCE_BOOTSTRAPPING.md §Three Measurement Dimensions, ADR-0010 §3.11 (outcome evaluation)
 

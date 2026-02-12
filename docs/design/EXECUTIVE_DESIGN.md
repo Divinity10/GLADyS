@@ -37,13 +37,13 @@ Design is complete when we can trace every scenario end-to-end on paper without 
 
 | # | Scenario | Status | Implementation Notes |
 |---|----------|--------|---------------------|
-| 1 | High-conf heuristic fires | âœ… Works | Router uses cached action from `effects_json` |
-| 2 | Low-conf → LLM with suggestion | âœ… **Implemented** | HeuristicSuggestion passed through pipeline (2026-01-28) |
-| 3 | No heuristic → LLM | âœ… Works | Event queued, Executive calls LLM |
-| 4 | Positive feedback | âœ… Works | `ProvideFeedback` RPC implemented |
-| 5 | Negative feedback | âœ… Works | `ProvideFeedback` RPC implemented |
-| 6 | Outcome → confidence | âœ… Works | `OutcomeWatcher` correlates events |
-| 7 | New heuristic formation | âœ… Works | LLM pattern extraction on positive feedback |
+| 1 | High-conf heuristic fires | ✅ Works | Router uses cached action from `effects_json` |
+| 2 | Low-conf → LLM with suggestion | ✅ **Implemented** | HeuristicSuggestion passed through pipeline (2026-01-28) |
+| 3 | No heuristic → LLM | ✅ Works | Event queued, Executive calls LLM |
+| 4 | Positive feedback | ✅ Works | `ProvideFeedback` RPC implemented |
+| 5 | Negative feedback | ✅ Works | `ProvideFeedback` RPC implemented |
+| 6 | Outcome → confidence | ✅ Works | `OutcomeWatcher` correlates events |
+| 7 | New heuristic formation | ✅ Works | LLM pattern extraction on positive feedback |
 
 **Note**: All scenarios now have working implementations. Scenario 2 was completed 2026-01-28.
 
@@ -51,7 +51,7 @@ Design is complete when we can trace every scenario end-to-end on paper without 
 
 ## Identified Gaps
 
-### Gap 1: HeuristicSuggestion Not Passed to Executive âœ… FIXED (2026-01-28)
+### Gap 1: HeuristicSuggestion Not Passed to Executive ✅ FIXED (2026-01-28)
 
 **Problem** (resolved): When a low-confidence heuristic matches, the router queues the event but discards the heuristic information.
 
@@ -493,7 +493,7 @@ executive:
 
 ## Confidence Update Logic
 
-Per [ADR-0010 Â§3.12.2](../adr/ADR-0010-Learning-and-Inference.md):
+Per [ADR-0010 §3.12.2](../adr/ADR-0010-Learning-and-Inference.md):
 
 **Confidence measures**: Probability that heuristic's response leads to a **good outcome**.
 
@@ -535,12 +535,12 @@ confidence = (1 + success_count) / (2 + fire_count)
 
 ## Implementation Checklist
 
-- [x] Add `HeuristicSuggestion` to `executive.proto` âœ… (2026-01-28)
-- [x] Update `ProcessEventRequest` with `suggestion` field âœ… (2026-01-28)
-- [x] Run `proto_gen.py` âœ… (2026-01-28)
-- [x] Update `EventQueue` to build suggestion from matched heuristic âœ… (2026-01-28)
-- [x] Update `ExecutiveClient` to pass suggestion âœ… (2026-01-28)
-- [x] Update Executive server to include suggestion in LLM prompt âœ… (2026-01-28)
+- [x] Add `HeuristicSuggestion` to `executive.proto` ✅ (2026-01-28)
+- [x] Update `ProcessEventRequest` with `suggestion` field ✅ (2026-01-28)
+- [x] Run `proto_gen.py` ✅ (2026-01-28)
+- [x] Update `EventQueue` to build suggestion from matched heuristic ✅ (2026-01-28)
+- [x] Update `ExecutiveClient` to pass suggestion ✅ (2026-01-28)
+- [x] Update Executive server to include suggestion in LLM prompt ✅ (2026-01-28)
 - [ ] Add pack manifest schema for `executive` section (deferred to release)
 - [ ] Implement pack manifest loading (deferred to release)
 

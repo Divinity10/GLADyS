@@ -187,7 +187,7 @@ The weights below express relative signal strength. Actual magnitudes must be ca
 
 | Signal | Relative strength | Path | Notes |
 |--------|-------------------|------|-------|
-| Explicit positive (user ðŸ‘) | Strong | Both | Direct validation — but measures satisfaction, not correctness (see Â§Three Measurement Dimensions) |
+| Explicit positive (user ðŸ‘) | Strong | Both | Direct validation — but measures satisfaction, not correctness (see §Three Measurement Dimensions) |
 | Explicit negative (user ðŸ‘Ž) | Strong negative | Both | Direct rejection |
 | LLM endorsement (similar response) | Moderate | Bootstrapping | LLM agrees independently |
 | Dev positive (outcome rated successful) | Strong | Both | Measures correctness — strongest quality signal |
@@ -211,7 +211,7 @@ The `UpdateHeuristicConfidenceRequest` proto has the fields needed:
 - Confidence = `alpha / (alpha + beta)`
 - Prior: alpha = 1.0, beta = 1.0 (uniform — no opinion)
 
-**Magnitude affects confidence only.** Success rate uses a separate integer mechanism — `success_count` incremented only on outcome-confirmed success (see Â§Success Rate).
+**Magnitude affects confidence only.** Success rate uses a separate integer mechanism — `success_count` incremented only on outcome-confirmed success (see §Success Rate).
 
 **Implementation required**: `storage.py` currently ignores `magnitude`. The formula `(1 + success_count) / (2 + fire_count)` uses integer counts. Must be updated to use float alpha/beta columns. This is a prerequisite for bootstrapping — without it, all signals are treated as full-weight observations.
 
@@ -349,7 +349,7 @@ These metrics support both Phase validation and the Python-vs-C# decision.
 
 Specific signals that would indicate Python is insufficient:
 
-1. `event_processing_latency_ms` P95 exceeds 100ms target (ADR-0014 Â§12) excluding LLM wait time
+1. `event_processing_latency_ms` P95 exceeds 100ms target (ADR-0014 §12) excluding LLM wait time
 2. Semaphore contention consistently above 50% (GIL-related scheduling issues)
 3. Memory growth under sustained load (Python object overhead)
 4. CPU utilization dominated by Python overhead rather than useful work
@@ -445,7 +445,7 @@ Confidence bootstrapping addresses one dimension. The system actually tracks thr
 
 Success rate = `success_count / fire_count`. Both fields exist in the `heuristics` table and proto. Currently `success_count` is incremented on any positive feedback — it should only be incremented when the action's outcome is evaluated as successful.
 
-**What "success" means**: Determined by the domain skill's outcome evaluator (ADR-0010 Â§3.11, ADR-0003 Â§6.4). The evaluator defines outcome signals (e.g., "player_survived" = positive, "player_died" = negative) and a correlation window for matching decisions to outcomes. The domain skill is the authority on correctness.
+**What "success" means**: Determined by the domain skill's outcome evaluator (ADR-0010 §3.11, ADR-0003 §6.4). The evaluator defines outcome signals (e.g., "player_survived" = positive, "player_died" = negative) and a correlation window for matching decisions to outcomes. The domain skill is the authority on correctness.
 
 **Success depends on the user's goal.** Killing teammates is a success if that's the player's goal. The executive's `EXECUTIVE_GOALS` config provides goal context to the LLM prompt and outcome evaluation. Goal identification is a separate design question (see `docs/design/questions/goal-identification.md`).
 

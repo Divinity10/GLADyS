@@ -310,7 +310,7 @@ async def route_event(self, event, salience: SalienceResult):
 
 ### Open Questions
 
-1. **How do context profiles (ADR-0013 Â§5.3) interact with weights?** Are profiles just
+1. **How do context profiles (ADR-0013 §5.3) interact with weights?** Are profiles just
    preset weight configurations, or do they also affect which dimensions are active?
 
 2. **Should impact be added as a dimension?** (Magnitude of effect on user's state, orthogonal to valence.) Deferred per YAGNI — threat/opportunity should encode magnitude in their scores. Add if data shows current model under-represents magnitude.

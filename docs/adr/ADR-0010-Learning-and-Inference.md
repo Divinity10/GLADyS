@@ -18,10 +18,10 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Heuristic Store** | âœ… Implemented | `heuristics` table with embedding-based matching (migrations 003, 008) |
-| **Episodic Store** | âœ… Implemented | `episodic_events` table per ADR-0009 |
-| **TD Confidence Updates** | âœ… Implemented | Basic delta learning on heuristic confidence |
-| **Semantic Matching** | âœ… Implemented | pgvector embeddings for fuzzy heuristic matching |
+| **Heuristic Store** | ✅ Implemented | `heuristics` table with embedding-based matching (migrations 003, 008) |
+| **Episodic Store** | ✅ Implemented | `episodic_events` table per ADR-0009 |
+| **TD Confidence Updates** | ✅ Implemented | Basic delta learning on heuristic confidence |
+| **Semantic Matching** | ✅ Implemented | pgvector embeddings for fuzzy heuristic matching |
 | **Novelty Detector** | âŒ Not implemented | Designed but not built |
 | **Pattern Detector** | âŒ Not implemented | Background batch analysis - future work |
 | **Causal Modeler** | âŒ Not implemented | Correlation/causation analysis - future work |
@@ -381,7 +381,7 @@ Classification by implementation priority and triggers for when to add sophistic
 |-----------|----------------|-----------|
 | **Outcome Evaluator** | Pack-provided callbacks | Core learning needs domain signals |
 | **Deferred Queue** | Simple FIFO | Experience replay is fundamental |
-| **Context-dependent rates** | Per-domain learning_rate (Â§3.5) | Already designed |
+| **Context-dependent rates** | Per-domain learning_rate (§3.5) | Already designed |
 
 #### 3.13.2 Post-MVP (Implement When Metrics Indicate)
 

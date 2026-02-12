@@ -8,7 +8,7 @@ Plugin architecture, sensors, skills, actuators, integration models, and skill d
 
 ## Open Questions
 
-### Q: Preprocessor Plugin Constraints (Â§37)
+### Q: Preprocessor Plugin Constraints (§37)
 
 **Status**: Open — design decision
 **Priority**: Medium
@@ -31,7 +31,7 @@ Raw sensor data is often noisy. Preprocessors are optional plugins between a sen
 
 ---
 
-### Q: Actuator/Effector Gap (Â§1)
+### Q: Actuator/Effector Gap (§1)
 
 **Status**: Stale - predates ADR-0011
 **Priority**: High (if actuators proceed)
@@ -50,13 +50,13 @@ The architecture shows sensors (input) flowing to Executive which produces speec
 #### Original Questions (Now Mostly Resolved by ADR-0011)
 
 - Should actuators be a new plugin type or an extension of skills? → **New type (ADR-0011)**
-- What's the command validation / safety bounds model? → **See ADR-0011 Â§4**
-- Rate limiting to prevent oscillation? → **See ADR-0011 Â§5**
-- Confirmation requirements for high-impact actions? → **See ADR-0011 Â§6**
+- What's the command validation / safety bounds model? → **See ADR-0011 §4**
+- Rate limiting to prevent oscillation? → **See ADR-0011 §5**
+- Confirmation requirements for high-impact actions? → **See ADR-0011 §6**
 
 ---
 
-### Q: Tiered Actuator Security (Â§3)
+### Q: Tiered Actuator Security (§3)
 
 **Status**: Open - partially addressed in ADR-0011
 **Priority**: High (if actuators proceed)
@@ -82,7 +82,7 @@ ADR-0008 security model is good for data privacy, but physical actuators have di
 
 ---
 
-### Q: Plugin Taxonomy and Processing Pipeline (Â§9)
+### Q: Plugin Taxonomy and Processing Pipeline (§9)
 
 **Status**: Open - design captured but DAG questions remain
 **Priority**: High
@@ -144,7 +144,7 @@ requires:
 
 ---
 
-### Q: Skill Architecture Design Direction (Â§25)
+### Q: Skill Architecture Design Direction (§25)
 
 **Status**: Design captured (pre-Phase)
 **Priority**: Medium (Phase uses simple model; full design for post-Phase)
@@ -214,7 +214,7 @@ contributes_heuristics:
 
 ## Resolved
 
-### R: Actuator System Design (Â§6)
+### R: Actuator System Design (§6)
 
 **Decision**: See ADR-0011
 **Date**: 2026-01-XX
@@ -232,7 +232,7 @@ All original questions resolved:
 
 ---
 
-### R: Integration Plugin Model (Â§10)
+### R: Integration Plugin Model (§10)
 
 **Decision**: Start with Home Assistant; design generic Integration interface
 **Date**: 2026-01-XX

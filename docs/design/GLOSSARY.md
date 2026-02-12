@@ -59,7 +59,7 @@ A plugin that operates within the brain. Transforms, analyzes, or answers questi
 
 **Direction:** Brain â†” Brain
 
-See: ADR-0003, [questions/plugins.md](questions/plugins.md) Â§9
+See: ADR-0003, [questions/plugins.md](questions/plugins.md) §9
 
 ### Preprocessor
 *Subtype of Skill*
@@ -102,7 +102,7 @@ See: ADR-0011
 ### Sensor Protocol
 The language-agnostic contract that all GLADyS adapters must implement to communicate with the orchestrator. Covers registration, event publishing, heartbeats, health reporting, recovery, capture/replay, and flow control.
 
-See: SENSOR_ARCHITECTURE.md Â§3
+See: SENSOR_ARCHITECTURE.md §3
 
 ### Driver
 A lightweight, application-specific component that captures events from a target application and sends them to an adapter. Drivers are polyglot and run inside or alongside the application they monitor; they are a sensor-internal concern.
@@ -110,17 +110,17 @@ A lightweight, application-specific component that captures events from a target
 **Language:** Polyglot (native to target app)
 **Direction:** App → driver → adapter → orchestrator
 
-See: SENSOR_ARCHITECTURE.md Â§1.1
+See: SENSOR_ARCHITECTURE.md §1.1
 
 ### Delivery Pattern
 The mechanism by which a driver collects data from its target. Phase 2 supports **push** (driver sends events when they occur) and **poll** (adapter periodically checks state) patterns.
 
-See: SENSOR_ARCHITECTURE.md Â§2.3
+See: SENSOR_ARCHITECTURE.md §2.3
 
 ### Sensor Manifest
 A YAML configuration file that declares a sensor's identity, capabilities (event types), heartbeats, and dependencies. Used by the orchestrator for registration, dead-sensor detection, and capacity planning.
 
-See: SENSOR_ARCHITECTURE.md Â§10
+See: SENSOR_ARCHITECTURE.md §10
 
 ### Intent
 A routing hint provided by an adapter indicating whether an event expects a response.
@@ -131,12 +131,12 @@ A routing hint provided by an adapter indicating whether an event expects a resp
 | `informational` | Store as context in memory only; no pipeline routing |
 | `unknown` | Default; let salience decide routing |
 
-See: SENSOR_ARCHITECTURE.md Â§2.2
+See: SENSOR_ARCHITECTURE.md §2.2
 
 ### evaluation_data
 A secondary data bucket in an event containing solution or "cheat" data. Stored for learning and evaluation, but stripped by the orchestrator before the Executive sees it to prevent leaking the answer.
 
-See: SENSOR_ARCHITECTURE.md Â§2.2
+See: SENSOR_ARCHITECTURE.md §2.2
 
 ### Skill Pack
 A logical unit of distribution grouping related components for a specific domain. Typically includes a sensor, a domain skill, and associated heuristics.
@@ -233,7 +233,7 @@ See: ADR-0010
 ### Source-domain Scoping
 A mechanism using an event's `source` field as a hard filter in heuristic matching. Prevents cross-domain false matches by ensuring heuristics only fire for the domain where they were learned.
 
-See: SENSOR_ARCHITECTURE.md Â§2.5
+See: SENSOR_ARCHITECTURE.md §2.5
 
 ---
 
@@ -253,7 +253,7 @@ See: ADR-0011
 ### Safety Bounds
 Hard limits on actuator parameters that cannot be bypassed, even by the Executive.
 
-**Example:** Thermostat min 55Â°F (prevent pipe freeze), max 85Â°F (prevent heat exhaustion)
+**Example:** Thermostat min 55°F (prevent pipe freeze), max 85°F (prevent heat exhaustion)
 
 See: ADR-0011
 
@@ -273,12 +273,12 @@ Google's high-performance RPC framework using Protocol Buffers (protobuf) for ty
 ### Capture/Replay
 A protocol-level feature for recording and replaying event streams at two boundaries: driver-to-adapter (raw) and adapter-to-orchestrator (normalized). Enables development and testing without live target applications or sensors.
 
-See: SENSOR_ARCHITECTURE.md Â§4
+See: SENSOR_ARCHITECTURE.md §4
 
 ### PublishEvent / PublishEvents
 The gRPC unary RPCs used by adapters to send normalized events to the orchestrator. `PublishEvent` is for single events; `PublishEvents` is a batch transport for high-volume sensors (e.g., RuneScape).
 
-See: SENSOR_ARCHITECTURE.md Â§1.3, Â§3
+See: SENSOR_ARCHITECTURE.md §1.3, §3
 
 ---
 
@@ -294,7 +294,7 @@ Performance tier that determines scheduling priority and timeout budgets.
 | `comfort` | <5000ms | Thermostat, lighting |
 | `background` | Best-effort | Learning, batch analysis |
 
-See: [questions/infrastructure.md](questions/infrastructure.md) Â§11
+See: [questions/infrastructure.md](questions/infrastructure.md) §11
 
 ### Sleep Mode
 Low-activity period when heavy batch processing (pattern detection, embedding generation) can run. Activated after user idle for configurable duration.

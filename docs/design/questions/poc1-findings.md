@@ -199,7 +199,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 
 **Decision Strategy impact**: Add `goals: list[str]` to `DecisionContext`. Goals are injected into the system prompt (after personality, before event data). The strategy doesn't care where goals come from — that's the caller's responsibility.
 
-**Related**: SUBSYSTEM_OVERVIEW.md Â§7 lists "Goal management — where do user goals come from?" as unspecified
+**Related**: SUBSYSTEM_OVERVIEW.md §7 lists "Goal management — where do user goals come from?" as unspecified
 
 ---
 
@@ -280,7 +280,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 4. How does this interact with the gradient confidence scale (F-03)?
    - **Resolved**: No interaction with decay function (F-03 gradient is source-agnostic). Implicit and explicit are **independent channels** — both fire regardless of each other. Contradictory signals are expected and handled by weighting: implicit > explicit (F-03 Q3: correctness > user happiness). Example: user says "Bad" but doesn't undo → implicit positive + explicit negative. Both are true — "it worked but user didn't like it." The confidence model receives both and weights implicit higher. No timer cancellation, no coupling between feedback paths. For Phase 2, explicit feedback corrections (last click wins) simply overwrite the previous explicit value.
 
-**Related**: ADR-0010 Â§3.10 defines implicit signal types but not windows
+**Related**: ADR-0010 §3.10 defines implicit signal types but not windows
 
 ---
 
@@ -550,7 +550,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 
 **Status**: resolved
 **Affects**: Sensor contract, orchestrator caching, salience habituation
-**Consolidates**: `cross-cutting.md` Â§36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
+**Consolidates**: `cross-cutting.md` §36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
 
 **Observation**: Game events often contain overlapping data. RuneScape example:
 - Position event fires every game tick (contains entity position)

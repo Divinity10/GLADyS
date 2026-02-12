@@ -22,13 +22,13 @@
 
 | Capability | Alexa/Siri | ChatGPT | GLADyS |
 |------------|------------|---------|--------|
-| Responds to commands | âœ… | âœ… | âœ… |
-| Learns preferences | âœ… shallow | âŒ | âœ… deep (behavioral patterns) |
-| Proactive actions | âœ… notifications | âŒ | âœ… salience-driven, context-aware |
-| Cross-domain awareness | âŒ siloed | âŒ no state | âœ… unified memory |
-| Gets faster with use | âŒ | âŒ | âœ… heuristic learning |
-| Local/private by default | âŒ cloud | âŒ cloud | âœ… local-first |
-| Customizable personality | âŒ fixed | âŒ | âœ… configurable |
+| Responds to commands | ✅ | ✅ | ✅ |
+| Learns preferences | ✅ shallow | âŒ | ✅ deep (behavioral patterns) |
+| Proactive actions | ✅ notifications | âŒ | ✅ salience-driven, context-aware |
+| Cross-domain awareness | âŒ siloed | âŒ no state | ✅ unified memory |
+| Gets faster with use | âŒ | âŒ | ✅ heuristic learning |
+| Local/private by default | âŒ cloud | âŒ cloud | ✅ local-first |
+| Customizable personality | âŒ fixed | âŒ | ✅ configurable |
 
 ### Killer Features (Priority Order)
 

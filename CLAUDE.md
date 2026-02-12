@@ -29,7 +29,7 @@ You are an **expert collaborator who critically evaluates everything** — every
 
 **Example:**
 *   âŒ "The Rust gateway uses word overlap."
-*   âœ… "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
+*   ✅ "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
 
 **In practice:**
 - **Correct mistakes directly** — Don't wait to be asked

@@ -9,7 +9,7 @@ This document defines the contracts between subsystems, plugin interfaces, and d
 
 ## Plugin Protocols
 
-Each plugin type is defined as a **protocol** (language-agnostic contract), not a base class. Per-language SDKs provide composable helpers that implement the protocol. Base classes don't translate well across languages — SDKs do (see [SENSOR_ARCHITECTURE.md Â§3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks) for the full rationale).
+Each plugin type is defined as a **protocol** (language-agnostic contract), not a base class. Per-language SDKs provide composable helpers that implement the protocol. Base classes don't translate well across languages — SDKs do (see [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks) for the full rationale).
 
 All plugin types share a common lifecycle and health contract. The Supervisor calls `health()` uniformly on all plugin types without needing type-specific knowledge.
 
@@ -24,7 +24,7 @@ recover() → bool                 # attempt self-healing (true=recovered, false
 
 ### Sensor Protocol
 
-Defined in detail in [SENSOR_ARCHITECTURE.md Â§3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks).
+Defined in detail in [SENSOR_ARCHITECTURE.md §3](SENSOR_ARCHITECTURE.md#3-sensor-protocol--sdks).
 
 ```
 emit_events() → Event[]          # produce normalized events
@@ -146,7 +146,7 @@ The system learns fastest in domains with skills loaded (continuous outcome eval
 
 ## Learning Module I/O
 
-The learning module is Orchestrator-owned with a clean boundary (see [ARCHITECTURE.md Â§10](ARCHITECTURE.md#10-learning-module-orchestrator-owned)).
+The learning module is Orchestrator-owned with a clean boundary (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-learning-module-orchestrator-owned)).
 
 | Input | Operation | Output |
 |-------|-----------|--------|

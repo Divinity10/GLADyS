@@ -458,7 +458,7 @@ If a cache is added later: read-through only (never write-back), domain-partitio
 
 ### Three Measurement Dimensions
 
-The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) Â§Three Measurement Dimensions):
+The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) §Three Measurement Dimensions):
 - **Context match** (similarity) — primary selection criterion
 - **Confidence** (trust) — threshold gate, not ranking factor
 - **Success rate** (correctness) — not yet used in selection; future work may incorporate it
