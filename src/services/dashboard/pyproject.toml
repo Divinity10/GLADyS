@@ -16,10 +16,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "httpx", "pytest-playwright", "pytest-asyncio"]
+test = ["pytest", "httpx", "pytest-playwright"]
 
 [tool.setuptools]
 packages = ["backend"]
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+# Using pytest-anyio for async tests (required by playwright)
+# anyio handles both asyncio and trio backends
+markers = [
+    "anyio: mark test as async (auto-applied to async functions)",
+]

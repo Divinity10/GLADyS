@@ -34,7 +34,7 @@ pub mod proto {
     }
 
     // Re-export commonly used types at proto level for convenience
-    pub use gladys::types::SalienceVector;
+    pub use gladys::types::SalienceResult;
     pub use gladys::memory::*;
 }
 

@@ -40,17 +40,27 @@ def _embedding_to_bytes(embedding: np.ndarray) -> bytes:
 
 def _event_to_proto(event: EpisodicEvent) -> memory_pb2.EpisodicEvent:
     """Convert EpisodicEvent to protobuf message."""
-    salience = types_pb2.SalienceVector()
-    if event.salience:
-        salience.threat = event.salience.get("threat", 0.0)
-        salience.opportunity = event.salience.get("opportunity", 0.0)
-        salience.humor = event.salience.get("humor", 0.0)
-        salience.novelty = event.salience.get("novelty", 0.0)
-        salience.goal_relevance = event.salience.get("goal_relevance", 0.0)
-        salience.social = event.salience.get("social", 0.0)
-        salience.emotional = event.salience.get("emotional", 0.0)
-        salience.actionability = event.salience.get("actionability", 0.0)
-        salience.habituation = event.salience.get("habituation", 0.0)
+    salience = types_pb2.SalienceResult()
+    if isinstance(event.salience, dict):
+        salience.threat = float(event.salience.get("threat", 0.0) or 0.0)
+        salience.salience = float(event.salience.get("salience", 0.0) or 0.0)
+        salience.habituation = float(event.salience.get("habituation", 0.0) or 0.0)
+        salience.model_id = str(event.salience.get("model_id", "") or "")
+
+        vector = event.salience.get("vector")
+        if isinstance(vector, dict):
+            for key, value in vector.items():
+                salience.vector[str(key)] = float(value or 0.0)
+        else:
+            for key in (
+                "novelty",
+                "goal_relevance",
+                "opportunity",
+                "actionability",
+                "social",
+            ):
+                if key in event.salience:
+                    salience.vector[key] = float(event.salience.get(key, 0.0) or 0.0)
 
     return memory_pb2.EpisodicEvent(
         id=str(event.id),
@@ -82,14 +92,10 @@ def _proto_to_event(proto: memory_pb2.EpisodicEvent) -> EpisodicEvent:
     if proto.salience:
         salience = {
             "threat": proto.salience.threat,
-            "opportunity": proto.salience.opportunity,
-            "humor": proto.salience.humor,
-            "novelty": proto.salience.novelty,
-            "goal_relevance": proto.salience.goal_relevance,
-            "social": proto.salience.social,
-            "emotional": proto.salience.emotional,
-            "actionability": proto.salience.actionability,
+            "salience": proto.salience.salience,
             "habituation": proto.salience.habituation,
+            "vector": dict(proto.salience.vector),
+            "model_id": proto.salience.model_id,
         }
 
     structured = None

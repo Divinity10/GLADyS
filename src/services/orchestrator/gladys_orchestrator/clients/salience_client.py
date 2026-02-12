@@ -51,9 +51,11 @@ class SalienceMemoryClient:
         """
         Evaluate salience for an event.
 
-        Returns a dict with salience dimensions:
-        - threat, opportunity, humor, novelty, goal_relevance,
-          social, emotional, actionability, habituation
+        Returns a dict with SalienceResult structure:
+        - Scalars: threat, salience, habituation
+        - Vector: dict with dimension names (novelty, goal_relevance, opportunity,
+          actionability, social) as keys
+        - model_id: identifier for the salience model used
 
         If service unavailable, returns default low salience
         (graceful degradation per ADR-0001 §11).
@@ -94,32 +96,30 @@ class SalienceMemoryClient:
             return self._default_salience()
 
     def _response_to_dict(self, response: memory_pb2.EvaluateSalienceResponse) -> dict:
-        """Convert proto response to dict."""
+        """Convert SalienceResult proto response to dict."""
         salience = response.salience
         return {
             "threat": salience.threat,
-            "opportunity": salience.opportunity,
-            "humor": salience.humor,
-            "novelty": salience.novelty,
-            "goal_relevance": salience.goal_relevance,
-            "social": salience.social,
-            "emotional": salience.emotional,
-            "actionability": salience.actionability,
+            "salience": salience.salience,
             "habituation": salience.habituation,
+            "vector": dict(salience.vector),  # Convert proto map to Python dict
+            "model_id": salience.model_id,
             "_from_cache": response.from_cache,
             "_matched_heuristic": response.matched_heuristic_id,
         }
 
     def _default_salience(self) -> dict:
-        """Default salience when service unavailable."""
+        """Default SalienceResult when service unavailable."""
         return {
             "threat": 0.0,
-            "opportunity": 0.0,
-            "humor": 0.0,
-            "novelty": 0.1,  # Slight novelty for new events
-            "goal_relevance": 0.0,
-            "social": 0.0,
-            "emotional": 0.0,
-            "actionability": 0.0,
+            "salience": 0.0,
             "habituation": 0.0,
+            "vector": {
+                "novelty": 0.1,  # Slight novelty for new events
+                "goal_relevance": 0.0,
+                "opportunity": 0.0,
+                "actionability": 0.0,
+                "social": 0.0,
+            },
+            "model_id": "default",
         }

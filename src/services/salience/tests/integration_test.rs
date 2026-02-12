@@ -7,8 +7,9 @@
 
 use gladys_memory::{
     client::{bytes_to_embedding, embedding_to_bytes},
-    ClientConfig, EventBuilder, HeuristicBuilder, StorageClient,
+    proto::SalienceResult, ClientConfig, EventBuilder, HeuristicBuilder, StorageClient,
 };
+use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -124,6 +125,73 @@ async fn test_store_and_query_heuristic() {
         m.heuristic.as_ref().map_or(false, |h| h.id == h_id.to_string())
     });
     assert!(found, "Should find stored heuristic");
+
+    // Also validate SalienceResult roundtrip through event storage.
+    let event_id = Uuid::new_v4();
+    let salience = SalienceResult {
+        threat: 0.2,
+        salience: 0.8,
+        habituation: 0.1,
+        vector: HashMap::from([
+            (String::from("novelty"), 0.8),
+            (String::from("goal_relevance"), 0.4),
+            (String::from("opportunity"), 0.3),
+            (String::from("actionability"), 0.5),
+            (String::from("social"), 0.1),
+        ]),
+        model_id: "integration_test_v1".to_string(),
+    };
+
+    let event = EventBuilder::new(event_id, "rust_integration_test", "salience result roundtrip")
+        .salience(salience)
+        .build();
+    client.store_event(event).await.unwrap();
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    let by_time = client
+        .query_by_time(now_ms - 300_000, now_ms + 300_000, Some("rust_integration_test"), 50)
+        .await
+        .unwrap();
+    let stored = by_time
+        .iter()
+        .find(|e| e.id == event_id.to_string())
+        .expect("Expected stored event in query_by_time results");
+    let stored_salience = stored
+        .salience
+        .as_ref()
+        .expect("Expected event salience to be present");
+
+    assert!((stored_salience.threat - 0.2).abs() < 0.001);
+    assert!((stored_salience.salience - 0.8).abs() < 0.001);
+    assert!((stored_salience.habituation - 0.1).abs() < 0.001);
+    let expected = HashMap::from([
+        (String::from("novelty"), 0.8_f32),
+        (String::from("goal_relevance"), 0.4_f32),
+        (String::from("opportunity"), 0.3_f32),
+        (String::from("actionability"), 0.5_f32),
+        (String::from("social"), 0.1_f32),
+    ]);
+    for (dimension, value) in &stored_salience.vector {
+        assert!(
+            expected.contains_key(dimension),
+            "unexpected vector dimension: {}",
+            dimension
+        );
+        let expected_value = expected.get(dimension).copied().unwrap_or(0.0);
+        assert!(
+            (value - expected_value).abs() < 0.001,
+            "value mismatch for {}: got {}, expected {}",
+            dimension,
+            value,
+            expected_value
+        );
+    }
+    assert!(
+        stored_salience.model_id.is_empty() || stored_salience.model_id == "integration_test_v1"
+    );
 }
 
 /// Test embedding conversion roundtrip.

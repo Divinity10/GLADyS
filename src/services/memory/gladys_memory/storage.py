@@ -715,8 +715,9 @@ class MemoryStorage:
         self,
         heuristic_id: UUID,
         success: bool,
+        event_id: str = "",
     ) -> None:
-        """Update heuristic stats when it fires."""
+        """Update heuristic stats when it fires and create fire record."""
         if not self._pool:
             raise RuntimeError("Not connected to database")
 
@@ -743,6 +744,16 @@ class MemoryStorage:
                 """,
                 heuristic_id,
             )
+
+        # Create fire record with unknown outcome for later feedback
+        await self._pool.execute(
+            """
+            INSERT INTO heuristic_fires (heuristic_id, event_id, outcome)
+            VALUES ($1, $2, 'unknown')
+            """,
+            heuristic_id,
+            event_id,
+        )
 
     async def update_heuristic_confidence(
         self,
