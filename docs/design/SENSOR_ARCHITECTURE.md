@@ -93,12 +93,13 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 | `matched_heuristic_id` | string | Populated downstream (not by sensor) |
 | `metadata` | RequestMetadata | Trace/request context |
 
-### 2.2 New fields (PoC 2)
+### 2.2 New fields (Phase 2)
 
 | Field | Proto field # | Type | Default | Source |
 |-------|--------------|------|---------|--------|
 | `intent` | 11 | enum: `actionable`, `informational`, `unknown` | `unknown` | F-20 |
 | `evaluation_data` | 12 | Struct | empty | F-19 |
+| `app_status` | 13 | string: `running`, `stopped`, `hung`, or empty | empty | Design discussion 2026-02-12 |
 
 **`intent`** — Routing hint from the adapter. The adapter knows best whether an event expects a response.
 
@@ -111,6 +112,15 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 **Note**: `backfill` (F-21: pre-existing state dumped on connect) is deferred. If needed, it can be added as a fourth intent value (`intent: backfill`) which would route identically to `informational` with additional semantics: timestamps may be inaccurate, not a missed learning opportunity.
 
 **`evaluation_data`** — Optional second data bucket for solution/cheat data. Stored for learning and evaluation, stripped by orchestrator before executive sees it. Example: Sudoku solution visible in DOM — useful for evaluating response quality but must not appear in responses. The structure *is* the classification — sensor developers put data in the right bucket.
+
+**`app_status`** — Sensor target application lifecycle status. When set, event routes to system handler instead of memory pipeline. Sensor sets this when detecting target app state changes (process exit, tab close, hang detection, restart). Enables resource-aware sensor shutdown: orchestrator can unload idle sensors when resources are constrained, or keep them running to avoid restart overhead. Empty for normal domain events. **Implementation deferred to Phase 3+** (proto field added Phase 2 to avoid migration cost).
+
+| Status     | Meaning                       | Sensor behavior after sending              |
+|------------|-------------------------------|--------------------------------------------|
+| `stopped`  | Target app exited/closed      | Flush events, go idle, continue heartbeats |
+| `running`  | Target app started/restarted  | Resume emitting domain events              |
+| `hung`     | Target app unresponsive       | Continue monitoring, may trigger recovery  |
+| (empty)    | Normal domain event           | N/A - not a lifecycle event                |
 
 ### 2.2.1 Future field: Urgency metadata
 
@@ -386,6 +396,38 @@ The orchestrator monitors sensor health via the `system.metrics` heartbeat event
 
 Sensor registrations persist in a DB table so the orchestrator knows what sensors exist across restarts. The table stores: sensor ID, manifest data, status (active/inactive/error), last seen timestamp. The orchestrator reads this on startup — it doesn't need sensors to re-register after an orchestrator restart.
 
+### 9.4 Target app lifecycle (Phase 3+ implementation)
+
+**Proto field added Phase 2, handling deferred.**
+
+Sensors detect and report when their target application starts, stops, or hangs. This enables resource-aware sensor management without polling.
+
+**Sensor responsibility:**
+
+1. Detect target app state changes (process exit, tab close, hang detection, restart)
+2. Flush buffered events before reporting `app_status: stopped`
+3. Send Event with `app_status` field set (routes to system handler, not memory)
+4. Go idle (stop emitting domain events, continue heartbeats)
+5. When target restarts, send `app_status: running` and resume normal operation
+
+**Orchestrator response (future implementation):**
+
+- Receives `app_status` events via existing Event pipeline
+- Routes to system handler (checks `event.app_status` field)
+- Decides based on resource constraints:
+  - **Low resources**: Shut down idle sensor immediately
+  - **Normal resources**: Keep sensor running (app may restart soon)
+  - **Timeout**: Shut down sensor if idle too long (configurable threshold)
+
+**Detection varies by sensor type:**
+
+- **RuneScape**: Monitor RuneLite process via OS APIs
+- **Melvor/Sudoku**: Browser extension detects tab close events
+- **Gmail**: Check for open Gmail tabs
+- **Future remote sensors**: Network ping, service health check, etc.
+
+This is distinct from sensor health (§9.2): a sensor can be healthy while its target app is stopped.
+
 ---
 
 ## 10. Manifest
@@ -497,13 +539,21 @@ The dashboard is how developers manage and test the sensor subsystem — not jus
 
 ### Required capabilities
 
-| Capability | Description |
-|------------|-------------|
-| Register | Add sensors (manifest-driven registration with orchestrator) |
-| Activate / Deactivate | Start/stop individual sensors at runtime |
-| Observe status | Per-sensor: live / disconnected / error / recovering |
-| Metrics | Event throughput, error rates, consolidation ratio, latency |
-| Health actions | Trigger recovery, force shutdown |
+| Capability | Description | Dashboard Tab |
+|------------|-------------|---------------|
+| Register | Add sensors (manifest-driven registration with orchestrator) | Sensor |
+| Activate / Deactivate | Start/stop individual sensors at runtime | Sensor |
+| Observe status | Per-sensor: live / disconnected / error / recovering | Sensor |
+| Metrics | Event throughput, error rates, consolidation ratio, latency | Sensor |
+| Health actions | Trigger recovery, force shutdown, get curr state | Sensor |
+| Message queue | View adapter's queued messages from driver | Sensor |
+| Create Message | Send a crafted message to adapter | Sensor |
+| Playback Message | Send driver messages to adapter w/ & w/o timing | Sensor |
+| Playback Events | Adapter sends events to orchestrator w/ & w/o timing | Events |
+| Metric Data | View metric messages received | Sensor |
+| Error Rates | View error messages & error rate (# errors / # messages) | Sensor |
+| Backpressure | Generate backpressure to view effect on flow rate | Sensor |
+| Heartbeat | View the heartbeat rate as a static metric | Sensor |
 
 ### Data source
 
@@ -559,9 +609,10 @@ New fields on `Event` message in `proto/common.proto`:
 message Event {
     // ... existing fields 1-10, 15 ...
 
-    // PoC 2 sensor contract extensions
+    // Phase 2 sensor contract extensions
     string intent = 11;                         // "actionable", "informational", "unknown"
     google.protobuf.Struct evaluation_data = 12; // Solution/cheat data (stripped before executive)
+    string app_status = 13;                     // "running", "stopped", "hung", or empty (§9.4)
 }
 ```
 

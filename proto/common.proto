@@ -47,6 +47,12 @@ message Event {
     string intent = 11;                         // "actionable", "informational", "unknown" (default)
     google.protobuf.Struct evaluation_data = 12; // Solution/cheat data (stripped before executive)
 
+    // Sensor target application lifecycle status (optional)
+    // When set, event routes to system handler instead of memory pipeline
+    // Values: "running", "stopped", "hung", or empty for normal domain events
+    // Enables resource-aware sensor shutdown and dynamic loading (future)
+    string app_status = 13;
+
     // Metadata
     RequestMetadata metadata = 15;
 }
