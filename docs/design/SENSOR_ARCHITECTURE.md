@@ -3,14 +3,14 @@
 **Status**: Proposed
 **Date**: 2026-02-07 (updated 2026-02-07 with review feedback)
 **Issue**: #143
-**Phase Scope**: Phase 2 (Multi-Sensor Pipeline)
-**Informed by**: Phase 1 findings F-14, F-15, F-16, F-18, F-19, F-20, F-21
+**PoC Scope**: PoC 2 (Multi-Sensor Pipeline)
+**Informed by**: PoC 1 findings F-14, F-15, F-16, F-18, F-19, F-20, F-21
 
 ## Purpose
 
-Define the architecture for GLADyS sensors — components that capture events from external applications and deliver them to the orchestrator as normalized GLADyS events. This doc covers the sensor protocol, language-specific SDKs, event contract extensions, and Phase 2 sensor profiles.
+Define the architecture for GLADyS sensors — components that capture events from external applications and deliver them to the orchestrator as normalized GLADyS events. This doc covers the sensor protocol, language-specific SDKs, event contract extensions, and PoC 2 sensor profiles.
 
-Sensors are one component of a **skill pack** (sensor + domain skill + heuristics). This doc covers the sensor layer only. Domain skills are a separate concern (Phase 3).
+Sensors are one component of a **skill pack** (sensor + domain skill + heuristics). This doc covers the sensor layer only. Domain skills are a separate concern (PoC 3).
 
 ---
 
@@ -19,10 +19,10 @@ Sensors are one component of a **skill pack** (sensor + domain skill + heuristic
 Three-layer pipeline with clear boundaries.
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     native      â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     gRPC        â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚  Driver   â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º â”‚  Adapter  â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º â”‚ Orchestrator â”‚
-â”‚ (polyglot)â”‚   transport     â”‚ (polyglot)â”‚  PublishEvent(s)â”‚              â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                 â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                 â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌───────────┐     native      ┌───────────┐     gRPC        ┌──────────────┐
+│  Driver   │ ──────────────► │  Adapter  │ ──────────────► │ Orchestrator │
+│ (polyglot)│   transport     │ (polyglot)│  PublishEvent(s)│              │
+└───────────┘                 └───────────┘                 └──────────────┘
  App-specific                 Normalizes                    Routes, stores,
  event capture                to GLADyS                     processes
                               event contract
@@ -48,12 +48,12 @@ The adapter cannot poll a browser extension. For poll-pattern adapter using brow
 ### 1.2 Adapter (polyglot, protocol-driven)
 
 - Receives raw driver data, normalizes to GLADyS event contract
-- Implements the **sensor protocol** (Â§3) — language-agnostic contract
+- Implements the **sensor protocol** (§3) — language-agnostic contract
 - Manages its own emit schedule (rate control independent of driver event rate)
 - Publishes normalized events to orchestrator via gRPC `PublishEvent` / `PublishEvents`
 - How the adapter manages its driver(s) is an internal implementation detail. A game adapter may have one driver; an email adapter may manage multiple driver instances (one per account).
 
-**Language choice**: adapter may be written in any language that can implement the protocol. When driver and adapter share a language, they can use native calls instead of IPC — eliminating a serialization boundary. Python, Java, and JavaScript/TypeScript SDKs are provided for Phase 2 (Â§3.3).
+**Language choice**: adapter may be written in any language that can implement the protocol. When driver and adapter share a language, they can use native calls instead of IPC — eliminating a serialization boundary. Python, Java, and JavaScript/TypeScript SDKs are provided for PoC 2 (§3.3).
 
 ### 1.3 Orchestrator interface
 
@@ -65,11 +65,11 @@ The adapter cannot poll a browser extension. For poll-pattern adapter using brow
 
 ### 1.4 Remote sensors (future consideration)
 
-Phase 2 sensors are all local (same machine as orchestrator). Future sensors may run on phones, other network devices, or remote computers. Remote sensors raise connectivity questions:
+PoC 2 sensors are all local (same machine as orchestrator). Future sensors may run on phones, other network devices, or remote computers. Remote sensors raise connectivity questions:
 - Push from remote sensor requires network path to orchestrator (NAT traversal, VPN, relay)
 - Orchestrator polling remote sensor has the same NAT problem in reverse
 
-**Phase 2 approach**: Push only, local only. The design does not preclude remote sensors but does not engineer for them. When remote sensors become a need, the solution likely involves a relay or message broker.
+**PoC 2 approach**: Push only, local only. The design does not preclude remote sensors but does not engineer for them. When remote sensors become a need, the solution likely involves a relay or message broker.
 
 **Polling stub concept** (noted, YAGNI): A remote sensor could provide an installable local module that runs alongside the orchestrator, handling the remote communication. The orchestrator polls the local stub; the stub communicates with the remote sensor. Not designed or built — noted for future reference.
 
@@ -77,7 +77,7 @@ Phase 2 sensors are all local (same machine as orchestrator). Future sensors may
 
 ## 2. Event Contract
 
-The GLADyS event contract defines what a sensor produces. The current `Event` message in `proto/common.proto` (fields 1-10, 15) is the base. Phase 2 adds two new fields.
+The GLADyS event contract defines what a sensor produces. The current `Event` message in `proto/common.proto` (fields 1-10, 15) is the base. PoC 2 adds two new fields.
 
 ### 2.1 Current base fields
 
@@ -88,12 +88,12 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 | `source` | string | Sensor identifier |
 | `raw_text` | string | Natural language description of the event |
 | `structured` | Struct | Domain-specific fields (JSON) |
-| `salience` | SalienceResult | Sensors CAN populate threat + limited vector fields; system completes (see Â§2.6) |
+| `salience` | SalienceVector | Populated by salience service (not by sensor) |
 | `entity_ids` | repeated string | Populated by entity extractor (not by sensor) |
 | `matched_heuristic_id` | string | Populated downstream (not by sensor) |
 | `metadata` | RequestMetadata | Trace/request context |
 
-### 2.2 New fields (Phase 2)
+### 2.2 New fields (PoC 2)
 
 | Field | Proto field # | Type | Default | Source |
 |-------|--------------|------|---------|--------|
@@ -114,17 +114,17 @@ The GLADyS event contract defines what a sensor produces. The current `Event` me
 
 ### 2.2.1 Future field: Urgency metadata
 
-*Not implemented in Phase 2. Design direction captured in [urgency-selection.md](questions/urgency-selection.md).*
+*Not implemented in PoC 2. Design direction captured in [urgency-selection.md](questions/urgency-selection.md).*
 
 Sensors are domain experts — they know whether an event needs immediate response (combat health critical) or can wait (newsletter arrived). A future `urgency` field would allow sensors to provide domain-specific urgency hints that the orchestrator uses to modulate heuristic selection strategy (cache-first vs DB-query vs LLM-preferred).
 
 Urgency is domain-specific: real-time games need sub-second response, email sensors can wait minutes. The sensor's urgency hint combined with the salience threat score provides "cheap" urgency for routing decisions before the executive's domain skill does deeper assessment.
 
-**Phase 2 approach**: No urgency field. All events use the default path. The design accommodates urgency without requiring it.
+**PoC 2 approach**: No urgency field. All events use the default path. The design accommodates urgency without requiring it.
 
 ### 2.3 Delivery patterns
 
-Two patterns for Phase 2 (streaming deferred):
+Two patterns for PoC 2 (streaming deferred):
 
 | Pattern | How it works | Examples | Volume profile |
 |---------|-------------|----------|---------------|
@@ -143,59 +143,9 @@ Each pattern has different volume management characteristics. The `structured` f
 ### 2.5 Source semantics
 
 - Adapter decides the source string per event
-- Flat string sufficient for Phase 2
+- Flat string sufficient for PoC 2
 - Used as hard filter in heuristic matching (F-01) — prevents cross-domain false matches
 - Multi-driver sensors may differentiate source per driver instance or use a shared source — sensor's decision
-
-### 2.6 Sensor Salience Guidance
-
-**Design**: [`SALIENCE_MODEL.md`](SALIENCE_MODEL.md) (finalized 2026-02-11)
-
-Sensors **can** populate salience fields when they have domain-specific knowledge. The system will complete/refine the salience assessment downstream. This is optional — sensors that don't know about salience can omit it entirely.
-
-#### When Sensors SHOULD Populate Salience
-
-**Set `threat` when obvious:**
-- Security events: intrusion detected, anomaly, alert
-- Safety events: smoke alarm, CO detector, health monitor critical
-- Time-critical: imminent deadline, urgent message, countdown expiration
-
-Example: Security camera detects unrecognized person:
-```python
-salience = SalienceResult(
-    threat=0.8,
-    model_id="security_camera_v1"
-)
-```
-
-**Set domain-obvious vector dimensions:**
-- `social`: Chat/email sensors know if sender is a known contact
-- `novelty`: Game sensors know if enemy type is new
-- `goal_relevance`: Calendar sensors know if meeting relates to active project
-
-Example: Email from known sender:
-```python
-salience = SalienceResult(
-    vector={"social": 0.9},  # Known contact
-    model_id="email_adapter_v1"
-)
-```
-
-#### What Sensors SHOULD NOT Compute
-
-- **habituation**: Requires temporal history across events (system concern)
-- **salience scalar**: Requires user-configurable weights (system concern)
-- **Cross-domain dimensions**: Don't guess at dimensions you can't reliably assess
-
-#### Sensor Salience Philosophy
-
-**Sensors have local knowledge (this event), system has global knowledge (user goals, history, weights).**
-
-- Sensors set what they *know* from domain expertise
-- System completes what requires cross-domain context
-- Partial salience is fine — system will fill gaps
-
-**Phase 2 scope**: Sensors can populate fields; full salience calculation deferred to Phase 3+. Phase 2 focuses on data structure and sensor guidance.
 
 ---
 
@@ -232,7 +182,7 @@ Sensor Protocol:
 
 Flow control is **configuration-injected**, not code-injected. At registration, the orchestrator sends: strategy name + parameters (e.g., `{ strategy: "rate_limiter", max_events_per_sec: 100 }`). Each language SDK implements the named strategies locally. This works across process and language boundaries — the orchestrator injects configuration, adapters execute the behavior locally.
 
-### 3.3 Language SDKs (Phase 2)
+### 3.3 Language SDKs (PoC 2)
 
 | SDK | Language | Covers | Scope |
 |-----|----------|--------|-------|
@@ -246,7 +196,7 @@ Flow control is **configuration-injected**, not code-injected. At registration, 
 - A local HTTP endpoint on the orchestrator (REST alongside gRPC)
 - A thin local HTTP-to-gRPC proxy
 
-This is a shared concern for the three browser-based Phase 2 sensors (Melvor, Sudoku, Gmail). The JS/TS SDK should handle this transparently.
+This is a shared concern for the three browser-based PoC 2 sensors (Melvor, Sudoku, Gmail). The JS/TS SDK should handle this transparently.
 
 ### 3.4 Python Base Class
 
@@ -299,10 +249,10 @@ class AdapterBase(ABC):
 
     # --- Provided by base class (adapter does NOT override) ---
 
-    # Capture/replay (Â§4)
-    # Metrics collection (Â§5)
-    # Flow control enforcement (Â§6)
-    # Event buffering during orchestrator outage (Â§7)
+    # Capture/replay (§4)
+    # Metrics collection (§5)
+    # Flow control enforcement (§6)
+    # Event buffering during orchestrator outage (§7)
     # Publish to orchestrator via gRPC (PublishEvent / PublishEvents)
     # Dry-run mode (capture without publishing)
 ```
@@ -380,11 +330,11 @@ Driver metrics stored as JSONB since different drivers report different things.
 
 **Configuration injection** (not code injection): The orchestrator sends a strategy name and parameters. Each language SDK implements the named strategies locally. Example: `{ strategy: "rate_limiter", max_events_per_sec: 100 }` or `{ strategy: "none" }`.
 
-The SDK calls the strategy before every publish. If the strategy says "don't publish," the event is buffered (and may be dropped per buffer policy — see Â§7).
+The SDK calls the strategy before every publish. If the strategy says "don't publish," the event is buffered (and may be dropped per buffer policy — see §7).
 
-**Phase 2**: Start with `strategy: "none"` (all publishes allowed). The pattern exists in all SDKs so strategies can be added later without changing adapters.
+**PoC 2**: Start with `strategy: "none"` (all publishes allowed). The pattern exists in all SDKs so strategies can be added later without changing adapters.
 
-**Future (Phase 3+)**: BBR-inspired strategy that tracks `PublishEvent(s)` response latency. Latency increase → reduce publish rate. Return to baseline → increase rate.
+**Future (PoC 3+)**: BBR-inspired strategy that tracks `PublishEvent(s)` response latency. Latency increase → reduce publish rate. Return to baseline → increase rate.
 
 ---
 
@@ -417,7 +367,7 @@ The SDK tracks `events_received` vs `events_published` for the consolidation rat
 
 ### 9.1 Three-fold lifecycle
 
-| Concern | What it means | Phase 2 approach |
+| Concern | What it means | PoC 2 approach |
 |---------|--------------|----------------|
 | **Install** | Sensor code + manifest in place, prereqs declared | Dashboard triggers registration with orchestrator. Sensor processes started manually or by script. |
 | **Awareness** | Orchestrator knows about sensor, subscribes to metrics | `RegisterComponent` gRPC + DB persistence. Orchestrator reads registry on startup. |
@@ -440,7 +390,7 @@ Sensor registrations persist in a DB table so the orchestrator knows what sensor
 
 ## 10. Manifest
 
-The sensor manifest declares sensor identity, capabilities, and dependencies. For Phase 2, the manifest drives registration and documentation. Specific fields will be finalized during the orchestrator redesign.
+The sensor manifest declares sensor identity, capabilities, and dependencies. For PoC 2, the manifest drives registration and documentation. Specific fields will be finalized during the orchestrator redesign.
 
 ### 10.1 Established fields
 
@@ -471,7 +421,7 @@ event_types:
 ### 10.2 Forward-looking fields (design for, don't build)
 
 ```yaml
-# Dependencies — Phase 3 (domain skills)
+# Dependencies — PoC 3 (domain skills)
 requires:
   domain_skills: [melvor-domain-skill]
 
@@ -484,7 +434,7 @@ resources:
 poll_interval_s: 60
 ```
 
-The orchestrator does not verify `requires` in Phase 2 — domain skills don't exist yet as modular components. The manifest declares them so the structure is ready for Phase 3.
+The orchestrator does not verify `requires` in PoC 2 — domain skills don't exist yet as modular components. The manifest declares them so the structure is ready for PoC 3.
 
 ### 10.3 Event type declarations (F-16 Layer 1)
 
@@ -498,7 +448,7 @@ This is distinct from flow control (dynamic, automatic) and salience habituation
 
 Three layers, each solving a different problem.
 
-| Layer | Where | Type | Mechanism | Phase 2 |
+| Layer | Where | Type | Mechanism | PoC 2 |
 |-------|-------|------|-----------|-------|
 | 1. Capability | Sensor manifest | Static, config-driven | `enabled: true/false` per event type | Yes |
 | 2. Flow control | Sensor SDK | Dynamic, strategy pattern | System-level strategy, config-injected by orchestrator | Strategy exists, starts with "none" |
@@ -508,11 +458,11 @@ Three layers, each solving a different problem.
 
 ---
 
-## 12. Phase 2 Sensor Profiles
+## 12. PoC 2 Sensor Profiles
 
 All existing sensor code in `packs/sensors/` is exploratory — no design, no spec conformance. All sensors are rewritten from scratch against this architecture. Primary validation target: **1 game sensor + Gmail running simultaneously**.
 
-| Sensor | Pattern | Driver(s) | Language | Phase 2 Role |
+| Sensor | Pattern | Driver(s) | Language | PoC 2 Role |
 |--------|---------|-----------|----------|------------|
 | RuneScape | push | Single — Java RuneLite plugin | Java (driver+adapter) | Game sensor option |
 | Melvor Idle | push | Single — browser extension | JS/TS (extension) + Python or JS adapter | Game sensor option |
@@ -557,7 +507,7 @@ The dashboard is how developers manage and test the sensor subsystem — not jus
 
 ### Data source
 
-`sensor_metrics` table populated by heartbeat metrics (Â§5). Dashboard queries the table for status and metrics. Orchestrator provides sensor lifecycle actions via gRPC.
+`sensor_metrics` table populated by heartbeat metrics (§5). Dashboard queries the table for status and metrics. Orchestrator provides sensor lifecycle actions via gRPC.
 
 ### Open design questions (tracked in #62)
 
@@ -571,11 +521,11 @@ The dashboard is how developers manage and test the sensor subsystem — not jus
 
 ### 14.1 Orchestrator unavailable
 
-Sensor SDK buffers events locally (Â§7). Bounded buffer, drops least important first (`informational` → `unknown` → `actionable`). Retries with exponential backoff. On reconnect, flushes buffered events.
+Sensor SDK buffers events locally (§7). Bounded buffer, drops least important first (`informational` → `unknown` → `actionable`). Retries with exponential backoff. On reconnect, flushes buffered events.
 
 ### 14.2 Orchestrator restart
 
-Sensor registrations persist in DB (Â§9.3). Orchestrator reads registry on startup. Sensors reconnect via gRPC — the sensor's existing retry/reconnect logic handles this. No re-registration needed.
+Sensor registrations persist in DB (§9.3). Orchestrator reads registry on startup. Sensors reconnect via gRPC — the sensor's existing retry/reconnect logic handles this. No re-registration needed.
 
 ### 14.3 Driver disconnect
 
@@ -587,7 +537,7 @@ Orchestrator monitors error rate (configurable threshold per time unit). When ex
 
 ### 14.5 Malformed events
 
-Orchestrator-side concern (orchestrator redesign). Expected behavior: reject malformed events, log the error, increment sensor error count. If error rate exceeds threshold, triggers the unhealthy sensor flow (Â§14.4).
+Orchestrator-side concern (orchestrator redesign). Expected behavior: reject malformed events, log the error, increment sensor error count. If error rate exceeds threshold, triggers the unhealthy sensor flow (§14.4).
 
 ---
 
@@ -597,7 +547,7 @@ Sensors emit events in order within a single source. The orchestrator processes 
 
 **Per-source ordering is NOT guaranteed by the orchestrator.** Each event is independently scored and processed. The learning module handles temporal context internally (undo detection uses timestamps and recent-fire lookups, not event ordering).
 
-If a future use case requires strict per-source ordering, the orchestrator worker pool can be configured to partition by source. This is not needed for Phase 2.
+If a future use case requires strict per-source ordering, the orchestrator worker pool can be configured to partition by source. This is not needed for PoC 2.
 
 ---
 
@@ -609,7 +559,7 @@ New fields on `Event` message in `proto/common.proto`:
 message Event {
     // ... existing fields 1-10, 15 ...
 
-    // Phase 2 sensor contract extensions
+    // PoC 2 sensor contract extensions
     string intent = 11;                         // "actionable", "informational", "unknown"
     google.protobuf.Struct evaluation_data = 12; // Solution/cheat data (stripped before executive)
 }
@@ -634,14 +584,14 @@ message PublishEventsRequest {
 
 ## Out of Scope
 
-- **Streaming delivery pattern** — deferred, not Phase 2
-- **Domain skills** — Phase 3. Manifest declares dependencies but verification is not implemented.
-- **Preprocessors** — concept exists for future performance/classification needs, not Phase 2
+- **Streaming delivery pattern** — deferred, not PoC 2
+- **Domain skills** — PoC 3. Manifest declares dependencies but verification is not implemented.
+- **Preprocessors** — concept exists for future performance/classification needs, not PoC 2
 - **Cross-domain interfaces** — interfaces are defined by skill packs, not shared across domains
-- **Sensor process management** — orchestrator does not start/stop sensor OS processes in Phase 2. Sensors are started manually or by script.
-- **Context-aware cache invalidation** — orchestrator event-response cache uses simple TTL for Phase 2 (F-18)
-- **Sensor isolation / fair scheduling** — orchestrator redesign concern, may be Phase 2 or deferred
-- **Remote sensors** — local-only for Phase 2. Polling stub concept noted but not designed.
+- **Sensor process management** — orchestrator does not start/stop sensor OS processes in PoC 2. Sensors are started manually or by script.
+- **Context-aware cache invalidation** — orchestrator event-response cache uses simple TTL for PoC 2 (F-18)
+- **Sensor isolation / fair scheduling** — orchestrator redesign concern, may be PoC 2 or deferred
+- **Remote sensors** — local-only for PoC 2. Polling stub concept noted but not designed.
 - **Backfill flag** — deferred. Can be added as `intent: backfill` when needed.
 
 ---
@@ -650,19 +600,17 @@ message PublishEventsRequest {
 
 | Source | Sections |
 |--------|----------|
-| F-01 (source filtering) | Â§2.5 |
-| F-02 (matching quality) | Â§2.4 |
-| F-14 (capture/replay) | Â§4 |
-| F-15 (sensor metrics) | Â§5, Â§10, Â§13 |
-| F-16 (suppression) | Â§6, Â§10.3, Â§11 |
-| F-18 (event dedup/emit schedule) | Â§8 |
-| F-19 (data classification) | Â§2.2 |
-| F-20 (intent field) | Â§2.2 |
-| F-21 (backfill flag) | Â§2.2 (deferred) |
-| `resource-allocation.md` Â§Q4 | Â§1, Â§2.3, Â§2.4 |
-| `INTERFACES.md` | Â§3.4, Â§10 |
-| `USE_CASES.md` UC-09 | Â§12 |
-| `sensor-dashboard.md` (#62) | Â§13 |
-| ARCHITECTURE.md | Â§1.3 |
-
-
+| F-01 (source filtering) | §2.5 |
+| F-02 (matching quality) | §2.4 |
+| F-14 (capture/replay) | §4 |
+| F-15 (sensor metrics) | §5, §10, §13 |
+| F-16 (suppression) | §6, §10.3, §11 |
+| F-18 (event dedup/emit schedule) | §8 |
+| F-19 (data classification) | §2.2 |
+| F-20 (intent field) | §2.2 |
+| F-21 (backfill flag) | §2.2 (deferred) |
+| `resource-allocation.md` §Q4 | §1, §2.3, §2.4 |
+| `INTERFACES.md` | §3.4, §10 |
+| `USE_CASES.md` UC-09 | §12 |
+| `sensor-dashboard.md` (#62) | §13 |
+| ARCHITECTURE.md | §1.3 |
