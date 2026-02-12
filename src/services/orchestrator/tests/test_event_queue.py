@@ -135,3 +135,147 @@ class TestTimeoutStorage:
         call_args = store.call_args
         assert call_args[0][0] is event
         assert call_args[0][1] is response
+
+
+class TestEventQueuePersistence:
+    """Test EventQueue persistence behavior (Issue #175).
+
+    EventQueue is intentionally in-memory only for Phase.
+    These tests verify and document this design decision.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_db_write_during_queue(self):
+        """Events are NOT written to DB when enqueued."""
+        process = AsyncMock(return_value={"response_text": "done"})
+        store = AsyncMock()
+        broadcast = AsyncMock()
+        config = make_config()
+        queue = EventQueue(
+            config,
+            process_callback=process,
+            broadcast_callback=broadcast,
+            store_callback=store,
+        )
+
+        event = make_event()
+        await queue.start()
+
+        # Enqueue event
+        queue.enqueue(event, salience=0.5)
+
+        # Verify queue has event (stats)
+        stats = queue.stats
+        assert stats["total_queued"] == 1
+
+        # Store should NOT be called yet (event only queued, not processed)
+        store.assert_not_called()
+
+        await queue.stop()
+
+    @pytest.mark.asyncio
+    async def test_db_write_after_processing(self):
+        """Events ARE written to DB after Executive processes."""
+        response = {"response_text": "done", "routing_path": "LLM"}
+        process = AsyncMock(return_value=response)
+        store = AsyncMock()
+        broadcast = AsyncMock()
+        config = make_config()
+        queue = EventQueue(
+            config,
+            process_callback=process,
+            broadcast_callback=broadcast,
+            store_callback=store,
+        )
+
+        event = make_event()
+        await queue.start()
+        queue.enqueue(event, salience=0.5)
+
+        # Wait for processing to complete
+        await asyncio.sleep(0.2)
+        await queue.stop()
+
+        # Store should be called with event + response
+        store.assert_called_once()
+        call_args = store.call_args
+        assert call_args[0][0] is event
+        assert call_args[0][1] is response
+
+    @pytest.mark.asyncio
+    async def test_no_auto_load_on_startup(self):
+        """EventQueue does NOT load existing DB events on startup.
+
+        This documents the intentional in-memory design for Phase.
+        Comment in event_queue.py:50-51 states:
+        "For Phase: Pure in-memory, events lost on restart is acceptable."
+        """
+        store = AsyncMock()
+        broadcast = AsyncMock()
+        process = AsyncMock(return_value={"response_text": "done"})
+        config = make_config()
+
+        # Create queue and start it
+        queue = EventQueue(
+            config,
+            process_callback=process,
+            broadcast_callback=broadcast,
+            store_callback=store,
+        )
+        await queue.start()
+
+        # Verify queue is empty on startup (no DB load)
+        stats = queue.stats
+        assert stats["total_queued"] == 0
+        assert stats["total_processed"] == 0
+        assert stats["total_timed_out"] == 0
+
+        # Verify store_callback was NOT called during startup
+        # (no attempt to query or load from DB)
+        store.assert_not_called()
+
+        await queue.stop()
+
+    @pytest.mark.asyncio
+    async def test_restart_loses_queued_events(self):
+        """Queued events are lost on restart (in-memory only).
+
+        This is expected Phase behavior, not a bug.
+        """
+        process = AsyncMock(return_value={"response_text": "done"})
+        store = AsyncMock()
+        broadcast = AsyncMock()
+        config = make_config()
+        queue = EventQueue(
+            config,
+            process_callback=process,
+            broadcast_callback=broadcast,
+            store_callback=store,
+        )
+
+        # Start queue, enqueue event
+        await queue.start()
+        event = make_event("evt-will-be-lost")
+        queue.enqueue(event, salience=0.5)
+
+        # Verify event is queued
+        stats1 = queue.stats
+        assert stats1["total_queued"] == 1
+
+        # Simulate restart: stop and create new queue
+        await queue.stop()
+
+        queue2 = EventQueue(
+            config,
+            process_callback=process,
+            broadcast_callback=broadcast,
+            store_callback=store,
+        )
+        await queue2.start()
+
+        # New queue should be empty (event lost)
+        stats2 = queue2.stats
+        assert stats2["total_queued"] == 0
+        assert stats2["total_processed"] == 0
+
+        await queue2.stop()
