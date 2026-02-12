@@ -182,26 +182,26 @@ Domain-first, not type-first. Each pack is a self-contained unit with a manifest
 
 ```
 packs/
-â”œâ”€â”€ minecraft/
-â”‚   â”œâ”€â”€ sensors/
-â”‚   â”œâ”€â”€ skills/
-â”‚   â”œâ”€â”€ preprocessors/
-â”‚   â”œâ”€â”€ heuristics/
-â”‚   â””â”€â”€ manifest.yaml
-â”œâ”€â”€ smart-home/
-â”‚   â”œâ”€â”€ sensors/
-â”‚   â”œâ”€â”€ skills/
-â”‚   â””â”€â”€ manifest.yaml
-â”œâ”€â”€ personalities/
-â”‚   â”œâ”€â”€ murderbot/
-â”‚   â”‚   â””â”€â”€ manifest.yaml       # prompt modifier only
-â”‚   â””â”€â”€ glados/
-â”‚       â”œâ”€â”€ heuristics/         # tagged origin: personality:glados
-â”‚       â”œâ”€â”€ skills/             # optional domain skills
-â”‚       â””â”€â”€ manifest.yaml
-â””â”€â”€ core/                       # Built-in, always-loaded
-    â”œâ”€â”€ sensors/
-    â””â”€â”€ skills/
+├── minecraft/
+│   ├── sensors/
+│   ├── skills/
+│   ├── preprocessors/
+│   ├── heuristics/
+│   └── manifest.yaml
+├── smart-home/
+│   ├── sensors/
+│   ├── skills/
+│   └── manifest.yaml
+├── personalities/
+│   ├── murderbot/
+│   │   └── manifest.yaml       # prompt modifier only
+│   └── glados/
+│       ├── heuristics/         # tagged origin: personality:glados
+│       ├── skills/             # optional domain skills
+│       └── manifest.yaml
+└── core/                       # Built-in, always-loaded
+    ├── sensors/
+    └── skills/
 ```
 
 ### Pack Manifest
