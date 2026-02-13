@@ -1,27 +1,35 @@
 # Sensor Dashboard & Control Plane
 
 **Created**: 2026-02-01
-**Status**: Design needed
-**Related**: Sensor architecture (packs/sensors/)
+**Status**: ✅ Resolved (2026-02-12)
+**Resolution**: See [SENSOR_DASHBOARD.md](../SENSOR_DASHBOARD.md)
 
-## Problem
+---
 
-No dashboard visibility into sensor state. As sensor count grows, need ability to observe and control sensors during development and testing.
+## Design Complete
 
-## Needs Identified
+Full specification: [docs/design/SENSOR_DASHBOARD.md](../SENSOR_DASHBOARD.md)
 
-- **Observe**: Connected sensors, status (live/mock/disconnected), event counts, last-seen timestamps
-- **Control**: Load/unload/reload sensors for testing
-- **Test modes**: Run sensor in mock or live mode for evaluating driver-sensor functionality
-- **Tracing**: Some level of event tracing through the sensor → orchestrator path
+All design questions resolved:
 
-## Questions to Resolve
+- ✅ **Control plane + observation**: Both (lifecycle management + metrics/health observability)
+- ✅ **Registration**: `sensors` table linked to `skills` table, manifest-driven, persisted in DB
+- ✅ **gRPC changes**: Sensor lifecycle RPCs (ActivateSensor, DeactivateSensor, TriggerRecovery, ForceShutdown) + GetQueueStats
+- ✅ **Tab layout**: New "Sensors" tab with drill-down pattern (not extension of Lab tab)
 
-- Does the dashboard actively manage sensors (control plane) or just observe them?
-- How do sensors register themselves? (Push registration on connect, or dashboard polls a known set?)
-- What changes to the sensor → orchestrator gRPC path are needed to support status reporting?
-- New dashboard tab vs extension of existing Lab tab?
+## Key Decisions
 
-## Scope
+- **Database**: Hybrid approach (DB for state/metrics, gRPC for commands)
+- **Schema**: `sensors`, `sensor_status`, `sensor_metrics` tables (30-day retention)
+- **Observability**: Queue visibility (driver→adapter, adapter→orchestrator), consolidation ratio, per-source metrics
+- **Accessibility**: Colorblind-friendly palette (blue/gray/orange + symbols)
+- **Heartbeat**: 30-60s interval for dead sensor detection when idle
 
-Dedicated design session needed before implementation.
+## Implementation
+
+Ready prompts:
+
+- Schema migration: `efforts/poc2/prompts/sensor-dashboard-schema.md`
+- Metrics strip: `efforts/poc2/prompts/sensor-metrics-strip.md`
+
+Tracked in PoC 2 milestone.

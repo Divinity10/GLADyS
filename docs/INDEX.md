@@ -88,7 +88,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Question** | [confidence-analysis-harness.md](design/questions/confidence-analysis-harness.md) | Tooling for analyzing confidence dynamics. |
 | **Question** | [feedback-signal-decomposition.md](design/questions/feedback-signal-decomposition.md) | Breaking feedback into component signals. |
 | **Question** | [user-feedback-calibration.md](design/questions/user-feedback-calibration.md) | Calibrating user feedback to learning rate. |
-| **Question** | [sensor-dashboard.md](design/questions/sensor-dashboard.md) | Sensor management dashboard design. |
+| **Resolved** | [sensor-dashboard.md](design/questions/sensor-dashboard.md) | ~~Sensor management dashboard design~~ → Resolved: [SENSOR_DASHBOARD.md](design/SENSOR_DASHBOARD.md) |
 | **Question** | [resource-allocation.md](design/questions/resource-allocation.md) | Resource allocation across concurrent events. |
 | **Question** | [poc1-findings.md](design/questions/poc1-findings.md) | Phase 1 findings requiring Phase 2 action. |
 | **Question** | [cross-cutting.md](design/questions/cross-cutting.md) | Cross-cutting design concerns. |
