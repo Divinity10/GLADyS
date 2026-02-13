@@ -23,10 +23,10 @@ import pytest_asyncio
 @pytest_asyncio.fixture
 async def db_connection():
     """Create a test database connection."""
-    # Use TEST_DB_URL environment variable or default
+    # Use TEST_DB_URL environment variable or default to test database
     db_url = os.getenv(
         "TEST_DB_URL",
-        "postgresql://gladys:gladys@localhost:5432/gladys"
+        "postgresql://gladys:gladys@localhost:5432/gladys_test"
     )
 
     conn = await asyncpg.connect(db_url)
@@ -79,12 +79,21 @@ async def test_sensors_table_exists(db_connection):
     assert 'created_at' in columns
     assert 'updated_at' in columns
 
-    # Verify data types
+    # Verify data types (comprehensive - catch type regressions)
     assert 'uuid' in columns['id']['data_type']
     assert 'uuid' in columns['skill_id']['data_type']
     assert columns['sensor_name']['data_type'] == 'text'
     assert columns['sensor_type']['data_type'] == 'text'
+    assert columns['source_pattern']['data_type'] == 'text'
+    assert columns['heartbeat_interval_s']['data_type'] == 'integer'
+    assert columns['adapter_language']['data_type'] == 'text'
+    assert columns['driver_count']['data_type'] == 'integer'
+    assert 'double precision' in columns['expected_consolidation_min']['data_type'] or 'real' in columns['expected_consolidation_min']['data_type']
+    assert 'double precision' in columns['expected_consolidation_max']['data_type'] or 'real' in columns['expected_consolidation_max']['data_type']
     assert columns['manifest']['data_type'] == 'jsonb'
+    assert columns['config']['data_type'] == 'jsonb'
+    assert 'timestamp' in columns['created_at']['data_type']
+    assert 'timestamp' in columns['updated_at']['data_type']
 
 
 @pytest.mark.asyncio
@@ -110,12 +119,16 @@ async def test_sensor_status_table_exists(db_connection):
     assert 'events_published' in columns
     assert 'updated_at' in columns
 
-    # Verify data types
+    # Verify data types (comprehensive - catch type regressions)
     assert 'uuid' in columns['sensor_id']['data_type']
     assert columns['status']['data_type'] == 'text'
+    assert 'timestamp' in columns['last_heartbeat']['data_type']
+    assert columns['last_error']['data_type'] == 'text'
+    assert columns['error_count']['data_type'] == 'integer'
     assert 'ARRAY' in columns['active_sources']['data_type']
     assert columns['events_received']['data_type'] == 'bigint'
     assert columns['events_published']['data_type'] == 'bigint'
+    assert 'timestamp' in columns['updated_at']['data_type']
 
 
 @pytest.mark.asyncio
@@ -145,12 +158,20 @@ async def test_sensor_metrics_table_exists(db_connection):
     assert 'driver_metrics' in columns
     assert 'created_at' in columns
 
-    # Verify data types
+    # Verify data types (comprehensive - catch type regressions)
     assert 'uuid' in columns['id']['data_type']
     assert 'uuid' in columns['sensor_id']['data_type']
+    assert 'timestamp' in columns['timestamp']['data_type']
     assert columns['events_received']['data_type'] == 'bigint'
     assert columns['events_published']['data_type'] == 'bigint'
+    assert columns['events_filtered']['data_type'] == 'bigint'
+    assert columns['events_errored']['data_type'] == 'bigint'
+    assert 'double precision' in columns['avg_latency_ms']['data_type'] or 'real' in columns['avg_latency_ms']['data_type']
+    assert 'double precision' in columns['consolidation_ratio']['data_type'] or 'real' in columns['consolidation_ratio']['data_type']
+    assert columns['inbound_queue_depth']['data_type'] == 'integer'
+    assert columns['outbound_queue_depth']['data_type'] == 'integer'
     assert columns['driver_metrics']['data_type'] == 'jsonb'
+    assert 'timestamp' in columns['created_at']['data_type']
 
 
 @pytest.mark.asyncio
