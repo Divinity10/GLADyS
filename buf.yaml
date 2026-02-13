@@ -1,0 +1,11 @@
+version: v2
+modules:
+  - path: proto
+# Lint disabled for Phase 2 - proto structure is experimental
+# The package directory structure conflicts with current flat layout
+# Re-enable when ready to reorganize proto/ into package subdirectories
+# (see Phase 2 retrospective)
+breaking:
+  use:
+    - FILE
+  ignore_unstable_packages: true
