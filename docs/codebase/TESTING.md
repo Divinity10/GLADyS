@@ -103,6 +103,32 @@ Be specific enough that the name communicates the behavior:
 
 Test dependencies go in `[project.optional-dependencies] dev`, not main `dependencies` (see `docs/CONVENTIONS.md`).
 
+## Test Database Setup
+
+Tests use an isolated `gladys_test` database to prevent destructive operations against your development data.
+
+**Automatic setup** (recommended):
+```bash
+make setup  # Creates gladys_test database automatically
+```
+
+**Manual setup**:
+```bash
+psql -U postgres -c "CREATE DATABASE gladys_test OWNER gladys;"
+```
+
+**Environment variable**:
+Tests use `TEST_DB_URL` from your `.env` file:
+
+```bash
+# In .env
+TEST_DB_URL=postgresql://gladys:gladys_dev@localhost:5432/gladys_test
+```
+
+**Why this matters**: Test fixtures delete data from tables. Running tests without `TEST_DB_URL` against your dev database (`gladys`) would wipe your local development data.
+
+**Default behavior**: If `TEST_DB_URL` is not set, database tests default to `gladys_test` database to prevent accidental data loss.
+
 ## Patterns
 
 ### Async tests

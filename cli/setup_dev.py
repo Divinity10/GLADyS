@@ -132,6 +132,44 @@ def generate_protos() -> bool:
     return True
 
 
+def create_test_database() -> bool:
+    """Create gladys_test database if it doesn't exist."""
+    print("  ...   Checking test database")
+
+    try:
+        # Check if gladys_test exists
+        result = subprocess.run(
+            ["psql", "-U", "postgres", "-lqt"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if "gladys_test" not in result.stdout:
+            # Create test database
+            subprocess.run(
+                ["psql", "-U", "postgres", "-c", "CREATE DATABASE gladys_test OWNER gladys;"],
+                check=True,
+                capture_output=True,
+                timeout=10
+            )
+            print("  OK    Created gladys_test database")
+        else:
+            print("  OK    gladys_test database exists")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print("  WARN  Could not create test database")
+        print("        Tests may fail without TEST_DB_URL set in .env")
+        print(f"        Error: {e.stderr.decode() if e.stderr else str(e)}")
+        return False
+    except Exception as e:
+        print("  WARN  Could not check test database")
+        print("        Tests may fail without TEST_DB_URL set in .env")
+        print(f"        Error: {e}")
+        return False
+
+
 def main() -> int:
     print("GLADyS Developer Setup")
     print("=" * 40)
@@ -151,6 +189,11 @@ def main() -> int:
     if not generate_protos():
         failures.append("proto-gen")
 
+    print("\nTest database setup:")
+    if not create_test_database():
+        print("  NOTE  Test database setup failed (non-critical)")
+        print("        Set TEST_DB_URL in .env to use a test database")
+
     print("\n" + "=" * 40)
     if failures:
         print(f"Done with {len(failures)} failure(s): {', '.join(failures)}")
@@ -158,6 +201,7 @@ def main() -> int:
 
     print("All packages installed successfully.")
     print("\nNext steps:")
+    print("  - Copy .env.example to .env and customize")
     print("  - Start PostgreSQL: sudo systemctl start postgresql")
     print("  - Initialize database: make init-db")
     print("  - Run 'make test' to verify")

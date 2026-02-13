@@ -92,6 +92,25 @@ make init-db    # Create database, user, extensions, run migrations
 make test       # Run unit tests
 ```
 
+**What `make setup` does:**
+1. Checks prerequisites (Python 3.11+, uv, protoc, psql)
+2. Installs all Python dependencies (libs → services → CLI → tests)
+3. Generates gRPC stubs from `.proto` files
+4. Creates `gladys_test` database for safe test execution
+
+**Configure environment:**
+```bash
+# Copy example config
+cp .env.example .env
+
+# Edit .env - key settings:
+# - OLLAMA_ENDPOINT: LLM endpoint for heuristic pattern extraction
+# - STORAGE_*: PostgreSQL connection for dev database (gladys)
+# - TEST_DB_URL: PostgreSQL connection for test database (gladys_test)
+```
+
+**Why TEST_DB_URL matters:** Test fixtures delete data from tables. Without `TEST_DB_URL` pointing to an isolated test database, tests would wipe your development data. See `docs/codebase/TESTING.md` for details.
+
 ## Choose Your Path
 
 | Your Setup | Use This |
