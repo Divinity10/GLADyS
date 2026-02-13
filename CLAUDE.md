@@ -110,6 +110,15 @@ feat(dev): add make setup and fix GETTING_STARTED.md paths
 
 All files are UTF-8 without BOM. Line endings are LF (not CRLF). These are enforced by `.editorconfig` and `.vscode/settings.json`. When writing files, never include a byte order mark.
 
+### Markdown Files
+
+Follow markdownlint rules defined in `.markdownlint.json`. Key requirements:
+
+- ATX-style headings (`#` prefix, not underline style)
+- Ordered lists with sequential numbering (1, 2, 3)
+- No emphasis-as-heading (don't use `**Text:**` or `*Text*` as section headers)
+- Line length: 150 chars (code blocks and tables exempt)
+
 ### Code Style
 
 - Rust: Standard conventions
