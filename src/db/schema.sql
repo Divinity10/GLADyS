@@ -219,6 +219,117 @@ CREATE TRIGGER skills_updated_at
     EXECUTE FUNCTION update_skills_updated_at();
 
 -- =============================================================================
+-- SENSORS (Sensor Components)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS sensors (
+    id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    skill_id                    UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    sensor_name                 TEXT NOT NULL,
+    sensor_type                 TEXT NOT NULL CHECK (sensor_type IN ('push', 'poll')),
+    source_pattern              TEXT NOT NULL,
+
+    -- Protocol config (from manifest)
+    heartbeat_interval_s        INTEGER NOT NULL DEFAULT 30,
+    adapter_language            TEXT,
+    driver_count                INTEGER DEFAULT 1,
+
+    -- Health monitoring thresholds (per-sensor consolidation expectations)
+    expected_consolidation_min  FLOAT DEFAULT 0.8,
+    expected_consolidation_max  FLOAT DEFAULT 1.2,
+
+    -- Manifest data
+    manifest                    JSONB NOT NULL,
+    config                      JSONB DEFAULT '{}',
+
+    created_at                  TIMESTAMPTZ DEFAULT now(),
+    updated_at                  TIMESTAMPTZ DEFAULT now(),
+
+    UNIQUE(skill_id, sensor_name)
+);
+
+ALTER TABLE sensors OWNER TO gladys;
+
+CREATE INDEX IF NOT EXISTS idx_sensors_skill ON sensors(skill_id);
+CREATE INDEX IF NOT EXISTS idx_sensors_source_pattern ON sensors(source_pattern);
+CREATE INDEX IF NOT EXISTS idx_sensors_type ON sensors(sensor_type);
+
+COMMENT ON TABLE sensors IS 'Sensor components registered via skill packs';
+COMMENT ON COLUMN sensors.source_pattern IS 'Source identifier pattern (e.g., "melvor", "gmail:%", "%@example.com")';
+COMMENT ON COLUMN sensors.expected_consolidation_min IS 'Lower bound for healthy consolidation ratio (messages:events)';
+COMMENT ON COLUMN sensors.expected_consolidation_max IS 'Upper bound for healthy consolidation ratio (messages:events)';
+
+-- Example consolidation thresholds by sensor type:
+-- RuneScape: min=20, max=60 (expect 20:1 to 60:1 ratio)
+-- Melvor: min=10, max=40 (expect 10:1 to 40:1 ratio)
+-- Email: min=0.8, max=1.2 (expect ~1:1 ratio, ±20%)
+-- Sudoku: min=0.8, max=1.2 (expect ~1:1 ratio, ±20%)
+
+-- =============================================================================
+-- SENSOR STATUS (Runtime State)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS sensor_status (
+    sensor_id           UUID PRIMARY KEY REFERENCES sensors(id) ON DELETE CASCADE,
+    status              TEXT NOT NULL DEFAULT 'inactive'
+                        CHECK (status IN ('inactive', 'active', 'disconnected', 'error', 'recovering')),
+    last_heartbeat      TIMESTAMPTZ,
+    last_error          TEXT,
+    error_count         INTEGER DEFAULT 0,
+    active_sources      TEXT[] DEFAULT '{}',
+    events_received     BIGINT DEFAULT 0,
+    events_published    BIGINT DEFAULT 0,
+    updated_at          TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE sensor_status OWNER TO gladys;
+
+CREATE INDEX IF NOT EXISTS idx_sensor_status_status ON sensor_status(status);
+CREATE INDEX IF NOT EXISTS idx_sensor_status_heartbeat ON sensor_status(last_heartbeat DESC NULLS LAST);
+
+COMMENT ON TABLE sensor_status IS 'Runtime state for each sensor (updated by orchestrator on heartbeat)';
+COMMENT ON COLUMN sensor_status.active_sources IS 'Current sources reported in latest heartbeat (for multi-driver sensors)';
+COMMENT ON COLUMN sensor_status.events_received IS 'Lifetime counter: total driver messages received';
+COMMENT ON COLUMN sensor_status.events_published IS 'Lifetime counter: total events published to orchestrator';
+
+-- =============================================================================
+-- SENSOR METRICS (Time-Series Heartbeat Data)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS sensor_metrics (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sensor_id               UUID NOT NULL REFERENCES sensors(id) ON DELETE CASCADE,
+    timestamp               TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Event counters (incremental since last heartbeat)
+    events_received         BIGINT NOT NULL,
+    events_published        BIGINT NOT NULL,
+    events_filtered         BIGINT DEFAULT 0,
+    events_errored          BIGINT DEFAULT 0,
+
+    -- Performance metrics
+    avg_latency_ms          FLOAT,
+    consolidation_ratio     FLOAT,
+
+    -- Queue depths (snapshot at heartbeat time)
+    inbound_queue_depth     INTEGER DEFAULT 0,
+    outbound_queue_depth    INTEGER DEFAULT 0,
+
+    -- Per-driver metrics (JSONB for multi-driver sensors)
+    driver_metrics          JSONB DEFAULT '{}',
+
+    created_at              TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE sensor_metrics OWNER TO gladys;
+
+CREATE INDEX IF NOT EXISTS idx_sensor_metrics_sensor_time ON sensor_metrics(sensor_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_sensor_metrics_timestamp ON sensor_metrics(timestamp DESC);
+
+COMMENT ON TABLE sensor_metrics IS 'Time-series heartbeat data (30-day rolling retention)';
+COMMENT ON COLUMN sensor_metrics.consolidation_ratio IS 'events_received / events_published (adapter efficiency)';
+COMMENT ON COLUMN sensor_metrics.inbound_queue_depth IS 'Driver→Adapter queue depth at heartbeat time';
+COMMENT ON COLUMN sensor_metrics.outbound_queue_depth IS 'Adapter→Orchestrator queue depth at heartbeat time';
+COMMENT ON COLUMN sensor_metrics.driver_metrics IS 'Per-driver stats for multi-driver sensors (e.g., Gmail per-account)';
+
+-- =============================================================================
 -- EPISODES
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS episodes (
