@@ -87,7 +87,10 @@ Title line: `type(scope): message`
 
 Types: `doc`, `feat`, `fix`, `refactor`, `test`, `chore`
 
-Body (optional, after blank line): bulleted list only. Each bullet describes what changed and why. No file names (git history tracks that). No prose paragraphs.
+Body (optional, after blank line): bulleted list only. **Keep bullets concise** - summaries not novels. Each bullet describes what changed and
+why. No file names (git history tracks that). No prose paragraphs.
+
+**Good example:**
 
 ```
 feat(dev): add make setup and fix GETTING_STARTED.md paths
@@ -97,6 +100,23 @@ feat(dev): add make setup and fix GETTING_STARTED.md paths
 - Fix test target to run across all services
 - Fix all stale paths (scripts/ → cli/, etc)
 ```
+
+**Bad example (too verbose):**
+
+```
+doc: add markdownlint config and style guide
+
+- Create .markdownlint.json with project defaults
+- Line length: 150 chars (exempt code blocks/tables)
+- Require sequential ordered list numbering
+- Require ATX-style headings
+- Allow duplicate headings if in different sections
+- Disable HTML tag warnings, first-line heading requirement
+- Document markdown style requirements in CLAUDE.md
+- Ensures consistent markdown formatting across all docs
+```
+
+Better: 2-3 bullets max for simple changes. If you need more bullets, the commit might be doing too much.
 
 **Do NOT include `Co-Authored-By: Claude` or any AI attribution.** Commits represent the project owners' decisions.
 
