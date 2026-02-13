@@ -10,8 +10,11 @@
   },
   "MD033": false,
   "MD041": false,
-  "MD036": true,
+  "MD036": false,
   "MD029": {
     "style": "ordered"
-  }
+  },
+  "MD040": false,
+  "MD045": false,
+  "MD060": false
 }

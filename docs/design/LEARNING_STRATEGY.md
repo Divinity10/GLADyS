@@ -212,6 +212,7 @@ learning_explicit_magnitude: float = 0.8  # F-03: explicit signal weight (lower 
 ```
 
 Corresponding environment variables (override defaults via `.env` or shell):
+
 ```
 LEARNING_STRATEGY=bayesian
 LEARNING_UNDO_WINDOW_SEC=30.0
@@ -302,4 +303,3 @@ Pack constraints (`locked`, `floor`, `ceiling`, `feedback_weight`) are NOT check
 - F-03 decay function — Phase 2 (Protocol supports it via magnitude)
 - F-23 granular score mapping — Phase 2 (Protocol supports it via source field)
 - F-24 constraint enforcement — separate task (not a strategy concern)
-

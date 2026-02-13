@@ -37,6 +37,7 @@
 ## Common Developer Tasks
 
 ### Running & Managing Services
+
 | I want to... | Command |
 |--------------|---------|
 | Start all services | `python cli/docker.py start all` |
@@ -45,6 +46,7 @@
 | Reset everything | `python cli/docker.py reset` |
 
 ### Debugging & Investigation
+
 | I want to... | See |
 |--------------|-----|
 | See events and heuristics visually | [Dashboard](../src/services/dashboard/) |
@@ -53,6 +55,7 @@
 | Check what's implemented vs planned | [ADR-0010 Status](adr/ADR-0010-Learning-and-Inference.md#implementation-status) |
 
 ### Building Features
+
 | I want to... | See |
 |--------------|-----|
 | Build a sensor | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md), [GETTING_STARTED](GETTING_STARTED.md#i-want-to-build-a-sensor) |
@@ -61,6 +64,7 @@
 | Change a proto contract | [CONTRIBUTING.md](../CONTRIBUTING.md#regenerating-proto-stubs) |
 
 ### Understanding the System
+
 | I want to... | See |
 |--------------|-----|
 | Get the 30-second overview | [Key Concepts](#key-concepts-30-second-version) below |
@@ -80,6 +84,7 @@
 - **Actuators** take action (speech, device control)
 
 **System 1 / System 2 Split**:
+
 - System 1: Fast heuristics (<5ms) - handles familiar situations
 - System 2: LLM deliberation (200-500ms) - handles novel situations
 - GLADyS learns from System 2 to improve System 1 over time
@@ -95,5 +100,3 @@
 | **ADRs** | `docs/adr/` | Architecture Decision Records - why we made specific choices |
 | **Design docs** | `docs/design/` | Working documents, overviews, open questions |
 | **Archive** | `docs/archive/` | Preserved design work (deferred features, historical decisions) |
-
-

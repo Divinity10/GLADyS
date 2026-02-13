@@ -91,6 +91,7 @@ def get_orchestrator_stub():
 #### Required Fix
 
 Create a managed channel class that:
+
 1. Caches channels per address
 2. Provides cleanup capability
 3. Can be reset when environment changes
@@ -191,6 +192,7 @@ If you have questions for Claude or need to coordinate:
 ## Reference: Success Criteria from REFACTORING_PLAN.md
 
 Your tasks contribute to these success criteria:
+
 - [ ] Background task failures logged (Task 1)
 - [ ] No gRPC channel leaks (Task 2)
 - [ ] Environment switch works without app restart (Task 2)

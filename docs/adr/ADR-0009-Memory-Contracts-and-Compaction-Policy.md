@@ -40,12 +40,14 @@ ADR-0005.
 ### 3.1 Episodic Event Envelope (Ingest Contract)
 
 Required fields (minimum viable):
+
 - `timestamp` (UTC)
 - `source` (sensor/app identifier)
 - `raw` (free text)
 - `salience` (object with salience dimensions)
 
 Optional fields:
+
 - `episode_id` (UUID) - sensors typically don't know episode context; assigned by
   Memory subsystem during ingest based on active episode, or by Episode Boundary
   Detector when context switches are detected. See ADR-0004 Section 5.8.
@@ -58,22 +60,27 @@ Optional fields:
 ### 3.2 Memory API (Logical Operations)
 
 Episodic:
+
 - `IngestEpisodes(batch)` -> ack + failures
 - `QueryEpisodes(filter)` -> list of episodes
 - `GetEpisode(episode_id)` -> episode + provenance
 
 Semantic:
+
 - `QueryFacts(filter)` -> list of semantic facts
 - `UpsertFact(fact)` -> ack + confidence update
 
 Entities:
+
 - `UpsertEntity(entity)` -> ack + merged entity_id
 - `GetEntity(entity_id)` -> entity record
 
 Profile:
+
 - `GetUserProfile()` -> profile traits + confidence
 
 Filters support:
+
 - time range, source, salience thresholds
 - text query and/or embedding query
 - limit, sort order, include_archived
@@ -84,6 +91,7 @@ Compaction uses time tiers with optional salience exemptions. Defaults are
 illustrative and must be configurable.
 
 Policy shape (example):
+
 ```
 compaction_policy:
   hot_window_days: 7
@@ -96,6 +104,7 @@ compaction_policy:
 ```
 
 Tier semantics:
+
 - Hot: full raw episodes, structured fields, embeddings.
 - Warm: keep key fields + summaries + extracted entities/facts; optionally
   drop raw payloads.
@@ -104,6 +113,7 @@ Tier semantics:
 ### 3.4 Compaction Outputs and Provenance
 
 Compaction produces summarized records with back-references:
+
 - `summary_id`, `episode_ids`, `time_range`, `topic`, `salience_aggregate`,
   `embedding`
 
@@ -115,15 +125,18 @@ source, hash) and links from facts/summaries to source episodes.
 ## 4. Consequences
 
 ### Positive
+
 - Stable contracts for all modules integrating with memory
 - Configurable retention and compression without code changes
 - Clear provenance for user transparency and debugging
 
 ### Negative
+
 - Upfront design effort before implementation
 - Requires policy and pipeline configuration early
 
 ### Risks
+
 - Overly aggressive compaction could reduce explainability if defaults are poor
 
 ---

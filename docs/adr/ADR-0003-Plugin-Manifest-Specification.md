@@ -1178,6 +1178,7 @@ manifest_version: "1.0"         # Schema version
 ## 14. Notes
 
 Manifest validation should occur at two stages:
+
 1. **Discovery time:** Basic schema validation, path existence
 2. **Activation time:** Dependency resolution, resource availability
 

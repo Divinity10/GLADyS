@@ -76,9 +76,11 @@ If the prompt specifies a branch name but not commands, run:
 If output does not show the required branch name, STOP and fix before proceeding.
 
 If `git checkout -b` is blocked by sandbox/permissions, report:
+
 ```
 BLOCKED: git checkout -b <branch> -- <reason>
 ```
+
 and stop. Do not implement on `main`.
 
 ### Gate 2: Scope
@@ -108,6 +110,7 @@ Only modify files listed in the task prompt's "Files to Change" table. If you ne
 ### If Blocked
 
 If any required step cannot be executed due to sandbox, permissions, or tooling:
+
 - Report `BLOCKED: <command> -- <reason>`
 - Do NOT skip the step silently
 - Do NOT claim completion without the evidence
@@ -126,43 +129,55 @@ Never claim completion without the Protocol Evidence section containing exact co
 Use this exact structure in final responses for implementation tasks:
 
 1. Branch Evidence
+
 - Command: `<command>`
 - Output:
+
 ```text
 <verbatim output>
 ```
 
-2. Encoding Evidence
+1. Encoding Evidence
+
 - Command: `python cli/fix_encoding.py --modified`
 - Output:
+
 ```text
 <verbatim output>
 ```
 
-3. Test Evidence
+1. Test Evidence
+
 - Command: `<test command from prompt>`
 - Output:
+
 ```text
 <verbatim output>
 ```
 
-4. Commit Evidence
+1. Commit Evidence
+
 - Command: `git log --oneline -1`
 - Output:
+
 ```text
 <verbatim output>
 ```
 
-5. Scope Evidence
+1. Scope Evidence
+
 - Command: `git diff --name-only` and `git diff --name-only HEAD~1 HEAD`
 - Output:
+
 ```text
 <verbatim output>
 ```
 
-6. Handoff Evidence (if required by prompt)
+1. Handoff Evidence (if required by prompt)
+
 - File: `<path>`
 - Text:
+
 ```text
 <exact section content>
 ```

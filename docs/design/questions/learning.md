@@ -19,6 +19,7 @@ Heuristics, TD learning, pattern formation, and how GLADyS learns from experienc
 ADR-0010 defines the Learning Pipeline with System 1 (heuristics) and System 2 (LLM reasoning). The question: **how do heuristics get created and updated from successful reasoning?**
 
 Current heuristics are assumed to exist (stored in `heuristics` table per ADR-0004 §5.6), but the mechanism for:
+
 1. Creating heuristics from novel reasoning
 2. Updating heuristic confidence based on outcomes
 
@@ -95,6 +96,7 @@ These items are required for production-quality heuristic learning but are defer
 The key insight: **implicit feedback > explicit feedback**. User actions (undo, override, follow-through) are more reliable signals than verbal feedback like "that was helpful."
 
 **Core Principles**:
+
 | Principle | Rationale |
 |-----------|-----------|
 | **Log, don't ask** | Interrupting workflow is worse than imperfect attribution |
@@ -103,6 +105,7 @@ The key insight: **implicit feedback > explicit feedback**. User actions (undo, 
 | **Ask specific questions** | "Which?" not "Was that helpful?" |
 
 **When to Ask vs Stay Silent**:
+
 - **Stay Silent**: Ambiguous feedback, low-stakes, single occurrence
 - **Ask Only When ALL THREE**: High stakes + pattern emerging (2-3x) + specific question possible
 
@@ -111,11 +114,13 @@ The key insight: **implicit feedback > explicit feedback**. User actions (undo, 
 #### 23.2 Credit Assignment Implementation (Deferred)
 
 **Prerequisites**:
+
 - `ProvideFeedback` RPC endpoint (implemented)
 - Event → heuristic fire log (missing)
 - `feedback_events` table writes (missing)
 
 **Config settings to add**:
+
 - `FEEDBACK_TIME_WINDOW_SECONDS`: How far back to attribute credit (default: 60)
 - `FEEDBACK_RECENCY_DECAY`: Exponential decay factor for older events (default: 0.5)
 - `ASK_THRESHOLD`: Confidence gap required to ask (starts 0.7, increases to 0.85)
@@ -171,6 +176,7 @@ def get_prediction_baseline(event_embedding, triggered_heuristic_id=None):
 #### Phase Scope: Instrument Only
 
 Following "Instrument Now, Analyze Later" recommendation:
+
 1. Add `prediction` and `prediction_confidence` fields to reasoning output
 2. Log outcomes (undo detection, explicit feedback, game state)
 3. **Do NOT implement TD learning** - just collect data for analysis
@@ -223,6 +229,7 @@ response = await self._stub.GetHeuristic(request)
 **Impact**: OutcomeWatcher needs this to dynamically fetch `condition_text` for pattern matching. Currently worked around by passing `condition_text` directly, but this means the OutcomeWatcher can't look up heuristics it wasn't pre-configured with.
 
 **Fix Required**:
+
 1. Add `GetHeuristic` RPC to `memory.proto`
 2. Add `GetHeuristicRequest` and `GetHeuristicResponse` messages
 3. Implement handler in `grpc_server.py`
@@ -251,6 +258,7 @@ feedback_source='explicit'  # Always 'explicit', ignoring actual source
 This means implicit feedback is mislabeled as explicit in the Flight Recorder.
 
 **Fix Required**:
+
 1. Add `feedback_source` field to `UpdateHeuristicConfidenceRequest` in proto
 2. Pass the field through in `grpc_server.py` handler
 3. Use the parameter in storage instead of hardcoding
@@ -266,6 +274,7 @@ Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Im
 **Impact**: We can't verify the implicit feedback loop actually works through the full Orchestrator flow.
 
 **Fix Required**:
+
 - Create E2E test that runs through Orchestrator
 - Verify Flight Recorder records `feedback_source='implicit'`
 - Verify confidence updates correctly
@@ -288,6 +297,7 @@ Event → Heuristic Match → Action → Outcome Event → OutcomeWatcher → Im
 Heuristics match incoming events via embedding cosine similarity (pgvector). The current threshold is 0.7 globally.
 
 **The question**: Should the threshold be:
+
 - Global (one number for everything)?
 - Per-heuristic (learned from feedback — heuristics that produce false positives tighten their threshold)?
 - Per-domain (gaming may need tighter matching than home automation)?
@@ -311,6 +321,7 @@ At 0.7, "user wants ice cream" matches "user wants frozen dessert" (0.78) but no
 When multiple heuristics match an event, the highest `similarity * confidence` score wins. This is a simple argmax.
 
 **The question**: Is argmax the right strategy? Alternatives:
+
 - Weighted voting across matching heuristics
 - Escalate to System 2 when top-2 scores are close (deliberation trigger)
 - Domain-specific resolution strategies
@@ -332,6 +343,7 @@ When multiple heuristics match an event, the highest `similarity * confidence` s
 The current heuristic matching system uses word overlap to find relevant heuristics for incoming events. This produces false positives when sentences share structural words but have completely different meanings.
 
 **Example failure case**:
+
 - Heuristic condition: "Mike Mulcahy sent an email about killing his neighbor"
 - Event text: "Mike Mulcahy sent an email about meeting at 1pm"
 - Word overlap: {Mike, Mulcahy, sent, email, about} = 5 words
@@ -354,6 +366,7 @@ Replace word overlap with vector similarity using embeddings. "killing neighbor"
 **ADR**: [ADR-0010](../../adr/ADR-0010-Learning-Pipeline.md)
 
 Resolved questions:
+
 1. **Trigger model**: Event-driven with background consolidation
 2. **Online vs batch**: Online for heuristics, batch for deeper patterns
 3. **Feedback loop**: Explicit (user) + implicit (outcome observation)
@@ -369,6 +382,7 @@ Resolved questions:
 **Date**: 2026-01-23
 
 Original design used exact key-value matching. Superseded by embedding-based fuzzy matching in §22 because:
+
 - Exact matching is too brittle for natural language conditions
 - Without fuzzy logic, GLADyS is just an expert system
 - Semantic similarity via embeddings is brain-like and well-studied
@@ -381,10 +395,12 @@ Original design used exact key-value matching. Superseded by embedding-based fuz
 **Date**: 2026-01-23
 
 Use a **transaction log pattern** for heuristic modifications:
+
 - `heuristics` table: Current state only (fast to query)
 - `heuristic_history` table: Append-only modification log (audit trail)
 
 **Schema**:
+
 ```sql
 CREATE TABLE heuristics (
   id UUID PRIMARY KEY,
@@ -481,15 +497,18 @@ CREATE INDEX idx_heuristics_embedding ON heuristics
 These concrete scenarios help validate design decisions:
 
 ### UC1: Gaming Companion (Fire Detection)
+
 ```
 [Game Sensor] → [Threat Analyzer] → Salience → Executive → Speech/Action
 ```
+
 Tests: Heuristic fire, TD learning from "that warning was helpful"
 
 ### UC2: Learning from Experience
+
 ```
 Novel event → LLM reasons → User thumbs up → Pattern extracted → New heuristic
 Next similar event → Heuristic fires → LLM skipped
 ```
-Tests: Heuristic formation, semantic matching, confidence updates
 
+Tests: Heuristic formation, semantic matching, confidence updates

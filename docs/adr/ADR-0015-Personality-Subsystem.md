@@ -46,6 +46,7 @@ GLADyS is not a faceless assistant—it has **character**. ADR-0001 Section 9 es
 We implement a **Response Model** personality architecture:
 
 **Response Model**: Behavioral traits that control how GLADyS expresses itself (user-adjustable within pack-defined bounds)
+
 - Communication traits (bipolar: -1 to +1): irony, directness, formality, verbosity
 - Humor settings: frequency (0-1) + weighted styles
 - Affect traits: warmth, energy
@@ -62,6 +63,7 @@ Personalities are packaged as **composable plugins** containing:
 ### 3.1 Deferred: Identity Model
 
 A more sophisticated **Identity Model** based on Big 5 psychological traits was designed but deferred from MVP. The Identity Model would provide:
+
 - Psychologically-grounded trait foundations (Big 5 + facets)
 - Derivation rules that compute Response traits from Identity
 - Stronger consistency guarantees across personality packs
@@ -69,6 +71,7 @@ A more sophisticated **Identity Model** based on Big 5 psychological traits was 
 **Why deferred**: The Identity Model adds architectural complexity without clear user-facing value for MVP. The Response Model alone achieves the same output—users see and adjust behavioral traits, not psychological foundations.
 
 **Design preserved**: See [PERSONALITY_IDENTITY_MODEL.md](../design/PERSONALITY_IDENTITY_MODEL.md) for the full Identity Model specification. This can be implemented later if:
+
 - Personality drift becomes a problem
 - Pack quality issues emerge
 - A/B testing shows derivation-based personalities outperform hand-tuned ones
@@ -202,6 +205,7 @@ The Response Model defines how the personality expresses itself. These traits ar
 ### 6.1 Communication Traits
 
 All communication traits are **bipolar** (-1 to +1), where:
+
 - Negative values = one behavioral extreme
 - Zero = neutral/balanced
 - Positive values = opposite extreme
@@ -217,6 +221,7 @@ response:
 ```
 
 **Irony vs Sarcasm distinction**:
+
 - **Irony** is a *communication mode*—it affects ALL speech, not just jokes
 - **Sarcasm** is what emerges when high irony combines with certain content
 - A character with high irony says everything with subtext; they're not constantly "being sarcastic"
@@ -239,6 +244,7 @@ response:
 ```
 
 **How irony + humor interact**:
+
 | Irony | Humor Freq | Result |
 |-------|------------|--------|
 | High (+0.8) | High (0.8) | Constant sarcastic commentary |
@@ -314,6 +320,7 @@ prompts:
 ### 7.2 Example Personality Prompts
 
 **GLADyS-style (dry wit, helpful reluctance)**:
+
 ```yaml
 prompts:
   system: |
@@ -331,6 +338,7 @@ prompts:
 ```
 
 **Helpful Assistant (neutral professional)**:
+
 ```yaml
 prompts:
   system: |
@@ -692,6 +700,7 @@ On personality switch:
 ```
 
 **Transition acknowledgment** (optional, personality-dependent):
+
 - GLADyS → Assistant: "Fine. I'll be... professional."
 - Assistant → GLADyS: "Oh good, I can be myself again."
 
@@ -921,6 +930,7 @@ CREATE INDEX idx_user_personality ON user_personality_state(user_id);
 ```
 
 **Key design decisions:**
+
 - **Separation from memory**: Personality config lives in its own tables, not ADR-0004 memory schema
 - **Pack-user relationship**: Each user can have different customizations per personality pack
 - **Adjustment storage**: Store offsets, not absolute values—enables pack updates without losing user prefs

@@ -36,12 +36,14 @@ Salience gateway and memory are designed for **discrete events** ("player took d
 #### Discussion
 
 **Temperature example**:
+
 - Raw: 72°F, 72°F, 72°F, 73°F, 73°F, 73°F, 74°F...
 - Threshold event: "Temperature crossed 74°F threshold"
 
 The threshold event has clear salience. The raw readings are just noise for most purposes.
 
 **However**, some use cases need the raw data:
+
 - "What was the temperature trend over the last hour?" (needs history)
 - "Is the AC cycling too frequently?" (needs fine-grained data)
 
@@ -50,6 +52,7 @@ The threshold event has clear salience. The raw readings are just noise for most
 **Question**: Do we have the right data structures? When is the right time to define them?
 
 The current schema (`episodic_events`, `heuristics`, `heuristic_fires`) emerged from Phase needs. As sensors, actuators, and multi-user support arrive, the schema will need to evolve. Key tensions:
+
 - Define early → risk premature abstraction
 - Define late → risk expensive migrations
 - Current pragmatic approach: add columns as needed, defer new tables until a concrete use case requires them
@@ -62,10 +65,12 @@ The current schema (`episodic_events`, `heuristics`, `heuristic_fires`) emerged 
 #### Potential Resolution
 
 Consider a two-path model:
+
 1. **Events** → Salience → Episodic Memory (standard path)
 2. **Metrics** → Time-Series Storage → Query on demand (new path)
 
 Sensors declare their output type in manifest:
+
 ```yaml
 outputs:
   - name: temperature
@@ -94,7 +99,7 @@ This is architectural - needs ADR if we proceed.
 **Problem**: Does every reading go through salience? (No)
 
 **Solution options**:
+
 1. Sensor emits only on threshold crossing
 2. Separate "metric" path that bypasses salience
 3. Preprocessor filters to significant changes
-

@@ -19,6 +19,7 @@ The system should make the *right* prediction and take the *right* action, measu
 This is a deliberate departure from how the brain works. Human cognition is riddled with well-documented biases — loss aversion, confirmation bias, anchoring, status quo bias — that distort decision-making in predictable ways. Faithfully reproducing the brain's architecture risks reproducing these failure modes. We prefer approaches that **structurally avoid** cognitive biases rather than approaches that reproduce them and then try to filter them out.
 
 In practice, this means:
+
 - **Expected value over prospect theory**: Heuristic selection should use E(X) = probability × magnitude, not human-like loss aversion where losses loom larger than equivalent gains
 - **Prediction accuracy over user agreement**: The learning signal is "was the prediction correct?" not "did the user like it?" A user override means intent disagreement, not heuristic failure
 - **Bayesian updating over anchoring**: Beliefs update proportionally to evidence, not disproportionately anchored to first observations
@@ -54,6 +55,7 @@ Event arrives (e.g., "player health at 15%")
 ```
 
 **Escalation triggers** (System 1 → System 2):
+
 - Novelty: no similar situation in memory
 - Low confidence on matching heuristics
 - Conflicting heuristics suggest different actions
@@ -79,6 +81,7 @@ GLADyS's memory hierarchy (L0-L4) is modeled on how the hippocampus processes me
 The biological insight: **memories aren't stored once — they're consolidated**. The hippocampus replays recent experiences during sleep, extracting patterns and transferring knowledge to the neocortex.
 
 GLADyS implements this as a "sleep cycle" — a batch processing phase during idle time that:
+
 1. Summarizes old episodes into semantic facts
 2. Extracts patterns from repeated observations
 3. Updates learned beliefs with accumulated evidence
@@ -156,6 +159,7 @@ Learned patterns are stored with Bayesian models that track uncertainty and upda
 **Why Bayesian?** The models naturally represent uncertainty. A Beta(2,2) prior says "I don't know" — it takes many observations to shift. A Beta(100,10) says "I'm quite sure" — single contradictions barely register. This prevents oscillation from noisy feedback.
 
 **Confidence updates** use Temporal Difference learning:
+
 ```
 delta = actual_outcome - predicted_outcome
 new_confidence = old_confidence + learning_rate * delta
@@ -206,6 +210,7 @@ For each deferred decision, a three-way comparison runs:
 | Actual Outcome | What happened | From feedback or outcome signals |
 
 This produces learning signals:
+
 - S1 = LLM = Good outcome → reinforce heuristic
 - S1 ≠ LLM, LLM was right → correct heuristic
 - S1 ≠ LLM, S1 was right → heuristic may be *better* than LLM for this case
@@ -224,6 +229,7 @@ The critical insight: **personality interacts with learning**. A sarcastic perso
 We deliberately avoided the Big Five personality model (OCEAN). Big Five describes human personality variance across a population. GLADyS is a single agent whose personality is configured, not measured. The dimensions that matter are behavioral ones: how proactive to be, how verbose, how much humor, how much deference to user override. These map to system parameters, not psychological constructs.
 
 **Personality heuristics** are an experimental concept: heuristics whose conditions or actions are influenced by the active personality configuration. For example:
+
 - A "cautious" personality might require higher confidence before acting autonomously
 - A "proactive" personality might lower the salience threshold for opportunity events
 - A "terse" personality might suppress informational-only notifications
@@ -235,6 +241,7 @@ This creates two specific concerns:
 **Personality switch contamination**: If a user runs a "bold" personality for a month, heuristics form around bold behavior — acting on low-confidence patterns, tolerating more false positives. If the user then switches to a "cautious" personality, those heuristics are wrong for the new personality. They were learned in one behavioral context and applied in another.
 
 This is analogous to **domain shift** in machine learning: the training distribution no longer matches the deployment distribution. Possible approaches:
+
 - Tag heuristics with the personality that produced them
 - Decay confidence on personality-influenced heuristics when personality changes
 - Separate personality-dependent heuristics from personality-independent ones
@@ -261,23 +268,28 @@ Transparency about the boundaries of our approach:
 ## References
 
 ### Cognitive Science
+
 - Kahneman, D. (2011). *Thinking, Fast and Slow*
 - McClelland, J. L., McNaughton, B. L., & O'Reilly, R. C. (1995). Why there are complementary learning systems in the hippocampus and neocortex
 - Seeley, W. W., et al. (2007). Dissociable intrinsic connectivity networks for salience processing and executive control
 
 ### Event Segmentation
+
 - Zacks, J. M., Speer, N. K., Swallow, K. M., Braver, T. S., & Reynolds, J. R. (2007). Event Segmentation in Perception and Memory
 - Franklin, N. T., Norman, K. A., Ranganath, C., Zacks, J. M., & Gershman, S. J. (2020). Structured Event Memory: A neuro-symbolic model of event cognition
 
 ### Reinforcement Learning
+
 - Sutton, R. S., & Barto, A. G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.)
 - Schaul, T., et al. (2015). Prioritized Experience Replay
 
 ### Case-Based Reasoning
+
 - Kolodner, J. (1993). *Case-Based Reasoning*
 - Aamodt, A., & Plaza, E. (1994). Case-Based Reasoning: Foundational Issues
 
 ### Technical Details
+
 - [ADR-0004: Memory Schema](../adr/ADR-0004-Memory-Schema-Details.md) — Full schema and hierarchy design
 - [ADR-0010: Learning and Inference](../adr/ADR-0010-Learning-and-Inference.md) — Dual-process architecture, Bayesian models, learning pipeline
 - [ADR-0013: Salience Subsystem](../adr/ADR-0013-Salience-Subsystem.md) — Attention management, habituation, context-aware filtering

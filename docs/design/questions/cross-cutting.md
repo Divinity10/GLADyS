@@ -18,6 +18,7 @@ Topics that span multiple subsystems: audit, output routing, integration, and ar
 When a doorbell rings during a gaming session, two contexts apply: gaming (primary) and home (the doorbell's domain). Currently, we evaluate with both profiles and take the maximum salience.
 
 **The question**: Is "max across contexts" the right rule? Alternatives:
+
 - Switching cost (brief reduced sensitivity during context change)
 - Persistent background monitoring (some contexts always run)
 - Priority ordering (safety contexts always override)
@@ -37,11 +38,13 @@ When a doorbell rings during a gaming session, two contexts apply: gaming (prima
 Some sensors produce high-frequency data — a motion sensor firing hundreds of times per hour, a game emitting damage events every tick, a temperature sensor reporting every second. Most are repetitive. Storing and processing each individually is wasteful, but naive deduplication destroys information the learning pipeline needs.
 
 **Possible approaches** (not mutually exclusive):
+
 - **Sensor-level rate limiting**: Sensors fire on intervals, batching events with timestamp lists
 - **Orchestrator-level condensation**: Recent event map merges identical events within a time window
 - **Storage-level compression**: Identical events stored as one record with timestamp array
 
 **Design questions**:
+
 - What's the right condensation unit? By exact match, embedding similarity, or source?
 - Does condensation interact with habituation? (Double-filtering risk)
 - What temporal features matter enough to preserve? (Bursts, periodicity, acceleration)
@@ -135,6 +138,7 @@ When the Executive is under load, it can respond with:
 #### Impact on Phase
 
 Current Phase implementation in `router.py` would need to change:
+
 - Remove confidence threshold logic from Orchestrator
 - Always send to Executive with heuristic context attached
 - Add fast-path exception for critical urgency only
@@ -148,6 +152,7 @@ Implemented in W3. Answers to the open questions:
 3. **Rate limiting**: Deferred to post-Phase
 
 Key implementation files:
+
 - `src/services/orchestrator/gladys_orchestrator/router.py` — always forwards to Executive, emergency fast-path only
 - `src/services/executive/gladys_executive/server.py` — heuristic fast-path (confidence >= 0.7, configurable via `EXECUTIVE_HEURISTIC_THRESHOLD`)
 
@@ -173,6 +178,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 **Current state**: Single-threaded asyncio event loop.
 
 **Options**:
+
 1. **Keep single-threaded asyncio** - Simpler, sufficient if we don't block
 2. **Thread pool for CPU-bound work** - Already have ThreadPoolExecutor for gRPC
 3. **Multiple event loops** - One per sensor category (high-volume vs low-volume)
@@ -187,6 +193,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 **Current state**: Synchronous gRPC calls (Orchestrator waits for Executive response).
 
 **Options**:
+
 1. **Keep sync gRPC** - Simple, request-response semantics
 2. **Async gRPC with callbacks** - Non-blocking, but complex error handling
 3. **Message queue** - Decouple completely, Executive pulls work
@@ -201,6 +208,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 **Current state**: Sequential calls (Salience → then route based on result).
 
 **Options**:
+
 1. **Keep sequential** - Simpler, Salience result informs routing
 2. **Parallel fan-out** - Send to Memory + Salience + Executive simultaneously
 3. **Speculative execution** - Start Executive while waiting for Salience, abort if not needed
@@ -214,6 +222,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 **Current state**: Not implemented. Executive returns response text, no actuator integration.
 
 **Design needed**:
+
 - Does Executive specify actuator directly? ("turn on light in kitchen")
 - Or does a separate Action Router interpret intent?
 - How are actuator capabilities discovered?
@@ -228,6 +237,7 @@ The Orchestrator coordinates between sensors, Memory/Salience, and Executive. Se
 **Current state**: Events pile up in asyncio queues. No back-pressure. Eventually OOM.
 
 **Options**:
+
 1. **Drop oldest** - Discard events that have been waiting too long
 2. **Drop lowest priority** - Keep urgent, discard background
 3. **Sample** - Process 1 in N events during overload
@@ -267,6 +277,7 @@ Core hypotheses to validate:
 What order should we validate hypotheses?
 
 **Proposed**:
+
 1. **Single sensor → heuristic → response** (current Phase scope)
 2. **Feedback → confidence update** (partially implemented)
 3. **Heuristic creation from reasoning** (not implemented)
@@ -298,6 +309,7 @@ What knobs exist for tuning system behavior?
 ##### 32.5 How/When Do We Benchmark?
 
 **Questions**:
+
 - What load should we test? (events/second)
 - What's the baseline to compare against?
 - When do we run benchmarks? (CI? Manual?)
@@ -306,6 +318,7 @@ What knobs exist for tuning system behavior?
 ##### 32.6 Testing Strategy
 
 **Questions** (also in §14.8):
+
 - How do you regression test a learning system?
 - What's deterministic vs non-deterministic?
 - Simulation environments for sensors?
@@ -346,6 +359,7 @@ Executive → "Someone's at the door" → Output Router → ???
 ```
 
 Output is distinct from actuators:
+
 - **Actuator**: changes physical state (thermostat, lock)
 - **Output**: delivers information TO the user (speech, notification, display)
 
@@ -374,6 +388,7 @@ Combine the best from each domain:
 #### Human Assistant Analogy
 
 A good human assistant would:
+
 - Tap your shoulder if you're right there
 - Call your name if you're in another room
 - Text if you're away
@@ -406,6 +421,7 @@ GLADyS should behave similarly.
 #### Relationship to Actuators
 
 Output devices could be modeled as actuators with special semantics:
+
 - `type: output` vs `type: actuator`
 - Or: Output router as separate subsystem that USES actuators
 
@@ -432,12 +448,15 @@ Gap analysis performed after ADR-0010/0011/0012 completion.
 #### Medium Priority (User Experience)
 
 ##### 14.3 Output Routing / User Presence
+
 See [§13 above](#q-output-routing-and-user-presence-13)
 
 ##### 14.5 Multi-User / Household
+
 **Gap**: Mentioned as open question in ADR-0010 but it's architectural.
 
 **Questions**:
+
 - Whose preferences win when users conflict?
 - Per-user profiles vs household consensus?
 - Privacy between household members?
@@ -448,18 +467,22 @@ See [§13 above](#q-output-routing-and-user-presence-13)
 #### Lower Priority (Operational)
 
 ##### 14.6 Error Handling / Graceful Degradation
+
 **Gap**: Scattered mentions but no coherent strategy.
 
 **Questions**:
+
 - What happens when subsystems fail?
 - User communication about failures?
 - Self-healing behaviors?
 - Fallback chains?
 
 ##### 14.7 Upgrade / Migration
+
 **Gap**: Not addressed.
 
 **Questions**:
+
 - Schema migration for memory/audit?
 - Plugin version compatibility?
 - Rolling upgrades?
@@ -467,9 +490,11 @@ See [§13 above](#q-output-routing-and-user-presence-13)
 **Recommendation**: Defer until closer to v1.0
 
 ##### 14.8 Testing Strategy
+
 **Gap**: Not addressed.
 
 **Questions**:
+
 - How do you regression test a learning system?
 - Simulation environments?
 - Preventing learned behavior drift?
@@ -569,6 +594,7 @@ The Phase implementation uses simplified gRPC contracts compared to ADR-0005 spe
 **Date**: 2026-01-22
 
 See:
+
 - [SUBSYSTEM_OVERVIEW.md §3](../SUBSYSTEM_OVERVIEW.md)
 
 Rationale: ML ecosystem, rapid prototyping, team familiarity. Performance-critical paths handled by Rust memory fast-path.
@@ -596,4 +622,3 @@ Tests: DAG preprocessor model, parallel execution
 ```
 
 Tests: Complex DAG, multiple sensor sources merging
-

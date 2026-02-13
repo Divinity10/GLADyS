@@ -25,6 +25,7 @@ python run.py stop      # Stop when done
 Or directly: `docker compose up -d`
 
 Once running, Memory listens on:
+
 - **Port 50052** - Rust fast path (use this for most calls)
 - **Port 50051** - Python storage (direct access, usually not needed)
 
@@ -35,6 +36,7 @@ Other subsystems talk to Memory via **gRPC**. Here's what you need:
 ### 1. Get the proto file
 
 The API contract is defined in [`proto/memory.proto`](../../proto/memory.proto) at the project root. This file defines:
+
 - `StoreEpisode` - Save a memory
 - `QueryEpisodes` - Search memories by similarity
 - `GenerateEmbedding` - Get vector embedding for text
@@ -43,6 +45,7 @@ The API contract is defined in [`proto/memory.proto`](../../proto/memory.proto) 
 ### 2. Generate client code for your language
 
 **Rust** (like the SalienceGateway):
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -61,12 +64,14 @@ fn main() {
 ```
 
 **Python**:
+
 ```bash
 # From project root
 python cli/proto_gen.py
 ```
 
 **C#** (like Executive):
+
 ```xml
 <!-- .csproj -->
 <PackageReference Include="Grpc.Net.Client" Version="2.x" />
@@ -125,6 +130,7 @@ response = client.StoreEpisode(StoreEpisodeRequest(source="test", raw_text="Hell
 ```
 
 **Key distinction**:
+
 - **SalienceGateway (Rust, 50052)**: Handles `EvaluateSalience` RPC. Calls Python on every salience eval for semantic matching. Cache is for stats/tracking.
 - **MemoryStorage (Python, 50051)**: Handles `Store*`, `Query*`, `Update*` RPCs. Does the actual embedding search.
 
@@ -180,14 +186,17 @@ src/memory/
 ## Troubleshooting
 
 **"Connection refused" when calling Memory:**
+
 - Is Docker running? `python run.py status`
 - Are you calling the right port? (50052 for fast path)
 
 **Services won't start:**
+
 - Check logs: `python run.py logs`
 - Port already in use? Check with `netstat -ano | findstr :50052` (Windows) or `lsof -i :50052` (Mac)
 
 **Reset everything:**
+
 ```
 python run.py reset    # WARNING: Deletes all data
 python run.py start

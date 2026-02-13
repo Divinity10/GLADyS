@@ -9,6 +9,7 @@
 The GLADyS dashboard is a **developer tool** for troubleshooting, tuning, and evaluating the GLADyS event processing pipeline. It is not an end-user UI.
 
 The V1 dashboard (Streamlit) has fundamental limitations:
+
 - Rerun-on-interaction model breaks async response display
 - Workarounds (polling fragments, pseudo-response objects, queue draining) fight the framework
 - Information density constrained by opinionated layout
@@ -103,17 +104,21 @@ Gemini generates the frontend from this spec. Claude builds the FastAPI backend.
 **Environment switcher**: Radio toggle between Docker and Local. Switching closes all connections and reconnects to the other instance's ports.
 
 **Service health list**: Each service displayed as:
+
 ```
 â— service-name
   host:port
 ```
+
 Status dot colors:
+
 - Green: healthy
 - Yellow: degraded
 - Red: error/unreachable
 - Gray: unknown/not checked
 
 Services displayed:
+
 - Orchestrator (gRPC health check)
 - Memory Python (gRPC health check)
 - Salience Rust (gRPC health check)
@@ -125,6 +130,7 @@ Services displayed:
 **Service controls**: Start/Stop/Restart buttons. Scoped to a selected service or "all." Stop-all and restart-all require confirmation. Buttons disable with `cursor-wait` during action. Status message (e.g., "Restarting all services...") shown below buttons, clears on completion or shows error for 8s on failure.
 
 **Sidebar architecture**: The sidebar is split into static and dynamic zones to prevent htmx from destroying Alpine.js state:
+
 - **Static**: Environment switcher, Controls section (buttons + status message) — rendered in `index.html`
 - **Dynamic**: Service list — `#sidebar` div swapped via `hx-get="/api/services/health"` every 10s
 - **Why**: htmx `innerHTML` swap replaces all child elements, destroying Alpine reactive state (`serviceActionPending`, `serviceStatusMsg`). By keeping controls outside the swap target, button state survives health polls.
@@ -148,6 +154,7 @@ The primary workspace. Where events are submitted and their lifecycle is observe
 #### Event submission
 
 **Sticky single-event bar** (always visible at top of Lab tab):
+
 ```
 [source â–¾]  [event text___________________________]  [salience â–¾]  [Submit]
 ```
@@ -158,11 +165,13 @@ The primary workspace. Where events are submitted and their lifecycle is observe
 - Submit: sends event, row appears in table below
 
 **Batch submission** (collapsible section below sticky bar):
+
 - File picker for JSON test fixtures
 - Preview of loaded events before submission
 - "Submit All" button
 
 JSON fixture format:
+
 ```json
 [
   {
@@ -196,6 +205,7 @@ All events — queued, processing, and responded — in one chronological table.
 | Response | Preview of response text (first ~80 chars) | Appears when status=responded |
 
 **Lifecycle updates via SSE**:
+
 - Event submitted → row appears with status `queued` (if queued) or `responded` (if immediate)
 - Event dequeued for processing → status changes to `processing`
 - Response arrives → status changes to `responded`, response preview fills in, path updates
@@ -204,6 +214,7 @@ All events — queued, processing, and responded — in one chronological table.
 **Expandable rows** (click to expand):
 
 Level 1 expansion:
+
 - Full response text
 - Feedback buttons: [Good] [Bad] (calls ProvideFeedback RPC)
 - Feedback result: "Heuristic created: {id}" or "Confidence updated"
@@ -212,11 +223,13 @@ Level 1 expansion:
 - Persistence: event ID, response ID, "stored in episodic_events: yes/no"
 
 Level 2 expansion (or detail pane):
+
 - If heuristic path: condition text, fire record ID, outcome status
 - If LLM path: whether suggestion was included, suggestion text, what prompt the LLM saw
 - Raw salience breakdown: threat, opportunity, novelty, humor, goal_relevance, social, emotional, actionability, habituation
 
 **Filtering**:
+
 - Column-based filters (dropdowns or text input per column)
 - Source, status, path: dropdown filter
 - Event text: text search (substring match)
@@ -226,6 +239,7 @@ Level 2 expansion (or detail pane):
 **Pagination**: Scroll-based with "Load more" button. Load 50 events at a time.
 
 **Event deletion**:
+
 - **Per-event**: Delete button in expanded drill-down row. Confirms before deleting.
 - **Clear all**: "Clear all" button below event table. Confirms before archiving.
 - **Mechanism**: Soft delete (`archived = true`) — events remain in DB but are excluded from queries via `WHERE archived = false`.
@@ -286,6 +300,7 @@ Table of heuristic fires with learning detail.
 | Confidence | Before → After (e.g., "0.65 → 0.72") |
 
 Expandable rows:
+
 - Full event text
 - If implicit feedback: which OutcomeWatcher pattern matched, triggering event, attribution window duration
 - If explicit feedback: who gave it, timestamp
@@ -307,27 +322,33 @@ Reuses the same event table component as Lab tab, but data source is DB queries 
 Ollama management interface.
 
 **Status section**:
+
 - Active endpoint name (from `.env` `OLLAMA_ENDPOINT`)
 - URL being used
 - Model configured
 - Connection status (reachable / unreachable / error)
 
 **Loaded models** (from `GET /api/ps`):
+
 - Model name, size, quantization, time since last use
 - If configured model is NOT loaded: yellow warning
 
 **Available models** (from `GET /api/tags`):
+
 - List of all models on the Ollama instance
 
 **Test prompt**:
+
 ```
 [prompt text_________________________________]  [Send]
 ```
+
 - Sends directly to Ollama (bypasses GLADyS pipeline)
 - Shows: raw response text, token count, latency
 - Useful for verifying LLM is responsive
 
 **Keep warm**:
+
 - [Keep Warm] button: sends trivial prompt with `keep_alive: "60m"`
 - Shows current keep_alive status if model is loaded
 
@@ -336,6 +357,7 @@ Ollama management interface.
 **Service selector**: Dropdown or horizontal tabs for each service (orchestrator, memory-python, memory-rust, executive).
 
 **Log viewer**:
+
 - Monospace scrollable output area
 - Tail line count selector: 50 / 100 / 200 / 500
 - [Fetch] button for manual load
@@ -343,6 +365,7 @@ Ollama management interface.
 - Text search/filter within displayed logs (client-side filtering)
 
 **Sources**:
+
 | Environment | Source |
 |-------------|--------|
 | Local | `~/.gladys/logs/<service>.log` |
@@ -362,6 +385,7 @@ Ollama management interface.
 | Outcome watcher enabled | Orchestrator config |
 
 **UI preferences** (persisted in localStorage):
+
 - Events per page (25 / 50 / 100)
 - Default time range
 - Auto-refresh interval for metrics
@@ -574,6 +598,7 @@ Frontend served as static files by FastAPI.
 ## Dependencies
 
 Backend (Python):
+
 - `fastapi`
 - `uvicorn`
 - `sse-starlette` (SSE support)
@@ -582,6 +607,7 @@ Backend (Python):
 - `jinja2` (HTML template rendering for htmx partials)
 
 Frontend (CDN, no npm):
+
 - htmx (CDN link)
 - Alpine.js (CDN link)
 
@@ -590,14 +616,15 @@ Frontend (CDN, no npm):
 **What**: Add a `SubscribeEventLifecycle` RPC to the orchestrator proto that streams state transitions (queued → processing → responded) for all events.
 
 **Why it's needed**: The current `SubscribeResponses` RPC only fires after the executive responds. The `EventResponse` proto also lacks `source` and `original_text` fields. This means:
+
 1. Events don't appear in the Lab table until after the full pipeline completes
 2. SSE-pushed rows arrive with empty event text and source columns
 
 **Current workarounds** (implemented 2026-01-29):
+
 - **DB enrichment with retry**: SSE handler looks up each event in the DB by ID to fill in source, text, salience, and prediction scores. Retries with backoff (4 attempts, 250ms-1s) to handle the race condition where `SubscribeResponses` broadcasts before `store_callback` commits.
 - External events (sensors, batch) still only appear on response — no queued/processing visibility without lifecycle stream.
 
 **When to implement**: Sensors stage. When external sensors start submitting events, the orchestrator proto will be changing anyway (sensor registration, metadata). Adding lifecycle streaming at that point is incremental. The pipeline should also be more stable by then, so the lifecycle states won't change under us.
 
 **Scope**: Proto definition, Rust orchestrator emit points, dashboard SSE consumer update. Runtime cost is negligible (one more gRPC stream).
-

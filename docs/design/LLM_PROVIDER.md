@@ -11,6 +11,7 @@ Define an abstract interface for LLM text generation so that Phase 2 can swap pr
 ## Current State
 
 `OllamaClient` in `src/services/executive/gladys_executive/server.py` is a concrete class with:
+
 - Hardcoded HTTP API calls to Ollama
 - No interface — directly instantiated by `ExecutiveServicer`
 - Mixed concerns: availability checking + generation
@@ -128,17 +129,20 @@ class OllamaProvider:
 ## Configuration
 
 Environment variables (existing, unchanged):
+
 ```
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=gemma:2b
 ```
 
 New env var for provider selection:
+
 ```
 EXECUTIVE_LLM_PROVIDER=ollama  # "ollama" | "openai" (future)
 ```
 
 Factory:
+
 ```python
 def create_llm_provider(provider_type: str, **kwargs) -> LLMProvider | None:
     if provider_type == "ollama":
@@ -169,4 +173,3 @@ def create_llm_provider(provider_type: str, **kwargs) -> LLMProvider | None:
 
 - OpenAI, vLLM, or other providers — add in Phase 2 as needed
 - Streaming responses — not needed for current use case
-

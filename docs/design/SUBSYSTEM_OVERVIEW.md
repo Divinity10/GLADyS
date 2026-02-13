@@ -29,6 +29,7 @@
 ### What Is GLADyS?
 
 GLADyS (Generalized Logical Adaptive Dynamic System) is a **local-first, adaptive AI assistant** that:
+
 - Observes the user's environment through sensors (games, smart home, screen, audio)
 - Decides what's worth paying attention to (salience)
 - Remembers context and learns preferences (memory)
@@ -124,12 +125,14 @@ The orchestrator is the **central nervous system** of GLADyS. It:
 | Audio | Continuous | Stream with chunking |
 
 **Moment window** (Orchestrator setting, configurable):
+
 - Default: 50-100ms for real-time scenarios (gaming, conversation)
 - Configurable per context
 - MVP: Static setting; post-MVP: learned/dynamic adjustment
 - High-salience events bypass moment accumulation (immediate to Executive)
 
 **Synchronization approach**:
+
 1. Events flow **asynchronously** to Memory with timestamps
 2. Orchestrator does **NOT** correlate across sources - it routes only
 3. Memory enables **temporal queries**: "what happened in the last N seconds from all sources?"
@@ -215,12 +218,14 @@ Sensors are **plugins that observe the world** and emit events. They:
 | **Post-MVP** | Wake word (local) | Hands-free for home automation. Local processing avoids cloud creepiness. |
 
 **Press-to-talk for MVP**:
+
 - Hotkey triggers voice capture
 - No always-on listening
 - No VAD complexity
 - Simplifies MVP scope significantly
 
 **Wake word for Post-MVP**:
+
 - Requires always-on audio capture
 - Needs VAD (Voice Activity Detection) to segment speech
 - Local wake word model (e.g., OpenWakeWord, Porcupine)
@@ -368,15 +373,18 @@ Memory now has **two layers** matching the System 1 / System 2 split:
 | **Storage Path** | Python | PostgreSQL queries, embedding generation, batch operations | <50ms |
 
 **Rationale**: The real optimization isn't Rust vs Python everywhere. It's:
+
 - Skip the LLM when possible (System 1 fast path)
 - Use LLM only for novel situations (System 2 slow path)
 
 The Rust fast path handles what's called on every event:
+
 - Novelty detection (embedding similarity check)
 - Heuristic lookup (learned System 1 responses)
 - Reasoning cache (situation → previous LLM result)
 
 Python handles what's I/O bound anyway:
+
 - PostgreSQL queries (network latency dominates)
 - Embedding generation (ML model bound)
 
@@ -450,6 +458,7 @@ The Executive is **the decision-maker**. It:
 **Rationale given**: Team expertise (Mike strongest in C#)
 
 **Honest assessment**:
+
 - The Executive is mostly prompt assembly + LLM API calls + decision logic
 - This is not performance-critical (LLM dominates)
 - C# is fine if Mike is implementing
@@ -638,14 +647,17 @@ The LLM call dominates. Everything else is optimization at the margin.
 ### Honest Take
 
 The polyglot architecture adds complexity:
+
 - 3 languages = 3 build systems, 3 debugging environments
 - gRPC boundaries add latency and schema maintenance
 
 **Revised recommendation after analysis**:
+
 - **MVP**: Python for most subsystems + Rust for Memory fast path + C# Executive if Mike builds it
 - **Post-MVP**: Add Rust audio service for wake word/VAD
 
 **Why this works**:
+
 - Memory fast path in Rust is justified: <5ms target, called on every event
 - Scott learns Rust via Memory subsystem (real use case, not artificial)
 - Python handles I/O-bound work (bottleneck is LLM, not our code)
@@ -653,6 +665,7 @@ The polyglot architecture adds complexity:
 - Audio service provides second Rust project post-MVP
 
 **Net change from ADR-0001**:
+
 - Orchestrator: Rust → Python (sync model doesn't require Rust)
 - Memory: Python → Hybrid Rust/Python (fast path justifies Rust)
 - Audio Service: NEW addition (Rust, post-MVP)

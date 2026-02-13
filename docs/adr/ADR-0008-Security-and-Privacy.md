@@ -1076,6 +1076,7 @@ class FrameReader:
 | **ConstraintCheckHandler** | Values within declared constraints | DENY |
 
 **DENY vs ABORT:**
+
 - DENY: Normal rejection, logged, plugin can retry
 - ABORT: Security violation, plugin terminated, incident logged
 

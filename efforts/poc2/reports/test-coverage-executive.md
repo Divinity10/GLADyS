@@ -1,5 +1,9 @@
 # Audit: Executive Service Test Coverage
 
+**Report Date**: 2026-02-09
+**Validated**: 2026-02-12
+**Status**: Salience extraction tests added (+5 tests). Critical gaps remain in ProcessEvent integration, negative feedback path, quality gate.
+
 ## 1. Test Inventory
 
 | Test file | Test count | Test type (unit/integration) |
@@ -8,11 +12,13 @@
 | `test_decision_strategy.py` | 13 | Unit |
 | `test_llm_provider.py` | 10 | Unit |
 | `test_provide_feedback.py` | 4 | Unit/Integration |
-| **Total** | **43** | |
+| `test_salience_extraction.py` | 5 | Unit |
+| **Total** | **48** | (+5 since Feb 9) |
 
 ## 2. Coverage Map
 
 ### RPC Handlers
+
 - [ ] `ProcessEvent` -- candidate dedup, salience extraction, trace setup (Untested)
 - [x] `ProvideFeedback` -- positive path (pattern extraction, quality gate, merge-or-reinforce)
   - `test_provide_feedback_reinforces_similar_heuristic`
@@ -22,6 +28,7 @@
 - [ ] `GetHealth` / `GetHealthDetails` (Untested)
 
 ### Decision Strategy (HeuristicFirstStrategy)
+
 - [x] `decide()` -- heuristic fast-path (confidence >= threshold)
   - `test_heuristic_path`
 - [x] `decide()` -- LLM path (below threshold, immediate)
@@ -57,6 +64,7 @@
   - `test_goals_in_prompt`
 
 ### Client Classes
+
 - [x] `MemoryClient.generate_embedding()`
   - `test_memory_client_generate_embedding`
 - [x] `MemoryClient.update_heuristic_confidence_weighted()`
@@ -69,6 +77,7 @@
 - [ ] Client error handling (connection failure, RPC error) (Untested)
 
 ### Helpers
+
 - [x] `cosine_similarity()` -- known vectors, zero vectors, edge cases
   - `test_cosine_similarity_known_vectors`
   - `test_cosine_similarity_zero_vector`
@@ -78,7 +87,23 @@
 - [x] Trace store operations (store, get, delete, cleanup)
   - `test_get_trace`
 
-## 3. Quality Assessment
+## 3. Obsolete Items (Since Feb 9)
+
+- **Separate decision_strategy.py and llm_provider.py files** - Report assumes standalone modules. Current code refactored into single `server.py` (commits 0128dee, 724e367)
+- **format_event_for_llm() untested** - Function exists but unclear if actively used in current codebase flow
+
+## 4. New Gaps (Since Feb 9)
+
+- **Salience extraction edge cases** - NEW test file `test_salience_extraction.py` (commit 84297a0) covers basic extraction but missing: integration with ProcessEvent, vector dimension handling in prompts/LLM context
+- **HeuristicStore file-based persistence** (lines 961-998) - Load/save failure recovery, concurrent access - UNTESTED
+- **Format event for LLM** - Defined but not imported/used anywhere in codebase
+
+## 5. Completed (Since Feb 9)
+
+- **Salience extraction** - Test file `test_salience_extraction.py` added (commit 84297a0, Feb 12). 5 test cases cover all 8 salience fields, missing dimensions defaulting to 0.0, zero values, boundary values, empty/None proto
+- **Bootstrapping flow** - Tests added Feb 9 for cosine similarity, confidence update via endorsement, cache invalidation, below-threshold suppression, background task error handling
+
+## 6. Quality Assessment
 
 - **Mock Accuracy**: High. Tests use `unittest.mock.AsyncMock` for RPC clients and LLM providers, correctly simulating async behavior and gRPC response structures.
 - **Assertion Quality**: Good. Tests assert specific fields in responses (e.g., `decision_path`, `predicted_success`) and verify mock calls with expected arguments (e.g., `update_heuristic_confidence_weighted`).
@@ -86,18 +111,33 @@
 - **One Behavior per Test**: Strongly followed. Tests are granular and focused on specific features (e.g., goals injection, metadata leaks).
 - **Duplicate Coverage**: Low. The test suite is efficient with minimal redundancy.
 
-## 4. Recommendations
+## 7. Recommendations
 
-### Priority 1: Data Integrity & Feedback Loop
-- **Negative Feedback Path**: Add tests for `ProvideFeedback` where `positive=False`. Verify it decrements confidence via `MemoryClient.update_heuristic_confidence` when a trace exists. (2 tests)
-- **Feedback Rejection Paths**: Add tests for `ProvideFeedback` when a trace is missing, LLM is unavailable, or pattern extraction fails. (3-4 tests)
-- **Trace Expiry**: Verify that expired traces are correctly handled/rejected in `ProvideFeedback`. (1 test)
+### Priority 1: Data Integrity & Feedback Loop (CRITICAL - recommend Gemini trace)
 
-### Priority 2: Contract Correctness
-- **ProcessEvent Integration**: Add direct tests for `ExecutiveServicer.ProcessEvent`. Verify candidate deduplication (merging `suggestion` and `candidates`), salience extraction, and trace setup. (3 tests)
-- **MemoryClient Completeness**: Add unit tests for `store_heuristic`, `query_matching_heuristics`, and `update_heuristic_confidence` to ensure they handle RPC errors and unexpected response formats. (3 tests)
+- **ProcessEvent full integration** (server.py lines 1085-1143):
+  - Risk: Entry point for all decisions. Candidate deduplication, salience extraction, strategy invocation need integration test. Silent failures in candidate merging, salience not flowing to LLM prompts. Complete decision pipeline could be broken
+  - Add integration test covering full flow: candidates merged, salience extracted, strategy invoked, trace setup
 
-### Priority 3: Decision Logic & Helpers
-- **Quality Gate Boundaries**: Add unit tests for `_check_heuristic_quality`. Test word count limits (10/50 words) and action structure validation. (4-5 tests)
-- **Health RPCs**: Add basic tests for `GetHealth` and `GetHealthDetails`. (1-2 tests)
-- **Event Formatting**: Add tests for `format_event_for_llm` to ensure salience dimensions are correctly included in the string context. (1 test)
+- **ProvideFeedback negative feedback path** (lines 1160-1177):
+  - Risk: Confidence decrement is the only mechanism to penalize failed actions. If untested, failed feedback doesn't update heuristic confidence at all. Heuristics never improve from negative feedback
+  - Add 2 tests for negative=False path, verify confidence decrement via MemoryClient
+
+- **Quality gate validation** (lines 1061-1083):
+  - Risk: Malformed heuristics stored to Memory, breaking downstream matching. Garbage heuristics pollute knowledge base
+  - Add 4-5 tests for word count limits (10/50 words), action structure validation, edge cases
+
+- **Client RPC error handling** (lines 745-750, 796-798, 813-815):
+  - Risk: MemoryClient/SalienceGatewayClient swallow RPC errors. Silently fails, returns False/empty, caller doesn't know why. Decision path changes unexpectedly when services down
+  - Add tests for connection failures, malformed proto responses
+
+### Priority 2: Feedback Robustness (IMPORTANT)
+
+- **Trace expiry handling**: ProvideFeedback should reject expired traces. Risk: feedback applied to wrong event if response_id collides (1 test)
+- **Pattern extraction robustness** (lines 1202-1219): JSON parsing with triple-backtick stripping. Risk: non-JSON responses fail. Add tests for malformed responses (2 tests)
+- **Salience in LLM prompts**: format_event_for_llm() not tested. Risk: salience dimensions not included in LLM context (1 test)
+- **Heuristic storage persistence**: HeuristicStore load/save can fail silently. Risk: learned patterns lost (2 tests)
+
+### Priority 3: Lower-Risk Gaps
+
+- **GetHealth/GetHealthDetails**: Diagnostic RPCs, not core flow (1-2 tests)

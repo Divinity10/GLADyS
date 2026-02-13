@@ -1,12 +1,13 @@
 # Domain Conventions
 
-
 ## Heuristic Matching
+
 - **Semantic matching**: Python uses cosine similarity between event embedding and condition_embedding
 - **NOT keyword matching**: Don't assume simple word overlap
 - **source_filter**: Optional filter that matches heuristic condition_text PREFIX (e.g., `source="minecraft"` matches conditions starting with `"minecraft:"`)
 
 ## Heuristic Fields
+
 | Field | Purpose |
 |-------|---------|
 | `condition_text` | Natural language description of when to trigger |
@@ -25,5 +26,7 @@
 **Impact**: Dashboard filtering by "active" status requires workaround since proto doesn't have the field.
 
 ## SalienceVector Fields
+
 All float 0.0-1.0:
+
 - `threat`, `opportunity`, `humor`, `novelty`, `goal_relevance`, `social`, `emotional`, `actionability`, `habituation`

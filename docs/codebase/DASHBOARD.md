@@ -1,10 +1,10 @@
 # Dashboard (UI)
 
-
 **Location**: `src/services/dashboard/`
 **Framework**: FastAPI + htmx + Alpine.js
 **Port**: 8502
 **Design docs**:
+
 - `docs/design/DASHBOARD_V2.md` -- overall design
 - `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` -- rendering patterns
 
@@ -22,6 +22,7 @@ The dashboard has **two router layers** mounted in the same FastAPI app:
 **IMPORTANT**: `fun_api/` is a **separate directory** at `src/services/fun_api/` (sibling to `dashboard/`). The dashboard imports it via `from fun_api.routers import ...`.
 
 **main.py imports and mounts BOTH** (`src/services/dashboard/backend/main.py`):
+
 ```python
 # HTMX routers (HTML) - from dashboard/backend/
 from backend.routers import events, fires, heuristics, logs, ...
@@ -37,29 +38,34 @@ app.include_router(heuristics.router)  # JSON
 See `docs/design/DASHBOARD_COMPONENT_ARCHITECTURE.md` for full details.
 
 **Pattern A (server-side rendering)** -- for data lists:
+
 - Backend renders HTML with Jinja `{% for %}` loops
 - htmx fetches pre-rendered HTML
 - Alpine.js only for row-level interactivity (expansion, editing)
 - **Used by**: All tabs (Lab, Response, Heuristics, Learning, Logs, LLM, Settings)
 
 **Pattern B (Alpine-only)** -- for UI controls:
+
 - Static HTML with Alpine.js reactivity
 - No data rendering, only toggles/modals/dropdowns
 - **Used by**: Toolbar filters, sidebar controls
 
 **Anti-pattern (DO NOT USE)**:
+
 - Alpine x-for for server data in htmx-loaded content
 - htmx + x-for doesn't work reliably (x-for may not render DOM)
 
 ## Data Access Paths
 
 **JSON path** (for REST API consumers):
+
 ```
 Dashboard UI -> fun_api/routers/heuristics.py -> gRPC QueryHeuristics -> Memory -> DB
                                               -> Direct DB delete (tech debt #83)
 ```
 
 **HTML path** (for htmx -- Pattern A):
+
 ```
 Dashboard UI -> backend/routers/heuristics.py -> gRPC QueryHeuristics -> Memory -> DB
                (returns rendered HTML via Jinja templates)
@@ -71,6 +77,7 @@ Dashboard UI -> backend/routers/logs.py -> file read (no gRPC)
 ## Key Files
 
 **Dashboard (HTML routers)** -- `src/services/dashboard/`:
+
 | File | Purpose |
 |------|---------|
 | `backend/main.py` | FastAPI app, mounts both router layers |
@@ -84,6 +91,7 @@ Dashboard UI -> backend/routers/logs.py -> file read (no gRPC)
 | `frontend/components/*.html` | Jinja2 partials for tabs |
 
 **FUN API (JSON routers)** -- `src/services/fun_api/`:
+
 | File | Purpose |
 |------|---------|
 | `routers/heuristics.py` | Heuristic CRUD (JSON) |
@@ -93,6 +101,7 @@ Dashboard UI -> backend/routers/logs.py -> file read (no gRPC)
 | `routers/llm.py` | Ollama status/test |
 
 **Shared** -- `src/lib/gladys_client/`:
+
 | File | Purpose |
 |------|---------|
 | `db.py` | All DB queries (events, heuristics, fires, metrics) |

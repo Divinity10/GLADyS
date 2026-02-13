@@ -15,6 +15,7 @@
 ## 1. Context and Problem Statement
 
 GLADyS must adapt to individual users over time. Different users have different:
+
 - Communication preferences (verbosity, formality, humor)
 - Sarcasm and personality tolerance
 - Skill levels in various domains
@@ -309,6 +310,7 @@ defaults:
 ### 6.1 Purpose
 
 EWMA provides smoothed values but no measure of certainty. Bayesian tracking answers:
+
 - "How confident am I about this preference?"
 - "Should I still be exploring or have I converged?"
 - "What should I tell the user about my certainty?"

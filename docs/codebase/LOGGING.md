@@ -1,7 +1,7 @@
 # Logging and Observability
 
-
 ## Trace ID Propagation
+
 All services propagate trace IDs via gRPC metadata for request correlation:
 
 ```

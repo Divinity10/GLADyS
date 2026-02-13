@@ -11,6 +11,7 @@
 Define the dashboard interface for managing and testing the GLADyS sensor subsystem. The dashboard provides observability into sensor health, metrics, and testing capabilities for developers building and debugging sensors.
 
 This design covers:
+
 - Database schema for sensor registration and metrics
 - Dashboard UI (new Sensors tab)
 - Metrics strip updates (system-wide sensor health)
@@ -21,6 +22,7 @@ This design covers:
 ## 1. Overview
 
 The sensor dashboard is **critical infrastructure** for PoC 2. Without it, there is no way to:
+
 - Register and activate sensors
 - Monitor sensor health and throughput
 - Debug adapter queue backlogs
@@ -63,6 +65,7 @@ All decisions from design discussion (2026-02-12):
 ### 3.1 Skill Pack Architecture
 
 **Component types within a skill pack:**
+
 1. **Sensors** → `sensors` table
 2. **Preprocessors** → `preprocessors` table (future)
 3. **Domain skills** → `domain_skills` table (future)
@@ -126,6 +129,7 @@ COMMENT ON COLUMN sensors.expected_consolidation_max IS 'Upper bound for healthy
 ```
 
 **Example consolidation thresholds:**
+
 - **RuneScape**: min=20, max=60 (expect 20:1 to 60:1 ratio)
 - **Melvor**: min=10, max=40 (expect 10:1 to 40:1 ratio)
 - **Email**: min=0.8, max=1.2 (expect ~1:1 ratio, ±20%)
@@ -161,6 +165,7 @@ COMMENT ON COLUMN sensor_status.events_published IS 'Lifetime counter: total eve
 ```
 
 **Status values:**
+
 - `inactive` - Sensor registered but not started
 - `active` - Sensor running, heartbeats arriving
 - `disconnected` - No heartbeat within 2x `heartbeat_interval_s`
@@ -210,11 +215,13 @@ COMMENT ON COLUMN sensor_metrics.driver_metrics IS 'Per-driver stats for multi-d
 ```
 
 **Retention policy** (run daily):
+
 ```sql
 DELETE FROM sensor_metrics WHERE timestamp < NOW() - INTERVAL '30 days';
 ```
 
 **Example `driver_metrics` JSONB** (Gmail sensor with 3 accounts):
+
 ```json
 {
   "scott@example.com": {
@@ -242,6 +249,7 @@ DELETE FROM sensor_metrics WHERE timestamp < NOW() - INTERVAL '30 days';
 ### 4.1 Metrics Strip Update
 
 **Current metrics strip:**
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │ Events: 1.2k | Heuristics: 45 | Responses: 38 | ...   │
@@ -249,6 +257,7 @@ DELETE FROM sensor_metrics WHERE timestamp < NOW() - INTERVAL '30 days';
 ```
 
 **Updated metrics strip (PoC 2):**
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Sensors: ●2/○1/⚠1 | Orch: 3 (0.2s) | Events: 1.2k | Heuristics: 45 | …│
@@ -274,6 +283,7 @@ DELETE FROM sensor_metrics WHERE timestamp < NOW() - INTERVAL '30 days';
      - `150 (8s)` → Red (problem)
 
 **Accessibility:**
+
 - **Triple encoding**: Position + symbol + color (works for all colorblind types)
 - **Hover tooltips**: Explicit text labels on hover
 - **Colorblind palette**: Blue/orange (not red/green)
@@ -400,6 +410,7 @@ Click **"View Queue"** on Outbound → Shows normalized GLADyS events:
 | **Orch queue** (metrics strip) | Orchestrator internal queue | Is orchestrator keeping up with all sensors? |
 
 **Consolidation ratio symbols:**
+
 - `52:1 ✓` (green) - Within expected range (e.g., RuneScape: 20-60)
 - `8:1 ⚠` (yellow) - Outside expected range (consolidation failing)
 - `—` (gray) - No data yet
@@ -497,6 +508,7 @@ Event {
 ```
 
 **Orchestrator processing:**
+
 1. Route `source="system.metrics"` events to system handler (not salience pipeline)
 2. Parse `structured.sensor_id`
 3. Update `sensor_status` table (last_heartbeat, active_sources, counters)
@@ -525,7 +537,7 @@ Event {
 
 **After Phase 1 complete:**
 
-3. **Sensors tab implementation**
+1. **Sensors tab implementation**
    - Router: `backend/routers/sensors.py` (Pattern A - server-side rendering)
    - Templates: `sensors.html`, `sensor_rows.html`, `sensor_detail.html`
    - Drill-down with queue views, metrics charts, testing tools
@@ -535,7 +547,7 @@ Event {
 
 **After Phase 1 complete:**
 
-4. **Orchestrator gRPC implementation**
+1. **Orchestrator gRPC implementation**
    - Add sensor lifecycle RPCs (Activate, Deactivate, TriggerRecovery, ForceShutdown)
    - Add GetQueueStats RPC
    - Implement heartbeat processing (system.metrics event handling)
@@ -544,18 +556,21 @@ Event {
 ### 6.4 Testing Strategy
 
 **Unit tests:**
+
 - Sensor registration (DB operations)
 - Heartbeat processing (system.metrics event routing)
 - Queue stats calculation
 - Consolidation ratio computation
 
 **Integration tests:**
+
 - Register sensor → appears in dashboard
 - Activate sensor → status changes to `active`
 - Heartbeat arrives → `sensor_status` + `sensor_metrics` updated
 - No heartbeat for 2x interval → status changes to `disconnected`
 
 **Manual tests:**
+
 - Metrics strip shows correct sensor count
 - Sensors tab loads and displays sensor list
 - Drill-down shows queue depths, metrics, per-source breakdown
@@ -566,6 +581,7 @@ Event {
 ## 7. Out of Scope (Future Enhancements)
 
 **System Health Tab** (PoC 3+):
+
 - Deep dive into orchestrator performance
 - Queue depth over time (charts)
 - Processing rate trends
@@ -573,11 +589,13 @@ Event {
 - Worker pool utilization
 
 **Advanced testing tools** (PoC 3+):
+
 - Capture controls (start/stop JSONL capture at runtime)
 - Replay with speed multiplier (2x, 10x playback)
 - Backpressure generator (synthetic load testing)
 
 **Sensor registration UI** (PoC 3+):
+
 - Dashboard form for manifest upload
 - Validation and preview
 - For PoC 2: sensors registered via CLI or manual DB insert

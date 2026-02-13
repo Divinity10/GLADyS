@@ -18,6 +18,7 @@ Users have different feedback biases. Some approve most responses; others reject
 ## Approach
 
 Two complementary strategies:
+
 1. **Initial calibration**: Short questionnaire at onboarding to set a prior on the user's feedback bias
 2. **Ongoing calibration**: Track positive/negative feedback ratio per user, adjust signal weights accordingly (no questionnaire needed)
 

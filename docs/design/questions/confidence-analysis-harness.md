@@ -19,4 +19,3 @@ Confidence model weights (feedback stage multipliers, LLM endorsement weight, us
 
 - **Phase 2**: Ensure data capture is sufficient for later replay
 - **Phase 3+**: Build the harness, run first comparisons
-

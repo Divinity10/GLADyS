@@ -32,6 +32,7 @@ testpaths = ["tests"]
 ```
 
 **Rules:**
+
 - Test dependencies go in `[project.optional-dependencies] dev`, never in main `dependencies`
 - Version pins: `pytest>=8.0`, `pytest-asyncio>=0.23` (match project standard)
 - Always include `[tool.pytest.ini_options]` with `asyncio_mode = "auto"` for async services
@@ -86,12 +87,14 @@ cd src/services/{service} && uv run pytest tests/ -v  # Single service
 ### Import Patterns
 
 Within own service (relative imports):
+
 ```python
 from . import memory_pb2
 from .generated import orchestrator_pb2
 ```
 
 Cross-service (sys.path — executive importing orchestrator protos):
+
 ```python
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "orchestrator"))
 from gladys_orchestrator.generated import executive_pb2

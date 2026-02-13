@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 6](phase6.md)
 
-### Question to answer
+## Question to answer
 
 Is the current architecture sustainable for future phases, or do we need major refactoring to address accumulated technical debt and design weaknesses discovered in Phases 1-6?
 

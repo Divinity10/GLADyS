@@ -6,6 +6,7 @@
 **Resolves**: `docs/design/questions/confidence-bootstrapping.md`, EXECUTIVE_DESIGN.md Open Question #1
 
 **Related**:
+
 - [ADR-0010](../adr/ADR-0010-Learning-and-Inference.md) — Learning pipeline, Bayesian inference
 - [ADR-0014](../adr/ADR-0014-Executive-Decision-Loop-and-Proactive-Behavior.md) — Executive decision loop
 - [EXECUTIVE_DESIGN.md](EXECUTIVE_DESIGN.md) — Executive component architecture
@@ -72,6 +73,7 @@ Bootstrapping and firing are different contexts with different signal rules:
 ### What Goes In
 
 The prompt includes:
+
 1. **Event context** — the triggering event text and source
 2. **Candidate pairs** — each candidate's `condition_text` and `suggested_action`, presented as context:response pairs
 3. **Generation instruction** — ask the LLM to produce its own response
@@ -143,9 +145,11 @@ The existing `QueryMatchingHeuristics` uses pgvector to find heuristics by `cond
 **Recommendation**: Option A for release (DB-backed action embeddings). Option B is acceptable for Phase if candidates are few (3-5).
 
 **Phase optimization**: Rather than N+1 `GenerateEmbedding` RPC calls, add a batch comparison RPC to the memory service:
+
 ```
 CompareTextToActions(response_text, [heuristic_id1, heuristic_id2, ...]) → [(heuristic_id, similarity), ...]
 ```
+
 Single RPC, memory service does all embedding + comparison with its already-loaded model. Avoids round-trip overhead and keeps embedding logic centralized.
 
 **Source filtering is mandatory.** Candidates must be from the same source domain as the event. A gaming heuristic must not be boosted by an email LLM response. The existing `QueryMatchingHeuristics` RPC already has `source_filter` (field 4) — the orchestrator's routing query must pass the event's `source` field.
@@ -201,11 +205,13 @@ The weights below express relative signal strength. Actual magnitudes must be ca
 **Decision (2026-02-08)**: Confidence uses real-valued alpha/beta pseudo-counts. Magnitude scales observation weight — an LLM endorsement at magnitude 0.41 adds 0.41 to alpha, not 1.0. This is standard practice (Thompson sampling, Bayesian A/B testing, multi-armed bandits).
 
 The `UpdateHeuristicConfidenceRequest` proto has the fields needed:
+
 - `magnitude` (field 6): scales the observation weight (0.0—1.0)
 - `feedback_source` (field 5): identifies the signal type (e.g., `"llm_endorsement"`, `"explicit_positive"`, `"dev_outcome"`)
 - `positive` (field 2): direction of the update
 
 **Update formula**:
+
 - Positive feedback: `alpha += magnitude`
 - Negative feedback: `beta += magnitude`
 - Confidence = `alpha / (alpha + beta)`
@@ -216,6 +222,7 @@ The `UpdateHeuristicConfidenceRequest` proto has the fields needed:
 **Implementation required**: `storage.py` currently ignores `magnitude`. The formula `(1 + success_count) / (2 + fire_count)` uses integer counts. Must be updated to use float alpha/beta columns. This is a prerequisite for bootstrapping — without it, all signals are treated as full-weight observations.
 
 The executive sends:
+
 ```
 UpdateHeuristicConfidence(
     heuristic_id = candidate.id,
@@ -230,6 +237,7 @@ UpdateHeuristicConfidence(
 The Rust salience gateway maintains a heuristic cache for fast-path evaluation. When bootstrapping updates a heuristic's confidence, the cache must be invalidated so the next event sees the updated confidence.
 
 The `SalienceGateway.NotifyHeuristicChange` RPC already exists for this purpose. After every confidence update, the executive (or memory service) must call:
+
 ```
 NotifyHeuristicChange(heuristic_id, change_type="updated")
 ```
@@ -245,6 +253,7 @@ A single event can produce both an LLM endorsement (async, fast) and later user 
 ## Concurrency Model
 
 The executive must support multiple concurrent LLM evaluations. This is needed because:
+
 - Multiple events may arrive in quick succession
 - Each event may need LLM evaluation with its own candidates
 - Serializing evaluations would create unacceptable latency at scale
@@ -365,6 +374,7 @@ Any executive implementation (Python or C#) must satisfy these requirements. Thi
 ### Proto Interface
 
 Implements `ExecutiveService` as defined in `executive.proto`:
+
 - `ProcessEvent` — accepts events with candidates, returns responses
 - `ProvideFeedback` — accepts user feedback, updates confidence
 - `GetHealth` / `GetHealthDetails` — standard health RPCs
@@ -504,6 +514,3 @@ The dashboard (#62) must support dev rating of both dimensions. Dev outcome rati
 **Step 8**: User gives ðŸ‘ on the LLM response. Full-weight update: `alpha += 1.0` → alpha = 2.805, beta = 1.0. Confidence = `2.805 / 3.805 = 0.737`. H1 now exceeds the 0.7 threshold.
 
 **Step 9**: Next time a similar event arrives, H1 fires directly via System 1. No LLM call needed. H1 has graduated from bootstrapping through a combination of LLM endorsements and one user confirmation.
-
-
-

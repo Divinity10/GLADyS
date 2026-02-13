@@ -27,6 +27,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 ---
 
 ## ðŸ§  Intelligence & Learning
+
 *Keywords: Bayesian, Confidence, Feedback, Training, EWMA, Adaptation*
 
 | Type | File | Purpose |
@@ -40,6 +41,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [CONFIDENCE_BOOTSTRAPPING.md](design/CONFIDENCE_BOOTSTRAPPING.md) | LLM endorsement bootstraps below-threshold heuristics. Defines **three measurement dimensions**: context match, confidence, success rate. Dev rating workflow. |
 
 ## âš¡ Salience & Attention
+
 *Keywords: Filtering, Routing, Urgency, Habituation, Novelty, Selection, Confidence Threshold, Context Match*
 
 | Type | File | Purpose |
@@ -54,6 +56,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [DECISION_STRATEGY.md](design/DECISION_STRATEGY.md) | **Selection strategy**: similarity-dominant ranking, confidence threshold gate, urgency-modulated tiers, three measurement dimensions. |
 
 ## ðŸ’¾ Memory & Knowledge
+
 *Keywords: Embeddings, Vector Search, Semantic, Episodic, Heuristics*
 
 | Type | File | Purpose |
@@ -65,6 +68,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Impl** | `src/services/memory/gladys_memory/storage.py` | Storage implementation (Code). |
 
 ## ðŸ—ï¸ Architecture & Design
+
 *Keywords: Subsystems, API, Plugins, Packs, Interfaces, Phase, Lifecycle*
 
 | Type | File | Purpose |
@@ -79,6 +83,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Index** | [ADR README](adr/README.md) | ADR index with status, reading order, and dependency graph. |
 
 ## ðŸ“‹ Design Questions
+
 *Keywords: Open Questions, Decisions, Tradeoffs*
 
 | Type | File | Purpose |
@@ -100,6 +105,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Question** | [goal-identification.md](design/questions/goal-identification.md) | Goal impact on success measurement, goal inference, goal-directed prompts. |
 
 ## ðŸ› ï¸ Infrastructure & Ops
+
 *Keywords: Docker, Scripts, Ports, Deployment, CLI, Queue*
 
 | Type | File | Purpose |
@@ -121,6 +127,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [ROUTER_CONFIG.md](design/ROUTER_CONFIG.md) | **Extensibility**: Orchestrator router configuration (externalized from code). |
 
 ## ðŸŽ­ Executive & Personality
+
 *Keywords: LLM, Decision Making, Traits, Response, OODA*
 
 | Type | File | Purpose |
@@ -135,6 +142,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Design** | [DECISION_STRATEGY.md](design/DECISION_STRATEGY.md) | **Extensibility**: Executive decision strategy — heuristic vs LLM path selection, candidate ranking. |
 
 ## ðŸ”Œ Plugins & World
+
 *Keywords: Sensors, Actuators, Manifest, Safety, Audit, Subscription, Dashboard*
 
 | Type | File | Purpose |
@@ -159,6 +167,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 ---
 
 ## ðŸ”¬ Research
+
 *Keywords: Theory, Cognitive Science, Neuroscience, Academic, Open Questions*
 
 | Type | File | Purpose |
@@ -168,6 +177,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | **Backlog** | [RESEARCH_BACKLOG.md](research/RESEARCH_BACKLOG.md) | Literature research tasks we can do ourselves. |
 
 ## ðŸ” Validation & Metrics
+
 *Where to check if things actually work.*
 
 - **Benchmarking**: [BENCHMARK_STRATEGY.md](design/BENCHMARK_STRATEGY.md) (polyglot architecture validation)
@@ -181,6 +191,7 @@ If none of these fit, create a new doc — and add it to this table and the inde
 ---
 
 ## Codebase Reference
+
 *Detailed codebase documentation split by topic. Read only what you need.*
 
 | File | Content |
@@ -199,9 +210,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 ---
 
 ## ðŸ›ï¸ Archive
+
 *Superseded designs. Do not implement based on these.*
 
 - `docs/design/archive/`
 - `docs/archive/`
-
-

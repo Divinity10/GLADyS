@@ -75,6 +75,7 @@ Environment variables (see `config.py`):
 ## Dependencies
 
 The Orchestrator depends on:
+
 - **SalienceGateway** (50052) - for salience evaluation
 - **MemoryStorage** (50051) - for storing events, recording fires
 - **Executive** (50053) - for handling high-salience events

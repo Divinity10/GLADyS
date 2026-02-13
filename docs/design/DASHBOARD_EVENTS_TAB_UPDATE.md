@@ -8,6 +8,7 @@
 ## Problem
 
 Events tab currently shows limited field set. PoC 2 adds new fields that need to be visible in the dashboard:
+
 - `intent` (actionable/informational/unknown)
 - `evaluation_data` (JSON) — sensor evaluation metadata
 - `structured` (JSON) — parsed event structure
@@ -23,6 +24,7 @@ These fields now round-trip correctly through the pipeline (#160), but the dashb
 **Decision**: Keep relative time in table, show absolute timestamp in drilldown + tooltip
 
 **Rationale**:
+
 - Relative time ("5m ago") is better for quick scanning and understanding event recency
 - Absolute timestamp is important for correlation/debugging but doesn't need table real estate
 - Tooltip on "Time" column shows absolute time for hover reference
@@ -35,12 +37,14 @@ These fields now round-trip correctly through the pipeline (#160), but the dashb
 **Decision**: Move `intent` from drilldown stats to table column
 
 **Rationale**:
+
 - Intent is a key classification dimension (actionable vs informational vs unknown)
 - Users need to filter/scan by intent without expanding every row
 - 3 possible values = compact display (icon + color coding)
 - Critical for workflow: "show me all actionable events"
 
 **Impact**: Table grows from 7 to 8 columns
+
 - New column between "Source" and "Event"
 - Uses icon + color: ⚡ actionable (blue), ℹ️ informational (gray), ❓ unknown (yellow)
 - Width: 50px (icon + tooltip)
@@ -50,12 +54,14 @@ These fields now round-trip correctly through the pipeline (#160), but the dashb
 **Decision**: Add to drilldown using collapsible JSON viewers
 
 **Rationale**:
+
 - All three are complex/nested data structures
 - Not scannable in table format
 - Used for deep inspection, not filtering
 - Drilldown is the right UX location
 
 **Display patterns**:
+
 - `evaluation_data`: Collapsible JSON block with syntax highlighting (if present)
 - `structured`: Collapsible JSON block with syntax highlighting (if present)
 - `entity_ids`: List of UUID links (clickable to entity detail, future feature)
@@ -78,6 +84,7 @@ These fields now round-trip correctly through the pipeline (#160), but the dashb
 ## Drilldown Updates
 
 **Current structure**:
+
 1. Event text (full)
 2. IDs (Event ID, Response ID)
 3. Stats row: Source, Intent, Path, Salience, Confidence
@@ -86,6 +93,7 @@ These fields now round-trip correctly through the pipeline (#160), but the dashb
 6. Feedback actions
 
 **New structure**:
+
 1. Event text (full)
 2. IDs (Event ID, Response ID)
 3. **Timestamps row**: Received (processing time), Origin (event timestamp)
@@ -179,6 +187,7 @@ event_dict = {
 ### Test Data Requirements
 
 Create test events with:
+
 - All intent values (actionable, informational, unknown)
 - Present vs absent evaluation_data/structured/entity_ids
 - Various timestamp values

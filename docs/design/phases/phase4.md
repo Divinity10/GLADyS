@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 3](phase3.md)
 
-### Question to answer
+## Question to answer
 
 Can the learning system use domain skill feedback to improve accuracy - deriving success from skill evaluations rather than manual ratings, and adapting confidence based on skill-validated outcomes?
 

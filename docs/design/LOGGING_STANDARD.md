@@ -9,6 +9,7 @@
 ## Purpose
 
 Establish consistent, debuggable logging across all GLADyS services. This enables:
+
 - Following a request across services (trace IDs)
 - Quick identification of where failures occur
 - Filtering logs by level, service, or trace
@@ -155,26 +156,31 @@ Environment variables control logging:
 ### Local Services (Auto-Configured)
 
 When starting services via `python cli/local.py start`, the backend automatically sets:
+
 - `LOG_FILE=~/.gladys/logs/<service>.log`
 - `LOG_FILE_LEVEL=DEBUG`
 
 Log files rotate at 10MB with 5 backups. View logs via:
+
 - CLI: `python cli/local.py logs <service> --tail 100`
 - UI: Logs tab → Select service → Fetch Logs
 
 ### Example Configurations
 
 **Local development (manual):**
+
 ```bash
 LOG_LEVEL=DEBUG LOG_FORMAT=human
 ```
 
 **Production:**
+
 ```bash
 LOG_LEVEL=INFO LOG_FORMAT=json LOG_FILE=/var/log/gladys/service.log
 ```
 
 **Debugging specific issue:**
+
 ```bash
 LOG_LEVEL=INFO LOG_FILE=debug.log LOG_FILE_LEVEL=DEBUG
 ```
@@ -348,6 +354,7 @@ Each milestone has a clear verification step.
 **Deliverable**: `src/common/logging.py` with setup_logging(), get_logger(), bind_trace_id()
 
 **Verification**:
+
 ```python
 from common.logging import setup_logging, get_logger, bind_trace_id
 setup_logging("test-service")
@@ -362,6 +369,7 @@ logger.info("Test message", key="value")
 **Deliverable**: memory-python gRPC handlers use new logging
 
 **Verification**:
+
 - Start memory-python service
 - Call StoreHeuristic RPC
 - See structured logs with request/response info
@@ -372,6 +380,7 @@ logger.info("Test message", key="value")
 **Deliverable**: memory-rust uses tracing crate with JSON output
 
 **Verification**:
+
 - Start memory-rust service
 - Call EvaluateSalience RPC
 - See structured logs with request info
@@ -382,6 +391,7 @@ logger.info("Test message", key="value")
 **Deliverable**: Trace ID flows via gRPC metadata across service boundaries
 
 **Verification**:
+
 - Orchestrator generates trace_id
 - Rust receives it, logs it, passes to Python
 - Python receives it, logs it
@@ -392,6 +402,7 @@ logger.info("Test message", key="value")
 **Deliverable**: All services (orchestrator, memory-python, memory-rust, executive) using new logging
 
 **Verification**:
+
 - All services output structured logs
 - All services write to log files
 - Log levels configurable via LOG_LEVEL env var
@@ -401,6 +412,7 @@ logger.info("Test message", key="value")
 **Deliverable**: `test_logging_trace_flow.py` - verifies trace ID appears in all service logs
 
 **Verification**:
+
 - Test sends request through orchestrator
 - Test reads log files
 - Test asserts trace_id appears in all relevant logs

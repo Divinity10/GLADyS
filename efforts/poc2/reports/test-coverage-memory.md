@@ -1,5 +1,9 @@
 # Audit: Memory Service Test Coverage
 
+**Report Date**: 2026-02-09
+**Validated**: 2026-02-12
+**Status**: No gaps closed since Feb 9. New critical gaps identified in fire recording and heuristic updates.
+
 ## 1. Test Inventory
 
 | Test file | Test count | Test type (unit/integration) |
@@ -14,6 +18,7 @@
 ## 2. Coverage Map
 
 ### gRPC Handlers (grpc_server.py)
+
 - [x] `StoreEvent` -- proto conversion, storage call
   - `test_store_event`
 - [x] `ListEvents` -- pagination, source filter, salience dict->proto
@@ -45,6 +50,7 @@
 - [ ] `GetHealth` / `GetHealthDetails` (Untested)
 
 ### Storage Layer (storage.py)
+
 - [x] `store_event()` -- all fields including embedding, salience, prediction
   - `test_store_event_basic`
   - `test_store_event_with_embedding`
@@ -82,6 +88,7 @@
 - [ ] Entity/relationship storage and queries (Untested)
 
 ### Proto Conversion (grpc_server.py helpers)
+
 - [x] `_event_to_proto()` -- salience dict, structured_json, UUID, timestamp
   - `test_salience_vector_populated`
 - [x] `_proto_to_event()` -- reverse conversion, missing fields
@@ -97,6 +104,7 @@
   - `test_null_response_fields`
 
 ### Embeddings (embeddings.py)
+
 - [x] `generate()` -- shape, dtype
   - `test_generate_returns_correct_shape`
 - [x] `generate_batch()` -- batch shape
@@ -113,19 +121,49 @@
 - **One Behavior per Test**: Strongly followed.
 - **Duplicate Coverage**: Low. Integration tests in `test_storage.py` and `test_grpc.py` complement unit tests in `test_storage_events.py` and `test_grpc_events.py`.
 
-## 4. Recommendations
+## 4. New Gaps (Since Feb 9)
 
-### Priority 1: Data Integrity & Reliability
-- **Heuristic Fire Recording**: Add tests for `record_heuristic_fire`, `update_fire_outcome`, and `get_pending_fires` in both `storage.py` and `grpc_server.py`. This is the "Flight Recorder" critical for learning. (4-5 tests)
-- **Bayesian Update Integration**: Add gRPC-level tests for `UpdateHeuristicConfidence` to ensure magnitude and source are correctly passed from proto to storage. (2 tests)
-- **Event Deletion**: Test `delete_events` to ensure it correctly cascades to related tables (fires) if intended, or handles orphaned records. (1 test)
+- **RecordHeuristicFire** (gRPC RPC) - fire_id generation, episodic_event_id handling - UNTESTED
+- **UpdateFireOutcome** (gRPC RPC) - outcome/feedback_source updates - UNTESTED
+- **GetPendingFires** (gRPC RPC) - max_age_seconds filtering, outcome='unknown' filter - UNTESTED
+- **ListFires** (gRPC RPC) - outcome filter, heuristic_fires/heuristics LEFT JOIN, total_count calc - UNTESTED
+- **ExpandContext** (gRPC RPC) - BFS traversal, max_hops capping, entity/relationship graph expansion - UNTESTED
 
-### Priority 2: Contract Correctness
-- **Entity & Relationship Storage**: The entire semantic memory layer (entities, relationships, context expansion) is currently untested. Add tests for `StoreEntity`, `QueryEntities`, and `ExpandContext`. (5-6 tests)
-- **Response Tab RPCs**: Add gRPC-level tests for `ListResponses` and `GetResponseDetail`. While the storage layer is tested, the gRPC mapping and error handling are not. (2 tests)
-- **QueryMatchingHeuristics**: Test the semantic matching RPC, including the text search fallback and source filtering. (2 tests)
+## 5. Recommendations
 
-### Priority 3: Decision Logic & Monitoring
+### Priority 1: Data Integrity & Reliability (CRITICAL - recommend Gemini trace)
+
+- **Heuristic Fire Recording & Updates** (RecordHeuristicFire, UpdateFireOutcome, GetPendingFires):
+  - Risk: Flight Recorder is the entire learning feedback loop. Without tests, fire records may not persist correctly, outcome updates fail silently, learning system cannot verify fires are recorded
+  - Cross-references between fires and events may break during concurrent updates
+  - Add 4-5 tests covering fire creation, episodic_event_id FK handling, outcome updates, pending fires filtering
+
+- **UpdateHeuristicConfidence gRPC layer** (Bayesian update integration):
+  - Risk: magnitude parameter may not reach storage, confidence update applied to wrong heuristic if ID conversion fails, TD error calculation bypassed
+  - Add 2 tests ensuring magnitude and feedback_source correctly passed from proto to storage
+
+- **QueryMatchingHeuristics** (semantic matching - core learning feature):
+  - Risk: condition_embedding may not be returned to client (breaks Rust cache optimization), min_similarity threshold not applied at gRPC layer, source_filter lost
+  - Add 2 tests for embedding bytes return + source filtering
+
+### Priority 2: Contract Correctness (IMPORTANT)
+
+- **GetPendingFires & ListFires** (learning feedback collection):
+  - Risk: max_age_seconds filter not working, outcome='unknown' filter broken, total_count mismatch, NULL heuristic names from LEFT JOIN
+  - Add 4-5 tests for filtering logic, JOIN correctness, pagination
+
+- **ExpandContext** (LLM prompt context):
+  - Risk: BFS traversal bugs (infinite loops on cycles), max_entities limit not enforced (memory explosion), confidence threshold not applied
+  - Add 2-3 tests for BFS logic, entity limits, confidence filtering
+
+- **DeleteResponses** (response cleanup):
+  - Risk: UUID parsing failures cause partial deletes, cascade to heuristic_fires untested (orphaned fire records)
+  - Add 2 tests for UUID parsing, cascade behavior
+
+- **Entity & Relationship Storage**: The entire semantic memory layer (entities, relationships, context expansion) is currently untested. Add tests for `StoreEntity`, `QueryEntities`. (5-6 tests)
+
+### Priority 3: Lower-Risk Gaps
+
+- **Response Tab RPCs**: Add gRPC-level tests for `ListResponses` and `GetResponseDetail`. (2 tests)
 - **Health & Status**: Add tests for `GetHealth` and `GetHealthDetails`. (1-2 tests)
 - **ILIKE Escaping**: Verify that the ILIKE escaping logic in `list_responses` correctly handles backslashes and underscores. (1 test)
-- **QueryMatchingHeuristics Text Fallback**: Add a unit test specifically for `_query_matching_heuristics_text` to verify the regex and stop-word filtering. (1 test)

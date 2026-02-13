@@ -73,6 +73,7 @@ GLADyS uses a dual-process model inspired by Kahneman's System 1/System 2:
 | **System 2** | Slow | LLM deliberation, complex reasoning | Novel situations, low confidence, high stakes |
 
 **Escalation triggers** (System 1 → System 2):
+
 - Novelty detected ("Have I seen this before?" = no)
 - Low confidence on available heuristics
 - Conflicting heuristics suggest different actions
@@ -99,6 +100,7 @@ Learned patterns are stored with Bayesian models that track uncertainty and upda
 #### 3.3.1 Strategy Pattern
 
 Each pattern stores:
+
 - `model_type`: Which Bayesian model to use
 - `params`: Model-specific parameters (priors, observed counts, etc.)
 - `last_observed`: Timestamp of last observation
@@ -154,6 +156,7 @@ When new evidence contradicts existing beliefs:
 #### 3.4.1 Default: Bayesian Update
 
 Conjugate priors naturally resist over-correction:
+
 - Prior strength acts as "effective sample size"
 - A strong prior (high pseudo-counts) barely moves on single observation
 - Weak prior adapts quickly
@@ -161,6 +164,7 @@ Conjugate priors naturally resist over-correction:
 #### 3.4.2 Context-Aware Updates
 
 Before updating, check if context differs from stored pattern:
+
 - If context is detectably different (guests present, weekend, etc.), store as separate context-specific belief
 - If context matches, apply Bayesian update to main belief
 
@@ -215,6 +219,7 @@ System can track learning effectiveness metrics and propose parameter adjustment
 | **Auto** (within bounds) | System adjusts within configured bounds |
 
 Metrics tracked:
+
 - Prediction accuracy (did belief match outcome?)
 - User correction rate (how often does user override?)
 - Staleness distribution (are patterns staying current?)
@@ -230,6 +235,7 @@ Hybrid model matching dual-process architecture:
 | **Batch** (sleep mode) | Pattern Detector, Causal Modeler, embedding generation | ~80% resources during idle |
 
 **Sleep mode** activates when:
+
 - User idle for configurable duration (default: 30 minutes)
 - System load is low
 - Sufficient episodic data accumulated since last batch
@@ -256,6 +262,7 @@ User-configurable with reasonable defaults:
 Priority order: `realtime` > `conversational` > `comfort` > `background` > `learning`
 
 **Workload distribution**:
+
 - **GPU**: Pattern detection on large datasets, embedding generation
 - **CPU**: Bayesian updates, heuristic evaluation, lightweight inference
 
@@ -320,6 +327,7 @@ pack:
 #### 3.11.3 Rationale
 
 This separates concerns cleanly:
+
 - Core: Generic learning machinery
 - Packs: Domain-specific reward knowledge
 
@@ -350,6 +358,7 @@ For each deferred decision:
 | **Actual Outcome** | What happened | From OutcomeEvaluator |
 
 Learning signals:
+
 - S1 = LLM = Good outcome: S1 heuristic reinforced
 - S1 â‰  LLM, LLM = Good outcome: S1 heuristic needs correction
 - S1 = LLM = Bad outcome: Both need calibration (rare edge case)
@@ -427,6 +436,7 @@ In addition to online learning (EWMA + Bayesian), GLADyS may use periodic fine-t
 #### 3.14.2 Relationship to Online Learning
 
 Fine-tuning and online learning are **complementary**, not either/or:
+
 - Fine-tuning updates the model's base capabilities
 - Online learning personalizes for individual users
 - RAG provides user-specific context at inference time
@@ -449,6 +459,7 @@ The learning subsystem has two layers:
 | **Storage Path** | Python | PostgreSQL queries, embedding generation - I/O bound |
 
 This matches the System 1 / System 2 split:
+
 - Rust handles the hot path where latency matters (<5ms target)
 - Python handles the slower path where I/O dominates anyway
 
@@ -470,6 +481,7 @@ People lie and misunderstand themselves. A user who says "I'm risk-tolerant" but
 #### 3.16.2 Learning Risk Tolerance
 
 Observed risk tolerance is inferred from:
+
 - Acceptance rate of uncertain suggestions
 - Time-to-override for GLADyS actions
 - Explicit feedback patterns
@@ -478,6 +490,7 @@ Observed risk tolerance is inferred from:
 #### 3.16.3 Conflict Resolution
 
 When configured and observed diverge significantly:
+
 1. Flag to user once: "Your stated preference is X but your behavior suggests Y"
 2. Offer to update configured value
 3. If user maintains configured value, respect it (they may want GLADyS to compensate for their tendencies)
@@ -490,6 +503,7 @@ Until sufficient behavioral data exists (`observed: null`), use `configured` val
 ### 3.17 Config vs Behavior Conflict
 
 When learned behavior conflicts with explicit configuration:
+
 1. Flag conflict to user once
 2. Respect configuration
 3. Don't nag repeatedly
@@ -623,17 +637,19 @@ This ADR supports the following use cases (see [USE_CASES.md](../design/USE_CASE
 ### Bayesian Model Cheat Sheet
 
 **Beta-Binomial** (binary):
+
 - Prior: Beta(Î±, Î²) where Î± = pseudo-successes, Î² = pseudo-failures
 - Update: Î±' = Î± + successes, Î²' = Î² + failures
 - Mean: Î± / (Î± + Î²)
 
 **Normal-Gamma** (continuous):
+
 - Prior: Normal-Gamma(Î¼, Îº, Î±, Î²)
 - Tracks mean and precision (inverse variance)
 - Update: standard conjugate formulas
 
 **Gamma-Poisson** (rates):
+
 - Prior: Gamma(Î±, Î²) for rate parameter Î»
 - Update: Î±' = Î± + Î£counts, Î²' = Î² + n (observations)
 - Mean rate: Î± / Î²
-

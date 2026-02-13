@@ -11,6 +11,7 @@
 - **Scott (coordinator)**: Reviews output, passes work between sessions, makes final decisions
 
 **Handoff flow:**
+
 1. Design session creates/updates spec and prompts
 2. Scott reviews and approves
 3. Implementation session executes prompt
@@ -80,11 +81,13 @@ Project paused until dashboard is fully working and testable. 2+ days lost to de
 **Current state**: 6 of 7 unit tests exist, 0 integration tests
 
 **Missing tests**:
+
 - Unit: Link href/dispatch is correct (cross-tab navigation)
 - Unit: Button posts to correct endpoint
 - Integration: All 3 tests
 
 **Files to modify**:
+
 - `tests/test_heuristics_rows.py` — add missing unit tests
 
 ### Phase 3: Learning Tab Migration
@@ -96,6 +99,7 @@ Project paused until dashboard is fully working and testable. 2+ days lost to de
 **Combined prompt**: [`impl-listfires-rpc-and-phase3-rework.md`](../prompts/impl-listfires-rpc-and-phase3-rework.md)
 
 **Work required**:
+
 1. Add `ListFires` RPC to Memory service (#86)
 2. Rework `backend/routers/fires.py` to use gRPC
 3. Rework tests to mock gRPC stub
@@ -107,6 +111,7 @@ Project paused until dashboard is fully working and testable. 2+ days lost to de
 **Target**: Pattern A
 
 **Files to create/modify**:
+
 - `backend/routers/logs.py` — may need HTML variant
 - `frontend/components/logs.html` — REWRITE
 - `frontend/components/logs_rows.html` — NEW
@@ -118,6 +123,7 @@ Project paused until dashboard is fully working and testable. 2+ days lost to de
 **Target**: Determine if broken, fix if needed
 
 **Steps**:
+
 1. Manual test LLM tab — do rows render?
 2. Manual test Settings tab — do rows render?
 3. If broken, migrate to Pattern A
@@ -128,6 +134,7 @@ Project paused until dashboard is fully working and testable. 2+ days lost to de
 **Goal**: Browser-based tests that catch htmx/Alpine rendering failures
 
 **Tests needed** (per DataTable):
+
 1. Tab loads → rows visible in DOM
 2. Click cross-tab link → other tab loads
 3. Click action button → feedback appears

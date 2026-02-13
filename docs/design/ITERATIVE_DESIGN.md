@@ -48,6 +48,7 @@ If a success criterion is not observable, it isn't proven. We build validation t
 ## Beyond Phase 10
 
 Additional exploration areas not yet scoped into phases:
+
 - **Multi-User Support**: User profiles, preference isolation, shared vs personal knowledge
 - **Cross-Domain Synthesis**: Insights from one domain informing another (e.g., work stress patterns affecting health recommendations)
 - **Proactive Suggestions**: System-initiated responses based on predicted needs

@@ -91,11 +91,13 @@ merkle_proof    BYTEA,                   -- proof path (security only)
 ### 3.4 Retention Policy
 
 **Values**:
+
 - `>0` = retain for N days, then archive/delete
 - `-1` = retain forever (no automatic deletion)
 - `0` = don't audit this event type
 
 **Policy hierarchy** (lower overrides higher where allowed):
+
 ```
 System Defaults → Org Policy (locked) → User Preferences
 ```
@@ -151,11 +153,13 @@ Plugins declare which event types they emit in their manifest (see ADR-0003).
 ### 3.7 Query Interface
 
 Audit queries are **separate** from memory queries:
+
 - Different API endpoint
 - Different query semantics (time-range + event-type focused)
 - No embedding/vector search (audit is structured, not semantic)
 
 Indexes optimized for:
+
 - Time range queries (most common)
 - Event type filtering
 - Source (plugin) filtering
@@ -164,6 +168,7 @@ Indexes optimized for:
 ### 3.8 Storage Management
 
 **Tiered storage** (industry standard pattern):
+
 - **Hot** (SSD): Recent data, fast queries (configurable window, default 30 days)
 - **Warm** (HDD): Older data, slower queries
 - **Cold** (archive): Compressed, rarely accessed, export-focused

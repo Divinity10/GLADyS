@@ -24,12 +24,14 @@ The dashboard is GLADyS's primary observability and development tool, but it's b
 ## Current Stack Assessment
 
 **Technology:**
+
 - **Backend**: FastAPI (Python) with Jinja2 templates
 - **Frontend**: htmx (HTML-over-the-wire) + Alpine.js (client-side state)
 - **Styling**: TailwindCSS
 - **Pattern**: Server-side rendering (Pattern A) with progressive enhancement
 
 **Strengths:**
+
 - ✅ Simple, fast to develop
 - ✅ Python-native (fits GLADyS stack)
 - ✅ Server-driven (good for observability at backend)
@@ -37,6 +39,7 @@ The dashboard is GLADyS's primary observability and development tool, but it's b
 - ✅ Cross-platform (web-based)
 
 **Weaknesses:**
+
 - ❌ Weak component abstraction (Jinja macros are limited)
 - ❌ Hard to test (no E2E framework, no component tests)
 - ❌ Tight coupling between layers (form → backend → proto)
@@ -54,6 +57,7 @@ The dashboard is GLADyS's primary observability and development tool, but it's b
 **Goal:** Eliminate duplicated HTML, make widgets configurable and testable.
 
 **Key widgets:**
+
 - **FilterPanel** - Configurable filtering (source, date range, salience, etc.)
 - **ExpandableRow** - Parent-row drill-down with visual shading to differentiate parent/child
 - **DataGrid** - Sortable, pageable table with configurable columns
@@ -61,6 +65,7 @@ The dashboard is GLADyS's primary observability and development tool, but it's b
 - **MetricCard** - Observability widget (query time, result count, errors)
 
 **Pattern: Configuration-driven**
+
 ```python
 # Backend passes config, widget renders itself
 filter_config = {
@@ -76,6 +81,7 @@ filter_config = {
 **Goal:** Decouple business logic from presentation, make services testable.
 
 **Architecture:**
+
 ```
 Services (business logic, no HTTP/templates)
   ↓
@@ -85,6 +91,7 @@ Widgets (UI components)
 ```
 
 **Example:**
+
 ```python
 # services/event_service.py - testable without HTTP
 class EventService:
@@ -110,6 +117,7 @@ async def list_events(request):
 | Component | pytest + template tests | Widget rendering with different configs |
 
 **Example E2E test:**
+
 ```python
 def test_submit_event_with_salience(page):
     page.goto("/dashboard")
@@ -124,6 +132,7 @@ def test_submit_event_with_salience(page):
 **Goal:** Dashboard helps devs understand what's happening without external tools.
 
 **Features to add:**
+
 - **Debug panel** (collapsible): Show filters, query time, result count, gRPC status
 - **Error boundary**: Graceful degradation when services fail
 - **Performance metrics**: Client-side timing, backend latency
@@ -140,6 +149,7 @@ def test_submit_event_with_salience(page):
 **Milestone:** Dashboard as First-Class App
 
 **Issues to create:**
+
 1. **Widget library** - Design and implement reusable components (FilterPanel, ExpandableRow, DataGrid, FormBuilder)
 2. **Service layer refactor** - Extract business logic from routers into testable services
 3. **E2E testing framework** - Set up Playwright, write tests for critical workflows
@@ -148,6 +158,7 @@ def test_submit_event_with_salience(page):
 6. **Component architecture doc** - Update DASHBOARD_COMPONENT_ARCHITECTURE.md with widget patterns
 
 **Success criteria:**
+
 - New dashboard features can be added without touching existing HTML (configure, don't code)
 - Backend services testable without HTTP/templates
 - E2E tests cover critical user workflows

@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 8](phase8.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS maintain consistent behavioral patterns and tone - responding in ways that reflect user preferences, adapting personality per domain, and ensuring responses feel coherent over time?
 

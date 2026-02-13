@@ -10,6 +10,7 @@
 ## How to Use This Document
 
 Each finding is numbered for reference (F-01, F-02, etc.). Findings are grouped by primary subsystem but many are cross-cutting. Each includes:
+
 - **Observation**: What was seen during Phase 1
 - **Impact**: What this means for the system
 - **Design questions**: What needs to be decided
@@ -31,6 +32,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Impact**: Source is not just metadata — it's a primary input to the matching algorithm. Currently `source` is a flat string in the proto Event message. It may be missing from the heuristic matching query path entirely (see #56, #99).
 
 **Design questions**:
+
 1. Should source be a hard filter (only match heuristics from same source) or a weighted signal (prefer same-source, allow cross-source at high similarity)?
    - **Resolved**: Hard filter for Phase 2 default. Config option for exact vs domain-level matching — domain-level match is genuinely new signal worth testing (distinct from Phase 1's "no filter"). Pluggable filter architecture so Phase 3 can swap in weighted/cross-domain matcher without architectural changes.
 2. How granular is "source"? Sensor ID? Domain? Pack? (e.g., `runescape-sensor` vs `gaming` vs `runescape-pack`)
@@ -52,6 +54,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Observation**: Current matching quality is insufficient. Heuristics sometimes fire on wrong events or fail to fire on correct ones.
 
 **Impact**: This is multi-causal. Possible factors:
+
 - Embedding model limitations (MiniLM-L6)
 - Missing source filtering (F-01)
 - Inconsistent `raw_text` generation across sensors
@@ -59,6 +62,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 - Similarity threshold tuning
 
 **Design questions**:
+
 1. How much of the matching problem is solvable by fixing source filtering (F-01) vs requiring a better embedding model?
    - **Resolved**: Source filtering (F-01) first — it eliminates the biggest class of false positives (cross-domain). Defer embedding model changes. Measure matching quality after source filtering lands. If within-domain matching is still poor, revisit embedding model for Phase 3.
 2. Should `raw_text` generation follow a template/pattern per event type to improve embedding consistency?
@@ -80,6 +84,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Impact**: Current Beta-Binomial update treats all positive feedback equally. A gradient scale (1st like = significant boost, 2nd = moderate, 3rd+ = diminishing) would better model trust-building.
 
 **Design questions**:
+
 1. Is this a modification to the Beta-Binomial parameters, or a separate scaling function applied before the update?
    - **Resolved**: Separate scaling function applied before the Beta-Binomial update. `effective_signal = raw_signal * decay(n)` where `n` is prior approvals. Composable, removable, doesn't complicate the core model. Decay function e.g. `1 / (1 + k * n)`.
 2. Should the gradient be per-heuristic (Nth approval of THIS heuristic) or per-event-type (Nth approval of this TYPE of response)?
@@ -120,6 +125,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Personality in prompt**: Goes in **system prompt** (instruction), not alongside candidates (data). Clean separation between behavioral guidance and domain knowledge.
 
 **Data model changes for Decision Strategy:**
+
 - `DecisionContext.suggestion` → `DecisionContext.candidates: list[HeuristicCandidate]`
 - New `HeuristicCandidate` dataclass: `heuristic_id`, `condition_text`, `suggested_action`
 - `HeuristicFirstConfig` gains: `candidate_inclusion_threshold: float = 0.4`, `max_candidates: int = 3`
@@ -138,6 +144,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Impact**: Beta-Binomial with proper priors naturally prevents exact 0 or 1, but the bounds should be explicit: e.g., [0.01, 0.99] or [0.05, 0.95].
 
 **Design questions**:
+
 1. What are the hard bounds? `[0.05, 0.95]` seems reasonable.
    - **Resolved**: `[0.05, 0.95]` as defaults. Configurable — we don't know what values produce best results yet. 0.05 floor preserves recoverability (~4-5 consecutive positives to climb back to 0.3). 0.95 ceiling consistent with LLM confidence ceiling of 0.8 (F-06).
 2. Should this be configurable or fixed?
@@ -213,6 +220,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Impact**: This is a core reasoning problem. It's related to context detection (Phase 2 deferred item) and salience (goal_relevance dimension in the vector).
 
 **Design questions**:
+
 1. Is goal selection an Executive responsibility (reasoning) or an Orchestrator responsibility (routing)?
 2. Can salience scoring include goal matching? (The `goal_relevance` dimension exists but isn't implemented)
 3. Should domain skills define goal-event mappings? (e.g., RuneScape skill knows "combat event → survival goal")
@@ -226,6 +234,7 @@ Status key: `open` (needs design discussion), `captured` (documented, not yet ac
 **Affects**: Decision strategy, executive, response model
 
 **Observation**: Not all responses are mutually exclusive. Example scenario (wounded teammate):
+
 - Option 1: Bind wound (5% health improvement)
 - Option 2: Healing potion (50% health improvement)
 - Option 3: Point and laugh (0% health, but funny)
@@ -236,6 +245,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Impact**: Current model assumes one response per event. Real situations have combinatorial response spaces where the optimal action is a SET of responses, not a single one.
 
 **Design questions**:
+
 1. How does the system represent response compatibility? (exclusion groups? dependency graph?)
 2. Should the LLM evaluate combinations, or should a separate optimizer compose them?
 3. Is this a Phase 2 concern or Phase 3? (Likely Phase 3 — current system can function with single-response model)
@@ -253,6 +263,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Impact**: This extends beyond scalar confidence into response utility. Related to the SalienceResult vector model — if salience has dimensions, should responses also have dimensional scores?
 
 **Design questions**:
+
 1. What dimensions? Effectiveness, risk, humor, time-cost, reversibility?
 2. How are dimensional scores aggregated? Weighted sum (like salience)? User preference-weighted?
 3. Is this the same problem as F-09 (combinatorial selection) or separate?
@@ -271,6 +282,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Impact**: Currently unclear how feedback attribution works temporally. If a user gives thumbs-up 30 minutes later, does it count? If 3 events pass without complaint, is that implicit approval?
 
 **Design questions**:
+
 1. What's the manual feedback window? Time-based (e.g., 5 minutes)? Session-based? Unlimited until next event?
    - **Resolved**: Unlimited window, last click wins. Corrections allowed — UI displays most recent submission. Confidence model uses latest value only (not cumulative). Phase 2: no anti-spam (trust devs). Production: revisit UX guardrails if needed. At most one explicit feedback *value* applies per event at any time (the latest).
 2. What's the implicit feedback window? Time-based? Event-count-based? Both?
@@ -298,17 +310,20 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Resolution**: Two distinct problems here — scenario exploration and concurrent event processing:
 
 **Scenario exploration** (multiple LLM calls per event): Deferred to Phase 3+.
+
 - **F-04** handles it in a single call — candidates as context, LLM considers multiple options without parallel calls
 - **F-25** sleep-cycle handles offline exploration with enriched context, no latency pressure
 - Parallel live LLM calls add resource management, result reconciliation, and cost complexity — especially on local hardware (local-first constraint)
 
 **Concurrent event processing** (multiple events in-flight simultaneously): **Phase 2 scope.**
+
 - Current `EventQueue._worker_loop()` processes events serially — dequeues one, awaits full processing (including LLM call), then dequeues next
 - With multiple sensors in Phase 2, events arrive simultaneously. Serial processing creates unacceptable latency (5 queued events Ã— 2-5s LLM = 10-25s for last event)
 - Fix is at the orchestrator layer: multiple concurrent worker tasks or `asyncio.gather` with a semaphore. The executive already supports concurrency (gRPC server has 4 workers, LLM provider is async, decision strategy is async)
 - Concurrency limit should be configurable (default 3-4, bounded by local LLM throughput)
 
 **Design questions**:
+
 1. ~~When should the Executive explore multiple scenarios vs commit to one?~~ **Deferred**: F-04 single-call approach for Phase 2.
 2. ~~How many concurrent explorations?~~ **Deferred**: Moot until parallel calls are needed.
 3. ~~Does this interact with F-04?~~ **Resolved**: Yes — F-04 makes parallel calls redundant for the stated problem.
@@ -328,6 +343,7 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 **Impact**: Changes the Executive→Orchestrator contract. Currently one response per event. This would be N responses with metadata.
 
 **Design questions**:
+
 1. How many options should the LLM generate? (3-5 seems reasonable)
 2. Who selects — the system automatically, or the user?
 3. How does this interact with F-09 (combinatorial selection)?
@@ -351,12 +367,14 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 #### Two capture/replay boundaries
 
 **1. Driver → Sensor boundary**: Capture what the driver sends to the sensor. Replay feeds this data back into the sensor without needing the real app running.
+
 - Enables sensor development and testing without the target application
 - The driver uses its native transport (HTTP POST, file write, socket, etc.) — capture doesn't change that
 - The **sensor's ingestion layer** serializes incoming driver data to JSON at capture time, regardless of the driver's native format
 - Replay reads JSON and feeds it into the sensor's normalization pipeline — no transport simulation needed
 
 **2. Sensor → Orchestrator boundary**: Capture the normalized GLADyS events the sensor sends to orchestrator/preprocessors. Replay feeds normalized events into the pipeline without needing a real sensor.
+
 - Enables orchestrator/preprocessor/salience testing without real sensors
 - Format is the GLADyS event contract (always JSON, same structure regardless of domain)
 - Replay calls gRPC PublishEvents with the captured events
@@ -368,12 +386,14 @@ Options 1 & 2 are complementary (55% together). Option 3 can combine with any. O
 Capture is a **troubleshooting/dev mode**, not always-on. It must be explicitly enabled and rate-limited to prevent runaway disk usage.
 
 **Stop conditions (whichever hits first):**
+
 - **Time-based**: Capture for N seconds/minutes (e.g., `--capture-duration 60s`)
 - **Record-based**: Capture N events (e.g., `--capture-count 500`)
 
 Both settings should be configurable. Capture stops automatically when either limit is reached.
 
 **Design questions**:
+
 1. Should capture/replay be a base class feature (all sensors get it for free)?
    - **Resolved**: Yes. Both capture levels are JSON in/out. The base class knows when data arrives from the driver (ingestion layer) and when normalized events are published. Replay reads JSON and feeds into the pipeline at the appropriate stage. No domain-specific logic needed — sensors get it for free.
 2. ~~Capture parameters: max events? max time? max file size?~~ **Resolved**: Time-based + record-count-based, whichever hits first. Must be explicitly enabled.
@@ -391,6 +411,7 @@ Both settings should be configurable. Capture stops automatically when either li
 **Affects**: Sensor base class, sensor dashboard (design question #62), manifest
 
 **Observation**: Need basic metrics to assess how a sensor is performing. Two levels:
+
 - **Driver metrics**: Is the driver missing app-specific events? (e.g., RuneLite fires an event but the driver didn't capture it)
 - **Sensor metrics**: Events received, events published, events dropped/filtered, latency, error counts
 
@@ -443,6 +464,7 @@ Sensor emits metrics as `system.metrics` events through the existing `PublishEve
 **Anomaly detection**: Learned from historical data in `sensor_metrics`, not from declared rates. Actual event rates vary too much by context (combat vs idle, meeting time vs midnight). Simple threshold for Phase 2 (e.g., error rate > 3Ã— rolling average).
 
 **Design questions**:
+
 1. What metrics should every sensor report?
    - **Resolved**: See metrics schema above. Split events_dropped into events_filtered (intentional, F-16) and events_errored (failures). Added avg_latency_ms as early warning for degradation.
 2. Should driver-level metrics be reported through the sensor?
@@ -495,6 +517,7 @@ Inspired by TCP BBR (Bottleneck Bandwidth and Round-trip propagation time). Mode
 | BDP (optimal point) | Keep orchestrator busy without queue buildup |
 
 **Sensor self-regulates using response latency:**
+
 - Base class tracks `PublishEvents` response time (rolling avg + min baseline)
 - Latency increase → orchestrator is queueing → reduce publish rate
 - Latency returns to baseline → increase rate (probe for available capacity)
@@ -515,6 +538,7 @@ Inspired by TCP BBR (Bottleneck Bandwidth and Round-trip propagation time). Mode
 The per-category toggle pattern (e.g., RuneLite enabled/disabled event categories) is the driver-level equivalent of Layer 1 capability suppression. Applies to any event-driven driver, not RuneScape-specific. For event-driven drivers, the sensor can send a control message via existing transport ("stop sending audio events"). For poll-based sensors, the sensor skips polling suppressed categories. F-15 `events_filtered` metric tracks suppression volume.
 
 **Design questions**:
+
 1. Should there be two suppression layers?
    - **Resolved**: Three layers. (1) Capability suppression: static, config/manifest-driven. (2) Flow control: dynamic, BBR-inspired, automatic using `PublishEvents` response latency. (3) Salience habituation: learned, adaptive (already designed).
 2. Who controls sensor-level suppression?
@@ -538,6 +562,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 **Impact**: The delivery pattern interface already has a `stream` type in the design ([resource-allocation.md:214](docs/design/questions/resource-allocation.md#L214)). This finding confirms it's a real use case, not hypothetical.
 
 **Design questions**:
+
 1. Does the event contract need any changes to accommodate streaming, or is `event_type: "stream"` + `sample_rate` + `sequence_id` sufficient as designed?
 2. Should the base class have a streaming mixin, or is that a Phase 3+ concern?
 3. Is the transport (gRPC bidirectional stream) adequate for continuous data, or would something like WebSocket/shared memory be needed?
@@ -553,6 +578,7 @@ The per-category toggle pattern (e.g., RuneLite enabled/disabled event categorie
 **Consolidates**: `cross-cutting.md` §36 (Event Condensation Strategy), `resource-allocation.md` (Dynamic Heuristic Behavior)
 
 **Observation**: Game events often contain overlapping data. RuneScape example:
+
 - Position event fires every game tick (contains entity position)
 - Movement event fires when an entity moves (also contains entity position)
 - Both events carry the same position data
@@ -578,11 +604,13 @@ A lightweight cache in the orchestrator maps `(event_type, source, content_hash)
 Catches remaining redundancy that passes through the first two layers. Repeated similar events naturally score lower on novelty and higher on habituation.
 
 **Observability at every layer**:
+
 - Sensor: tracks events_received vs events_emitted (consolidation ratio)
 - Orchestrator: tracks cache hits/misses per event type
 - Salience: tracks habituation scores (existing)
 
 **Design question answers**:
+
 1. **Where does dedup happen?** All three layers, each solving a different problem. Sensor = rate control. Orchestrator = memoization. Salience = learned suppression.
 2. **Event relationships?** No explicit `supersedes_event_id` or `related_event_ids`. Sensor emit schedule handles consolidation; cross-event relationships are implicit via temporal proximity and shared context.
 3. **Authoritative source?** Domain-specific, handled by sensor domain logic. The sensor decides which event type is authoritative for each data field.
@@ -611,6 +639,7 @@ This replaces the proposed `visibility` enum. The structure itself encodes the c
 **`internal`** (sensor bookkeeping) is not a data classification — it's an event routing concern, already handled by F-15's `system.*` event routing. System events never enter the salience pipeline.
 
 **Design question answers**:
+
 1. **Field-level or event-level?**
    - **Resolved**: Two-bucket model — coarse-grained field-level. `data` + optional `evaluation_data` on the event. No per-attribute annotations (too complex, nesting problems, heavy burden on sensor devs). Not pure event-level either (avoids splitting one observation into two events).
 2. **Classification values?**
@@ -634,6 +663,7 @@ This replaces the proposed `visibility` enum. The structure itself encodes the c
 **Observation**: When a driver connects, there's often an initial flood of events that then become sparse. Much of the flood is informational — no action needed. RuneScape example: user logs in → character appears → burst of inventory events. Only the login might need a response; the inventory events are context.
 
 Two sub-problems:
+
 1. **Informational vs actionable**: Need to indicate whether an event expects a response, is strictly informational (context), or unknown.
 2. **Event bundling**: Multiple app events during a burst could be combined into a single GLADyS event (e.g., "user logged in with inventory: [...]"). This bundling logic belongs in the sensor or a sensor-specific preprocessor.
 
@@ -642,6 +672,7 @@ Two sub-problems:
 **Resolution**: One new contract element (`intent` field). Bundling and burst handling are already solved by F-16 and F-18.
 
 **`intent` field on event contract:**
+
 - `actionable`: May need a response. Routed through full pipeline (salience → executive).
 - `informational`: Context only. Orchestrator stores in memory for future retrieval but does not route through salience → executive.
 - `unknown` (default): Let salience decide. Sensors that don't know don't need to decide.
@@ -649,6 +680,7 @@ Two sub-problems:
 The sensor knows best whether an event expects a response. Inventory dump on login = `informational`. User takes an action = `actionable`. New sensor that hasn't classified its events yet = `unknown`.
 
 **Design question answers**:
+
 1. **Intent field?**
    - **Resolved**: Yes. `intent` with three values: `actionable`, `informational`, `unknown` (default). Lightweight — one field. Sensor sets it based on domain knowledge.
 2. **Event bundling?**
@@ -672,6 +704,7 @@ The sensor knows best whether an event expects a response. Inventory dump on log
 **Observation**: Some apps (RuneScape) buffer events during startup before mods are allowed to receive them. Once the mod becomes live, all buffered events are sent in a flood. This is a specific case of F-20 but with an additional nuance: these events occurred BEFORE the driver was active, so timestamps may not be accurate, and the events represent pre-existing state, not changes.
 
 **Impact**: The sensor needs to distinguish between:
+
 - **Live events**: Happened while sensor was active (accurate timestamps, represents changes)
 - **Backfill events**: Buffered from before sensor was active (may have inaccurate timestamps, represents initial state)
 
@@ -683,6 +716,7 @@ The sensor knows best whether an event expects a response. Inventory dump on log
 - Learning system should not treat backfill events as missed response opportunities — GLADyS wasn't active when they occurred.
 
 **Design question answers**:
+
 1. **Backfill flag?**
    - **Resolved**: Yes. `backfill: true` boolean on the event. Lightweight, one field. Sensor sets it when it detects the driver is dumping buffered state (e.g., burst of events with identical or near-identical timestamps on connect).
 2. **Different delivery pattern?**
@@ -738,6 +772,7 @@ If no follow-up: penalty split across both condition and action (default).
 **5-point labeled dual rating for rule and response separately:**
 
 **Rule (condition match):**
+
 | Score | Label |
 |-------|-------|
 | 1 | Wrong match — shouldn't have fired |
@@ -747,6 +782,7 @@ If no follow-up: penalty split across both condition and action (default).
 | 5 | Exact match — precisely this scenario |
 
 **Response (action quality):**
+
 | Score | Label |
 |-------|-------|
 | 1 | Harmful — actively wrong |
@@ -760,12 +796,14 @@ If no follow-up: penalty split across both condition and action (default).
 #### Feedback source field
 
 Expand `feedback_source` (from F-11) to: `user_implicit`, `user_explicit`, `dev`. Learning system uses source to determine:
+
 - What signal is available (3-point vs 5-point dual)
 - How to attribute the update (aggregate vs independent condition/action)
 
 #### Update magnitudes
 
 All magnitudes are **configurable tuning parameters**, not constants. Constraints:
+
 - Must be small enough that confidence converges over dozens of observations, not 3-5
 - Must respect F-05 bounds (confidence never reaches 0.0 or 1.0)
 - Interact with F-03 gradient (1st feedback counts more than Nth for same heuristic)
@@ -828,6 +866,7 @@ heuristic:
 ```
 
 **Use cases:**
+
 - `locked: true`: Objectively best response (how to kill creepers). User feedback cannot erode domain knowledge.
 - `floor: 0.6`: Well-tested heuristic that should be resilient to noise but still adaptable.
 - `feedback_weight: 0.5`: Stable, well-established heuristic — slow to change. `2.0`: Experimental heuristic — learn fast.
@@ -845,6 +884,7 @@ response_bias:
 ```
 
 **Boundary — bias vs logic:**
+
 - **OK**: Response bias as weighted preferences applied during selection. Same mechanism as user preferences. The decision strategy sees this as input, not replacement logic.
 - **Not OK**: Packs replacing or overriding the decision function itself. That's code injection, not personality.
 
@@ -855,18 +895,21 @@ Personality affects **selection among options**, not **what options exist** or *
 **Decision**: Personalities introduce bias (weighted preferences, threshold adjustments). They do NOT replace or override the decision strategy. This is the confirmed boundary.
 
 **What personality CAN do** (bias):
+
 - Adjust response selection weights (prefer certain response types)
 - Modify thresholds (cautious personality = higher confidence required to act)
 - Lower/raise salience thresholds for specific dimensions (proactive personality lowers opportunity threshold)
 - Suppress informational notifications (terse personality)
 
 **What personality CANNOT do** (strategy override):
+
 - Replace the decision function
 - Bypass confidence checks
 - Override safety constraints
 - Ignore user feedback
 
 **Experimental feature (off by default)**: Personality heuristics — heuristics whose conditions/actions are influenced by personality config. Already designed in [THEORETICAL_FOUNDATIONS.md:218-242](../../research/THEORETICAL_FOUNDATIONS.md#L218-L242). Known research questions in [OPEN_QUESTIONS.md:78-99](../../research/OPEN_QUESTIONS.md#L78-L99):
+
 - Confirmation bias: proactive personalities learn faster but from lower-quality actions
 - Personality swap: how much confidence decay when personality changes?
 - Factoring out personality: keep domain knowledge, discard behavioral bias
@@ -944,6 +987,7 @@ Each tier provides different learning benefits. The number selected per tier (X 
 **Single LLM constraint.** For current and near-term phases, one reasoning LLM handles both live and sleep-cycle work. Accepted limitation. Using separate LLMs for independent validation is a potential future exploration.
 
 **Key properties:**
+
 - No candidates shown → clean convergence signal (unlike real-time F-04)
 - Enriched context (episodic memory) possible because not latency-bound
 - Divergence is productive — generates better responses, not just a measurement
@@ -951,6 +995,7 @@ Each tier provides different learning benefits. The number selected per tier (X 
 - Relates to existing deferred item (exploration epsilon) and Phase 2 W5 (sleep-mode consolidation)
 
 **Design questions:**
+
 1. What defines the confidence tier boundaries? (e.g., low < 0.4, medium 0.4-0.7, high > 0.7)
 2. How many heuristics per tier per sleep cycle?
 3. What enriched context is available? (Episodic memory, recent events from same source, related heuristics, user goals)
@@ -1008,6 +1053,3 @@ These findings directly inform the composable event interface model:
 | F-19 | Field-level data classification (`normal`, `evaluation_only`, `internal`) |
 | F-20 | Event intent field (`actionable`, `informational`, `unknown`) |
 | F-21 | Backfill/historical flag for pre-connection state dumps |
-
-
-

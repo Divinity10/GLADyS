@@ -153,6 +153,7 @@ Everything communicates via **gRPC**. Each subsystem runs as a separate service.
 The storage and retrieval layer. Rust fast path + Python ML/storage.
 
 **Easiest: Use the full stack (recommended)**
+
 ```bash
 make up   # Starts everything including Memory
 # Edit Python code - changes auto-reload (volume mounted)
@@ -160,17 +161,20 @@ make up   # Starts everything including Memory
 ```
 
 **Local setup (for isolated development):**
+
 ```bash
 cd src/services/memory
 uv sync                          # Python dependencies
 ```
 
 **Run tests:**
+
 ```bash
 cd src/services/memory && uv run pytest
 ```
 
 **Key files:**
+
 - [src/services/memory/gladys_memory/grpc_server.py](../src/services/memory/gladys_memory/grpc_server.py) - Python gRPC server
 - [proto/memory.proto](../proto/memory.proto) - API contract
 - [src/services/memory/gladys_memory/config.py](../src/services/memory/gladys_memory/config.py) - Configuration
@@ -182,12 +186,14 @@ cd src/services/memory && uv run pytest
 The brain. Routes events, manages attention, coordinates everything. Python + gRPC.
 
 **Easiest: Use the full stack (recommended)**
+
 ```bash
 make up   # Starts everything including Orchestrator
 # Edit code - changes auto-reload (volume mounted)
 ```
 
 **Local setup (for isolated development):**
+
 ```bash
 # Start Memory first (dependency)
 python cli/local.py start memory
@@ -199,11 +205,13 @@ python cli/local.py start all
 **You need:** Python 3.11+, uv
 
 **Run tests:**
+
 ```bash
 cd src/services/orchestrator && uv run pytest
 ```
 
 **Key files:**
+
 - [src/services/orchestrator/gladys_orchestrator/router.py](../src/services/orchestrator/gladys_orchestrator/router.py) - Event routing logic
 - [src/services/orchestrator/gladys_orchestrator/server.py](../src/services/orchestrator/gladys_orchestrator/server.py) - gRPC server
 - [proto/orchestrator.proto](../proto/orchestrator.proto) - API contract
@@ -211,6 +219,7 @@ cd src/services/orchestrator && uv run pytest
 - [cli/docker.py](../cli/docker.py) - Docker service management
 
 **Key ADRs:**
+
 - [ADR-0001](adr/ADR-0001-Architecture-and-Component-Design.md) - Overall architecture
 - [ADR-0013](adr/ADR-0013-Salience-Engine-and-Attention-Management.md) - Attention/salience
 
@@ -223,20 +232,24 @@ User-facing decision layer. Production will be C#/.NET, but we have a Python stu
 **Current state:** Python stub exists at `src/services/executive/gladys_executive/server.py`
 
 **Local setup (using the stub):**
+
 ```bash
 make up   # Starts all services including executive-stub
 ```
 
 **Features:**
+
 - `ProcessEvent` RPC - handles events requiring LLM reasoning
 - Optional Ollama LLM integration (set `OLLAMA_URL` env var)
 - `ProvideFeedback` RPC - pattern extraction for heuristic formation
 
 **Key files:**
+
 - [src/services/executive/gladys_executive/server.py](../src/services/executive/gladys_executive/server.py) - Python stub implementation
 - [proto/executive.proto](../proto/executive.proto) - API contract
 
 **Key ADRs:**
+
 - [ADR-0014](adr/ADR-0014-Executive-Decision-Loop-and-Proactive-Behavior.md) - Executive design
 
 ---
@@ -246,12 +259,14 @@ make up   # Starts all services including executive-stub
 Sensors bring data into GLADyS (Discord messages, game state, temperature readings, etc.)
 
 **Local setup:**
+
 ```bash
 # Start Orchestrator (dependency - when it exists)
 # Then build your sensor in whatever language
 ```
 
 **Key ADRs:**
+
 - [ADR-0003](adr/ADR-0003-Plugin-Architecture.md) - Plugin/sensor architecture
 
 ---
@@ -261,6 +276,7 @@ Sensors bring data into GLADyS (Discord messages, game state, temperature readin
 Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 
 **Key ADRs:**
+
 - [ADR-0003](adr/ADR-0003-Plugin-Architecture.md) - Plugin architecture
 - [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) - Actuator design
 
@@ -268,9 +284,9 @@ Skills/actuators let GLADyS take actions (send messages, control devices, etc.)
 
 ## Common Tasks
 
-  - [Running the full stack](#running-the-full-stack)
-  - [Running the Dashboard](#running-the-dashboard)
-  - [Development workflow](#development-workflow)
+- [Running the full stack](#running-the-full-stack)
+- [Running the Dashboard](#running-the-dashboard)
+- [Development workflow](#development-workflow)
 
 ### Running the full stack
 
@@ -300,18 +316,20 @@ The Dashboard (V2) is a dev tool for real-time testing of the learning loop, ser
 python tools/dashboard/dashboard.py start
 ```
 
-This starts the dashboard on http://localhost:8502. See [DASHBOARD_V2.md](design/DASHBOARD_V2.md) for full details.
+This starts the dashboard on <http://localhost:8502>. See [DASHBOARD_V2.md](design/DASHBOARD_V2.md) for full details.
 
 Tabs: Lab (submit events, view responses), Knowledge (heuristics, memory probe, cache), Learning (fire history), LLM (Ollama management), Logs (service logs), Settings (config).
 
 ### Development workflow
 
 **Python changes** auto-reload (source mounted as volumes):
+
 ```bash
 # Just edit the code - changes are live immediately
 ```
 
 **Rust changes** require rebuild:
+
 ```bash
 make rust-rebuild   # Rebuild only the Rust container
 ```
@@ -339,6 +357,7 @@ python cli/proto_gen.py   # Regenerates all Python stubs
 ```
 
 This script:
+
 - Regenerates Python stubs from `proto/` to service-specific `generated/` directories
 - Fixes relative imports in generated files
 - Validates syntax of generated Python files
@@ -348,6 +367,7 @@ This script:
 For service ports, run `codebase-info ports`.
 
 Quick start:
+
 ```bash
 # Docker (recommended - no Rust required)
 python cli/docker.py start all
@@ -361,6 +381,7 @@ python cli/local.py status
 ### Connecting to running services
 
 **Python client example:**
+
 ```python
 import grpc
 from gladys_orchestrator.generated import orchestrator_pb2, orchestrator_pb2_grpc
@@ -379,6 +400,7 @@ response = stub.IngestEvent(orchestrator_pb2.IngestEventRequest(
 ```
 
 **grpcurl (CLI testing):**
+
 ```bash
 # List services
 grpcurl -plaintext localhost:50050 list
@@ -393,20 +415,24 @@ grpcurl -plaintext -d '{"event": {"id": "1", "source": "test", "raw_text": "hell
 GLADyS uses **semantic similarity** for heuristic matching via pgvector embeddings.
 
 **How it works:**
+
 - Heuristic conditions are stored with embeddings (384-dim, all-MiniLM-L6-v2)
 - Event text is embedded and compared via cosine similarity
 - Threshold of 0.7 ensures semantic meaning matches (not just shared words)
 
 **Example:**
+
 - "User wants ice cream" **matches** "User wants frozen dessert" (0.78 similarity)
 - "email about killing neighbor" does **NOT** match "email about meeting" (0.69 similarity)
 
 **Architecture:**
+
 - **Rust fast path** delegates to Python for semantic matching
 - **Python storage** handles embedding generation and similarity search
 - **LRU cache** in Rust stores recently-used heuristics for stats
 
 **Key config:**
+
 ```bash
 # Similarity threshold (default: 0.7)
 export CACHE_NOVELTY_THRESHOLD=0.7
@@ -438,4 +464,3 @@ export SALIENCE_MIN_HEURISTIC_CONFIDENCE=0.5
 - Check existing ADRs for design rationale
 - Look at [design questions](design/questions/) for active discussions
 - Open an issue if stuck
-

@@ -50,6 +50,7 @@ efforts/poc2/
 Completed efforts can be a single file (e.g., `efforts/poc1-closed-loop.md`).
 
 **Active state.md structure** (verbose during work):
+
 ```
 ## Work Stack       — Tasks for this effort (stack, not queue)
 ## Known Issues     — Bugs blocking this effort
@@ -60,6 +61,7 @@ Completed efforts can be a single file (e.g., `efforts/poc1-closed-loop.md`).
 ```
 
 **Completed effort structure** (compressed to ~15 lines):
+
 ```
 ## Outcome          — What was proven/built
 ## Key Lessons      — Things that affect future efforts
@@ -78,6 +80,7 @@ Completed efforts can be a single file (e.g., `efforts/poc1-closed-loop.md`).
 See `AGENT_COORDINATION.md` for full coordination protocol, trust boundaries, and prompt engineering patterns.
 
 The Handoff section in each effort file is the coordination point:
+
 - Each agent edits only their section (Architect or Investigator)
 - Status: `idle` | `assigned` | `working` | `blocked`
 - Write findings with specific file paths and line numbers
@@ -85,6 +88,7 @@ The Handoff section in each effort file is the coordination point:
 ### Archiving
 
 Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory.py` which:
+
 1. Moves current index to `docs/archive/claude-memory-YYYYMMDD-<description>.md`
 2. Creates fresh index with the standard template
 3. Completed effort files stay in `efforts/` (already compressed)
@@ -94,6 +98,7 @@ Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory
 ## Document Lifecycle
 
 **Design questions** (`docs/design/questions/`):
+
 1. Questions start as "Open" entries in category files
 2. When resolved, the decision migrates to the relevant design doc (`docs/design/`)
 3. The question entry updates to "Resolved — see {design_doc}"
@@ -108,6 +113,7 @@ Use `!archive <description>` to archive. This runs `.claude/hooks/archive_memory
 ## Milestone Cleanup
 
 When closing a milestone:
+
 1. Archive working_memory.md (`!archive <description>`)
 2. Verify INDEX.md reflects all docs created during the milestone
 3. Review `docs/design/questions/` for resolved items to migrate to design docs

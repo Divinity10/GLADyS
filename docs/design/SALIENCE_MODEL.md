@@ -18,6 +18,7 @@ The current salience implementation conflates three distinct concerns into a sin
 3. **Response shaping** (what kind of response is appropriate)
 
 Additionally:
+
 - Dimensions are not orthogonal (same heuristic match boosts multiple axes)
 - Reduction to scalar uses naive `max()` — ignores cross-dimension semantics
 - `habituation` operates inversely to all other dimensions (high = suppress)
@@ -67,6 +68,7 @@ averaging, and gradient updates on the vector operate on semantically consistent
 - Habituation: high value = less attention
 
 Additionally, `habituation != (1 - novelty)`:
+
 - **Novelty**: "How different is this from what I know?" (semantic distance)
 - **Habituation**: "How often has this exact pattern fired recently?" (temporal frequency)
 
@@ -74,6 +76,7 @@ An event can be novel (new type) but habituated (similar pattern keeps triggerin
 An event can be non-novel (known type) but not habituated (haven't seen it recently).
 
 **Consequence**: Habituation is applied as a multiplier on the salience scalar:
+
 ```
 effective_salience = salience * (1.0 - habituation)
 ```
@@ -92,11 +95,13 @@ be ignored. Threat bypasses habituation, same as it bypasses the queue.
 - A home automation domain weights actionability highest
 
 **Weight hierarchy**:
+
 1. **System defaults** — per domain model (baseline)
 2. **User overrides** — within bounded ranges (can't disable safety)
 3. **Learned adjustments** — system observes which events get engagement, nudges weights
 
 **Scalar computation**:
+
 ```
 salience = sum(weight[d] * vector[d] for d in dimensions) / sum(weights.values())
 ```
@@ -135,6 +140,7 @@ After removing threat and habituation, the vector contains dimensions that answe
   - No concrete evidence yet that current dimensions fail to capture impact
 
 **Orthogonality**: These 5 dimensions are orthogonal (can vary independently):
+
 - Opportunity vs actionability: "2 tons of gold, heavily guarded" (high opportunity: 1.0, low actionability: 0.1)
 - Goal_relevance vs opportunity: "Exit door while escaping" (high goal_relevance: 0.9, low opportunity: 0.2)
 - Social vs actionability: "Friend asks for $10k loan you can't afford" (high social: 0.9, low actionability: 0.1)
@@ -182,6 +188,7 @@ message SalienceResult {
 ### Dashboard Display
 
 The dashboard currently shows a flat "Salience Breakdown" grid. With this change:
+
 - **Salience score** shown in the row summary (replaces current single value)
 - **Threat** shown with color coding (red if above threshold)
 - **Habituation** shown as a modifier (e.g., "Ã—0.7" or "30% habituated")
@@ -275,6 +282,7 @@ async def route_event(self, event, salience: SalienceResult):
 ## 6. Migration Path (Phase 1 → Phase 2)
 
 ### Phase 1: Data Object (minimal code change)
+
 - Define SalienceResult in proto
 - Adapter in Rust: current evaluate_salience() → SalienceResult
   - threat = current vector.threat
@@ -284,11 +292,13 @@ async def route_event(self, event, salience: SalienceResult):
 - Router uses SalienceResult instead of raw dict
 
 ### Phase 2: Model Interface
+
 - Extract SalienceModel protocol
 - Current logic becomes `HeuristicBoostModel` (default implementation)
 - Add configuration for weights
 
 ### Phase 3: Alternative Models
+
 - Custom ML model (trained on user feedback data)
 - A/B testing framework (run two models, compare outcomes)
 

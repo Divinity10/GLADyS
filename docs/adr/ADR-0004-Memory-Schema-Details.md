@@ -15,6 +15,7 @@
 ## 1. Context and Problem Statement
 
 The GLADyS requires a memory system that supports:
+
 - Fast retrieval for real-time interaction (~50ms budget)
 - Semantic search for contextually relevant memories
 - Structured queries for filtering by time, source, salience

@@ -5,6 +5,7 @@ GLADyS (**G**eneralized **L**ogical **A**daptive **Dy**namic **S**ystem) is a ge
 ## What We're Building
 
 GLADyS learns and adapts to help with:
+
 - **Gaming**: Minecraft companion, game state awareness
 - **Smart home**: Sensors, thermostats, lighting automation
 - **Productivity**: Calendar awareness, task management
@@ -46,6 +47,7 @@ git add --renormalize .
 ```
 
 **Why?**
+
 - The `hooks/` directory contains git hooks that work on Windows, Mac, and Linux
 - Line ending normalization ensures consistent files across platforms
 - The `.editorconfig` file configures most editors automatically
@@ -106,12 +108,14 @@ python cli/proto_gen.py
 ```
 
 This script:
+
 1. Finds a Python environment with `grpc_tools` installed
 2. Regenerates all Python stubs from `proto/` to service-specific `generated/` directories
 3. Fixes import issues (absolute → relative) in generated files
 4. Verifies generated files have valid Python syntax
 
 **Proto locations:**
+
 - `proto/*.proto` → Source of truth for all proto definitions
 - `src/memory/python/gladys_memory/generated/` → Python stubs for memory service
 - `src/orchestrator/gladys_orchestrator/generated/` → Python stubs for orchestrator
@@ -119,17 +123,20 @@ This script:
 ### Configuration
 
 The Memory subsystem uses Pydantic Settings for configuration. Settings can come from:
+
 1. Environment variables (highest priority)
 2. `.env` file in the module directory
 3. Code defaults (lowest priority)
 
 **Environment variable prefixes:**
+
 - `STORAGE_*` - Database connection (host, port, database, user, password)
 - `EMBEDDING_*` - Embedding model (model_name, embedding_dim)
 - `SALIENCE_*` - Salience evaluation (thresholds, time windows)
 - `GRPC_*` - gRPC server (host, port, max_workers)
 
 Example:
+
 ```bash
 export STORAGE_HOST=postgres.local
 export STORAGE_PORT=5432

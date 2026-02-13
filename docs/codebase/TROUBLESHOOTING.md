@@ -1,6 +1,5 @@
 # Troubleshooting
 
-
 ## Common Mistakes to Avoid
 
 1. **Port confusion**: MemoryStorage is 50051, SalienceGateway is 50052. They're different!
@@ -29,18 +28,23 @@
 **Diagnostic steps**:
 
 1. **Run the integration test**:
+
    ```bash
    uv run python tests/integration/test_llm_response_flow.py
    ```
+
    This tests Executive directly AND through Orchestrator. If both pass, the issue is in the UI.
 
 2. **Check LLM configuration**:
+
    ```bash
    python cli/local.py status
    ```
+
    Look for the `ollama` line - it should show `[OK] running` with your model name.
 
 3. **Verify named endpoint resolution**: The Executive uses named endpoints. If you changed `.env` to use `OLLAMA_ENDPOINT=local`, the Executive MUST be restarted to pick up the change:
+
    ```bash
    python cli/local.py restart executive-stub
    ```
@@ -64,6 +68,7 @@
 **"Address already in use"**: Another instance is running. Use `local.py stop all` first or check for zombie processes.
 
 **"Connection refused" on health check**: Service crashed immediately after starting. Run in foreground to see errors:
+
 ```bash
 python -m gladys_executive start  # instead of via local.py
 ```
@@ -71,11 +76,13 @@ python -m gladys_executive start  # instead of via local.py
 ## Database schema issues
 
 **"column does not exist"**: Migration not applied. Run:
+
 ```bash
 python cli/local.py migrate
 ```
 
 **Different behavior local vs Docker**: Schema drift. Ensure both use same migrations:
+
 ```bash
 python cli/local.py migrate
 python cli/docker.py migrate

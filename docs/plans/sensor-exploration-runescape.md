@@ -52,4 +52,3 @@ These questions help inform the sensor abstraction and Phase 1 planning:
 - Events appear in the dashboard event table
 - At least 3 distinct event types are emitted
 - Notes on what worked, what was hard, and what events are available
-

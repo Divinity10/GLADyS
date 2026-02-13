@@ -187,6 +187,7 @@ These patterns are documented for reference but not yet proven with working impl
 | 6 | Integration tests | Suite exists, runs pre-merge |
 
 **Rules**:
+
 - Each phase ends with "tests pass" + "works in browser"
 - No phase is complete until both verified
 - Phase N must complete before Phase N+1 starts

@@ -37,6 +37,7 @@ Use for: Event tables, heuristics lists, response lists, queue display, any list
 ```
 
 **Backend** (FastAPI):
+
 ```python
 @router.get("/api/heuristics/rows")
 async def list_heuristics_rows(request: Request, ...):
@@ -47,6 +48,7 @@ async def list_heuristics_rows(request: Request, ...):
 ```
 
 **Template** (heuristics_rows.html):
+
 ```jinja2
 {% for h in heuristics %}
 <tr x-data="{ expanded: false, editing: false }" class="...">
@@ -58,6 +60,7 @@ async def list_heuristics_rows(request: Request, ...):
 ```
 
 **Container** (heuristics.html):
+
 ```html
 <div id="heuristics-tab">
     <!-- Toolbar with Alpine for filter state -->
@@ -150,6 +153,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 | **Settings** | **x-for (broken)** | ❌ NEEDS AUDIT | P3 |
 
 ### Lab Tab (events)
+
 - **Data source**: SSE stream + initial server render
 - **Rendering**: Pattern A + Pattern C
 - **Files**: `lab.html`, `event_row.html`, `events.py`
@@ -157,6 +161,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ✅ Working
 
 ### Response Tab
+
 - **Data source**: gRPC → Memory service → PostgreSQL
 - **Rendering**: Pattern A
 - **Files**: `response.html`, `response_rows.html`, `response_detail.html`, `responses.py`
@@ -164,6 +169,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ✅ Working
 
 ### Heuristics Tab
+
 - **Data source**: gRPC → Memory service → PostgreSQL
 - **Rendering**: Pattern A
 - **Files**: `heuristics.html`, `heuristics_rows.html`, `heuristics_row.html`, `backend/routers/heuristics.py`
@@ -174,6 +180,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ✅ Fixed (2026-02-03)
 
 ### Learning Tab (NEEDS MIGRATION)
+
 - **Data source**: REST `/api/fires` → JSON
 - **Rendering**: ❌ BROKEN — uses Alpine x-for (`x-for="f in fires"`)
 - **Files**: `learning.html`, `fun_api/routers/fires.py`
@@ -185,6 +192,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
   3. Rewrite `learning.html` to use htmx
 
 ### Logs Tab (NEEDS MIGRATION)
+
 - **Data source**: REST `/api/logs/{service}` → JSON
 - **Rendering**: ❌ BROKEN — uses Alpine x-for (`x-for="line in logs"`)
 - **Files**: `logs.html`, `fun_api/routers/logs.py`
@@ -192,6 +200,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ❌ Needs Pattern A migration
 
 ### LLM Tab (NEEDS AUDIT)
+
 - **Data source**: REST `/api/llm/status` → JSON
 - **Rendering**: ❌ Uses Alpine x-for for model lists
 - **Files**: `llm.html`, `fun_api/routers/llm.py`
@@ -199,6 +208,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ❌ May work (small lists) but uses anti-pattern — needs audit
 
 ### Settings Tab (NEEDS AUDIT)
+
 - **Data source**: REST `/api/config`, `/api/cache/entries` → JSON
 - **Rendering**: ❌ Uses Alpine x-for for config and cache entries
 - **Files**: `settings.html`, `fun_api/routers/config.py`, `fun_api/routers/cache.py`
@@ -206,6 +216,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ❌ Lower priority — needs audit
 
 ### Sidebar (services health)
+
 - **Data source**: gRPC health checks
 - **Rendering**: Pattern A (htmx polls, server renders)
 - **Files**: `sidebar.html`, `services.py`
@@ -213,6 +224,7 @@ Server sends pre-rendered HTML rows via SSE. htmx inserts them.
 - **Status**: ✅ Working
 
 ### Metrics Strip
+
 - **Data source**: DB queries + cache stats
 - **Rendering**: Pattern A (htmx polls, server renders numbers)
 - **Files**: `metrics.html`, `metrics.py`
@@ -305,6 +317,7 @@ Each broken tab needs the same pattern applied:
 5. Keep Alpine only for: toolbar state, per-row expansion, local UI toggles
 
 **Priority order**:
+
 1. **Learning** — Needed for feedback loop validation (P1)
 2. **Logs** — Useful for troubleshooting (P2)
 3. **LLM** — May work as-is, audit first (P2)

@@ -40,6 +40,7 @@ Three-layer pipeline with clear boundaries.
 #### Browser extension drivers
 
 Browser extensions push data outward — external processes cannot reach into an extension. Communication patterns:
+
 - **HTTP push**: Extension POSTs to adapter's local HTTP endpoint (simplest, used by existing Melvor exploratory code)
 - **WebSocket**: Extension opens persistent connection to adapter. Enables bidirectional communication — adapter can request "check now" for poll-pattern adapter.
 
@@ -66,6 +67,7 @@ The adapter cannot poll a browser extension. For poll-pattern adapter using brow
 ### 1.4 Remote sensors (future consideration)
 
 PoC 2 sensors are all local (same machine as orchestrator). Future sensors may run on phones, other network devices, or remote computers. Remote sensors raise connectivity questions:
+
 - Push from remote sensor requires network path to orchestrator (NAT traversal, VPN, relay)
 - Orchestrator polling remote sensor has the same NAT problem in reverse
 
@@ -203,6 +205,7 @@ Flow control is **configuration-injected**, not code-injected. At registration, 
 **Why per-language SDKs, not per-language base classes?** Base classes are inheritance-based and don't translate well across languages. SDKs provide composable helpers. The Python SDK uses a base class because Python adapters benefit from it (multiple potential generic adapters). The JS and Java SDKs are libraries, not base classes.
 
 **Browser extension limitation**: Browser extensions cannot make gRPC calls (no HTTP/2 client-initiated connections). Browser-based sensors need either:
+
 - A local HTTP endpoint on the orchestrator (REST alongside gRPC)
 - A thin local HTTP-to-gRPC proxy
 
@@ -291,6 +294,7 @@ Captures the normalized GLADyS events the adapter publishes. Enables orchestrato
 ### Activation
 
 **Capture** supports both startup and runtime activation:
+
 - **CLI flags** (`--capture-duration`, `--capture-count`): Start capturing at sensor launch. Good for planned recording sessions.
 - **Runtime toggle** (`start_capture()` / `stop_capture()`): Protocol methods callable at any time. Enables "something weird is happening, start recording" without restarting the sensor. Dashboard control plane can invoke these via the orchestrator. `start_capture` accepts optional `max_duration` and `max_count` stop conditions (same as CLI). If neither is specified, a configurable default max duration applies (e.g., 30 minutes) to prevent unbounded capture.
 

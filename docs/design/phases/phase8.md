@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 7](phase7.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS execute responses in the real world - safely triggering actions in external systems, handling conflicts when multiple responses compete, and recovering from execution failures?
 

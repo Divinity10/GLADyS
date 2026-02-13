@@ -90,6 +90,7 @@ These are **constraints and requirements** that apply across all use cases, not 
 **Requirement**: When new requests contradict existing rules, ask for clarification.
 
 **Examples**:
+
 - User says "never alert after 10pm", then plays game at 11pm → Ask if they want alerts during gameplay
 - User requests temperature outside comfort zone → Confirm intent
 - User command conflicts with global rule → Ask which takes precedence
@@ -180,29 +181,34 @@ GLADyS acts as an AI companion while playing Minecraft, providing contextual awa
 ##### Passive Scenarios (User-Initiated)
 
 **UC-01.1**: User asks to mine X resource
+
 - Brain provides locations of resources near player
 - Optionally: Brain asks for quantity/radius constraints
 - Success: Player receives helpful location guidance
 
 **UC-01.2**: User asks to watch for threats while doing activity
+
 - Brain monitors for hostile entities
 - Brain alerts user when threat detected
 - If actions are allowed: Brain asks what to do when threat detected
 - Success: User is warned before being attacked
 
 **UC-01.3**: User asks for guidance defeating a hostile
+
 - Brain identifies the hostile (asks if unsure)
 - Brain assesses user capabilities vs target
 - Brain provides tactical suggestions
 - Success: User receives actionable combat advice
 
 **UC-01.4**: User sets trigger-action rule ("watch for X, do Y")
+
 - Brain monitors for trigger condition
 - Brain executes action when triggered
 - Examples: "Alert me when boss spawns", "Remind me to eat at low hunger"
 - Success: Triggers fire reliably, actions execute correctly
 
 **UC-01.5**: User sets timed action ("in X time, do Y")
+
 - Brain schedules action for future
 - Brain executes at scheduled time
 - Success: Timed actions fire correctly
@@ -210,23 +216,27 @@ GLADyS acts as an AI companion while playing Minecraft, providing contextual awa
 ##### Proactive Scenarios (Brain-Initiated)
 
 **UC-01.6**: Brain notices user appears to be hunting
+
 - Brain asks if user wants help finding targets
 - May ask for criteria (type, level, location)
 - Success: User feels assisted, not annoyed
 
 **UC-01.7**: Brain notices hostile approaching
+
 - Brain alerts user (mandatory)
 - If permitted: Brain swaps gear, takes defensive action
 - Aggressiveness based on personality and user preference
 - Success: User is protected
 
 **UC-01.8**: Brain notices rare opportunity
+
 - Brain alerts user to rare monster/resource
 - If permitted: Brain attempts to collect/kill
 - Higher threshold for risky actions (PvP, traps)
 - Success: User doesn't miss valuable opportunities
 
 **UC-01.9**: Brain notices dropped loot or missed item
+
 - Brain alerts user
 - Success: User doesn't leave valuable items behind
 
@@ -269,6 +279,7 @@ GLADyS assists Old School RuneScape players during grinding sessions and PvP enc
 #### Scenarios
 
 Inherits all scenario patterns from UC-01 (passive + proactive), specialized for:
+
 - PvP threat detection in Wilderness
 - XP tracking and optimization
 - Banking efficiency suggestions
@@ -311,11 +322,13 @@ GLADyS analyzes Evony game state for troop composition recommendations and resou
 #### Scenarios
 
 **UC-03.1**: Predict completion times
+
 - Track gathering cycle rates
 - Predict training completion
 - Alert on boss spawns
 
 **UC-03.2**: Tactical recommendations
+
 - Recommend troop layers for attacks
 - Analyze enemy compositions
 
@@ -353,6 +366,7 @@ GLADyS notifies user when someone is at the door and attempts to identify who it
 ##### Passive Scenarios
 
 **UC-04.1**: User asks "Who is at the door?"
+
 - Brain checks doorbell camera
 - Brain identifies visitor if possible:
   - "[Name] is at the door" (if face recognized)
@@ -366,17 +380,20 @@ GLADyS notifies user when someone is at the door and attempts to identify who it
 ##### Proactive Scenarios
 
 **UC-04.2**: Doorbell rings
+
 - Brain notifies user immediately
 - Brain attempts identification
 - Success: Notification in <2 seconds
 
 **UC-04.3**: Motion detected / person approaching
+
 - Brain evaluates if notification is warranted
 - Brain alerts user if significant
 - Learn to filter false positives (wind, animals)
 - Success: Real visitors notified, false positives suppressed
 
 **UC-04.4**: Vehicle in driveway
+
 - Brain detects vehicle and dwell time
 - Brain alerts if vehicle lingers
 - Success: Suspicious activity flagged
@@ -421,6 +438,7 @@ GLADyS manages thermostat, fans, and humidity based on learned preferences and c
 ##### Passive Scenarios
 
 **UC-05.1**: User requests temperature change
+
 - User: "Set heat to 78 degrees"
 - Brain executes if within bounds
 - If unusual request:
@@ -431,6 +449,7 @@ GLADyS manages thermostat, fans, and humidity based on learned preferences and c
 - Success: Temperature set appropriately with user informed
 
 **UC-05.2**: Thermostat doesn't support request
+
 - Brain informs user of limitation
 - May suggest alternatives
 - Success: User understands constraint
@@ -438,6 +457,7 @@ GLADyS manages thermostat, fans, and humidity based on learned preferences and c
 ##### Proactive Scenarios
 
 **UC-05.3**: Temperature drifts outside comfort zone
+
 - Brain detects temperature deviation
 - Brain considers:
   - User's tolerance for minor discomfort
@@ -447,6 +467,7 @@ GLADyS manages thermostat, fans, and humidity based on learned preferences and c
 - Success: Comfort maintained efficiently
 
 **UC-05.4**: Pre-conditioning before arrival
+
 - Brain predicts user arrival
 - Brain pre-heats/cools to comfort zone
 - Success: Home comfortable when user arrives
@@ -493,11 +514,13 @@ GLADyS monitors security sensors and cameras, alerting users to threats and opti
 ##### Passive Scenarios
 
 **UC-06.1**: User asks "Is the door locked?"
+
 - Brain checks lock status
 - If multiple doors: Brain asks which, or reports all
 - Success: User gets accurate status
 
 **UC-06.2**: User requests lock/unlock
+
 - Brain requires confirmation for security tier
 - Brain executes after confirmation
 - Full audit trail
@@ -506,12 +529,14 @@ GLADyS monitors security sensors and cameras, alerting users to threats and opti
 ##### Proactive Scenarios
 
 **UC-06.3**: Unexpected motion detected
+
 - Brain evaluates threat level
 - Brain alerts user if concerning
 - Learn normal patterns to reduce false alarms
 - Success: Real threats alerted, pets/normal activity filtered
 
 **UC-06.4**: Door/window left open
+
 - Brain notices door open when it shouldn't be
 - Brain alerts user
 - Success: User notified of security issue
@@ -552,11 +577,13 @@ GLADyS controls smart lights based on user requests and learned preferences.
 #### Scenarios
 
 **UC-07.1**: User requests light control
+
 - "Turn on the lights in the living room"
 - Brain executes and confirms
 - Success: Lights controlled as requested
 
 **UC-07.2**: Proactive lighting (Post-MVP)
+
 - Brain turns on lights when user enters room
 - Brain turns off when room empty
 - Success: Lighting automatic and helpful
@@ -590,12 +617,14 @@ GLADyS monitors smart appliances and notifies user of status changes.
 ##### Passive Scenarios
 
 **UC-08.1**: User asks if wash is done
+
 - Brain checks washer status
 - Reports: Done, or time remaining
 - Or: Washer not available/responding
 - Success: User gets accurate status
 
 **UC-08.2**: User asks about oven temperature
+
 - Brain checks oven temp and target
 - Calculates/reports time to target
 - Or: Oven not on/not responding
@@ -604,6 +633,7 @@ GLADyS monitors smart appliances and notifies user of status changes.
 ##### Proactive Scenarios
 
 **UC-08.3**: Washer finishes while user in another room
+
 - Brain detects cycle complete
 - Brain routes alert to user's current location
 - Respects notification restrictions (e.g., not after 10pm)
@@ -637,6 +667,7 @@ GLADyS monitors email and alerts user to critical messages.
 #### Scenarios
 
 **UC-09.1**: Critical email arrives
+
 - Brain detects email importance
 - Brain alerts user appropriately
 - May bypass notification restrictions for truly critical items
@@ -644,6 +675,7 @@ GLADyS monitors email and alerts user to critical messages.
 - Success: User informed of important email
 
 **Criticality examples**:
+
 - Bank overdraft alert → Critical, may bypass restrictions
 - Important work deadline → Important, respect restrictions
 - Marketing email → Low, no notification
@@ -677,6 +709,7 @@ GLADyS detects power outage recovery and restores home to appropriate state.
 #### Scenarios
 
 **UC-10.1**: Power restored while user away
+
 - Brain detects power restoration
 - Brain evaluates context (time, user presence)
 - Brain takes appropriate actions:
@@ -718,12 +751,14 @@ GLADyS is aware of the user's calendar, tasks, and work context, providing timel
 ##### Passive Scenarios
 
 **UC-12.1**: User asks about schedule
+
 - "What's on my calendar today?"
 - "When is my next meeting?"
 - Brain queries calendar and responds
 - Success: Accurate schedule information
 
 **UC-12.2**: User asks about tasks
+
 - "What do I need to do today?"
 - Brain queries task list with priority/due date
 - Success: Helpful task summary
@@ -731,16 +766,19 @@ GLADyS is aware of the user's calendar, tasks, and work context, providing timel
 ##### Proactive Scenarios
 
 **UC-12.3**: Meeting reminder
+
 - Brain notices meeting in 10 minutes
 - Brain alerts user: "You have a standup in 10 minutes"
 - Success: User not caught off guard
 
 **UC-12.4**: Work session awareness
+
 - Brain notices user has been working on document for 3 hours
 - Brain suggests break (see UC-14)
 - Success: Productivity + wellness balance
 
 **UC-12.5**: Context-appropriate interruption
+
 - Brain knows user is in meeting → suppress non-urgent alerts
 - Brain knows user is free → normal alert threshold
 - Success: Interruptions respect context
@@ -784,6 +822,7 @@ GLADyS monitors communication channels (beyond email) and helps prioritize messa
 ##### Passive Scenarios
 
 **UC-13.1**: User asks about messages
+
 - "Any important messages?"
 - "Did Mike message me?"
 - Brain checks channels and summarizes
@@ -792,12 +831,14 @@ GLADyS monitors communication channels (beyond email) and helps prioritize messa
 ##### Proactive Scenarios
 
 **UC-13.2**: Important message arrives
+
 - Brain detects message from important contact
 - Brain evaluates content urgency
 - Brain alerts if significant
 - Success: Important messages surface, noise filtered
 
 **UC-13.3**: Missed call/message follow-up
+
 - Brain notices user missed call from family member
 - Brain suggests follow-up: "You missed a call from Mom 2 hours ago"
 - Success: Important communications not forgotten
@@ -842,6 +883,7 @@ GLADyS monitors user activity and suggests breaks, movement, hydration, and heal
 ##### Passive Scenarios
 
 **UC-14.1**: User asks about activity
+
 - "How active have I been today?"
 - Brain queries activity data and responds
 - Success: Accurate activity summary
@@ -849,23 +891,27 @@ GLADyS monitors user activity and suggests breaks, movement, hydration, and heal
 ##### Proactive Scenarios
 
 **UC-14.2**: Break reminder after long session
+
 - Brain notices 4 hours of continuous gaming/work
 - Brain suggests: "You've been at it for 4 hours - maybe stretch?"
 - Personality affects phrasing (nagging vs. gentle)
 - Success: User reminded without being annoyed
 
 **UC-14.3**: Hydration reminder
+
 - Brain periodically reminds user to drink water
 - Frequency based on user preference
 - Success: Helpful habit reinforcement
 
 **UC-14.4**: Sleep schedule awareness
+
 - Brain knows user has 9am meeting
 - Brain notices it's 2am and user is still gaming
 - Brain suggests: "It's 2am and you have an early meeting tomorrow"
 - Success: User makes informed choice
 
 **UC-14.5**: Posture reminder (Aspirational)
+
 - Camera-based posture detection
 - Brain notices poor posture for extended period
 - Brain gently reminds user
@@ -910,12 +956,14 @@ GLADyS monitors health sensors and provides alerts for concerning readings, incl
 ##### Passive Scenarios
 
 **UC-15.1**: User asks about glucose
+
 - "What's my glucose?"
 - "How has my glucose been today?"
 - Brain queries CGM and responds with current + trend
 - Success: Accurate health information
 
 **UC-15.2**: User asks about vitals
+
 - "What's my heart rate?"
 - Brain queries smartwatch data
 - Success: Accurate current reading
@@ -923,17 +971,20 @@ GLADyS monitors health sensors and provides alerts for concerning readings, incl
 ##### Proactive Scenarios
 
 **UC-15.3**: Glucose below threshold
+
 - CGM reading falls below configured threshold (e.g., 70 mg/dL)
 - Brain alerts user: "Your glucose is 68 and falling"
 - Success: User informed promptly
 
 **UC-15.4**: Glucose trending critically low
+
 - Glucose below threshold AND trajectory is downward
 - Brain escalates: "Your glucose is 55 and falling rapidly - please check"
 - Alert is more urgent (louder, repeated)
 - Success: Critical condition gets attention
 
 **UC-15.5**: Potential medical emergency
+
 - Glucose critically low (e.g., <50 mg/dL)
 - AND trajectory still falling
 - AND smartwatch shows no movement / abnormal heart rate
@@ -944,6 +995,7 @@ GLADyS monitors health sensors and provides alerts for concerning readings, incl
 - Success: Life-threatening situation escalated
 
 **UC-15.6**: Abnormal heart rate
+
 - Heart rate outside normal range for extended period
 - Brain alerts user: "Your heart rate has been elevated for 30 minutes"
 - Success: Concerning pattern surfaced
@@ -992,22 +1044,26 @@ User explicitly teaches GLADyS preferences, rules, and constraints.
 #### Scenarios
 
 **UC-16.1**: Setting a rule
+
 - User: "Always warn me about hostile mobs, but not passive ones"
 - Brain: "Got it - I'll alert for hostile mobs but not passive ones"
 - Rule stored and applied
 - Success: Explicit preference captured
 
 **UC-16.2**: Context-specific preference
+
 - User: "When I'm in the Nether, alert more aggressively"
 - Brain adjusts threshold for Nether context
 - Success: Context-aware preference
 
 **UC-16.3**: Positive reinforcement
+
 - User: "I liked that suggestion - do more of that"
 - Brain records positive feedback on suggestion type
 - Success: Behavior reinforced
 
 **UC-16.4**: Negative reinforcement
+
 - User: "That was annoying, do less of that"
 - Brain records negative feedback
 - Success: Behavior suppressed
@@ -1034,23 +1090,27 @@ User corrects GLADyS when it makes mistakes or has wrong assumptions.
 #### Scenarios
 
 **UC-17.1**: Correcting a factual error
+
 - Brain: "That mob is dangerous"
 - User: "No, that's my pet wolf"
 - Brain learns the entity is friendly
 - Success: Error corrected, won't repeat
 
 **UC-17.2**: Suppressing unwanted alerts
+
 - Brain alerts for something user doesn't care about
 - User: "Stop alerting me about that"
 - Brain learns to suppress that alert type
 - Success: Future alerts suppressed
 
 **UC-17.3**: Adjusting behavior threshold
+
 - User: "You're being too cautious, I can handle it"
 - Brain adjusts warning threshold upward
 - Success: Behavior calibrated to user
 
 **UC-17.4**: Correcting a learned assumption
+
 - Brain assumes user prefers X based on past behavior
 - User: "I don't actually prefer that, I was just trying it"
 - Brain resets or adjusts the preference
@@ -1078,16 +1138,19 @@ GLADyS explains why it took (or didn't take) an action.
 #### Scenarios
 
 **UC-18.1**: Explaining an action
+
 - User: "Why did you alert me about that?"
 - Brain: "I saw your health was low and you were in combat. Based on your settings, I alert when health drops below 30% during combat."
 - Success: User understands reasoning
 
 **UC-18.2**: Explaining inaction
+
 - User: "Why didn't you warn me about that?"
 - Brain: "You told me to only warn about hostile mobs, and that was a passive mob."
 - Success: User understands why no alert
 
 **UC-18.3**: Explaining a suggestion
+
 - User: "Why did you suggest that?"
 - Brain: "Based on your playstyle, you usually mine for diamonds at this time. I thought you might want help finding them."
 - Success: User understands reasoning
@@ -1113,17 +1176,20 @@ GLADyS declines requests that violate ethical boundaries or safety constraints, 
 #### Scenarios
 
 **UC-19.1**: Refusing harmful request
+
 - User: "Help me spy on my neighbor's camera"
 - Brain: "I can't help with that - accessing someone else's devices without permission isn't something I'll do."
 - Personality affects phrasing (SecUnit might be more sardonic)
 - Success: Clear refusal without being preachy
 
 **UC-19.2**: Refusing safety violation
+
 - User: "Override the thermostat safety limit"
 - Brain: "I can't bypass safety limits. The maximum is set to prevent damage to the system."
 - Success: Refusal with explanation
 
 **UC-19.3**: Refusing unethical request
+
 - User: (requests something involving harm)
 - Brain declines clearly
 - Does not lecture or moralize excessively
@@ -1162,11 +1228,13 @@ User speaks to GLADyS, GLADyS responds via voice. Underpins most other use cases
 #### Scenarios
 
 **UC-11.1**: User speaks command
+
 - User says wake word + command
 - Brain processes and responds
 - Success: Natural conversation flow
 
 **UC-11.2**: Multi-turn conversation
+
 - User and Brain have back-and-forth dialogue
 - Context maintained across turns
 - Success: Coherent multi-turn interaction
@@ -1194,6 +1262,7 @@ User and GLADyS collaborate on complex tasks over multiple conversation turns.
 #### Scenarios
 
 **UC-20.1**: Planning assistance
+
 - User: "Help me plan my garden layout"
 - Brain asks clarifying questions (space, sunlight, preferences)
 - Brain offers options, user provides feedback
@@ -1201,6 +1270,7 @@ User and GLADyS collaborate on complex tasks over multiple conversation turns.
 - Success: Collaborative outcome user is happy with
 
 **UC-20.2**: Research assistance
+
 - User: "Help me find the best crafting strategy for diamond gear"
 - Brain searches knowledge, presents options
 - User asks follow-up questions
@@ -1208,6 +1278,7 @@ User and GLADyS collaborate on complex tasks over multiple conversation turns.
 - Success: User gets comprehensive guidance
 
 **UC-20.3**: Decision support
+
 - User: "Should I attack this base or wait?"
 - Brain analyzes factors (resources, timing, risks)
 - Brain presents pros/cons
@@ -1236,23 +1307,27 @@ GLADyS correlates information across domains to provide holistic awareness.
 #### Scenarios
 
 **UC-21.1**: Gaming + Calendar correlation
+
 - Brain knows user is gaming
 - Brain knows user has meeting in 30 minutes
 - Brain: "You have a standup in 30 minutes - wrapping up soon?"
 - Success: Cross-domain awareness helps user
 
 **UC-21.2**: Activity + Mood correlation
+
 - Brain notices gaming session started right after stressful work day
 - Brain adjusts: Maybe fewer interruptions, more supportive tone
 - Success: Context-appropriate behavior
 
 **UC-21.3**: Temperature + Activity correlation
+
 - Brain learns user prefers cooler temps when gaming (higher body heat)
 - Brain learns user prefers warmer temps when working from couch
 - Brain correlates activity context with comfort preferences
 - Success: Personalized comfort that "just works"
 
 **UC-21.4**: Health + Activity correlation
+
 - Brain notices glucose tends to drop during long gaming sessions
 - Brain proactively reminds about snacks during gaming
 - Success: Health awareness integrated with activity
@@ -1279,24 +1354,28 @@ GLADyS responds to emergency situations that override normal rules.
 #### Scenarios
 
 **UC-22.1**: Smoke/CO2 alarm
+
 - Home sensor detects smoke or CO2
 - Brain immediately alerts user regardless of DND settings
 - If user not home: alerts emergency contacts
 - Success: Life safety prioritized
 
 **UC-22.2**: Security emergency
+
 - Motion detected + user away + door opened
 - Brain escalates immediately
 - May contact authorities if configured
 - Success: Security threat addressed
 
 **UC-22.3**: Health emergency
+
 - (See UC-15.5 for detailed health emergency flow)
 - Multi-signal confirmation of unresponsive user
 - Escalation to emergency contacts/services
 - Success: Medical emergency detected and escalated
 
 **UC-22.4**: User explicitly triggers emergency
+
 - User: "Call for help" / "Emergency"
 - Brain immediately contacts configured emergency contacts
 - May call emergency services
@@ -1347,6 +1426,7 @@ First-run experience that guides users through initial GLADyS configuration, inc
 ##### Passive Scenarios (User-Initiated)
 
 **UC-23.1**: Fresh installation setup
+
 - User launches GLADyS for first time
 - Wizard guides through:
   1. User name and basic preferences
@@ -1358,11 +1438,13 @@ First-run experience that guides users through initial GLADyS configuration, inc
 - Success: User has working GLADyS with personalized settings
 
 **UC-23.2**: Import existing configuration
+
 - User migrates from another instance
 - Import profile, preferences, learned behaviors
 - Success: Continuity maintained across installations
 
 **UC-23.3**: Re-run setup wizard
+
 - User wants to reconfigure from scratch
 - Option to preserve or reset learned behaviors
 - Success: User can start fresh without reinstalling
@@ -1405,29 +1487,34 @@ User discovers, installs, updates, and removes skill packs that bundle sensors, 
 ##### Passive Scenarios (User-Initiated)
 
 **UC-24.1**: Browse available packs
+
 - User: "What packs are available?"
 - Brain lists installed, free, and purchasable packs
 - Success: User sees options clearly
 
 **UC-24.2**: Install a pack
+
 - User purchases or selects free pack
 - Download, verify signature, install
 - Configure pack-specific settings if needed
 - Success: New capabilities available
 
 **UC-24.3**: Remove a pack
+
 - User: "Remove the Evony pack"
 - Brain confirms and removes pack
 - Cleans up pack-specific data (with user consent)
 - Success: Pack removed, no orphaned data
 
 **UC-24.4**: Update packs
+
 - User: "Are there any updates?"
 - Brain checks for updates to installed packs
 - User can apply updates individually or all
 - Success: Packs updated without breaking config
 
 **UC-24.5**: View pack capabilities
+
 - User: "What does the Minecraft pack do?"
 - Brain explains pack sensors, skills, and features
 - Success: User understands what they're installing
@@ -1435,11 +1522,13 @@ User discovers, installs, updates, and removes skill packs that bundle sensors, 
 ##### Proactive Scenarios (Brain-Initiated)
 
 **UC-24.6**: Update notification
+
 - Brain detects pack update available
 - Brain notifies user (non-urgently)
 - Success: User aware of updates without nagging
 
 **UC-24.7**: Pack recommendation
+
 - Brain notices user frequently asks about X
 - Brain suggests relevant pack: "You ask about weather a lot - the Weather Pack might help"
 - Success: Helpful suggestion, not sales-y
@@ -1482,6 +1571,7 @@ User selects, configures, and tweaks GLADyS's personality, including pack select
 ##### Passive Scenarios (User-Initiated)
 
 **UC-25.1**: Select personality pack
+
 - User: "Show me personality options"
 - Brain presents available packs (installed + purchasable)
 - User selects pack
@@ -1489,26 +1579,31 @@ User selects, configures, and tweaks GLADyS's personality, including pack select
 - Success: Personality changed, user notices difference
 
 **UC-25.2**: Preview personality
+
 - User: "What would SecUnit sound like?"
 - Brain demonstrates pack with sample responses
 - Success: User can evaluate before committing
 
 **UC-25.3**: Adjust individual traits
+
 - User: "Be more sarcastic" or "Less formal"
 - Brain adjusts relevant trait within pack constraints
 - Success: Personality tuned to preference
 
 **UC-25.4**: Set communication constraints
+
 - User: "Swear more" or "No profanity"
 - Brain updates content preferences
 - Success: Language style matches user preference
 
 **UC-25.5**: View current personality
+
 - User: "What personality are you using?"
 - Brain describes active pack and any custom adjustments
 - Success: User understands current configuration
 
 **UC-25.6**: Reset personality to default
+
 - User: "Go back to default personality"
 - Brain resets to pack defaults, clears customizations
 - Success: Clean slate without reinstalling pack
@@ -1551,36 +1646,43 @@ User configures GLADyS's behavior rules, alert preferences, quiet hours, and aut
 ##### Passive Scenarios (User-Initiated)
 
 **UC-26.1**: Set quiet hours
+
 - User: "Don't disturb me between 10pm and 8am"
 - Brain creates time-based rule
 - Success: Alerts suppressed during quiet hours
 
 **UC-26.2**: Create behavior rule
+
 - User: "Always warn me about hostile mobs but never about passive ones"
 - Brain creates conditional rule
 - Success: Rule stored and applied
 
 **UC-26.3**: View active rules
+
 - User: "What rules have I set?"
 - Brain lists active rules with descriptions
 - Success: User can audit configuration
 
 **UC-26.4**: Modify existing rule
+
 - User: "Change quiet hours to 11pm"
 - Brain updates existing rule
 - Success: Rule modified, not duplicated
 
 **UC-26.5**: Delete rule
+
 - User: "Remove the quiet hours rule"
 - Brain confirms and removes
 - Success: Rule deleted, behavior reverts to default
 
 **UC-26.6**: Configure escalation
+
 - User: "Critical alerts should bypass quiet hours"
 - Brain configures exception for critical priority
 - Success: Escalation rules work correctly
 
 **UC-26.7**: Set proactivity level
+
 - User: "Be more proactive" or "Only speak when spoken to"
 - Brain adjusts intervention threshold
 - Success: Proactivity matches preference
@@ -1624,37 +1726,44 @@ User controls what data GLADyS collects, stores, and potentially shares with rem
 ##### Passive Scenarios (User-Initiated)
 
 **UC-27.1**: View data collection
+
 - User: "What data do you collect about me?"
 - Brain explains data categories and storage
 - Success: User understands data practices
 
 **UC-27.2**: Export my data
+
 - User: "Export all my data"
 - Brain generates exportable package (JSON, readable format)
 - Success: User has portable copy of all data
 
 **UC-27.3**: Delete specific data
+
 - User: "Delete my health data" or "Forget everything about my gaming preferences"
 - Brain confirms scope and deletes
 - Success: Specific data removed, audit trail shows deletion
 
 **UC-27.4**: Delete all data
+
 - User: "Delete everything and start fresh"
 - Brain requires strong confirmation
 - Brain deletes all user data (except legally required audit logs)
 - Success: Clean slate
 
 **UC-27.5**: Configure remote data sharing
+
 - User: "Don't send my data to remote LLMs"
 - Brain configures local-only processing (may limit capabilities)
 - Success: User controls data locality
 
 **UC-27.6**: View remote data usage
+
 - User: "What have you sent to remote services?"
 - Brain shows log of remote API calls and data sent
 - Success: Transparency about remote usage
 
 **UC-27.7**: Configure data retention
+
 - User: "Don't keep conversation history longer than 30 days"
 - Brain configures retention policy
 - Success: Automatic data aging
@@ -1696,6 +1805,7 @@ Advanced users configure which AI models GLADyS uses for different tasks (STT, L
 ##### Passive Scenarios (User-Initiated)
 
 **UC-28.1**: View current model configuration
+
 - User: "What models are you using?"
 - Brain lists active models per function:
   - STT: Whisper (local)
@@ -1704,6 +1814,7 @@ Advanced users configure which AI models GLADyS uses for different tasks (STT, L
 - Success: User understands model landscape
 
 **UC-28.2**: Switch model provider
+
 - User: "Use OpenAI instead of Claude for the main LLM"
 - Brain presents supported options (dropdown, not free text)
 - User selects from tested providers
@@ -1711,16 +1822,19 @@ Advanced users configure which AI models GLADyS uses for different tasks (STT, L
 - Success: Model switched, functionality preserved
 
 **UC-28.3**: Configure local vs. remote preference
+
 - User: "Prefer local models when possible"
 - Brain configures to use local first, remote fallback
 - Success: Locality preference applied
 
 **UC-28.4**: Test model endpoint
+
 - User: "Test the LLM connection"
 - Brain sends test request, reports latency and status
 - Success: User knows if endpoint is working
 
 **UC-28.5**: Configure fallback chain
+
 - User: "If Claude is down, fall back to local Llama"
 - Brain configures ordered fallback list
 - Success: Resilience improved
@@ -1764,6 +1878,7 @@ User manages their GLADyS subscription, purchases, and account settings.
 ##### Passive Scenarios (User-Initiated)
 
 **UC-29.1**: View subscription status
+
 - User: "What's my subscription status?"
 - Brain shows:
   - Current tier (Free/Subscription)
@@ -1773,6 +1888,7 @@ User manages their GLADyS subscription, purchases, and account settings.
 - Success: User understands their entitlements
 
 **UC-29.2**: Upgrade subscription
+
 - User: "Upgrade my subscription"
 - Brain directs to account portal
 - User completes purchase
@@ -1780,22 +1896,26 @@ User manages their GLADyS subscription, purchases, and account settings.
 - Success: Smooth upgrade path
 
 **UC-29.3**: View purchase history
+
 - User: "What have I bought?"
 - Brain lists all purchased packs and dates
 - Success: Clear purchase record
 
 **UC-29.4**: Restore purchases (new device)
+
 - User on new device: "Restore my purchases"
 - Brain authenticates and restores entitlements
 - Success: Paid content available on new device
 
 **UC-29.5**: Cancel subscription
+
 - User: "Cancel my subscription"
 - Brain directs to account portal
 - Warns about features that will be lost
 - Success: Clear cancellation path (no dark patterns)
 
 **UC-29.6**: Request refund
+
 - User: "I want a refund on the Evony pack"
 - Brain directs to support process
 - Success: Clear path to human support
@@ -1834,6 +1954,7 @@ User diagnoses issues with GLADyS, views system health, and gets help resolving 
 ##### Passive Scenarios (User-Initiated)
 
 **UC-30.1**: Check system health
+
 - User: "Are you working correctly?"
 - Brain runs self-diagnostics:
   - Sensor connections
@@ -1844,29 +1965,34 @@ User diagnoses issues with GLADyS, views system health, and gets help resolving 
 - Success: User knows system status
 
 **UC-30.2**: Test specific component
+
 - User: "Is the doorbell working?"
 - Brain tests specific sensor/actuator
 - Reports result with details
 - Success: Targeted troubleshooting
 
 **UC-30.3**: View recent errors
+
 - User: "What errors have you had recently?"
 - Brain shows recent error log (user-friendly)
 - Success: User can identify patterns
 
 **UC-30.4**: Report a bug
+
 - User: "Something isn't working right"
 - Brain gathers diagnostic info (with consent)
 - Guides user through reporting process
 - Success: Actionable bug report generated
 
 **UC-30.5**: Check connectivity
+
 - User: "Can you connect to Home Assistant?"
 - Brain tests specific external connection
 - Reports result and suggests fixes if failed
 - Success: Connectivity issues diagnosed
 
 **UC-30.6**: View activity log
+
 - User: "What have you been doing?"
 - Brain shows recent actions and decisions
 - Useful for understanding "why did you do that?"
@@ -1875,12 +2001,14 @@ User diagnoses issues with GLADyS, views system health, and gets help resolving 
 ##### Proactive Scenarios (Brain-Initiated)
 
 **UC-30.7**: Component failure notification
+
 - Brain detects sensor stopped responding
 - Brain notifies user: "The doorbell sensor hasn't responded in 10 minutes"
 - Suggests troubleshooting steps
 - Success: User aware of issue before it causes problems
 
 **UC-30.8**: Performance degradation warning
+
 - Brain notices response times increasing
 - Brain warns: "I'm running slower than usual - might want to check system resources"
 - Success: User can investigate before UX suffers
@@ -2014,6 +2142,7 @@ User diagnoses issues with GLADyS, views system health, and gets help resolving 
 | **New (2026-01-20)** | UC-23 through UC-30 (system administration domain) |
 
 **Notes**:
+
 - Analysis content (ADR coverage matrix, feature complexity validation, gaps, implementation priority) has been moved to [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md).
 - UC-12 through UC-22 added to capture aspirational scope for Productivity, Health & Wellness, and Meta/Learning domains.
 - UC-23 through UC-30 added for system administration: onboarding, pack management, personality/behavior config, privacy controls, model endpoints, subscriptions, and diagnostics.

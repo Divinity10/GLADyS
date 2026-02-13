@@ -11,6 +11,7 @@
 This document preserves the **Identity Model** design work for the personality subsystem. The Identity Model provides a psychologically-grounded foundation (Big 5 traits) that derives Response Model values through mathematical rules.
 
 **Why deferred**: The Identity Model adds architectural complexity without clear user-facing value for MVP. The Response Model alone (direct trait values + user sliders) achieves the same output. The Identity Model becomes valuable if:
+
 - Personality packs need psychological consistency guarantees
 - Pack creators need structured guidance
 - We want to validate personalities against Big 5 research
@@ -80,6 +81,7 @@ identity:
 ```
 
 **Why Big Five?**
+
 - Well-validated psychological model with decades of research
 - Provides internal consistency checks (e.g., high E + high N = specific behavior patterns)
 - Facet overrides allow character-specific deviations from the model
@@ -126,6 +128,7 @@ identity:
 ```
 
 **Stance archetypes**:
+
 - `eager_helper`: Genuinely wants to serve (classic assistant)
 - `reluctant_protector`: Helps despite apparent resistance (Murderbot)
 - `sardonic_companion`: Peer with commentary (GLADoS-lite)
@@ -225,6 +228,7 @@ derivation_rules:
 ### 4.2 Example: Murderbot Derivation
 
 **Identity**:
+
 ```yaml
 big5: {O: 0.6, C: 0.5, E: 0.2, A: 0.3, N: 0.3}
 facet_overrides: {straightforwardness: 0.2, competence: 0.9}
@@ -233,6 +237,7 @@ defense_mechanisms: [deflection, sarcasm_as_shield, media_escape]
 ```
 
 **Derived Response Model**:
+
 ```yaml
 communication:
   irony: 0.72        # (1-0.3)*0.6 + 0.3 (sarcasm_shield) = 0.72
@@ -325,6 +330,7 @@ Consider adding the Identity Model layer when:
 4. **Pack marketplace launches**: Need quality gates for sold personalities
 
 **Migration path**:
+
 1. Current packs set Response traits directly
 2. Later, add optional Identity block to manifest
 3. If Identity present, derive Response defaults from it

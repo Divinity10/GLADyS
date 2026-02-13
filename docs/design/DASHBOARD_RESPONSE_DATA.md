@@ -146,22 +146,27 @@ Parent rows use a distinct shade from drill-down rows for clear visual boundarie
 Flat sequential sections (not two-column). Matches the chronological decision chain flow: event happened → heuristic matched → prompt sent → response returned → feedback given.
 
 **1. Event**
+
 - Full `raw_text`
 
 **2. Heuristic** (omit section if `matched_heuristic_id` is NULL)
+
 - Full condition text
 - Current confidence (not at-time-of-fire — historical analysis deferred)
 - Clickable heuristic ID → Heuristics tab
 
 **3. LLM Prompt** (omit section if `llm_prompt_text` is NULL)
+
 - Collapsed by default (prompts can be long)
 - Section header indicates if heuristic context is included: "LLM Prompt (includes heuristic context)" vs "LLM Prompt"
 - Monospace block when expanded
 
 **4. Response**
+
 - Full `response_text`, or "(no response)" if NULL
 
 **5. Outcome** (omit section if no `heuristic_fires` record exists for this event)
+
 - Feedback type (explicit / implicit / —)
 - Outcome (success / fail / unknown)
 
@@ -218,12 +223,14 @@ Parent rows use a distinct shade from drill-down rows.
 ### Drill-Down
 
 **Section 1 — Metadata (read-only)**
+
 - Full UUID
 - Origin + Origin ID
 - Created / Updated timestamps
 - Fires / Successes / Success Rate
 
 **Section 2 — Editable Fields**
+
 - Name (text input)
 - Condition (textarea, full text)
 - Action type (dropdown: suggest / remind / warn)
@@ -338,11 +345,13 @@ These call Memory gRPC, not `gladys_client.db`:
 ```
 GET /api/responses?decision_path=...&source=...&search=...&limit=50&offset=0
 ```
+
 Dashboard route calls `ListResponses` gRPC. Returns response summaries.
 
 ```
 GET /api/responses/{event_id}
 ```
+
 Dashboard route calls `GetResponseDetail` gRPC. Returns full drill-down data.
 
 ### Modified endpoints
@@ -350,11 +359,13 @@ Dashboard route calls `GetResponseDetail` gRPC. Returns full drill-down data.
 ```
 GET /api/heuristics
 ```
+
 Already exists. Needs to return `fire_count`, `success_count`, timestamps (should already per #54 work).
 
 ```
 PUT /api/heuristics/{id}
 ```
+
 Already exists. Needs to support updating `name` field.
 
 ### Existing endpoints (no change needed)
@@ -369,6 +380,7 @@ DELETE /api/heuristics (body: {ids}) — bulk delete (already exists at heuristi
 ## Implementation Scope
 
 ### Backend (service changes)
+
 1. Migration: add `llm_prompt_text`, `decision_path`, `matched_heuristic_id` to `episodic_events`
 2. Migration: create `episodes` table, add `episode_id` to `episodic_events`
 3. Proto: add new fields to `EpisodicEvent` message, add `prompt_text`/`decision_path`/`matched_heuristic_id` to `ProcessEventResponse`
@@ -381,10 +393,9 @@ DELETE /api/heuristics (body: {ids}) — bulk delete (already exists at heuristi
 10. New dashboard API routes (`/api/responses`) that call Memory gRPC (NOT direct DB)
 
 ### Frontend (dashboard changes)
-11. New Response tab component (`response.html`)
-12. Replace Knowledge tab with Heuristics tab component (`heuristics.html`)
-13. Cross-tab linking mechanism
-14. Inline click-to-edit pattern (reusable across both tabs)
-15. Multi-select + bulk action bar pattern
 
-
+1. New Response tab component (`response.html`)
+2. Replace Knowledge tab with Heuristics tab component (`heuristics.html`)
+3. Cross-tab linking mechanism
+4. Inline click-to-edit pattern (reusable across both tabs)
+5. Multi-select + bulk action bar pattern

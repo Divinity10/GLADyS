@@ -30,12 +30,14 @@ The LLM produces usable predictions with one notable weakness: **overconfidence 
 ### 1. Calibration Works for Clear Cases
 
 When the situation is unambiguous, the LLM correctly produces:
+
 - **High confidence + high probability** for likely success (PRED-01, 02, 07, 08)
 - **High confidence + low probability** for likely failure (PRED-03, 04)
 
 ### 2. Calibration Works for Uncertainty (PRED-05)
 
 The LLM correctly expressed uncertainty for an unknown enemy:
+
 - Prediction: 0.30 (conservative, acknowledging uncertainty)
 - Confidence: 0.30 (appropriately low)
 
@@ -44,12 +46,14 @@ This demonstrates the LLM *can* express "I don't know" - it just doesn't do so c
 ### 3. Overconfidence Confirmed (PRED-06)
 
 The LLM was overconfident about an ambiguous situation:
+
 - **Context**: User away 15 min, meeting in 20 min, no location info
 - **Expected**: Medium uncertainty (0.30-0.75 prediction, 0.25-0.60 confidence)
 - **Actual**: High confidence (0.90/0.90)
 - **LLM Reasoning**: "The user will be back 5 minutes before the meeting"
 
 The LLM made an **optimistic assumption** rather than acknowledging uncertainty about:
+
 - Whether "away 15 minutes" means they'll return in 15 minutes
 - Where the user actually is
 - Whether they'll see the notification in time

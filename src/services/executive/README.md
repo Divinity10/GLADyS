@@ -83,6 +83,7 @@ Extracted heuristics are stored via MemoryStorage (if connected) or local `heuri
 ## Proto Dependency
 
 Uses protos from `src/orchestrator/gladys_orchestrator/generated/`:
+
 - `executive.proto` - ExecutiveService definition
 - `common.proto` - Event, Salience types
 - `memory.proto` - For storing heuristics

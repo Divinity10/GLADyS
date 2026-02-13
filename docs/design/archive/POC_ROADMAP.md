@@ -79,6 +79,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 **User asks**: "Is Steve online?"
 
 **Expected flow**:
+
 1. Parse query → identify intent (check person's online status)
 2. Entity lookup → Steve is a friend
 3. Relationship lookup → Steve has character "Buggy" in Minecraft
@@ -88,6 +89,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 7. Response → "Yes, Steve (Buggy) is online in Minecraft"
 
 **Why this scenario matters**:
+
 - Requires semantic memory (who is Steve? what characters?)
 - Requires skill discovery (what can check online status?)
 - Requires multi-step reasoning (Steve → character → game → check)
@@ -112,6 +114,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 **User asks**: "Send an email to Mike saying I'll be late"
 
 **Expected flow**:
+
 1. Parse query → identify intent (send email)
 2. Entity lookup → Mike is [specific person with email]
 3. Skill routing → Email skill can send messages
@@ -119,6 +122,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 5. Confirmation → "Email sent to Mike"
 
 **Why this scenario matters**:
+
 - Requires entity resolution (which Mike?)
 - Requires skill with side effects (actually sends something)
 - Common assistant task
@@ -138,12 +142,14 @@ These scenarios guide what we build. Each exposes layers that must work.
 **User asks**: "What's on my calendar tomorrow?"
 
 **Expected flow**:
+
 1. Parse query → identify intent (calendar query)
 2. Skill routing → Calendar skill can query events
 3. Execution → Query calendar for tomorrow's events
 4. Response → List of events
 
 **Why this scenario matters**:
+
 - Read-only query (simpler than email)
 - Time-based reasoning ("tomorrow")
 - Common assistant task
@@ -164,6 +170,7 @@ These scenarios guide what we build. Each exposes layers that must work.
 **Flow**: Event → LLM Reasoning → Feedback → Heuristic → Skip LLM next time
 
 **Why this scenario matters**:
+
 - The differentiator: system learns from experience
 - Converts slow reasoning to fast heuristics
 - Proves adaptive behavior works
@@ -201,6 +208,7 @@ Second time (next day):
 ```
 
 **Why this scenario matters**:
+
 - Shows learning from user perspective (not just mechanism)
 - Proves patterns generalize (works again later)
 - Performance improvement is visible (2s → 100ms)
@@ -222,6 +230,7 @@ Second time (next day):
 **Sensor event**: Temperature sensor reports 60°F (dropped from 72°F)
 
 **Expected flow**:
+
 1. Sensor sends event → Orchestrator receives
 2. Salience evaluation → High (temperature drop is significant)
 3. Heuristic check → "When temp drops below 65°F, adjust thermostat"
@@ -229,6 +238,7 @@ Second time (next day):
 5. Notification → "Temperature dropped to 60°F. Adjusting thermostat."
 
 **Why this scenario matters**:
+
 - System-initiated, not user-initiated (proactive)
 - Proves the "always observing brain" architecture
 - IoT/smart home is a primary use case
@@ -251,6 +261,7 @@ Second time (next day):
 **Observation**: User has manually turned on porch light at sunset 5 times this week
 
 **Expected flow**:
+
 1. System observes repeated pattern
 2. Confidence builds over repetitions
 3. System suggests: "I notice you turn on the porch light at sunset. Should I do this automatically?"
@@ -258,6 +269,7 @@ Second time (next day):
 5. Next sunset → System acts proactively
 
 **Why this scenario matters**:
+
 - System learns without explicit feedback
 - Proves habituation/pattern detection works
 - Proactive suggestion (not just reaction)
@@ -279,6 +291,7 @@ Second time (next day):
 **User asks**: "Call Mike"
 
 **Expected flow**:
+
 1. Parse query → intent is "call someone named Mike"
 2. Entity lookup → Multiple Mikes exist (Mike Mulcahy, Mike Smith)
 3. System asks: "Which Mike? Mike Mulcahy or Mike Smith?"
@@ -286,6 +299,7 @@ Second time (next day):
 5. Execution → Initiate call to Mike Mulcahy
 
 **Why this scenario matters**:
+
 - Handles ambiguous requests gracefully
 - Proves system can ask clarifying questions
 - Common real-world situation
@@ -319,6 +333,7 @@ System: [Heuristic confidence too low, doesn't fire]
 ```
 
 **Why this scenario matters**:
+
 - Completes the learning loop (positive AND negative feedback)
 - System can unlearn bad heuristics
 - User corrections improve the system
@@ -350,18 +365,20 @@ System: [Heuristic confidence too low, doesn't fire]
 | 4a | LLM Reasoning | Process events with LLM | ✅ Done | Executive stub + Ollama |
 | 4b | Pattern Extraction | Extract heuristic from feedback | âš ï¸ Partial | Works, quality varies |
 | 4c | Query Routing | Route queries to skills | ✅ Done | test_e2e_query.py |
-| 5 | Skill Execution | Call sensors/actuators | âš ï¸ Mocked | test_e2e_query.py (mock executor)
+| 5 | Skill Execution | Call sensors/actuators | âš ï¸ Mocked | test_e2e_query.py (mock executor) |
 
 ---
 
 ## Next Steps (Ordered)
 
 ### Phase 1: Semantic Memory Foundation ✅ COMPLETE
+
 **Goal**: Prove we can store and retrieve entities with relationships
 
 **Completed**: test_semantic_memory.py proves all criteria met.
 
 ### Phase 2: Episodic Retrieval Quality âš ï¸ PARTIAL
+
 **Goal**: Prove similarity-based retrieval works
 
 1. ✅ Storage works with embeddings
@@ -369,14 +386,17 @@ System: [Heuristic confidence too low, doesn't fire]
 3. âš ï¸ Threshold tuning needs validation
 
 **Remaining**:
+
 - Add test_episodic_similarity.py to prove semantic retrieval
 
 ### Phase 3: Skill Registry (Mock) ✅ COMPLETE
+
 **Goal**: Prove skills can advertise capabilities
 
 **Completed**: test_skill_registry.py proves all criteria met.
 
 ### Phase 4: End-to-End Query Flow ✅ COMPLETE
+
 **Goal**: Prove "Is Steve online?" works with mocks
 
 **Completed**: test_e2e_query.py proves full flow with mocked skill execution.
@@ -386,33 +406,42 @@ System: [Heuristic confidence too low, doesn't fire]
 ## Current Gaps and Next Work
 
 ### 1. Learning Loop Reliability
+
 **Problem**: test_scenario_5_learning_loop.py has intermittent failures
+
 - Pattern extraction quality varies
 - Rust cache invalidation may be stale
 - Feedback → heuristic path not always reliable
 
 **Work needed**:
+
 - Debug why learning loop fails intermittently
 - Improve cache invalidation on confidence change
 - Better pattern extraction prompts
 
 ### 2. Orchestrator Integration
+
 **Problem**: Orchestrator doesn't fully integrate the learning path
+
 - Events route to Executive correctly
 - Executive can process events with LLM
 - But: feedback doesn't consistently update existing heuristics
 
 **Work needed**:
+
 - Wire ProvideFeedback through to Memory UpdateHeuristicConfidence
 - Track which heuristic fired for an event (for credit assignment)
 
 ### 3. Real Skill Execution
+
 **Problem**: Skills execute via mock, not real code
+
 - Skill manifests define capabilities
 - Query routing works
 - But: no actual skill code runs
 
 **Work needed** (deferred for real sensor integration):
+
 - Implement skill execution layer
 - Connect to first real sensor (Discord? Home Assistant?)
 
@@ -460,4 +489,3 @@ This roadmap validates the architecture defined in the ADRs:
 - **ADR-0003**: Plugin/skill packs (capability manifests)
 
 The Phase proves these architectural decisions are implementable and effective.
-

@@ -3,18 +3,20 @@
 **Status**: Planning
 **Predecessor**: [Phase 1](phase1.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS operate as a multi-sensor system - multiple sensors from different domains, written in different languages, running concurrently with events processed correctly and learning scoped to domains?
 
 ### Workstreams
 
 #### W5: Event Volume Management
+
 Address the accuracy-latency tradeoff under real-world event volume. Concurrent event processing, deduplication, and suppression.
 
 **Salience model**: Phase 2 uses the salience model defined in [`SALIENCE_MODEL.md`](../SALIENCE_MODEL.md) — 3 scalars (threat, salience, habituation) + 5 vector dimensions (novelty, goal_relevance, opportunity, actionability, social). Threat bypasses habituation and queue. Salience computed via weighted sum from vector.
 
 #### W6: Second Sensor
+
 Add sensors from different domains. Validates protocol-first architecture, cross-domain behavior, and concurrent sensor handling.
 
 ### Success Criteria

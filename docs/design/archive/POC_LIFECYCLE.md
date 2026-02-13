@@ -72,6 +72,7 @@ Not a PoC phase — infrastructure work that enables everything after it.
 **Why now**: The architecture decisions from 2026-01-29 define a subsystem taxonomy and pack structure that the current directory layout doesn't support. Restructuring now (small codebase) is cheaper than restructuring later (more code to move, more paths to update).
 
 **Scope**: Reorganize per `ARCHITECTURE.md` §9:
+
 - `src/services/` — each subsystem gets its own directory; salience extracted from memory/
 - `src/lib/` — `gladys_common` + new `gladys_client` (unified service client)
 - `packs/` — domain-first plugin structure
@@ -106,6 +107,7 @@ These run in parallel and converge on the integration test described below.
 Build one real sensor that produces events without human intervention. Must emit events through the Orchestrator pipeline via gRPC. Packaged in pack structure (`packs/<domain>/sensors/`) with `manifest.yaml`.
 
 **Prerequisite**: Define sensor event contract before building the sensor:
+
 - Composable event interface model: base interface (all events) + domain interfaces (pack-defined) + event-type interfaces (conditional on discriminator fields). Not a single flat schema.
 - Driver → Sensor → Orchestrator interface (driver sends raw data, sensor normalizes to interface model)
 - Basic guidance for when to use preprocessors vs send raw events
@@ -120,6 +122,7 @@ Candidate selection is a planning-session decision. Options: Discord (Mike's dom
 Orchestrator-owned module with clean interface (typed inputs/outputs, no shared mutable state with Orchestrator). Per `ARCHITECTURE.md` §10.
 
 Implements:
+
 - Outcome channel consumption → confidence updates
 - Basic pattern extraction (LLM-assisted, not automated batch)
 - Implicit feedback signals: action undone within 60s, suggestion ignored 3+ times, no complaint within timeout (ADR-0010 §3.10)
@@ -180,31 +183,37 @@ All four workstreams converge on this scenario:
 Detailed findings: [`docs/design/questions/poc1-findings.md`](../questions/poc1-findings.md) (F-01 through F-24).
 
 **Heuristic matching & source:**
+
 - Source must carry significant weight in matching — cross-domain false positives without it (F-01)
 - Matching quality is multi-causal: embedding model, source filtering, raw_text consistency, condition_text quality (F-02)
 
 **Learning & confidence:**
+
 - Positive feedback needs gradient scale (diminishing returns per heuristic) (F-03)
 - Low-confidence heuristics should appear as options in LLM prompt — LLM convergence is a signal (F-04)
 - Confidence must never reach 0 or 1 (F-05)
 - LLM self-reported confidence needs calibration — unclear what it measures (F-06)
 
 **Goals & response selection:**
+
 - Goal statement needed in LLM prompt for quality responses (F-07)
 - Goal-to-event matching is unresolved — needs design session (F-08)
 - Response selection may be combinatorial, not single-choice (F-09)
 - Multi-dimensional response scoring may be needed (F-10)
 
 **Feedback & timing:**
+
 - Feedback windows differ by type (manual vs implicit) and domain (F-11)
 - User 3-point + dev 5-point dual feedback design (F-23)
 - Pack heuristic constraints: locked, floor/ceiling, feedback_weight (F-24)
 
 **Executive architecture:**
+
 - Multi-threaded LLM exploration for complex scenarios (F-12)
 - LLM could return multiple ranked options instead of single response (F-13)
 
 **Sensor-specific:**
+
 - Test mode: capture events to JSON for replay (F-14)
 - Sensor metrics needed for health assessment (F-15)
 - Suppression: sensor-level vs salience-level architectural decision (F-16)
@@ -234,6 +243,7 @@ Can GLADyS operate as a multi-sensor system — multiple sensors from different 
 Address the accuracy-latency tradeoff under real-world event volume. PoC 1 operates at manual/low volume; PoC 2 must handle sustained sensor output.
 
 Implements:
+
 - Concurrent event processing: configurable worker pool in orchestrator (N>1)
 - Event deduplication: 3 layers (sensor, orchestrator cache, habituation)
 - Suppression architecture: capability, flow control, habituation
@@ -393,6 +403,7 @@ The dashboard is a dev/QA tool that grows alongside the system. Each PoC introdu
 - **Cache state visibility**: Show cache contents, staleness, last refresh (supports criterion #7)
 
 **CLI / scripts**:
+
 - Convergence test runner: submit event → give feedback → submit similar event → verify heuristic fired (automates the PoC 1 convergence scenario)
 - Heuristic inspector: query a heuristic's full history — creation source, fires, feedback, confidence trajectory
 
@@ -407,6 +418,7 @@ The dashboard is a dev/QA tool that grows alongside the system. Each PoC introdu
 - **Sensor dashboard / control plane**: Sensor registration, health, activate/deactivate, capture control (supports claim #2)
 
 **CLI / scripts**:
+
 - Load test harness: submit N events from M sensors simultaneously, report event accounting (submitted vs stored vs timed out)
 - Source filtering comparison: run same events with/without source filtering, report accuracy difference
 - Session metrics reporter: compute heuristic fire accuracy, false positive rate, per-domain breakdown

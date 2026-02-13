@@ -1,6 +1,5 @@
 # Learning Module
 
-
 **Location**: `src/services/orchestrator/gladys_orchestrator/learning.py`
 **Integrated in**: `router.py` (via `LearningModule`), `server.py` (creation + cleanup loop)
 

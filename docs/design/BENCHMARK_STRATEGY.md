@@ -7,10 +7,12 @@
 ## 1. Critical Paths to Measure
 
 We are comparing two implementations of the **Salience Gateway** (the "Amygdala"):
-1.  **Python Implementation** (`src/memory/python`): Easy to write, ecosystem rich, but GIL-bound.
-2.  **Rust Implementation** (`src/memory/rust`): High performance, type-safe, but higher complexity.
+
+1. **Python Implementation** (`src/memory/python`): Easy to write, ecosystem rich, but GIL-bound.
+2. **Rust Implementation** (`src/memory/rust`): High performance, type-safe, but higher complexity.
 
 ### The Test Loop
+
 `Sensor (Mock)` -> `Orchestrator` -> `SalienceGateway (Target)` -> `Orchestrator`
 
 We measure the **Round Trip Time (RTT)** seen by the Orchestrator. This includes gRPC serialization overhead, which is a real-world cost.
@@ -20,19 +22,22 @@ We measure the **Round Trip Time (RTT)** seen by the Orchestrator. This includes
 ## 2. Benchmark Scenarios & Success Criteria
 
 ### Scenario A: The "Gamer" Load (Active Usage)
-*   **Conditions:** 100 events/second (e.g., rapid movement, combat logs, chat). 500 active heuristics.
-*   **Target Metric:** p99 Latency < 10ms.
-*   **Why:** To ensure the system feels "real-time" and doesn't lag the game.
+
+* **Conditions:** 100 events/second (e.g., rapid movement, combat logs, chat). 500 active heuristics.
+* **Target Metric:** p99 Latency < 10ms.
+* **Why:** To ensure the system feels "real-time" and doesn't lag the game.
 
 ### Scenario B: The "Mouse/Eye" Stress (High Frequency)
-*   **Conditions:** 1,000 events/second (e.g., raw cursor tracking, gaze data). 2,000 active heuristics.
-*   **Target Metric:** Throughput > 1,000 req/s without dropping events.
-*   **Why:** To determine if we can handle raw sensor streams or if pre-aggregation is required.
+
+* **Conditions:** 1,000 events/second (e.g., raw cursor tracking, gaze data). 2,000 active heuristics.
+* **Target Metric:** Throughput > 1,000 req/s without dropping events.
+* **Why:** To determine if we can handle raw sensor streams or if pre-aggregation is required.
 
 ### Scenario C: The "Wisdom" Load (Memory Volume)
-*   **Conditions:** 10,000 loaded heuristics. Mixed traffic (10 events/sec).
-*   **Target Metric:** Memory footprint < 500MB. Lookup time < 5ms.
-*   **Why:** As GLADyS learns, she will accumulate thousands of micro-rules. Retrieval must remain O(1) or O(log n), not O(n).
+
+* **Conditions:** 10,000 loaded heuristics. Mixed traffic (10 events/sec).
+* **Target Metric:** Memory footprint < 500MB. Lookup time < 5ms.
+* **Why:** As GLADyS learns, she will accumulate thousands of micro-rules. Retrieval must remain O(1) or O(log n), not O(n).
 
 ---
 
@@ -55,32 +60,36 @@ Use this table to diagnose issues based on benchmark results.
 If benchmarks fail to meet targets, apply these specific patterns.
 
 ### Level 1: Algorithmic Fixes (Low Effort)
-*   **HashSet Pre-calculation (Rust):**
-    *   *Issue:* Creating `HashSet` from `condition_text` on every request is O(N) allocation.
-    *   *Fix:* Store the `HashSet<String>` or `BTreeSet` inside `CachedHeuristic` at load time. Request matching becomes pure set intersection (read-only).
-*   **Early Exit:**
-    *   *Issue:* Checking all 5,000 heuristics even after a perfect match found.
-    *   *Fix:* Sort heuristics by `confidence` descending. Return immediately on first match > 0.9 confidence.
+
+* **HashSet Pre-calculation (Rust):**
+  * *Issue:* Creating `HashSet` from `condition_text` on every request is O(N) allocation.
+  * *Fix:* Store the `HashSet<String>` or `BTreeSet` inside `CachedHeuristic` at load time. Request matching becomes pure set intersection (read-only).
+* **Early Exit:**
+  * *Issue:* Checking all 5,000 heuristics even after a perfect match found.
+  * *Fix:* Sort heuristics by `confidence` descending. Return immediately on first match > 0.9 confidence.
 
 ### Level 2: Architectural Fixes (Medium Effort)
-*   **Batching:**
-    *   *Issue:* gRPC overhead per packet is high (~0.5ms).
-    *   *Fix:* Sensors send `BatchEvent` containing 10-50 updates. SalienceGateway processes matches in parallel loops.
+
+* **Batching:**
+  * *Issue:* gRPC overhead per packet is high (~0.5ms).
+  * *Fix:* Sensors send `BatchEvent` containing 10-50 updates. SalienceGateway processes matches in parallel loops.
 
 ### Level 3: "Nuclear" Options (High Effort)
-*   **SIMD Vectorization:**
-    *   *Use Case:* If we move to embedding-based matching in the fast path.
-    *   *Fix:* Use SIMD instructions (AVX2/NEON) to compute cosine similarity for 8 vectors at once.
-*   **Shared Memory (shm):**
-    *   *Use Case:* If gRPC local loopback is the bottleneck (>50% of time).
-    *   *Fix:* Use memory-mapped files or shared memory ring buffers for IPC between Orchestrator and Memory.
+
+* **SIMD Vectorization:**
+  * *Use Case:* If we move to embedding-based matching in the fast path.
+  * *Fix:* Use SIMD instructions (AVX2/NEON) to compute cosine similarity for 8 vectors at once.
+* **Shared Memory (shm):**
+  * *Use Case:* If gRPC local loopback is the bottleneck (>50% of time).
+  * *Fix:* Use memory-mapped files or shared memory ring buffers for IPC between Orchestrator and Memory.
 
 ---
 
 ## 5. How to Run Benchmarks
 
-1.  **Ensure Environment Isolation:** Stop all other Docker containers.
-2.  **Run the Benchmark Script:**
+1. **Ensure Environment Isolation:** Stop all other Docker containers.
+2. **Run the Benchmark Script:**
+
     ```bash
     # Run baseline (Python)
     python src/integration/benchmark_salience.py --target python --rate 100 --duration 30
@@ -88,4 +97,5 @@ If benchmarks fail to meet targets, apply these specific patterns.
     # Run challenger (Rust)
     python src/integration/benchmark_salience.py --target rust --rate 100 --duration 30
     ```
-3.  **Analyze Report:** Look at the `p99` and `throughput` columns in the output JSON.
+
+3. **Analyze Report:** Look at the `p99` and `throughput` columns in the output JSON.

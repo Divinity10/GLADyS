@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 9](phase9.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS adaptively tune its own configuration - adjusting hyperparameters, selection thresholds, and resource allocation based on observed performance and user feedback without manual intervention?
 

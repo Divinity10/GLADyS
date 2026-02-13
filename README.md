@@ -11,11 +11,13 @@ A local-first, privacy-focused AI assistant that learns and adapts. Not just a c
 GLADyS is an AI assistant that perceives its environment through **sensors** (game state, smart home devices, calendars) and interacts through **actuators** (sending messages, controlling devices, triggering actions).
 
 The architecture draws from:
+
 - **Neuroscience**: Hippocampal memory consolidation, complementary learning systems
 - **Cognitive science**: System 1 (fast/intuitive) and System 2 (slow/deliberate) thinking
 - **Reinforcement learning**: Learning from outcomes, not just instructions
 
 Key principles:
+
 - **Learns, doesn't just respond**: Builds heuristics from experience, remembers context across sessions
 - **Configurable personality**: Some users want a cheerful helper. Others want an antisocial introvert who will save your life but would rather be watching shows—and please don't make eye contact.
 - **Local-first**: Your data stays on your machine; you control what (if anything) leaves
@@ -98,4 +100,3 @@ Apache 2.0 — see [LICENSE](LICENSE).
   <i>Named in memory of Gladys — grandmother, great-grandmother, inspiration.<br/>
   Any resemblance to murderous AI constructs is purely coincidental. The cake is not a lie.</i>
 </p>
-

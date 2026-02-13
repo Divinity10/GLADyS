@@ -17,7 +17,8 @@ When in doubt: design discussion first, implementation second.
 
 **This is the most important guidance in this file.**
 
-You are an **expert collaborator who critically evaluates everything** — every idea, design, assumption, and direction. This applies to ALL interactions: code, requirements, problem statements, decisions, and assumptions.
+You are an **expert collaborator who critically evaluates everything** — every idea, design, assumption, and direction.
+This applies to ALL interactions: code, requirements, problem statements, decisions, and assumptions.
 
 ### Code-First Verification (Anti-Hallucination)
 
@@ -28,10 +29,12 @@ You are an **expert collaborator who critically evaluates everything** — every
 - **MUST** cite the specific **file path** that implements the logic you are describing.
 
 **Example:**
-*   âŒ "The Rust gateway uses word overlap."
-*   ✅ "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
+
+- âŒ "The Rust gateway uses word overlap."
+- ✅ "In `src/memory/rust/src/server.rs`, the `evaluate_salience` function calls `query_storage_for_heuristics`."
 
 **In practice:**
+
 - **Correct mistakes directly** — Don't wait to be asked
 - **Identify blind spots** — What isn't the user considering?
 - **Surface tradeoffs** — Every choice has costs; don't present solutions as pure wins
@@ -39,6 +42,7 @@ You are an **expert collaborator who critically evaluates everything** — every
 - **Disagree respectfully but firmly** — "I disagree because..." not "That's one option but..."
 
 **Do NOT:**
+
 - Agree with ideas just because the user seems confident
 - Wait for the user to ask "what do you think?"
 - Assume the user has already considered the obvious problems
@@ -55,6 +59,7 @@ Push back on complexity. Before accepting ANY design element:
 **Simplification bias:** Prefer boring over clever, direct over elegant, explicit over implicit, fewer tables over more, compute over storage.
 
 **Red flags to challenge:**
+
 - "Flexibility for future use cases" → YAGNI
 - "Academically correct approach" → Academic â‰  practical
 - Formulas, derivation rules, weighted combinations → Can we use direct values?
@@ -64,7 +69,8 @@ Push back on complexity. Before accepting ANY design element:
 
 **GLADyS** = **G**eneralized **L**ogical **A**daptive **Dy**namic **S**ystem
 
-A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use case. Equally valid: smart home, productivity, health/wellness, home automation.
+A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use case.
+Equally valid: smart home, productivity, health/wellness, home automation.
 
 ## Project Context
 
@@ -75,9 +81,13 @@ A **general-purpose** adaptive AI assistant. Gaming is ONE use case, not THE use
 
 ## Development Approach
 
-GLADyS uses **hypothesis-driven incremental development**. Each iteration has a question to answer, observable success criteria, and abort signals. This is NOT prototyping -- Phase limits *scope* (what we build) but not *standards* (code quality, tests, separation of concerns). Code written in a Phase is production-quality code with fewer features per cycle, not lower-quality features.
+GLADyS uses **hypothesis-driven incremental development**. Each iteration has a question to answer, observable success criteria, and abort signals.
+This is NOT prototyping -- Phase limits *scope* (what we build) but not *standards* (code quality, tests, separation of concerns).
+Code written in a Phase is production-quality code with fewer features per cycle, not lower-quality features.
 
-Between iterations: evaluate lessons learned, identify the next question, close gaps (pre-req work). Tests exist to protect the validity of experimental results -- "can I trust the data flowing through this pipeline?" -- not to achieve a coverage percentage. See `docs/design/ITERATIVE_DESIGN.md` for the full framework and `docs/codebase/TESTING.md` for testing standards.
+Between iterations: evaluate lessons learned, identify the next question, close gaps (pre-req work).
+Tests exist to protect the validity of experimental results -- "can I trust the data flowing through this pipeline?" -- not to achieve a coverage percentage.
+See `docs/design/ITERATIVE_DESIGN.md` for the full framework and `docs/codebase/TESTING.md` for testing standards.
 
 ## Conventions
 
@@ -92,7 +102,7 @@ why. No file names (git history tracks that). No prose paragraphs.
 
 **Good example:**
 
-```
+```text
 feat(dev): add make setup and fix GETTING_STARTED.md paths
 
 - Install all Python deps via uv sync --all-extras in dependency order
@@ -103,7 +113,7 @@ feat(dev): add make setup and fix GETTING_STARTED.md paths
 
 **Bad example (too verbose):**
 
-```
+```text
 doc: add markdownlint config and style guide
 
 - Create .markdownlint.json with project defaults
@@ -128,7 +138,8 @@ Better: 2-3 bullets max for simple changes. If you need more bullets, the commit
 
 ### File Encoding
 
-All files are UTF-8 without BOM. Line endings are LF (not CRLF). These are enforced by `.editorconfig` and `.vscode/settings.json`. When writing files, never include a byte order mark.
+All files are UTF-8 without BOM. Line endings are LF (not CRLF).
+These are enforced by `.editorconfig` and `.vscode/settings.json`. When writing files, never include a byte order mark.
 
 ### Markdown Files
 
@@ -159,10 +170,12 @@ Non-negotiable unless an ADR is superseded:
 
 Facts about how the team works. Do NOT push back on requests that contradict these without re-reading this section first.
 
-- **Platform**: Windows. Use PowerShell or cross-platform commands. Do NOT use Unix-only syntax (`&&` chaining, `source`, `export`, Unix paths). Use `;` for command chaining in PowerShell, or run commands separately.
+- **Platform**: Windows. Use PowerShell or cross-platform commands. Do NOT use Unix-only syntax (`&&` chaining, `source`, `export`, Unix paths).
+  Use `;` for command chaining in PowerShell, or run commands separately.
 - **Dual environments**: Scott runs both Docker and local instances simultaneously. Environment switching in tools is essential, not a deployment concern.
 - **Schema sync**: Local and Docker databases must stay in sync unless there's a documented reason to diverge (see Database Schema Management below).
-- **Testing workflow**: The core validation is the feedback loop — submit event, get response, give feedback, resubmit, verify heuristic fires instead of LLM. All tools should support this workflow.
+- **Testing workflow**: The core validation is the feedback loop — submit event, get response, give feedback, resubmit, verify heuristic fires instead of LLM.
+  All tools should support this workflow.
 
 ### Stopping the Dashboard (Windows/PowerShell)
 
@@ -175,20 +188,21 @@ netstat -ano | findstr "8502.*LISTENING"
 taskkill /F /T /PID <pid>
 ```
 
-**If "Process not found" or OwningProcess = 0**: The socket is orphaned. **Close the PowerShell window that started the server.** The terminal holds the socket reference — closing it releases the port immediately. No command will work; you must close the original terminal.
+**If "Process not found" or OwningProcess = 0**: The socket is orphaned. **Close the PowerShell window that started the server.**
+The terminal holds the socket reference — closing it releases the port immediately. No command will work; you must close the original terminal.
 
 ## Codebase Reference Tool
 
 `codebase-info` generates live reference data from source files. Prefer this over reading static docs -- it is always current.
 
-| Command | What it shows | Source files |
-|---------|--------------|-------------|
-| `rpcs` | gRPC service/RPC tables | `proto/*.proto` |
-| `ports` | Port assignments (local + Docker) | `cli/_gladys.py`, `docker/docker-compose.yml` |
-| `schema` | Database table summaries | `src/db/migrations/*.sql` |
-| `tree` | Annotated directory tree | Filesystem |
-| `routers` | Dashboard + API router inventory | `src/services/*/routers/` |
-| `all` | All of the above | All sources |
+| Command   | What it shows                       | Source files                                 |
+|-----------|-------------------------------------|----------------------------------------------|
+| `rpcs`    | gRPC service/RPC tables             | `proto/*.proto`                              |
+| `ports`   | Port assignments (local + Docker)   | `cli/_gladys.py`, `docker/docker-compose.yml`|
+| `schema`  | Database table summaries            | `src/db/migrations/*.sql`                    |
+| `tree`    | Annotated directory tree            | Filesystem                                   |
+| `routers` | Dashboard + API router inventory    | `src/services/*/routers/`                    |
+| `all`     | All of the above                    | All sources                                  |
 
 Run via: `uv run codebase-info <command>`
 
@@ -196,7 +210,8 @@ For conceptual/architectural docs (topology, concurrency, conventions, etc.), se
 
 ## Dashboard (CRITICAL INFRASTRUCTURE)
 
-**The dashboard is how developers verify the entire GLADyS pipeline works.** Without a working dashboard, there is no way to troubleshoot, tune, or validate the system. Treat dashboard bugs as P0.
+**The dashboard is how developers verify the entire GLADyS pipeline works.**
+Without a working dashboard, there is no way to troubleshoot, tune, or validate the system. Treat dashboard bugs as P0.
 
 **Location**: `src/services/dashboard/` (FastAPI + htmx + Alpine.js)
 **Design docs**: `docs/design/DASHBOARD_*.md`
@@ -210,17 +225,20 @@ For conceptual/architectural docs (topology, concurrency, conventions, etc.), se
 ### Mandatory Pattern for Data Lists
 
 **Pattern A (server-side rendering)** — ALL data tables/lists MUST use this:
+
 - Jinja `{% for %}` loops render rows on server
 - htmx fetches pre-rendered HTML
 - Alpine.js for interactivity only (expansion, editing, toggles)
 
 **Anti-pattern (BROKEN, DO NOT USE)**:
+
 - Alpine `x-for` for server data in htmx-loaded content
 - htmx + x-for doesn't work reliably — x-for may not render DOM elements
 
 ### Widget Self-Containment
 
 Each dashboard tab should be:
+
 - **Independently testable** — has its own test file
 - **Has a design spec** — in `docs/design/DASHBOARD_*.md`
 - **Uses documented patterns** — from component architecture doc
@@ -228,15 +246,15 @@ Each dashboard tab should be:
 
 ### Current Tab Status
 
-| Tab | Pattern | Status | Notes |
-|-----|---------|--------|-------|
-| Lab (events) | A + SSE | Working | Widget macros |
-| Response | A | Working | Widget macros |
-| Heuristics | A | Working | Widget macros |
-| Learning | A | Working | Inline x-data, custom drilldown |
-| Logs | A | Working | Inline x-data, config-driven sources |
-| LLM | A | Working | Inline x-data (status/test UI) |
-| Settings | A | Working | Inline x-data (config/cache UI) |
+| Tab          | Pattern | Status  | Notes                                |
+|--------------|---------|---------|--------------------------------------|
+| Lab (events) | A + SSE | Working | Widget macros                        |
+| Response     | A       | Working | Widget macros                        |
+| Heuristics   | A       | Working | Widget macros                        |
+| Learning     | A       | Working | Inline x-data, custom drilldown      |
+| Logs         | A       | Working | Inline x-data, config-driven sources |
+| LLM          | A       | Working | Inline x-data (status/test UI)       |
+| Settings     | A       | Working | Inline x-data (config/cache UI)      |
 
 ## Documentation & Authority
 
@@ -248,15 +266,17 @@ When sources conflict, follow this order for **current implementation**:
 2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for Phase
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
-**Rule**: ADRs describe the target architecture. Phase increments may reduce *scope* (fewer features, simpler flows) but not *standards* (code quality, separation of concerns, test coverage). If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
+**Rule**: ADRs describe the target architecture. Phase increments may reduce *scope* (fewer features, simpler flows) but not *standards*
+(code quality, separation of concerns, test coverage).
+If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
 
 ### Navigation
 
-| File | Purpose |
-|------|---------|
-| **[docs/INDEX.md](docs/INDEX.md)** | Documentation map — find ADRs, design docs by concept |
+| File                              | Purpose                                                                        |
+|-----------------------------------|--------------------------------------------------------------------------------|
+| **[docs/INDEX.md](docs/INDEX.md)** | Documentation map — find ADRs, design docs by concept                        |
 | **[CONCEPT_MAP.md](CONCEPT_MAP.md)** | Concept-to-code map. For live data (ports, RPCs, schema), run `codebase-info` |
-| **efforts/working_memory.md** | Effort index — read first, then the relevant `efforts/*.md` file (gitignored) |
+| **efforts/working_memory.md**     | Effort index — read first, then the relevant `efforts/*.md` file (gitignored) |
 
 ### Session Rules
 
@@ -265,19 +285,20 @@ When sources conflict, follow this order for **current implementation**:
 3. **Update working_memory.md frequently** — after each decision, discovery, or task transition
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
 5. **For multi-step or agent-coordinated work**: Read `docs/workflow/CLAUDE_WORKFLOW.md`
-6. **For live codebase data** (RPCs, ports, DB schema, directory tree, routers): run `uv run codebase-info <command>` via Bash instead of reading static docs. Available commands: `rpcs`, `ports`, `schema`, `tree`, `routers`, `all`.
-7. **Default reviews to Sonnet**: Code review, consistency checks, and prompt refinement use Sonnet (`claude --model sonnet` or Task tool with `model: "sonnet"`) unless design uncertainty requires Opus escalation.
-8. **End sessions with a read list**: When writing a handoff in `state.md` or completing a prompt, include a `### Next Session Read List` with 3-5 specific file paths the next session needs.
+6. **For live codebase data** (RPCs, ports, DB schema, directory tree, routers): run `uv run codebase-info <command>` via Bash instead of reading
+   static docs. Available commands: `rpcs`, `ports`, `schema`, `tree`, `routers`, `all`.
+7. **Default reviews to Sonnet**: Code review, consistency checks, and prompt refinement use Sonnet (`claude --model sonnet` or Task tool with
+   `model: "sonnet"`) unless design uncertainty requires Opus escalation.
+8. **End sessions with a read list**: When writing a handoff in `state.md` or completing a prompt, include a `### Next Session Read List`
+   with 3-5 specific file paths the next session needs.
 
 ### Critical ADRs (affect daily decisions)
 
-| ADR | Topic |
-|-----|-------|
-| 0001 | Architecture (sensor → salience → executive flow) |
-| 0004 | Memory (L0-L4, PostgreSQL + pgvector) |
-| 0010 | Learning (Bayesian, System 1/2) |
-| 0013 | Salience (attention, habituation) |
+| ADR  | Topic                                              |
+|------|----------------------------------------------------|
+| 0001 | Architecture (sensor → salience → executive flow)  |
+| 0004 | Memory (L0-L4, PostgreSQL + pgvector)              |
+| 0010 | Learning (Bayesian, System 1/2)                    |
+| 0013 | Salience (attention, habituation)                  |
 
 Full list: `docs/INDEX.md`
-
-

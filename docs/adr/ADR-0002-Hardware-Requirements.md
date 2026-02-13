@@ -17,6 +17,7 @@
 The GLADyS requires hardware capable of running multiple ML models concurrently with sub-second response latency. This ADR defines hardware requirements based on the architecture specified in ADR-0001.
 
 Key constraints:
+
 - Multiple models run simultaneously (sensors, salience, embeddings, executive, TTS)
 - Target latency: ~1000ms end-to-end
 - Local-first architecture (data stays on user's machine)
@@ -101,6 +102,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 ### 3.4 Concurrent Usage Scenarios
 
 **Scenario A: Minimal Local (Remote Executive)**
+
 | Component | VRAM |
 |-----------|------|
 | Whisper small | 1 GB |
@@ -111,6 +113,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | **Total** | **7.5 GB** |
 
 **Scenario B: Local Executive (8B model)**
+
 | Component | VRAM |
 |-----------|------|
 | Whisper medium | 2 GB |
@@ -122,6 +125,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | **Total** | **14 GB** |
 
 **Scenario C: Quality Local (14B Executive)**
+
 | Component | VRAM |
 |-----------|------|
 | Whisper medium | 2 GB |
@@ -133,6 +137,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | **Total** | **20.5 GB** |
 
 **Scenario D: Maximum Quality (32B Executive)**
+
 | Component | VRAM |
 |-----------|------|
 | Whisper medium | 2 GB |
@@ -189,6 +194,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 ### 4.4 Cost Analysis
 
 **Development Scenario:**
+
 - 8 hours/day active use
 - ~100 Executive calls/hour during active use
 - ~500 tokens per call average
@@ -204,6 +210,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | Local (after hardware) | $30-50 | Electricity only |
 
 **Production Scenario (heavier use):**
+
 - 12 hours/day, 200 calls/hour, 30 days/month
 - **Monthly tokens: 36M**
 
@@ -225,6 +232,7 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | Level 4 | $150,000 | Series A+ or select accelerators |
 
 **$5,000 Azure credits provide:**
+
 - ~500M tokens GPT-4o mini (~5 years development)
 - ~50M tokens GPT-4o (~6 months development)
 - ~16M tokens GPT-4 Turbo
@@ -290,10 +298,12 @@ Current setup uses Gemma 3 4B. Evaluation for AI roles:
 | RTX 3090 + RTX 2070 | 24GB + 8GB (separate pools) |
 
 **What dual-GPU enables:**
+
 - Run different models on each GPU (sensors on one, executive on other)
 - Does NOT enable running one large model across both (without complex tensor parallelism)
 
 For the AI architecture, dual-GPU works well:
+
 ```
 GPU 0 (Large): Executive + Salience + Embeddings + TTS
 GPU 1 (Small): Sensors (Audio + Vision)
@@ -382,6 +392,7 @@ Add RTX 3090 to existing system.
 | **Total** | | **$800-1,030** |
 
 **Resulting Configuration:**
+
 ```
 GPU 0: RTX 3090 24GB (Primary)
 ├── Executive (Qwen2.5 14B Q4)     ~10 GB
@@ -399,6 +410,7 @@ GPU 1: RTX 2070 8GB (Secondary)
 **Supports:** Full concurrent architecture, Scenarios A-C
 
 **Ollama Multi-GPU:**
+
 ```bash
 CUDA_VISIBLE_DEVICES=0 ollama run qwen2.5:14b
 CUDA_VISIBLE_DEVICES=1 ollama run gemma3:4b
@@ -465,6 +477,7 @@ Replace RTX 2070 with RTX 4090.
 **Purchase used RTX 3090 + PSU upgrade (~$850-1,000)**
 
 This enables:
+
 - Full concurrent architecture
 - Local Executive (Qwen2.5 14B)
 - No ongoing API costs

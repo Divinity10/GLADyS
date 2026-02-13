@@ -117,6 +117,7 @@ python cli/local.py health -d
 ```
 
 **Output:**
+
 ```
 memory-python        [OK] HEALTHY      uptime=3600s
 memory-rust          [OK] HEALTHY      uptime=3595s
@@ -133,6 +134,7 @@ python cli/proto_gen.py
 ```
 
 This regenerates stubs in:
+
 - `src/services/memory/gladys_memory/` (memory_pb2.py, memory_pb2_grpc.py)
 - `src/services/orchestrator/gladys_orchestrator/generated/`
 

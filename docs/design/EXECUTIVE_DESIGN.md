@@ -9,6 +9,7 @@
 This document defines the generalized executive subsystem - the decision-making component that processes events, generates responses, and learns from outcomes. The design separates **core brain functionality** (domain-agnostic) from **pack-provided knowledge** (domain-specific).
 
 **Related Documents**:
+
 - [ADR-0010](../adr/ADR-0010-Learning-and-Inference.md) - Learning pipeline, Bayesian inference
 - [ADR-0014](../adr/ADR-0014-Executive-Decision-Loop-and-Proactive-Behavior.md) - Executive decision loop
 - [DESIGN.md](DESIGN.md) - Overall system design
@@ -56,12 +57,14 @@ Design is complete when we can trace every scenario end-to-end on paper without 
 **Problem** (resolved): When a low-confidence heuristic matches, the router queues the event but discards the heuristic information.
 
 **Solution implemented**:
+
 - Added `HeuristicSuggestion` message to `executive.proto`
 - Router stores heuristic data when fetching and adds to result for low-conf matches
 - EventQueue passes suggestion context through to Executive
 - Executive includes suggestion in LLM prompt
 
 **Current Proto** (`executive.proto`):
+
 ```protobuf
 message HeuristicSuggestion {
     string heuristic_id = 1;
@@ -87,6 +90,7 @@ message ProcessEventRequest {
 **Current State**: Static JSON config string parsed at server initialization.
 
 **Fix**:
+
 - Phase: Continue using static config (sufficient for testing)
 - Release: Filesystem manifest scan (packs declare patterns in `manifest.yaml`)
 
@@ -123,7 +127,7 @@ message ProcessEventRequest {
 
 ## Proposed Proto Changes
 
-### Add to `executive.proto`:
+### Add to `executive.proto`
 
 ```protobuf
 message ProcessEventRequest {
@@ -210,6 +214,7 @@ Consider this suggestion in your response. You may agree, disagree, or refine it
 ### Database Tables
 
 #### `heuristics` - Learned patterns
+
 ```sql
 CREATE TABLE heuristics (
     id              UUID PRIMARY KEY,
@@ -229,6 +234,7 @@ CREATE TABLE heuristics (
 ```
 
 #### `heuristic_fires` - Fire audit log (Flight Recorder)
+
 ```sql
 CREATE TABLE heuristic_fires (
     id              UUID PRIMARY KEY,
@@ -243,6 +249,7 @@ CREATE TABLE heuristic_fires (
 ```
 
 #### `feedback_events` - Explicit feedback log
+
 ```sql
 CREATE TABLE feedback_events (
     id              UUID PRIMARY KEY,
@@ -258,6 +265,7 @@ CREATE TABLE feedback_events (
 ### In-Memory State
 
 #### `QueuedEvent` (Orchestrator)
+
 ```python
 @dataclass
 class QueuedEvent:
@@ -269,6 +277,7 @@ class QueuedEvent:
 ```
 
 #### `ReasoningTrace` (Executive)
+
 ```python
 @dataclass
 class ReasoningTrace:
@@ -281,10 +290,12 @@ class ReasoningTrace:
     predicted_success: float = 0.0
     prediction_confidence: float = 0.0
 ```
+
 - **Retention**: 300 seconds (5 minutes)
 - **Purpose**: Enables ProvideFeedback to extract patterns and update confidence
 
 #### `PendingOutcome` (OutcomeWatcher)
+
 ```python
 @dataclass
 class PendingOutcome:
@@ -297,6 +308,7 @@ class PendingOutcome:
     predicted_success: float = 0.0
     is_success_outcome: bool = True
 ```
+
 - **Purpose**: Correlates outcome events to heuristic fires for implicit feedback
 
 ---
@@ -485,6 +497,7 @@ executive:
 ```
 
 **Data Created**:
+
 - `heuristic_fires` row with `outcome='unknown'`
 - `ReasoningTrace` in Executive memory (5 min TTL)
 - `PendingOutcome` in OutcomeWatcher (if pattern matches)
@@ -498,11 +511,13 @@ Per [ADR-0010 §3.12.2](../adr/ADR-0010-Learning-and-Inference.md):
 **Confidence measures**: Probability that heuristic's response leads to a **good outcome**.
 
 **Update sources** (in order of reliability):
+
 1. **Explicit feedback**: User thumbs up/down
 2. **Implicit outcome**: OutcomeWatcher detects outcome event
 3. **Deferred validation**: Batch comparison of S1 vs LLM vs actual outcome
 
 **Formula**: Bayesian Beta-Binomial
+
 ```
 confidence = (1 + success_count) / (2 + fire_count)
 ```
@@ -553,6 +568,7 @@ confidence = (1 + success_count) / (2 + fire_count)
 **Problem**: When multiple heuristics match an event, current scoring uses only `similarity Ã— confidence`. This ignores useful signals that could improve selection quality.
 
 **Current implementation** ([storage.py:355](../../../src/memory/python/gladys_memory/storage.py)):
+
 ```python
 score = similarity * confidence
 ```
@@ -566,11 +582,13 @@ score = similarity * confidence
 | **Habituation** | Avoid spamming same suggestion repeatedly | Decay if fired >3Ã— in 5 minutes |
 
 **Proposed formula**:
+
 ```python
 score = similarity * confidence * recency_boost * origin_weight * habituation_decay
 ```
 
 **Example problem**: Two heuristics match "player health is low":
+
 1. `health_v1` — confidence=0.7, last fired 2 weeks ago, origin=learned
 2. `health_v2` — confidence=0.65, last fired 10 min ago (success), origin=skill_pack
 
@@ -593,4 +611,3 @@ Current scoring picks #1 (higher base score). But #2 is likely better — it's f
 | Outcome watcher | `src/orchestrator/gladys_orchestrator/outcome_watcher.py` |
 | Executive proto | `proto/executive.proto` |
 | Heuristic storage | `src/memory/python/gladys_memory/storage.py` |
-

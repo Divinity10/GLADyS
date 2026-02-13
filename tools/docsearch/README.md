@@ -39,8 +39,8 @@ python tools/docsearch/docsearch.py --memory-only
 
 ## How it Works
 
-1.  Reads `docs/INDEX.md` as the semantic map.
-2.  Parses keywords and topic headers.
-3.  Builds a dependency graph from Markdown links `[Link](path)`.
-4.  Traverses the graph (BFS) to gather full context.
-5.  Packs content into XML for AI prompts.
+1. Reads `docs/INDEX.md` as the semantic map.
+2. Parses keywords and topic headers.
+3. Builds a dependency graph from Markdown links `[Link](path)`.
+4. Traverses the graph (BFS) to gather full context.
+5. Packs content into XML for AI prompts.

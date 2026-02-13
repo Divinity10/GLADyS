@@ -7,6 +7,7 @@
 ## Problem
 
 A like/dislike on a response conflates two independent signals:
+
 1. **Match quality** — did the right heuristic fire for this event?
 2. **Response quality** — was the response content appropriate?
 
@@ -25,4 +26,3 @@ A heuristic can match incorrectly but provide a useful response by coincidence. 
 ## Dependencies
 
 - Confidence analysis harness (see `confidence-analysis-harness.md`) — needed to evaluate different weight models offline
-

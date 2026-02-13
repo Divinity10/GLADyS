@@ -37,6 +37,7 @@ These schema changes are proposed in ADR-0004 but **not yet implemented**:
 
 **User Profile Schema Drift**:
 ADR-0004's `user_profile` table has simple EWMA fields. ADR-0007's `AdaptiveParameter` model adds:
+
 - `bayesian_alpha`, `bayesian_beta` (Bayesian confidence)
 - `bounds_min`, `bounds_max` (safety bounds)
 - `frozen` (learning freeze)
@@ -70,6 +71,7 @@ ADR-0004's `user_profile` table has simple EWMA fields. ADR-0007's `AdaptivePara
 #### Open Questions
 
 **High Priority**:
+
 1. How does Executive know when to query Memory vs Audit?
 2. What's the embedding migration strategy when models change?
 3. How are context tags applied? Manual or automatic inference?
@@ -91,6 +93,7 @@ ADR-0004's `user_profile` table has simple EWMA fields. ADR-0007's `AdaptivePara
 The memory hierarchy maps CPU cache levels to memory consolidation stages. L0 (context window) through L4 (cold archive) have increasing latency and decreasing access frequency.
 
 **The question**: Is this mapping principled, or is it a convenient metaphor? Specifically:
+
 - Should consolidation priority be salience-weighted rather than purely temporal?
 - Should GLADyS update stored events when they're accessed in a new context (reconsolidation)?
 - Should the sleep cycle replay high-surprise events more often? (See also `docs/research/RESEARCH_BACKLOG.md` — experience replay section)
@@ -126,6 +129,7 @@ The current plan: LLM-based extraction during the sleep cycle. Feed batches of e
 The LLM does the reasoning, not the graph. The semantic memory is a knowledge store that provides context for LLM planning, not a reasoning engine.
 
 For "Is Steve online?":
+
 - **Not**: Graph mechanically traverses Steve → Buggy → Minecraft → check_status
 - **Yes**: Retrieve Steve's context (1-2 hops), give to LLM, LLM creates a plan
 

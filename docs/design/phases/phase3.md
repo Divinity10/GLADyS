@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 2](phase2.md)
 
-### Question to answer
+## Question to answer
 
 Can we define and load domain-specific skill interfaces that provide context-aware success evaluation, action boundaries, and behavioral guidance?
 

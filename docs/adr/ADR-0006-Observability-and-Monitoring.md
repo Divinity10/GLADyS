@@ -15,6 +15,7 @@
 ## 1. Context and Problem Statement
 
 GLADyS consists of multiple components across different languages and processes. Without proper observability:
+
 - Performance bottlenecks are invisible
 - Debugging cross-component issues is difficult
 - Optimization decisions lack data
@@ -1068,16 +1069,19 @@ Salience receives:
 ### 11.3 Querying by Correlation ID
 
 **Find all logs for a trace:**
+
 ```
 {trace_id="abc123"}
 ```
 
 **Find all logs for an event:**
+
 ```
 {event_id="evt-001"}
 ```
 
 **Find slow traces:**
+
 ```
 {component="executive"} |= "decision_made" | json | duration_ms > 500
 ```
@@ -1243,11 +1247,11 @@ docker-compose -f docker-compose.observability.yml up -d
 
 | Service | URL |
 |---------|-----|
-| Grafana | http://localhost:3000 (admin/admin) |
-| Prometheus | http://localhost:9100 |
-| Jaeger | http://localhost:16686 |
-| Loki | http://localhost:3100 |
-| Alertmanager | http://localhost:9093 |
+| Grafana | <http://localhost:3000> (admin/admin) |
+| Prometheus | <http://localhost:9100> |
+| Jaeger | <http://localhost:16686> |
+| Loki | <http://localhost:3100> |
+| Alertmanager | <http://localhost:9093> |
 
 ### Useful PromQL Queries
 

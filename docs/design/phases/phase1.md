@@ -3,11 +3,11 @@
 **Status**: Active
 **Successor**: [Phase 2](phase2.md)
 
-### Question to answer
+## Question to answer
 
 Can the system learn from experience with real data flowing through it?
 
-This is the core value proposition: "the second time is faster." It requires multiple co-dependent workstreams that must converge - you can't test learning without real data, and you can't get meaningful data without real sensors.    
+This is the core value proposition: "the second time is faster." It requires multiple co-dependent workstreams that must converge - you can't test learning without real data, and you can't get meaningful data without real sensors.
 
 ### Framing: Accuracy-Latency Tradeoff
 
@@ -16,17 +16,21 @@ Phase 1 doesn't need to solve the general resource allocation problem, but it la
 ### Workstreams
 
 #### W1: One Real Sensor
+
 Build one real sensor that produces events without human intervention. Must emit events through the Orchestrator pipeline via gRPC.
 
 #### W2: Learning Module
+
 Orchestrator-owned module with clean interface. Implements outcome channel consumption, confidence updates, and pattern extraction.
 
 #### W3: Feedback Pipeline Fixes
+
 - Add `feedback_source` to `UpdateHeuristicConfidenceRequest`.
 - Add `GetHeuristic` RPC.
 - Fix cache to be authoritative for heuristic matching.
 
 #### W4: Heuristic Creation from Feedback
+
 LLM extracts generalizable pattern from successful reasoning. New heuristics start at confidence 0.3.
 
 ### Success Criteria

@@ -40,6 +40,7 @@ Raw sensor data is often noisy. Preprocessors are optional plugins between a sen
 #### Original Problem
 
 The architecture shows sensors (input) flowing to Executive which produces speech (TTS output). But GLADyS should also control physical devices:
+
 - Thermostats, fans, HVAC
 - Humidifiers / dehumidifiers
 - Smart lights
@@ -116,6 +117,7 @@ Audio Stream
 ```
 
 Manifest declares dependencies:
+
 ```yaml
 plugin_id: semantic_meaning_detector
 type: skill
@@ -205,10 +207,11 @@ contributes_heuristics:
 | **Focus** | Heuristic learning is the differentiator |
 
 #### Open for Post-Phase 1. Skill sandboxing (prevent misbehaving skills from overwhelming Memory/LLM)
-2. Managed LLM client API (rate limiting, cost tracking)
-3. Skill lifecycle (hot reload, version conflicts)
-4. Multi-skill coordination (when multiple skills could handle a query)
-5. Heuristic conflict (pack heuristic vs learned heuristic)
+
+1. Managed LLM client API (rate limiting, cost tracking)
+2. Skill lifecycle (hot reload, version conflicts)
+3. Multi-skill coordination (when multiple skills could handle a query)
+4. Heuristic conflict (pack heuristic vs learned heuristic)
 
 ---
 
@@ -221,6 +224,7 @@ contributes_heuristics:
 **ADR**: [ADR-0011](../../adr/ADR-0011-Actuator-Subsystem.md)
 
 All original questions resolved:
+
 1. **Plugin model**: New plugin type
 2. **Command validation**: Schema validation + safety bounds
 3. **Rate limiting**: Per-actuator configurable limits
@@ -300,12 +304,14 @@ expose:
 ## Reference: Validation Use Cases
 
 ### UC1: Gaming Companion (Aperture)
+
 ```
 [Game State Sensor] → [Threat Analyzer Skill] → Salience → Executive → Speech
                                                                     â†˜ [Game Input Actuator]
 ```
 
 ### UC2: Environmental Comfort
+
 ```
 [Temp Sensor] â”€â”€â”€â”€â”€â”
 [Humidity Sensor] â”€â”¼→ [Comfort Analyzer] → Salience → Executive → [HVAC Actuator]
@@ -313,9 +319,8 @@ expose:
 ```
 
 ### UC4: Physical Security (High-Risk)
+
 ```
 [Motion Sensor] → [Person Detector] → Salience → Executive → [Door Lock Actuator]
                                                           â†˜ User Confirmation
 ```
-
-

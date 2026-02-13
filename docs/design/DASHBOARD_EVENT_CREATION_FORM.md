@@ -37,11 +37,13 @@ Replace the single-row submission bar with a **collapsible form** that supports 
 All additional sections visible below simple mode fields:
 
 **1. Origin Timestamp**
+
 - Datetime-local input
 - Defaults to current time
 - Converts to `google.protobuf.Timestamp` on submit
 
 **2. Salience Override** (collapsible subsection)
+
 - Collapsed by default
 - When expanded, shows 9 range inputs (0.0-1.0):
   - Threat
@@ -56,6 +58,7 @@ All additional sections visible below simple mode fields:
 - If all fields empty/default, backend uses auto-calculation
 
 **3. Structured Data** (collapsible subsection)
+
 - Collapsed by default
 - Dynamic key-value pair builder
 - "➕ Add Field" button adds a row
@@ -63,11 +66,13 @@ All additional sections visible below simple mode fields:
 - Backend constructs `google.protobuf.Struct` from pairs
 
 **4. Evaluation Data** (collapsible subsection)
+
 - Collapsed by default
 - Same key-value builder as Structured Data
 - Backend constructs `google.protobuf.Struct` from pairs
 
 **5. Entity IDs** (collapsible subsection)
+
 - Collapsed by default
 - Text input for comma-separated UUIDs
 - Placeholder: "uuid1, uuid2, uuid3"
@@ -78,12 +83,14 @@ All additional sections visible below simple mode fields:
 **POST /api/events endpoint** (`backend/routers/events.py`):
 
 Current fields accepted:
+
 - `source` (string)
 - `text` (string, maps to `raw_text`)
 - `intent` (string)
 - `salience_override` (string: "high"/"low"/"")
 
 New fields to accept:
+
 - `timestamp` (ISO 8601 string) → `google.protobuf.Timestamp`
 - `salience_*` (individual floats: `salience_threat`, `salience_novelty`, etc.) → `gladys.types.SalienceVector`
 - `structured_keys[]` + `structured_values[]` (arrays) → `google.protobuf.Struct`

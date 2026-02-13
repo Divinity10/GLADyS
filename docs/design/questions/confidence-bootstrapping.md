@@ -46,6 +46,7 @@ Do NOT include: heuristic origin, internal system metadata, other candidate heur
 After the LLM generates its response, compare it to the heuristic's response. This comparison is **not on the critical path** — the user already has their response (the LLM's). The comparison is a confidence bookkeeping task that can run asynchronously.
 
 Options for comparison:
+
 - Embedding similarity between the two responses (cheap, available via existing infrastructure)
 - Lightweight LLM call asking "are these responses substantially similar?" (more nuanced, more expensive)
 
@@ -73,6 +74,7 @@ These weights are starting points. Tune based on observed behavior.
 The weight of LLM endorsement could vary based on how reliable the LLM has proven to be. A high-quality LLM's endorsement should count for more than a low-quality one's. This is a meta-learning problem — the system learning how much to trust its own reasoning engine.
 
 Observations from Phase 1:
+
 - `gemma3:1b` produced garbage condition_texts — its endorsement would be nearly worthless
 - `gemma3:4b` produced usable generalizations — its endorsement is meaningful
 - Diminishing returns likely apply: the jump from 1B→4B was transformative, 4B→70B would likely be marginal for pattern extraction tasks
@@ -98,4 +100,3 @@ The confidence bootstrapping problem is worse when combined with missing source-
 3. Async post-comparison via embedding similarity
 4. Confidence update with 0.5x weight for LLM endorsement
 5. Origin does not affect confidence update weights — a heuristic is a heuristic regardless of how it was created
-

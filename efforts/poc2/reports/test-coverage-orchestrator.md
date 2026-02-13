@@ -1,5 +1,9 @@
 # Audit: Orchestrator Service Test Coverage
 
+**Report Date**: 2026-02-09
+**Validated**: 2026-02-12
+**Status**: Architectural changes since Feb 9. Heuristic shortcut removed, SalienceResult migration, +17 new tests added. Major gaps remain in streaming RPCs and OutcomeWatcher.
+
 ## 1. Test Inventory
 
 | Test file | Test count | Test type (unit/integration) |
@@ -12,11 +16,12 @@
 | `test_registry.py` | 7 | Unit |
 | `test_router.py` | 11 | Unit |
 | `test_server.py` | 7 | Unit (Servicer tests) |
-| **Total** | **64** | |
+| **Total** | **64** | (+17 since Feb 9) |
 
 ## 2. Coverage Map
 
 ### RPC Handlers (server.py)
+
 - [ ] `PublishEvent` -- single event acceptance and routing (Untested directly)
 - [ ] `PublishEvents` -- batch processing, per-event error handling (Untested)
 - [ ] `StreamEvents` -- streaming RPC (Untested)
@@ -36,6 +41,7 @@
 - [ ] `GetHealth` / `GetHealthDetails` (Untested)
 
 ### Event Router (router.py)
+
 - [x] `route_event()` -- salience evaluation, heuristic matching, candidate population
   - `test_route_event_returns_queued`
   - `test_router_populates_candidates`
@@ -51,6 +57,7 @@
 - [ ] Salience fallback when service unavailable (Untested)
 
 ### Event Queue (event_queue.py)
+
 - [x] Enqueue with salience-based priority ordering
   - `test_route_high_salience_queued_with_priority` (Indirectly tests prioritization)
 - [x] Dequeue and process (callback invocation)
@@ -64,6 +71,7 @@
   - `test_event_queue_carries_candidates`
 
 ### Component Registry (registry.py)
+
 - [x] Register, unregister, re-register
   - `test_register_component`
   - `test_unregister_component`
@@ -76,6 +84,7 @@
   - `test_get_by_type`
 
 ### Learning Module (learning.py)
+
 - [x] `on_feedback()` -- strategy interpretation, signal application
   - `test_on_feedback_delegates_to_strategy`
 - [x] `on_fire()` -- flight recorder, outcome watcher registration
@@ -85,6 +94,7 @@
 - [ ] `cleanup_expired()` -- timeout as positive implicit feedback (Untested)
 
 ### Learning Strategy
+
 - [x] `interpret_explicit_feedback()` -- positive/negative with magnitude
   - `test_explicit_positive`
   - `test_explicit_negative`
@@ -96,6 +106,7 @@
   - `test_ignore_at_threshold`
 
 ### Client Classes
+
 - [x] `ExecutiveClient.send_event_immediate()` -- proto construction, candidate passing
   - `test_executive_client_sends_candidates`
 - [ ] `SalienceMemoryClient.evaluate_salience()` -- request/response, fallback (Untested directly)
@@ -108,7 +119,26 @@
 - [x] Client error handling (gRPC unavailable)
   - `test_memory_client_query_matching_heuristics_not_connected`
 
-## 3. Quality Assessment
+## 3. Obsolete Items (Architectural Changes Since Feb 9)
+
+- **SalienceVector (9 fields)** - REPLACED by SalienceResult (3 scalars + vector map). Tests updated in commit 5ea56c7 (Feb 12)
+- **High-confidence heuristic shortcut** - REMOVED (commit 568cd58). Orchestrator no longer decides heuristic-vs-LLM. ALL non-emergency events forward to Executive. Exception: Emergency fast-path (confidence ≥0.95 AND threat ≥0.9) still exists
+- **on_heuristic_ignored()** - Referenced in report but NOT FOUND in current code (may be deferred)
+
+## 4. New Gaps (Since Feb 9)
+
+- **OutcomeWatcher** (outcome_watcher.py) - 250 lines, ZERO unit tests. Entire implicit feedback system untested: register_fire, check_event, cleanup_expired
+- **SalienceResult migration integration** (commit 5ea56c7) - New vector map iteration logic (router.py:412-429). Edge case: non-dict vector not fully tested
+- **cleanup_expired() background loop** (server.py:146-158) - Background task calls learning_module.cleanup_expired() but no test of loop startup, interval timing, or graceful stop
+
+## 5. Completed (Since Feb 9)
+
+- EventQueue timeout scanner + persistence (4 tests added)
+- Heuristic fire recording with episodic_event_id (test added)
+- Candidate population and filtering (12 tests added)
+- SalienceResult vector migration (68 lines of test updates)
+
+## 6. Quality Assessment
 
 - **Mock Accuracy**: High. Tests use `AsyncMock` and `MagicMock` effectively to simulate gRPC services and client responses.
 - **Assertion Quality**: Very Good. Tests verify both return values and internal state changes (e.g., subscriber queue sizes, mock call counts).
@@ -116,18 +146,42 @@
 - **One Behavior per Test**: Strongly followed. Tests are well-isolated and focused.
 - **Duplicate Coverage**: Low. The test suite is well-structured and efficient.
 
-## 4. Recommendations
+## 7. Recommendations
 
-### Priority 1: Data Integrity & Event Flow
-- **PublishEvent RPC**: Add tests for `PublishEvent` (unary) and `PublishEvents` (batch) in `test_server.py`. Verify that events are correctly routed and stored. (3 tests)
-- **Implicit Feedback Loop**: Add tests for `check_event_for_outcomes` and `_check_undo_signal` in `test_learning_module.py`. Verify that undo keywords trigger negative feedback. (3 tests)
-- **Ignore Logic**: Test `on_heuristic_ignored` to ensure the threshold-based negative feedback fires after N ignores. (2 tests)
+### Priority 1: Data Integrity & Event Flow (CRITICAL - recommend Gemini trace)
 
-### Priority 2: Contract Correctness
-- **Streaming RPCs**: Add tests for `StreamEvents`, `SubscribeEvents`, and `SubscribeResponses`. Streaming is complex and currently untested. (4 tests)
-- **Salience Evaluation Fallback**: Add tests for `_get_salience` in `test_router.py` to verify graceful degradation when the salience service is unavailable. (2 tests)
+- **OutcomeWatcher unit tests** (outcome_watcher.py):
+  - Risk: Implicit feedback entire stack untested. OutcomeWatcher manages PendingOutcome list, pattern matching, callback invocation. Bugs silently degrade learning
+  - Code path: router:102 calls check_event_for_outcomes → learning:102 → outcome_watcher
+  - Add 8-10 tests for pattern matching, timeout management, success/failure classification
 
-### Priority 3: Decision Logic & Monitoring
-- **Queue Stats & Listing**: Add tests for `GetQueueStats` and `ListQueuedEvents` to verify monitoring data accuracy. (2 tests)
-- **Health RPCs**: Add basic tests for `GetHealth` and `GetHealthDetails`. (2 tests)
-- **Outcome Cleanup**: Test `cleanup_expired` in `LearningModule` to verify that timeouts are converted to positive implicit feedback. (2 tests)
+- **check_event_for_outcomes integration** (learning.py:102):
+  - Risk: Undo/implicit feedback flow not validated. If LearningModule returns resolved outcomes, router logs but doesn't verify signal was applied
+  - Add 3 tests: undo detection, outcome match, timeout-as-positive
+
+- **Streaming RPCs contract correctness** (PublishEvent via streaming, SubscribeEvents, SubscribeResponses):
+  - Risk: Async iterator protocol fragile. Missing tests for early disconnect, queue full backpressure, proto format on wire
+  - Add 6 tests: stream startup, event yield, disconnect, queue full, context cleanup, error propagation
+
+### Priority 2: Contract Correctness (IMPORTANT)
+
+- **Salience client fallback contract** (router.py:354-374):
+  - Risk: Graceful degradation documented but untested. If salience service changes proto, no test catches it
+  - Add 3 tests: missing field, type mismatch, exception handling
+
+- **EventQueue candidate passing to Executive** (event_queue.py:237):
+  - Risk: Introspection-based callback signature detection is fragile
+  - Add 2 tests: accepts candidates, rejects candidates
+
+- **Learning strategy configuration** (learning.py:178-193):
+  - Risk: Configuration parsing from OrchestratorConfig not tested
+  - Add 3 tests: valid config, missing keys, unknown strategy
+
+- **Response subscriber filtering** (router.py:581-584):
+  - Risk: Response source filter and include_immediate flag not tested
+  - Add 2 tests for filtering logic
+
+### Priority 3: Lower-Risk Gaps
+
+- **GetQueueStats/GetHealth**: Add tests for monitoring RPCs. (3 tests)
+- **cleanup_expired background loop**: Test loop startup and interval timing. (2 tests)

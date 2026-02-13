@@ -19,6 +19,7 @@ Define a Rust trait for salience scoring so that Phase 2 can test alternative al
 4. Apply salience boosts via `apply_heuristic_salience`
 
 Hardcoded elements:
+
 - Distance metric: cosine similarity only
 - Embedding source: Python Memory service
 - Match thresholds: configurable via `SalienceConfig`, but algorithm is fixed
@@ -318,4 +319,3 @@ This allows unit testing `EmbeddingSimilarityScorer` without a live gRPC server.
 - TF-IDF scorer — add in Phase 2 if needed
 - Alternative embedding models — Python-side change
 - Variable-length embedding support — requires cache schema changes
-

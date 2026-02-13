@@ -38,11 +38,13 @@ TD learning requires computing prediction error: `error = actual_outcome - predi
 **The problem in concrete terms:**
 
 A heuristic fires and GLADyS lowers the thermostat by 2 degrees, predicting $100/month savings. Actual savings: $25. Is this:
+
 - A failure (missed the prediction by 75%)?
 - A weak success (saved money, just less than expected)?
 - Depends on whether the user cared about the exact amount or just the direction?
 
 A gaming heuristic fires and GLADyS warns about friendly fire. The player harms a teammate anyway. Is this:
+
 - A failure (warning ignored)?
 - Irrelevant (the player intended to harm the teammate)?
 - A success (warning was delivered; player chose to override)?
@@ -50,6 +52,7 @@ A gaming heuristic fires and GLADyS warns about friendly fire. The player harms 
 **Design stance**: GLADyS optimizes for correctness, not user comfort (see [THEORETICAL_FOUNDATIONS.md](THEORETICAL_FOUNDATIONS.md#guiding-principles)). A correct prediction that gets overridden is a *success* — the heuristic was right, the user chose differently. This simplifies part of the problem: success = prediction accuracy, not user satisfaction. But it doesn't eliminate the question of *what* was predicted and how to measure it.
 
 **What data would we need to track?**
+
 - The prediction itself (what the heuristic expected to happen)
 - The predicted magnitude (not just direction — "save money" vs "save $100")
 - The actual outcome (measured from sensors or feedback)
@@ -84,6 +87,7 @@ The hypothesis: as heuristics accumulate and gain confidence, more events are ha
 Heuristics are learned under a specific personality configuration. A "bold" personality produces heuristics calibrated for low-confidence action. Switching to a "cautious" personality means those heuristics are mismatched — they were trained under a different behavioral policy.
 
 **The question**: How should the system handle personality switches?
+
 - Full confidence reset wastes all learning
 - No adjustment applies bold-context heuristics in a cautious context
 - Tagging heuristics with their source personality and decaying on switch is one approach, but how much decay?
@@ -98,6 +102,7 @@ This is a variant of **domain shift** — the training distribution changes when
 A proactive personality acts more often, generating more feedback data. A cautious personality acts less. This means proactive personalities learn faster — but also risk learning from lower-quality actions (acting on weaker evidence and treating outcomes as signal).
 
 **The question**: This is a form of selection bias or feedback loop bias. The system's own behavior (influenced by personality) determines what data is available for learning. How do we:
+
 - Distinguish "this heuristic works well" from "this heuristic fires often because personality lowers the bar"?
 - Measure whether a personality is improving or degrading learning quality?
 - Prevent a runaway feedback loop where personality-driven actions reinforce personality-aligned heuristics, creating a self-confirming system?
@@ -119,6 +124,7 @@ In RL terms, personality modulates the exploration policy. Is there a principled
 Current dimensions: threat, opportunity, humor, novelty, goal_relevance, social, emotional, actionability, habituation.
 
 **The question**: These were chosen pragmatically. From a cognitive science perspective:
+
 - Are any of these redundant (measuring the same underlying construct)?
 - Are we missing critical dimensions? (e.g., urgency as distinct from threat, familiarity as distinct from novelty)
 - Should dimensions be orthogonal, or is correlation between them expected and useful?
@@ -151,6 +157,7 @@ Salience is currently a vector of dimensions (threat, opportunity, novelty, etc.
 GLADyS can initiate actions based on heuristics and salience. But unsolicited advice is a known UX anti-pattern.
 
 **The question**: What interaction patterns make proactive behavior welcome rather than intrusive?
+
 - How does configurable personality (from sarcastic to helpful) affect tolerance for proactive suggestions?
 - Should proactive behavior require earning trust through accuracy first?
 - Is there a "suggestion budget" — a maximum rate of unsolicited communications?
@@ -160,6 +167,7 @@ GLADyS can initiate actions based on heuristics and salience. But unsolicited ad
 Heuristics, confidence scores, and learned patterns are inspectable (observability is a design principle). But presenting them in an understandable way is an open problem.
 
 **The question**: What mental models do users form about learned AI behavior? How should GLADyS present:
+
 - What heuristics exist and why
 - Why a particular action was taken (or not taken)
 - How to correct a wrong belief without requiring technical knowledge
@@ -175,6 +183,7 @@ GLADyS draws from a specific set of neuroscience concepts: dual-process cognitio
 **The question**: What models or mechanisms from neuroscience or cognitive science would benefit GLADyS's learning, routing, memory, recall, or performance — that we haven't considered?
 
 Some candidates we're aware of but haven't explored:
+
 - **Predictive coding** (Friston): The brain constantly generates predictions and processes only prediction errors. Could this replace or complement the salience model?
 - **Spreading activation** (Anderson): Memory recall activates related concepts. Could this improve context retrieval beyond embedding similarity?
 - **Somatic markers** (Damasio): Emotional tags on memories influence decision-making. GLADyS avoids emotion inference, but could non-emotional "outcome tags" serve a similar function?
@@ -195,6 +204,7 @@ If any of these questions interest you:
 4. **Don't worry about implementation** — we're looking for theoretical and empirical input, not code
 
 We're particularly interested in hearing from people with backgrounds in:
+
 - Cognitive science / neuroscience
 - Reinforcement learning / online learning
 - Human-computer interaction

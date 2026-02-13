@@ -17,6 +17,7 @@
 The Salience Gateway is referenced throughout the GLADyS architecture (ADR-0001 Section 7) but never fully specified. It sits at the critical junction between perception (sensors/preprocessors) and cognition (Executive), determining what deserves attention.
 
 Without specification, we cannot:
+
 - Implement the filtering logic that prevents Executive overload
 - Define the attention budget that bounds processing cost
 - Establish contracts between sensors, salience, and Executive
@@ -45,6 +46,7 @@ Without specification, we cannot:
 ## 3. Decision
 
 We implement the Salience Gateway as a stateful filtering and routing component with:
+
 - **Multi-stage evaluation**: Fast heuristic check (System 1) → optional deep evaluation (embedding-based)
 - **Attention budget**: Token-based capacity with priority queuing
 - **Context profiles**: Domain-specific thresholds and dimension weights
@@ -72,6 +74,7 @@ Salience and Memory's fast path work together as the functional equivalent of th
 - **Together**: Fast context-aware salience evaluation without LLM latency
 
 Per ADR-0001 §5.1, Salience and Memory share a process to avoid IPC overhead on this hot path. The Python Salience layer queries the Rust fast path for:
+
 - Threat/opportunity pattern matches (heuristics table)
 - Novelty scores (recent event similarity)
 - Context retrieval (what does this event mean in current situation?)
@@ -79,6 +82,7 @@ Per ADR-0001 §5.1, Salience and Memory share a process to avoid IPC overhead on
 This enables the Stage 2 heuristic evaluation (5-20ms) without requiring embedding generation or LLM inference for most events.
 
 The Salience Gateway:
+
 - **Receives**: Processed events from preprocessors (or raw events from sensors without preprocessors)
 - **Outputs to Executive**: Filtered, prioritized events that warrant attention
 - **Outputs to Memory**: All events (salience scores attached) for episodic storage
@@ -126,21 +130,25 @@ Event → [Suppression Check] → [Heuristic Eval] → [Deep Eval?] → [Thresho
 ```
 
 **Stage 1: Suppression Check** (~1ms)
+
 - Check suppression list (Executive said "ignore X")
 - Check habituation cache (seen this pattern recently)
 - Early exit if suppressed
 
 **Stage 2: Heuristic Evaluation** (~5-20ms)
+
 - Apply learned heuristics (ADR-0010 System 1)
 - Rule-based dimension scoring
 - Fast, no model inference
 
 **Stage 3: Deep Evaluation** (optional, ~50-80ms)
+
 - Embedding generation for semantic matching
 - Small model inference for nuanced dimensions
 - Only triggered when heuristics are uncertain or event is potentially high-salience
 
 **Stage 4: Threshold Gating**
+
 - Compare computed salience vector against context-specific thresholds
 - Events below all thresholds → memory only (not Executive)
 - Events above any threshold → attention queue
@@ -193,6 +201,7 @@ contexts:
 ```
 
 **Context Detection**: Orchestrator signals active context based on:
+
 - Active application (Minecraft → gaming)
 - Time of day
 - Sensor availability (gaming sensors active → gaming context)
@@ -208,6 +217,7 @@ Events may arrive from sources outside the primary context (e.g., doorbell durin
 4. Claiming context's thresholds/weights apply to that event
 
 **Source claims** (configured per context):
+
 ```yaml
 context_claims:
   home:
@@ -221,6 +231,7 @@ context_claims:
 ```
 
 **Conflict resolution** (both contexts claim same source):
+
 - Evaluate with BOTH profiles
 - Take MAX salience across contexts
 - Log which context "won" for learning
@@ -232,14 +243,17 @@ context_claims:
 The Salience Gateway reads from ADR-0010's learning stores:
 
 **Heuristics** (heuristics table):
+
 - Fast rules: "If event.source = 'minecraft' AND event.type = 'damage' THEN threat = 0.8"
 - Applied in Stage 2 (heuristic evaluation)
 
 **Learned Patterns** (learned_patterns table):
+
 - Bayesian beliefs about what's typically salient
 - "Player usually cares about inventory changes" → boost goal_relevance for inventory events
 
 **Feedback Integration**:
+
 - When Executive acts on an event → positive signal
 - When Executive ignores a forwarded event → negative signal
 - Salience learns what the Executive actually wants
@@ -249,11 +263,13 @@ The Salience Gateway reads from ADR-0010's learning stores:
 Before learning has accumulated, salience uses conservative defaults:
 
 **Phase 1: First hours (no learning data)**
+
 - All thresholds start LOW (0.3 across dimensions) → forward more, filter less
 - No active suppression patterns
 - Context = "general" until domain detected
 
 **Phase 2: Context detection kicks in**
+
 - Orchestrator detects active app → switches to domain-specific profile
 - Bootstrap profiles ship with sensible defaults:
 
@@ -279,6 +295,7 @@ bootstrap_contexts:
 ```
 
 **Phase 3: Learning refines (days/weeks)**
+
 - Feedback adjusts thresholds per pattern
 - Heuristics accumulate from Executive behavior
 - Suppression patterns learned from user corrections
@@ -303,6 +320,7 @@ Example:
 ```
 
 **Token costs** (approximate):
+
 | Item | Tokens |
 |------|--------|
 | Event context (source, type, timestamp) | 50 |
@@ -324,6 +342,7 @@ where:
 ```
 
 **Queue behavior**:
+
 - Events enqueue with priority score
 - Highest priority dequeued first
 - Events expire after TTL (default: 5 seconds for gaming, 30 seconds for home)
@@ -355,6 +374,7 @@ Every event gets one of these outcomes:
 | **Suppress** | Actively blocked (Executive command or habituation) | Debug log only |
 
 **Store vs Suppress distinction**:
+
 - **Store**: Low salience scores, but not blocked. Goes to memory for potential retrospective analysis.
 - **Suppress**: Actively inhibited by Executive command ("stop telling me about X") or habituation limit. This is an explicit signal, not just "low scores."
 
@@ -374,6 +394,7 @@ message SalienceAnnotatedEvent {
 ```
 
 This enables:
+
 - Retrospective analysis ("what did I miss?")
 - Learning signal ("events I dropped but user asked about later")
 - Episode construction (salience informs episode boundaries)
@@ -393,6 +414,7 @@ message SalientEvent {
 ```
 
 **suggested_response_type** hints:
+
 - `URGENT`: High threat, needs immediate response
 - `INFORMATIONAL`: Worth mentioning when convenient
 - `OPPORTUNISTIC`: Good moment for proactive engagement
@@ -500,6 +522,7 @@ service ExecutiveIngress {
 | bge-small-en | 384 | ~5ms | Good | MIT | BAAI, strong on MTEB |
 
 **MVP recommendation**: all-MiniLM-L6-v2
+
 - Matches ADR-0004 schema (384 dimensions)
 - Fast enough for 80ms deep-eval budget
 - Well-understood, large community
@@ -530,6 +553,7 @@ When evaluating a model change:
 ### 11.4 Migration Impact Assessment
 
 **Same dimension change** (e.g., all-MiniLM-L6-v2 → gte-small):
+
 - **Schema**: No change
 - **Data**: Existing embeddings semantically drift (query with new model, data has old embeddings)
 - **Strategy**: Incremental re-embedding during sleep mode
@@ -537,6 +561,7 @@ When evaluating a model change:
 - **Disruption**: LOW - search quality degrades gracefully, improves as re-embedding completes
 
 **Different dimension change** (e.g., 384 → 768):
+
 - **Schema**: Column type change (`vector(384)` → `vector(768)`)
 - **Data**: Full re-embedding required, can't mix dimensions
 - **Strategy**:
@@ -559,6 +584,7 @@ embedding_version INTEGER DEFAULT 1  -- Increment on re-embedding
 ```
 
 This enables:
+
 - Query-time filtering by model (prioritize same-model matches)
 - Tracking re-embedding progress
 - Rollback if new model underperforms
@@ -581,6 +607,7 @@ where:
 ```
 
 **Why exponential?**
+
 - Matches biological habituation recovery
 - Fast initial recovery, slow asymptotic approach to full sensitivity
 - Single parameter (tau) to tune

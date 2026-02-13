@@ -88,6 +88,7 @@ In-memory ring buffer for recent events not yet persisted.
 ### Purpose
 
 The warm buffer was designed to:
+
 1. Absorb high-frequency event bursts without immediate DB writes
 2. Enable lazy embedding computation in background thread
 3. Provide fast access to very recent events (< 30 min)
@@ -258,6 +259,7 @@ Add L1/L2 caching if ANY of these occur:
 3. **Embedding bottleneck**: Synchronous embedding generation blocks event processing
 
 **Measurement approach**:
+
 - Monitor p95 query latency via Prometheus (ADR-0006)
 - Track events/second throughput
 - Measure embedding computation time

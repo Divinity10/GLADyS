@@ -19,6 +19,7 @@ Define an abstract interface for event decision logic so that Phase 2 can A/B te
 3. Else → no response
 
 Hardcoded elements:
+
 - Confidence threshold: `EXECUTIVE_HEURISTIC_THRESHOLD` env var (default 0.7)
 - Prompts: `EXECUTIVE_SYSTEM_PROMPT`, `PREDICTION_PROMPT` — string constants
 - Trace storage: `self.reasoning_traces` dict
@@ -331,6 +332,7 @@ async def ProcessEvent(self, request, context) -> ProcessEventResponse:
 ## Configuration
 
 Environment variables:
+
 ```
 EXECUTIVE_DECISION_STRATEGY=heuristic_first  # "heuristic_first" | "always_llm" (future)
 EXECUTIVE_HEURISTIC_THRESHOLD=0.7
@@ -338,6 +340,7 @@ EXECUTIVE_GOALS=                             # Semicolon-separated goal strings 
 ```
 
 Factory:
+
 ```python
 def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy | None:
     if strategy_type == "heuristic_first":
@@ -372,6 +375,7 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 ## Design Decisions (from Phase 1 findings)
 
 ### F-04: Candidate presentation in LLM prompt
+
 - Candidates shown with **condition + action only** — no scores (avoids anchoring bias)
 - Order **randomized** (avoids positional bias)
 - Framed as "previous responses to similar situations" with explicit permission to ignore
@@ -380,17 +384,20 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 - Convergence recorded in `metadata`, **not** used to boost confidence directly
 
 ### F-06: LLM confidence calibration
+
 - `predicted_success` = probability response leads to goal state
 - `prediction_confidence` = epistemic uncertainty (how much info available)
 - Raw LLM values **capped at 0.8** (`llm_confidence_ceiling`)
 - LLM-path heuristics still start at 0.3 regardless of LLM self-assessment
 
 ### F-07: Goal context
+
 - `DecisionContext.goals` carries active goals
 - Goals injected into **system prompt** (after personality, before event data)
 - Phase 2: static per-domain goals from config. Dynamic selection deferred to F-08
 
 ### F-24: Personality bias as threshold modifier
+
 - Personality = bias (weighted preferences, threshold adjustments), NOT strategy override
 - `DecisionContext.personality_biases` carries named biases as float adjustments (e.g., `{"confidence_threshold": -0.05}` lowers the threshold by 0.05)
 - Strategies apply biases to their internal thresholds — e.g., `HeuristicFirstStrategy` adjusts `confidence_threshold` by `personality_biases.get("confidence_threshold", 0.0)`
@@ -398,6 +405,7 @@ def create_decision_strategy(strategy_type: str, **kwargs) -> DecisionStrategy |
 - Biases are bounded — strategies should clamp adjusted thresholds to safe ranges
 
 ### F-25: Sleep-cycle compatibility
+
 - Protocol supports empty candidates list — `decide()` works for both real-time and sleep-cycle re-evaluation
 - Sleep-cycle provides clean convergence signal (no candidate contamination)
 
@@ -459,6 +467,7 @@ If a cache is added later: read-through only (never write-back), domain-partitio
 ### Three Measurement Dimensions
 
 The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOOTSTRAPPING.md](CONFIDENCE_BOOTSTRAPPING.md) §Three Measurement Dimensions):
+
 - **Context match** (similarity) — primary selection criterion
 - **Confidence** (trust) — threshold gate, not ranking factor
 - **Success rate** (correctness) — not yet used in selection; future work may incorporate it
@@ -471,4 +480,3 @@ The decision strategy interacts with three distinct metrics (see [CONFIDENCE_BOO
 - Convergence detection implementation — captured in metadata structure, actual embedding comparison deferred
 - Dynamic goal selection per event (F-08) — Phase 2 uses static goals
 - Urgency implementation details — see [urgency-selection.md](questions/urgency-selection.md)
-

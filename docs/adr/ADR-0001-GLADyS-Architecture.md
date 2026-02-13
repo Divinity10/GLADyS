@@ -151,6 +151,7 @@ Modules follow a state machine:
 ```
 
 Each plugin declares its requirements via manifest (YAML):
+
 - Activation conditions (process name, window title, user request)
 - Resource requirements (GPU, VRAM, models)
 - Lifecycle settings (startup time, graceful shutdown, state persistence)
@@ -221,6 +222,7 @@ Rather than a single composite score, salience is a vector of dimensions that th
 ### 7.2 Extensible Dimensions
 
 New dimensions can be added as capabilities grow:
+
 - **time_pressure:** Event near deadline (calendar integration)
 - **wellbeing:** User seems tired/stressed (health tracking)
 - **teaching_moment:** Good opportunity to explain something
@@ -229,6 +231,7 @@ New dimensions can be added as capabilities grow:
 ### 7.3 Executive Feedback Loop
 
 The Executive can send modulation signals back to the Salience Gateway:
+
 - **Suppress:** "I'm aware of this, stop alerting"
 - **Heighten:** "Watch for X specifically"
 - **Habituate:** "This is now normal, reduce salience"
@@ -265,16 +268,19 @@ Queries filter by structured fields (source, time, salience thresholds), then in
 Four tables with different characteristics:
 
 #### 8.3.1 Episodic Events
+
 High-volume, append-only record of what happened. Includes embedding for semantic search, salience scores, and optional domain-specific structured fields.
 
 **Lifecycle:** Archive old events, summarize into semantic facts during sleep cycle.
 
 #### 8.3.2 Semantic Facts
+
 Derived knowledge in subject-predicate-object form (e.g., "xX_Slayer_Xx is_hostile"). Includes confidence scores, source episode references, and supersession tracking.
 
 **Lifecycle:** Update confidence, supersede when contradicted. Indefinite retention.
 
 #### 8.3.3 User Profile
+
 Traits about the user across dimensions (humor preference, communication style, interests). Uses EWMA (exponential weighted moving average) for adaptation:
 
 ```
@@ -287,6 +293,7 @@ long_term = β × short_term + (1 - β) × long_term         // β = 0.05-0.1, o
 **Lifecycle:** Indefinite, slowly evolving, high confidence threshold for changes.
 
 #### 8.3.4 Entities
+
 Known people, places, things with canonical names, aliases, types, and flexible attributes (JSONB). Supports cross-domain identity and relationship tracking.
 
 **Lifecycle:** Merge duplicates, update attributes.
@@ -343,6 +350,7 @@ Base traits are configurable per personality template:
 ### 9.3 Context-Adaptive Personality
 
 Traits can shift based on context:
+
 - **High threat:** Increase proactive, decrease sarcasm, minimize verbosity
 - **Opportunity:** Increase enthusiasm
 - **User struggling:** Increase helpfulness, soften tone
@@ -441,6 +449,7 @@ Target: ~1000ms end-to-end for conversational feel.
 ### 13.2 Change Detection
 
 After settling period, system monitors for behavioral changes:
+
 - Short-term deviations handled via high-α EWMA
 - If deviation persists, update long-term profile with low-β EWMA
 - Enables adaptation without overreacting to temporary changes
@@ -497,6 +506,7 @@ The Security Module is a core component of the orchestrator that enforces all pe
 ```
 
 **Key responsibilities:**
+
 - Permission enforcement via Chain of Responsibility pattern
 - gRPC interceptors for auth/authz on all incoming calls
 - Action guards (final check before privileged operations)
@@ -520,6 +530,7 @@ See [ADR-0008](ADR-0008-Security-and-Privacy.md) Section 11 for implementation d
 ### 14.5 Distributed Deployment (Future)
 
 Design with abstraction layer for future addition of:
+
 - TLS
 - API keys / certificates
 - Encrypted payloads

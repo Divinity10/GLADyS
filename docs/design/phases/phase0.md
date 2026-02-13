@@ -3,7 +3,7 @@
 **Status**: Complete
 **Type**: Proof-of-concept
 
-### Question answered
+## Question answered
 
 Can we build the individual subsystems and get them communicating?
 

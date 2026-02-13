@@ -4,6 +4,7 @@
 **Subject**: Validation of the Full Learning Loop (System 2 → System 1 Handoff)
 
 ## Executive Summary
+
 The integration tests successfully validated the "Killer Feature" of GLADyS: the ability to learn from LLM reasoning and user feedback to create fast-path heuristics. The end-to-end flow from novel event detection to heuristic execution was confirmed.
 
 ## Scenario Results
@@ -37,4 +38,3 @@ The integration tests successfully validated the "Killer Feature" of GLADyS: the
 
 3. **Cleanup Automation**:
    - The test currently uses `TRUNCATE heuristics CASCADE` and restarts the `memory` service group. This is effective but heavy; more surgical cleanup/invalidation is desired for CI.
-

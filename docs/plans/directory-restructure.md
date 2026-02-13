@@ -3,7 +3,8 @@
 **Status**: Complete (2026-01-30)
 
 **Deviations**:
-- Phase 2 (gladys_client extraction) deferred — cli/ modules are tightly coupled to _gladys.py config. Dashboard continues importing via sys.path. Extraction needs API design work.
+
+- Phase 2 (gladys_client extraction) deferred — cli/ modules are tightly coupled to_gladys.py config. Dashboard continues importing via sys.path. Extraction needs API design work.
 - Phase 3 (FUN API extraction) deferred — dashboard routers mix htmx partial rendering with REST/gRPC proxy logic. Clean extraction requires splitting each router.
 - Phase 4 executed incrementally alongside Phases 1-3, not as a separate batch.
 **Prerequisite for**: Phase 1 (see [ITERATIVE_DESIGN.md](../design/ITERATIVE_DESIGN.md))
@@ -58,6 +59,7 @@ Pure `git mv` operations. No code changes. Commit after each group so git tracks
 Move existing gRPC client code from `cli/` (formerly scripts/) into `src/lib/gladys_client/`. This is a move-and-refactor, not a rewrite.
 
 Source files to extract from:
+
 - `cli/_orchestrator.py` — gRPC client for orchestrator
 - `cli/_db.py` — direct DB client
 - `cli/_cache_client.py` — cache client
@@ -112,4 +114,3 @@ The fun_api is a service that exposes gRPC operations over REST. The dashboard i
 - Dockerfiles updated
 - `CODEBASE_MAP.md` reflects new layout
 - No references to old paths in code or docs
-

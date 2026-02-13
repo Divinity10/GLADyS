@@ -1,0 +1,36 @@
+# Third-party dependencies
+node_modules/
+sdk/
+
+# Git metadata
+.git/
+
+# Archived documentation
+docs/archive/
+
+# Long-form technical documents
+docs/adr/
+docs/design/
+
+# Working/planning documents
+docs/research/
+docs/reviews/
+docs/plans/
+docs/prompts/
+
+# AI instruction files (conversational, not user-facing)
+CLAUDE.md
+AGENTS.md
+
+# Effort tracking (gitignored, draft content)
+efforts/
+
+# Build outputs and caches
+dist/
+build/
+.venv/
+__pycache__/
+
+# IDE and editor files
+.vscode/
+.idea/

@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 5](phase5.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS maintain learning quality at scale - consolidating knowledge during idle periods using episodic patterns, implementing heuristic decay, and handling thousands of heuristics without performance degradation?
 

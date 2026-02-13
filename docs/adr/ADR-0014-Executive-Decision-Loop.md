@@ -119,6 +119,7 @@ Every tick:
 ```
 
 This hybrid model allows:
+
 - **Reactive**: Respond to events as they arrive
 - **Proactive**: Initiate conversation without events (check-ins, observations)
 
@@ -141,12 +142,14 @@ For each event (or proactive opportunity), the Decision Engine evaluates:
 #### 5.2.1 Relevance Evaluation
 
 **Inputs**:
+
 - Salience vector from gateway (threat, opportunity, goal_relevance, humor, etc.)
 - Current focus (what is the user doing?)
 - Recent response history (did I just say something about this?)
 - Personality trait: `proactive` (how often to speak unprompted)
 
 **Decision**:
+
 ```
 relevance_score = f(salience, focus_alignment, novelty, proactive_trait)
 
@@ -157,6 +160,7 @@ else:
 ```
 
 **Threshold modulation**:
+
 - High `proactive` personality → lower threshold (respond more)
 - User recently said "be quiet" → raise threshold temporarily
 - High threat → ignore threshold (always respond)
@@ -166,12 +170,14 @@ else:
 Not every response should be immediate. Timing considers:
 
 **Factors**:
+
 - **Urgency** (from salience): High threat → immediate
 - **User state**: User typing/in menu → wait for natural break
 - **Response clustering**: Multiple events → batch into one response
 - **Personality trait**: `enthusiasm` affects response speed
 
 **Timing outcomes**:
+
 | Outcome | Condition | Behavior |
 |---------|-----------|----------|
 | **Immediate** | High urgency OR high enthusiasm + high relevance | Respond now |
@@ -180,6 +186,7 @@ Not every response should be immediate. Timing considers:
 | **Deferred** | Low urgency, conversational | Wait for natural opportunity |
 
 **Break signals** (from Orchestrator):
+
 - User paused typing for N seconds
 - Menu closed
 - Combat ended
@@ -188,6 +195,7 @@ Not every response should be immediate. Timing considers:
 #### 5.2.3 Response Type Selection
 
 **Types**:
+
 | Type | When | Example |
 |------|------|---------|
 | **Alert** | High threat, needs attention | "Behind you!" |
@@ -198,6 +206,7 @@ Not every response should be immediate. Timing considers:
 | **Check-in** | Proactive, no specific event | "How's the build going?" |
 
 **Selection based on**:
+
 - Salience dimensions (high threat → Alert, high humor → Quip)
 - Personality traits (high `helpfulness` → more Suggestions)
 - Context (gaming → more Alerts/Quips, work → more Observations)
@@ -292,11 +301,13 @@ PersonalityState {
 ```
 
 **Mood** affects responses subtly:
+
 - Recent successes → slightly higher enthusiasm
 - Recent failures → slightly lower sarcasm (don't kick when down)
 - Long session → lower proactive (user might want quiet)
 
 **Rapport** builds over time:
+
 - Positive feedback → rapport increases
 - Negative feedback → rapport decreases
 - High rapport → more personal, lower formality
@@ -327,6 +338,7 @@ Raw Intent → [Domain Skill] → [Style Skills] → [Personality Filter] → Ou
 ```
 
 **Example flow**:
+
 1. **Intent**: Alert user about low health (from Decision Engine)
 2. **Domain Skill** (Minecraft): Adds context "12 hearts remaining, fighting zombie"
 3. **Style Skill** (Sarcasm): "Oh look, you're about to die. Again."
@@ -348,6 +360,7 @@ On personality change:
 ```
 
 **Manifest declaration** (from ADR-0003):
+
 ```yaml
 # Example: Minecraft expertise skill
 name: minecraft_expertise
@@ -469,6 +482,7 @@ message ExecutiveAction {
 ```
 
 This enables:
+
 - Learning what responses work (ADR-0007)
 - "What did I say about X?" queries
 - Personality consistency checking

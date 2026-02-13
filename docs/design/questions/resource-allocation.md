@@ -11,6 +11,7 @@ How GLADyS allocates limited compute to maximize response quality and timeliness
 The core problem is NOT "how to handle high event volume." High volume is one manifestation. The actual problem: **GLADyS has a finite compute budget and must decide how to spend it across events that vary in urgency, complexity, and importance.**
 
 This shows up as:
+
 - A fire event repeating 100x/second — volume problem, but really a "don't re-spend budget on redundant work" problem
 - A single complex reasoning request — no volume, but latency is high because the work is genuinely hard
 - 200 Minecraft events/second — volume AND complexity, because each event might matter
@@ -34,6 +35,7 @@ Phase 1's convergence test assumes low volume (manual events). But the **design 
 #### Context
 
 GLADyS must balance two objectives in tension:
+
 - **Timeliness**: Respond quickly (latency)
 - **Accuracy**: Respond correctly (quality)
 
@@ -140,6 +142,7 @@ All four approaches are strategies for **reducing compute spend on low-value wor
 #### Design Decision Needed
 
 These mechanisms could be:
+
 - **Same mechanism at different layers** (a general "should I process this?" gate)
 - **Complementary layers** (preprocessor handles domain-specific, orchestrator handles general)
 - **Evolutionary** (start with #1, add #2 when data shows which changes matter)
@@ -194,6 +197,7 @@ The `_worker_loop` in `event_queue.py` could become N workers pulling from the s
 #### Context
 
 Runescape exploratory work revealed real sensor characteristics:
+
 - Event volume can be very high (up to 200/sec for game state)
 - Events have required and conditional fields depending on event type
 - Field presence is constrained by other field values (e.g., `damage_type: "fire"` implies `damage_per_tick`, `duration`, `max_dmg` exist)
@@ -228,6 +232,7 @@ The sensor/pack manifest declares which interfaces the sensor can produce and th
 **Why event_type matters for volume management**: The orchestrator can apply different dedup/suppression strategies per delivery pattern without needing domain knowledge. `poll` events with unchanged values are prime suppression candidates. `event` types inherently signal "something changed." `stream` events need windowing/aggregation. This is a natural integration point between the sensor contract and the resource allocation problem.
 
 **Design questions for interface composition**:
+
 - Who defines interfaces? Base = GLADyS core. Domain = packs. Cross-domain (e.g., `location: {x, y, z, zone}` used by both gaming and home automation) = where?
 - Who validates composition? Does the orchestrator check that all required fields from each claimed interface are present, or is it trust-based?
 - How does the consumer know what it's getting? Options: (a) inspect discriminator fields to infer interfaces, (b) event self-describes with an interface list, (c) consumer looks up sensor's manifest to know what interfaces it produces
@@ -277,5 +282,3 @@ Phase 1 needs one sensor. The contract should accommodate `event` and `poll` pat
 ## Resolved
 
 *(None yet — all questions in this file are open)*
-
-

@@ -498,4 +498,3 @@ See `docs/prompts/fix-heuristics-server-side-render.md` for complete test code.
 - `docs/design/DASHBOARD_V2.md` — Overall dashboard design
 - `docs/codebase/DASHBOARD.md` — Dual-router architecture, rendering patterns
 - `fun_api/routers/heuristics.py` — Existing JSON API (keep for programmatic access)
-

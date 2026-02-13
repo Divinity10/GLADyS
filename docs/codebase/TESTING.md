@@ -13,6 +13,7 @@ The question isn't "is this code production-ready?" -- it's "can I trust the res
 Events, heuristics, confidence updates, and feedback must flow correctly across service boundaries. A dropped candidate, a silently ignored magnitude, or a miscounted success_count invalidates the experiment.
 
 **Examples**:
+
 - Orchestrator passes all candidates to executive (not just the best match)
 - Memory service applies magnitude-weighted Bayesian updates correctly
 - Feedback source propagates end-to-end (implicit vs explicit vs llm_endorsement)
@@ -23,6 +24,7 @@ Events, heuristics, confidence updates, and feedback must flow correctly across 
 Proto contracts, gRPC request/response shapes, and field mapping between services. When one service changes, tests at the boundary catch mismatches before they become silent data corruption.
 
 **Examples**:
+
 - Proto fields populated correctly in request construction
 - Response fields mapped to the right internal fields
 - Graceful behavior when a downstream service is unavailable
@@ -32,6 +34,7 @@ Proto contracts, gRPC request/response shapes, and field mapping between service
 Strategy decisions (heuristic vs LLM path), confidence thresholds, endorsement logic. These directly determine what the system does -- errors here produce misleading experimental data.
 
 **Examples**:
+
 - Heuristic fires when confidence >= threshold (System 1 path)
 - Below-threshold candidates go to LLM (System 2 path)
 - Endorsement only triggers above similarity threshold
@@ -96,6 +99,7 @@ Test files are organized by concern, not by source file:
 Test functions: `test_<what_it_verifies>`
 
 Be specific enough that the name communicates the behavior:
+
 - `test_alpha_beta_fractional_magnitude` -- clear
 - `test_update` -- too vague
 
@@ -194,4 +198,3 @@ Coverage is proportional to the component's role in the current proof obligation
 | Sensors | Data sources | Per-sensor -- protocol compliance, not application logic |
 
 This table updates as proof obligations shift Between phases.
-

@@ -21,6 +21,7 @@ Heuristics are **fast shortcuts** that provide immediate responses. Deep Bayesia
 **Goal**: Demonstrate end-to-end learning works.
 
 **Success criteria**:
+
 - [ ] Event → heuristic match → response (fast path works)
 - [ ] Explicit feedback (good/bad buttons) updates confidence
 - [ ] Confidence changes persist and affect future matching
@@ -46,6 +47,7 @@ Heuristics are **fast shortcuts** that provide immediate responses. Deep Bayesia
 **Goal**: Better heuristic selection using multiple signals.
 
 **Signals to incorporate**:
+
 - Historical success rate (fire_count, success_count)
 - Recency (last_fired, last_success)
 - Source/domain match
@@ -53,6 +55,7 @@ Heuristics are **fast shortcuts** that provide immediate responses. Deep Bayesia
 - Fire frequency (habituation penalty)
 
 **Composite score**:
+
 ```python
 score = (
     confidence
@@ -82,6 +85,7 @@ score = (
 **Goal**: Escalate warnings based on context.
 
 **Concepts**:
+
 - Time-to-action estimation
 - Urgency escalation for repeated threats
 - Heuristic + reasoning hybrid (draft → refine)
@@ -105,6 +109,7 @@ score = (
 ### Data we need to capture
 
 For offline analysis, record:
+
 - Every heuristic fire (which heuristic, which event, context)
 - Every outcome observation (which fire, what happened)
 - Every explicit feedback (which response, good/bad)

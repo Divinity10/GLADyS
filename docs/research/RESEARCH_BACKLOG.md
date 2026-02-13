@@ -22,6 +22,7 @@ These are **not** open research questions — they're questions with likely answ
 ### What properties does biological habituation have that we're not modeling?
 
 **What to look up**: Psychology literature on habituation (Thompson & Spencer, 1966 is the classic). Specifically:
+
 - **Dishabituation**: A novel stimulus restores sensitivity to a habituated stimulus. We don't model this — should we?
 - **Sensitization**: Intense stimuli can *increase* sensitivity. Our model only decays.
 - **Stimulus specificity**: Habituation is highly specific to the exact stimulus. Our pattern matching via embeddings may be too broad — similar events habituate together when they shouldn't.
@@ -37,6 +38,7 @@ These are **not** open research questions — they're questions with likely answ
 ### What's the principled approach to confidence decay for stale beliefs?
 
 **What to look up**: Bayesian literature on belief decay under missing data. Specifically:
+
 - Is there a conjugate prior model that naturally handles "no observations" differently from "negative observations"?
 - How do Bayesian filtering approaches (Kalman filters, particle filters) handle measurement dropout?
 - Is there a formal distinction between "dormant but valid" and "stale and unreliable" in the Bayesian framework?
@@ -52,6 +54,7 @@ These are **not** open research questions — they're questions with likely answ
 ### Should we use prioritized replay, and what's the optimal replay window?
 
 **What to look up**: Schaul et al. (2015) "Prioritized Experience Replay" — this likely answers the prioritized vs FIFO question directly. Also:
+
 - What does the neuroscience literature say about optimal replay timing? Is 72 hours (our current window) supported by evidence?
 - Does replay frequency matter more than replay window length?
 - Should high-surprise events be replayed more often than routine ones?
@@ -67,6 +70,7 @@ These are **not** open research questions — they're questions with likely answ
 ### What does the attention literature say about reducing multi-dimensional salience to a comparable value?
 
 **What to look up**: Attention and salience literature for reduction methods beyond weighted sum:
+
 - Are dimensions in attentional models typically orthogonal or correlated? Factor analysis results from empirical salience studies.
 - L2 norm, max-across-dimensions, learned projection — what's used in practice?
 - Multi-criteria decision making literature (MCDM) — how do they handle non-compensatory criteria?
@@ -82,6 +86,7 @@ These are **not** open research questions — they're questions with likely answ
 ### What's the right model for partial success in learning?
 
 **What to look up**: RL and Bayesian literature on graded/continuous outcomes:
+
 - Beta-Binomial handles binary success/failure. What handles "mostly worked"?
 - Are there conjugate prior models for bounded continuous outcomes?
 - How do bandit algorithms handle continuous reward signals?
@@ -97,6 +102,7 @@ These are **not** open research questions — they're questions with likely answ
 ### What are the theoretical bounds on learning curve shape for heuristic-based systems?
 
 **What to look up**: RL convergence literature, specifically for tabular/case-based systems:
+
 - How many interactions before a case-based system reaches X% coverage of a bounded domain?
 - Does the learning curve follow a power law, exponential, or logarithmic shape?
 - What's the relationship between domain complexity (number of distinct situations) and convergence rate?

@@ -505,6 +505,7 @@ All archetypes should pass these scenarios:
 ### 6.2 Derivation Rule Validation
 
 For each archetype, verify:
+
 - [ ] Response traits fall within expected ranges
 - [ ] Derivation formulas produce consistent results
 - [ ] Edge cases (extreme Big 5 values) don't break formulas
@@ -514,6 +515,7 @@ For each archetype, verify:
 ### 6.3 Humor Style Coherence
 
 Verify humor styles match personality:
+
 - High openness → more absurdist, wordplay acceptable
 - Low agreeableness → more observational, less self-deprecating
 - High neuroticism → more self-deprecating
@@ -560,6 +562,7 @@ Verify humor styles match personality:
 ### 8.1 Community Pack Program
 
 If personality packs become a monetization channel:
+
 - Clear IP guidelines for community creators
 - Quality review process for coherence
 - Safety boundary verification

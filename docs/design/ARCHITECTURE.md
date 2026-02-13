@@ -152,4 +152,3 @@ Not decisions yet. Need design work.
 - **Actuator conflict resolution** — deterministic selection when multiple actuators claim same capability.
 - **Plugin behavior enforcement** — "immune system" for capability/resource/trust-tier bounds. Post-Phase (we control all plugins now), Supervisor is natural home.
 - **Brain subsystem audit** — systematic review of brain regions mapped to GLADyS functions.
-

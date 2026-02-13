@@ -17,6 +17,7 @@ Deployment models, latency profiles, operational concerns, and maintenance.
 #### Problem
 
 ADR-0001 states "local-first" but this doesn't address:
+
 - What if user doesn't have a gaming rig?
 - What combinations of local/network/cloud are supported?
 - Where can the database live?
@@ -47,6 +48,7 @@ ADR-0001 states "local-first" but this doesn't address:
 #### What This Is NOT About
 
 This is NOT about:
+
 - Fine-tuning LLMs (learning happens in preference layer per ADR-0010, not model weights)
 - Needing "model control" for self-learning (ADR-0010 uses EWMA + Bayesian, not LLM training)
 
@@ -77,6 +79,7 @@ Gemini performed a comprehensive 9-chunk code review. After assessment, most con
 **Issue**: The gRPC server returned 200 OK with error in response payload. This breaks retry logic.
 
 **Fix**: Changed to proper gRPC status codes:
+
 ```python
 await context.abort(grpc.StatusCode.INTERNAL, str(e))  # Proper gRPC error
 ```
@@ -86,6 +89,7 @@ await context.abort(grpc.StatusCode.INTERNAL, str(e))  # Proper gRPC error
 **Issue**: The Executive (`gladys_executive/server.py`) contains production-quality logic for TD learning and pattern extraction. This should be formally documented as the reference implementation for the eventual C# Executive.
 
 **Action**: Add a design doc noting:
+
 - `PATTERN_EXTRACTION_PROMPT` is the canonical format
 - TD learning formula is authoritative
 - `_store_trace` / `_cleanup_old_traces` patterns should be ported
@@ -95,11 +99,13 @@ await context.abort(grpc.StatusCode.INTERNAL, str(e))  # Proper gRPC error
 **Issue**: Current search uses manual regex. PostgreSQL's `websearch_to_tsquery` provides better tokenization.
 
 **Current**:
+
 ```python
 ILIKE '%fire%warning%'  # Fragile
 ```
 
 **Better**:
+
 ```sql
 WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warning')
 ```
@@ -127,6 +133,7 @@ WHERE to_tsvector('english', condition_text) @@ websearch_to_tsquery('fire warni
 #### Problem Addressed
 
 ADR-0005 defined a fixed 1000ms conversational budget. But latency requirements are **context/domain-driven**:
+
 - PvP gaming: <500ms end-to-end
 - Thermostat: Can be slow (and SHOULD be slow to avoid oscillation)
 - Safety systems: Fast response
@@ -169,4 +176,3 @@ System Default → Feature/Actuator Override → User Override
 - Security review: malicious plugins claiming `background`, bundle trust verification
 - ADR-0005: Needs update to define profiles instead of single 1000ms budget
 - ADR-0011: Actuator latency becomes profile-based
-

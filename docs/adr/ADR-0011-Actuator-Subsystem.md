@@ -205,6 +205,7 @@ High-risk actions require user confirmation:
 ```
 
 Confirmation requirements:
+
 - `trust_tier: security` → confirmation required by default (user can override in settings)
 - `trust_tier: safety` → confirmation always required (cannot be disabled)
 - `confirmation_required: true` → explicit override regardless of tier
@@ -239,6 +240,7 @@ The Executive decides when to actuate based on:
 4. **Proactive suggestion**: "It's getting warm, should I turn on the AC?"
 
 Decision factors:
+
 - User preferences (proactive vs. reactive)
 - Confirmation requirements (ask first for security tier)
 - Rate limit budget (don't attempt if rate-limited)

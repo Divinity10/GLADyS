@@ -25,6 +25,7 @@ Coordination log for Claude and Gemini implementing the service scripts refactor
 ### 2026-01-26 - Phase 1 & 2 (Gemini)
 
 Created the core framework:
+
 - `scripts/_service_base.py` - ServiceDefinition, ServiceBackend, ServiceManager
 - `scripts/_docker_backend.py` - Docker-specific implementations
 - `scripts/docker.py` - Converted to use framework
@@ -32,40 +33,45 @@ Created the core framework:
 ### 2026-01-26 - Phase 6: Cache Management (Gemini)
 
 Implemented cache management for the Rust salience gateway (`memory-rust`):
+
 - **Proto**: Added `FlushCache`, `EvictFromCache`, `GetCacheStats`, and `ListCachedHeuristics` to `SalienceGateway` service.
 - **Rust**:
-    - Enhanced `MemoryCache` to track total hits/misses.
-    - Updated `CachedHeuristic` to include `hit_count` and `last_hit_ms`.
-    - Implemented gRPC handlers for all cache management RPCs in `SalienceService`.
-    - Updated `evaluate_salience` to record cache performance stats.
+  - Enhanced `MemoryCache` to track total hits/misses.
+  - Updated `CachedHeuristic` to include `hit_count` and `last_hit_ms`.
+  - Implemented gRPC handlers for all cache management RPCs in `SalienceService`.
+  - Updated `evaluate_salience` to record cache performance stats.
 - **CLI**:
-    - Created `scripts/_cache_client.py` as a Python gRPC helper for cache operations.
-    - Added `cache` subcommand with `stats`, `list`, `flush`, and `evict` sub-commands to `ServiceManager`.
-    - Implemented backend methods in `DockerBackend` and `LocalBackend` to use the cache helper.
+  - Created `scripts/_cache_client.py` as a Python gRPC helper for cache operations.
+  - Added `cache` subcommand with `stats`, `list`, `flush`, and `evict` sub-commands to `ServiceManager`.
+  - Implemented backend methods in `DockerBackend` and `LocalBackend` to use the cache helper.
 
 ### 2026-01-26 - Phase 3 & 4 (Claude)
 
 Completed local backend and sync-check:
+
 - `scripts/_local_backend.py` - Local process management (start/stop/status via port detection)
 - `scripts/local.py` - Converted to use framework
 - `scripts/_sync_check.py` - Environment sync checking (proto hashes, stub freshness, migrations)
 - `scripts/pyproject.toml` - Proper uv-based dependency management
 
 **Sync-check now detects**:
+
 - Proto file drift between memory/proto and orchestrator/proto
 - Stale generated stubs
 - Missing migrations in either local or Docker database
 
-### 2026-01-26 - Standardize __main__.py Pattern (Claude)
+### 2026-01-26 - Standardize **main**.py Pattern (Claude)
 
 Standardized all Python service entry points to use `python -m <package> start` pattern:
 
 **memory-python**:
+
 - Created `gladys_memory/__main__.py` with `start` and `status` commands
 - Old: `python -m gladys_memory.grpc_server`
 - New: `python -m gladys_memory start`
 
 **executive-stub**:
+
 - Restructured as proper `gladys_executive` package
 - Created `gladys_executive/__init__.py`, `__main__.py`, `server.py`
 - Old: `python stub_server.py`
@@ -74,6 +80,7 @@ Standardized all Python service entry points to use `python -m <package> start` 
 **orchestrator**: Already had `__main__.py` with `start` command (no changes needed)
 
 **Updated**:
+
 - `scripts/_local_backend.py` - Uses new standardized commands
 - `src/memory/python/Dockerfile` - Uses `ENTRYPOINT ["python", "-m", "gladys_memory"] CMD ["start"]`
 - `src/executive/Dockerfile` - Uses `ENTRYPOINT ["python", "-m", "gladys_executive"] CMD ["start"]`
@@ -81,12 +88,14 @@ Standardized all Python service entry points to use `python -m <package> start` 
 ### 2026-01-26 - Windows Encoding Fix (Claude)
 
 Fixed UnicodeEncodeError on Windows by replacing emoji status icons with ASCII:
+
 - `scripts/_service_base.py` - Changed 🟢🔴🟡 to `[OK]`, `[--]`, `[!!]` in `cmd_status()`
 - `scripts/_sync_check.py` - Changed ✅❌⚠️ to `[OK]`, `[X]`, `[!]` (done earlier)
 
 ### 2026-01-26 - Integration Tests for Cache Management (Claude)
 
 Fixed and added integration tests:
+
 - **Fixed `test_orchestrator_memory.py`**:
   - Added separate addresses for MemoryStorage (50051) and SalienceGateway (50052)
   - Fixed `test_salience_evaluation_directly()` to use correct Rust gateway port
@@ -104,23 +113,27 @@ Fixed and added integration tests:
 Implemented gRPC health check endpoints for all services:
 
 **Shared Proto** (`proto/`):
+
 - Created shared `proto/` directory at project root (single source of truth)
 - Added `GetHealth` and `GetHealthDetails` RPCs to `types.proto`
 - Added Health RPCs to all service definitions (memory.proto, orchestrator.proto, executive.proto)
 - Created `scripts/proto_gen.py` to regenerate stubs (replaces proto_sync.py - no more syncing needed)
 
 **Service Implementations**:
+
 - **memory-python**: Added Health RPCs to `MemoryStorageServicer` with db_connected, embedding_model details
 - **memory-rust**: Added Health RPCs to `SalienceService` with cache stats (size, hit_rate, etc.)
 - **orchestrator**: Added Health RPCs to `OrchestratorServicer` with connected service status
 - **executive-stub**: Added Health RPCs to `ExecutiveServicer` with ollama/memory connection status
 
 **CLI**:
+
 - Added `health` command to `_service_base.py` ServiceManager
 - Added `get_service_health()` method to ServiceBackend (implemented in both backends)
 - Created `scripts/_health_client.py` - gRPC client for health checks
 
 **Usage**:
+
 ```bash
 python scripts/local.py health              # Check all services
 python scripts/local.py health memory-rust  # Check specific service
@@ -132,11 +145,13 @@ python scripts/local.py health -d           # Detailed output with uptime/metric
 Cleaned up legacy proto structure:
 
 **Removed:**
+
 - `src/memory/proto/` - Legacy proto directory (replaced by shared `proto/`)
 - `src/orchestrator/proto/` - Legacy proto directory (replaced by shared `proto/`)
 - `scripts/proto_sync.py` - Replaced by `proto_gen.py`
 
 **Documentation Updated:**
+
 - `CONTRIBUTING.md` - Updated proto regeneration instructions
 - `docs/GETTING_STARTED.md` - Updated proto paths and references
 - `scripts/README.md` - Added health command, updated file list

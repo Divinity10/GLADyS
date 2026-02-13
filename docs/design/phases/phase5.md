@@ -3,7 +3,7 @@
 **Status**: Planned
 **Predecessor**: [Phase 4](phase4.md)
 
-### Question to answer
+## Question to answer
 
 Can GLADyS reason about temporal context - segmenting events into meaningful episodes, retrieving relevant past experiences, and using historical context to inform current responses?
 

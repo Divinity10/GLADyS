@@ -27,17 +27,20 @@ The current prompt structure produces remarkably stable, generalizable heuristic
 ## Findings & Recommendations
 
 ### 1. Strengths
-*   **Generalization**: The prompt instruction `(avoid specific names/numbers)` is working. The LLM consistently strips IDs and exact values.
-*   **Semantic Density**: The conditions are "dense" with meaning ("critically low", "long absence"), which will work very well with the `all-MiniLM-L6-v2` embedding model.
-*   **Action Types**: The LLM naturally categorizes actions (`alert`, `suggestion`, `suppress`), which maps cleanly to our response types.
+
+* **Generalization**: The prompt instruction `(avoid specific names/numbers)` is working. The LLM consistently strips IDs and exact values.
+* **Semantic Density**: The conditions are "dense" with meaning ("critically low", "long absence"), which will work very well with the `all-MiniLM-L6-v2` embedding model.
+* **Action Types**: The LLM naturally categorizes actions (`alert`, `suggestion`, `suppress`), which maps cleanly to our response types.
 
 ### 2. Weaknesses / Risks
-*   **Temporal Logic**: Scenarios like HOME-01 ("immediately after") rely on time awareness. Our current Heuristic Matcher (CBR) matches *state*, not *state transitions*.
-    *   *Fix*: This is acceptable for MVP. Complex temporal patterns belong in the "Pattern Detector" (System 2 background job), not the fast path.
-*   **Scope Leak**: GAME-02 ("new high score") is global.
-    *   *Fix*: Ensure the embedding includes the `source` or `domain` in the vector, or enforce strict source filtering in the SQL query alongside the vector match.
+
+* **Temporal Logic**: Scenarios like HOME-01 ("immediately after") rely on time awareness. Our current Heuristic Matcher (CBR) matches *state*, not *state transitions*.
+  * *Fix*: This is acceptable for MVP. Complex temporal patterns belong in the "Pattern Detector" (System 2 background job), not the fast path.
+* **Scope Leak**: GAME-02 ("new high score") is global.
+  * *Fix*: Ensure the embedding includes the `source` or `domain` in the vector, or enforce strict source filtering in the SQL query alongside the vector match.
 
 ### 3. Conclusion
+
 The "System 2" (LLM) part of the loop is functioning correctly. It generates high-quality inputs for "System 1".
 
 **Next Step Recommendation**: Proceed to **Option C (Integration)**. Since we now trust the *inputs* (the heuristics), we can confidently test the *mechanism* (storage + retrieval + matching) without worrying that garbage data is the cause of failure.

@@ -1,6 +1,5 @@
 # Concurrency Model
 
-
 ## Overview
 
 | Component | Runtime | Event Loop | gRPC Mode | Thread Model |
@@ -28,6 +27,7 @@
 ```
 
 **Background tasks** (created via `asyncio.create_task()`):
+
 - `EventQueue._worker_loop()` - Dequeues events by priority, sends to Executive
 - `EventQueue._timeout_scanner_loop()` - Removes expired events (default 30s timeout)
 - `_outcome_cleanup_loop()` - Cleans expired outcome expectations every 30s, sends timeout=positive feedback via LearningModule
@@ -57,6 +57,7 @@
 ```
 
 **Key design choices**:
+
 1. Sync gRPC stubs wrapped in `run_in_executor` or background threads
 2. SSE feeder thread per client, communicates via `asyncio.Queue`
 3. DB enrichment retries with backoff (store_callback race condition)

@@ -52,6 +52,7 @@ Separate REST/JSON endpoints from htmx rendering in the dashboard.
 ### Router inventory (10 routers in `src/services/dashboard/backend/routers/`)
 
 **Pure REST/JSON — ready to move to `src/services/fun_api/`:**
+
 - `cache.py` (`/api/cache`) — proxy to SalienceGateway gRPC
 - `fires.py` (`/api/fires`) — DB query via `_db`
 - `heuristics.py` (`/api/heuristics`) — proxy to Memory Storage gRPC
@@ -61,6 +62,7 @@ Separate REST/JSON endpoints from htmx rendering in the dashboard.
 - `config.py` (`/api/config`) — config management
 
 **Mixed (need splitting):**
+
 - `events.py` — 6 HTMX endpoints (return HTML partials) + 4 REST endpoints (return JSON). REST endpoints: `POST /events/batch`, `GET /queue`, `DELETE /events/{id}`, `DELETE /events`.
 - `metrics.py` — pure HTMX (returns `metrics.html` template). Keep in dashboard.
 - `services.py` — 1 HTMX endpoint (`GET /health` returns `sidebar.html`) + 3 REST endpoints (`POST /{name}/start|stop|restart`).

@@ -6,6 +6,7 @@
 ## Overview
 
 Two-layer memory architecture:
+
 - **Rust Fast Path** (<5ms): L0 cache, novelty detection, heuristic lookup
 - **Python Storage Path** (<50ms): PostgreSQL + pgvector, embeddings
 
@@ -23,12 +24,14 @@ Two-layer memory architecture:
 ### Phase 1: Python Storage Path ✅ COMPLETE
 
 #### 1.1 Database Connection & Basic Operations ✅
+
 - [x] **Task**: Implement working PostgreSQL connection with pgvector
 - **Files**: `gladys_memory/storage.py`
 - **Tests**: `tests/test_storage.py` (14 tests passing)
 - **Done when**: Can connect to PostgreSQL, store an event, retrieve by ID
 
 #### 1.2 Event Storage (CRUD) ✅
+
 - [x] **Task**: Complete episodic event storage implementation
 - **Files**: `gladys_memory/storage.py`
 - **Tests**: `tests/test_storage.py`
@@ -38,18 +41,21 @@ Two-layer memory architecture:
   - `query_by_similarity()` returns semantically similar events ✓
 
 #### 1.3 Embedding Integration ✅
+
 - [x] **Task**: Integrate embedding generation into storage flow
 - **Files**: `gladys_memory/storage.py`, `gladys_memory/embeddings.py`
 - **Tests**: `tests/test_embeddings.py` (6 tests passing)
 - **Done when**: Events stored with auto-generated embeddings if not provided ✓
 
 #### 1.4 Heuristic Storage ✅
+
 - [x] **Task**: Implement heuristic CRUD operations
 - **Files**: `gladys_memory/storage.py`
 - **Tests**: `tests/test_storage.py`
 - **Done when**: Can store, query, and update heuristics ✓
 
 #### 1.5 gRPC Server Implementation ✅
+
 - [x] **Task**: Generate protobuf code and implement gRPC servicer
 - **Files**:
   - Generated: `gladys_memory/memory_pb2.py`, `gladys_memory/memory_pb2_grpc.py` ✓
@@ -60,12 +66,14 @@ Two-layer memory architecture:
 ### Phase 2: Rust Fast Path (In Progress)
 
 #### 2.1 gRPC Client ✅
+
 - [x] **Task**: Implement gRPC client to call Python storage
 - **Files**: `rust/src/client.rs`, `rust/src/lib.rs`
 - **Tests**: `rust/src/client.rs` (unit tests), `rust/tests/integration_test.rs`
 - **Done when**: Can call Python storage service from Rust ✓
 
 #### 2.2 L0 Cache Implementation ✅
+
 - [x] **Task**: Complete in-memory cache with eviction
 - **Files**: `rust/src/lib.rs` (cache implemented inline)
 - **Tests**: Unit tests in module (10 tests passing)
@@ -75,6 +83,7 @@ Two-layer memory architecture:
   - Cache statistics tracking ✓
 
 #### 2.3 Novelty Detection ✅
+
 - [x] **Task**: Implement novelty detection using embeddings
 - **Files**: `rust/src/lib.rs`
 - **Tests**: Unit tests in module
@@ -84,6 +93,7 @@ Two-layer memory architecture:
   - Uses cache for comparison ✓
 
 #### 2.4 Heuristic Matching (Partial)
+
 - [ ] **Task**: Implement heuristic condition matching
 - **Files**: `rust/src/lib.rs`
 - **Tests**: Unit tests in module
@@ -96,6 +106,7 @@ Two-layer memory architecture:
 ### Phase 3: Integration
 
 #### 3.1 End-to-End Flow
+
 - [ ] **Task**: Wire up Rust → Python flow
 - **Files**: `rust/src/main.rs`, integration tests
 - **Tests**: `rust/tests/integration_test.rs`
@@ -107,6 +118,7 @@ Two-layer memory architecture:
   - Response returns through Rust
 
 #### 3.2 Docker Compose Integration
+
 - [ ] **Task**: Add Rust service to docker-compose
 - **Files**: `docker-compose.yml`, add Dockerfile for Rust
 - **Done when**: `docker-compose up` starts both services
@@ -160,6 +172,7 @@ src/memory/
 **Next task**: Phase 3.1 - Run end-to-end integration test with both services
 
 **To test integration**:
+
 1. Start PostgreSQL: `docker-compose up -d`
 2. Start Python server: `cd python && uv run python -m gladys_memory.grpc_server`
 3. Run Rust tests: `cd rust && cargo test --test integration_test`

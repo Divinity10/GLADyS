@@ -54,6 +54,7 @@ class OrchestratorConfig(BaseSettings):
 ```
 
 Corresponding environment variables (override defaults via `.env` or shell):
+
 ```
 EMERGENCY_CONFIDENCE_THRESHOLD=0.95
 EMERGENCY_THREAT_THRESHOLD=0.9
