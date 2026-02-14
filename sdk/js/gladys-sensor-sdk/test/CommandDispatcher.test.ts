@@ -99,13 +99,14 @@ describe("CommandDispatcher", () => {
     expect(result.errorMessage).toBe("check failed");
   });
 
-  it("unregistered command returns current state", async () => {
-    dispatcher.setState(ComponentState.COMPONENT_STATE_ACTIVE);
-
-    // RELOAD has a default transition to ACTIVE, so state stays ACTIVE
+  it("unregistered command keeps state and returns error message", async () => {
+    dispatcher.setState(ComponentState.COMPONENT_STATE_PAUSED);
     const result = await dispatcher.dispatch(Command.COMMAND_RELOAD);
 
-    expect(result.state).toBe(ComponentState.COMPONENT_STATE_ACTIVE);
+    expect(result.state).toBe(ComponentState.COMPONENT_STATE_PAUSED);
+    expect(result.errorMessage).toBe(
+      `No handler registered for ${Command.COMMAND_RELOAD}`
+    );
   });
 
   it("error handler is called on exception", async () => {

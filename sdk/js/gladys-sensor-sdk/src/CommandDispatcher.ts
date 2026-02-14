@@ -163,12 +163,10 @@ export class CommandDispatcher {
     const isHealthCheck = command === Command.COMMAND_HEALTH_CHECK;
 
     if (!handler) {
-      // No handler registered: apply default transition or keep current state
-      const defaultState = DEFAULT_TRANSITIONS.get(command);
-      if (defaultState !== undefined) {
-        this.state = defaultState;
-      }
-      return { state: this.state };
+      return {
+        state: this.state,
+        errorMessage: `No handler registered for ${command}`,
+      };
     }
 
     try {

@@ -68,20 +68,19 @@ export class HeartbeatManager {
 
   /**
    * Set error message to include in next heartbeat.
-   * Cleared after the heartbeat is sent.
+   * Cleared after a successful heartbeat send.
    */
   setErrorMessage(message: string): void {
     this.errorMessage = message;
   }
 
   private sendHeartbeat(): void {
-    // Capture and clear error message before sending
     const errorMsg = this.errorMessage;
-    this.errorMessage = "";
 
     this.client
       .heartbeat(this.componentId, this.currentState, errorMsg || undefined)
       .then((response) => {
+        this.errorMessage = "";
         if (this.onCommand && response.pendingCommands?.length > 0) {
           // Process pending commands sequentially
           this.processCommands(response.pendingCommands);

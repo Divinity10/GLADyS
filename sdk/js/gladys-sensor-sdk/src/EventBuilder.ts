@@ -12,6 +12,7 @@ export class EventBuilder {
   private structuredData: { [key: string]: any } | undefined;
   private intentValue: string = "";
   private evaluationDataValue: { [key: string]: any } | undefined;
+  private threatValue: number = 0;
 
   constructor(source: string) {
     if (!source) {
@@ -40,8 +41,24 @@ export class EventBuilder {
     return this;
   }
 
+  threat(isThreat: boolean): this {
+    this.threatValue = isThreat ? 1.0 : 0;
+    return this;
+  }
+
   build(): Event {
     const now = new Date();
+    const salience =
+      this.threatValue > 0
+        ? {
+            threat: this.threatValue,
+            salience: 0,
+            habituation: 0,
+            vector: {},
+            modelId: "",
+          }
+        : undefined;
+
     return {
       id: randomUUID(),
       timestamp: now,
@@ -51,7 +68,7 @@ export class EventBuilder {
       intent: this.intentValue,
       evaluationData: this.evaluationDataValue,
       // Downstream-populated fields — leave at defaults
-      salience: undefined,
+      salience,
       entityIds: [],
       tokens: [],
       tokenizerId: "",

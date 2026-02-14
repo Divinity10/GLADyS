@@ -62,6 +62,24 @@ describe("EventBuilder", () => {
     expect(event.evaluationData!.solution).toEqual([[1, 2, 3], [4, 5, 6]]);
   });
 
+  it("sets threat via fluent method", () => {
+    const event = new EventBuilder("threat-sensor")
+      .text("threat detected")
+      .threat(true)
+      .build();
+
+    expect(event.salience).toBeDefined();
+    expect((event.salience?.threat ?? 0)).toBeGreaterThan(0);
+  });
+
+  it("threat defaults to zero", () => {
+    const event = new EventBuilder("safe-sensor")
+      .text("normal event")
+      .build();
+
+    expect(event.salience).toBeUndefined();
+  });
+
   it("rejects empty source", () => {
     expect(() => new EventBuilder("")).toThrow("source is required");
   });

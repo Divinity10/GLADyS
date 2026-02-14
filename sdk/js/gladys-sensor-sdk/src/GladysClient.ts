@@ -122,14 +122,9 @@ export class GladysClient {
     const request: HeartbeatRequest = {
       componentId,
       state,
+      errorMessage: errorMessage ?? "",
       metadata: this.createMetadata(componentId),
     };
-
-    // errorMessage field exists in proto (field 3) but may not be in generated types yet.
-    // Assign it directly; protobuf wire format will include it if the field is defined.
-    if (errorMessage) {
-      (request as unknown as Record<string, unknown>)["errorMessage"] = errorMessage;
-    }
 
     const deadline = this.deadlineOptions(this.timeouts?.heartbeatMs);
     return new Promise((resolve, reject) => {

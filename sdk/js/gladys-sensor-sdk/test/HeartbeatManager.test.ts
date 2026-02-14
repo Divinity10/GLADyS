@@ -138,4 +138,49 @@ describe("HeartbeatManager", () => {
 
     hb.stop();
   });
+
+  it("error message survives heartbeat failure", async () => {
+    vi.useFakeTimers();
+    let hb: HeartbeatManager | null = null;
+    try {
+      const heartbeat = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("network"))
+        .mockResolvedValue({ acknowledged: true, pendingCommands: [] });
+
+      const mockClient = { heartbeat } as unknown as GladysClient;
+      hb = new HeartbeatManager(mockClient, "test-sensor", 1);
+      hb.setErrorMessage("dispatch failed");
+
+      hb.start();
+      await Promise.resolve();
+
+      expect(heartbeat).toHaveBeenNthCalledWith(
+        1,
+        "test-sensor",
+        ComponentState.COMPONENT_STATE_ACTIVE,
+        "dispatch failed"
+      );
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(heartbeat).toHaveBeenNthCalledWith(
+        2,
+        "test-sensor",
+        ComponentState.COMPONENT_STATE_ACTIVE,
+        "dispatch failed"
+      );
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(heartbeat).toHaveBeenNthCalledWith(
+        3,
+        "test-sensor",
+        ComponentState.COMPONENT_STATE_ACTIVE,
+        undefined
+      );
+
+    } finally {
+      hb?.stop();
+      vi.useRealTimers();
+    }
+  });
 });

@@ -93,6 +93,11 @@ export class EventDispatcher {
     const events = this.buffer;
     this.buffer = [];
 
+    if (events.length === 1) {
+      await this.client.publishEvent(events[0]);
+      return;
+    }
+
     await this.client.publishEvents(events);
   }
 
