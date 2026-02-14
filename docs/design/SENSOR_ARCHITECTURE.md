@@ -171,9 +171,9 @@ Every adapter, regardless of implementation language, must:
 
 1. **Register** with the orchestrator via `RegisterComponent` gRPC
 2. **Publish events** via `PublishEvent` (single) or `PublishEvents` (batch) gRPC
-3. **Emit heartbeats** as `system.metrics` events at the declared `heartbeat_interval_s`
+3. **Emit detailed performance data** as `system.metrics` events at the declared `heartbeat_interval_s`
 4. **Report health** when queried by orchestrator
-5. **Attempt recovery** when orchestrator calls `recover()`
+5. **Attempt recovery** when orchestrator sends `COMMAND_RECOVER` (delivered via HeartbeatResponse)
 6. **Support capture/replay** — write JSONL at two boundaries (driver→adapter raw, adapter→orchestrator normalized)
 7. **Enforce flow control** — accept strategy configuration from orchestrator at registration, execute locally
 
@@ -186,7 +186,7 @@ Sensor Protocol:
     start()                    → Begin sensing
     stop()                     → Stop sensing, flush buffers
     health() → SensorHealth    → Report current health
-    recover() → bool           → Attempt self-healing (True=recovered, False=shutdown needed)
+    handle_command(cmd) → bool → Handle lifecycle commands from orchestrator (START/STOP/RECOVER)
     emit_events() → Event[]    → Produce normalized events
     start_capture(boundary, max_duration?, max_count?) → Begin JSONL capture
     stop_capture(boundary)     → Stop JSONL capture, flush file
@@ -334,7 +334,7 @@ Driver metrics stored as JSONB since different drivers report different things.
 
 **Heartbeat**: Configurable `heartbeat_interval_s` (declared in manifest). Dead sensor detection: no heartbeat within 2x interval = presumed dead. Orchestrator monitors this.
 
-**Persistence**: Orchestrator writes metrics to `sensor_metrics` table (one row per heartbeat push, rolling retention).
+**Persistence**: Orchestrator writes metrics to `sensor_metrics` table (one row per `system.metrics` event received, rolling retention).
 
 ---
 
@@ -385,15 +385,15 @@ The SDK tracks `events_received` vs `events_published` for the consolidation rat
 |---------|--------------|----------------|
 | **Install** | Sensor code + manifest in place, prereqs declared | Dashboard triggers registration with orchestrator. Sensor processes started manually or by script. |
 | **Awareness** | Orchestrator knows about sensor, subscribes to metrics | `RegisterComponent` gRPC + DB persistence. Orchestrator reads registry on startup. |
-| **Health** | Orchestrator monitors heartbeats, can recover or stop unhealthy sensors | Heartbeat monitoring (2x interval = dead). Error-rate threshold triggers `recover()` → if still unhealthy → shutdown. |
+| **Health** | Orchestrator monitors heartbeats, can recover or stop unhealthy sensors | Heartbeat monitoring (2x interval = dead). Error-rate threshold triggers `COMMAND_RECOVER` → if still unhealthy → `COMMAND_STOP`. |
 
 ### 9.2 Orchestrator health management
 
-The orchestrator monitors sensor health via the `system.metrics` heartbeat events:
+The orchestrator monitors sensor health via periodic `Heartbeat` RPCs (for liveness) and `system.metrics` events (for performance):
 
 1. **Heartbeat timeout**: No heartbeat within 2x `heartbeat_interval_s` → sensor presumed dead. Orchestrator updates status, dashboard shows disconnected.
-2. **Error rate threshold**: Configurable error events per time unit. When exceeded, orchestrator calls `recover()` on the sensor.
-3. **Recovery flow**: `recover()` returns `True` (sensor fixed itself) or `False` (needs shutdown). If `True`, orchestrator resets the error counter and resumes monitoring. If `False` or still unhealthy after a grace period, orchestrator stops the sensor.
+2. **Error rate threshold**: Configurable error events per time unit. When exceeded, orchestrator queues `COMMAND_RECOVER` for the sensor.
+3. **Recovery flow**: Sensor receives `COMMAND_RECOVER` via `HeartbeatResponse.pending_commands`, attempts self-healing (restart driver, clear buffers). Orchestrator monitors subsequent metrics events to confirm recovery. If still unhealthy after grace period, orchestrator sends `COMMAND_STOP`.
 4. **Manual control**: Dashboard can activate/deactivate sensors via orchestrator (sends stop/start signals).
 
 ### 9.3 Registration persistence
@@ -594,7 +594,7 @@ Sensor's internal concern. The sensor reports its own health — if a driver dis
 
 ### 14.4 Unhealthy sensor
 
-Orchestrator monitors error rate (configurable threshold per time unit). When exceeded: call `recover()` → sensor attempts self-healing (restart driver, clear buffers, reset state) → if still unhealthy → orchestrator shuts down the sensor. Dashboard shows status throughout.
+Orchestrator monitors error rate (configurable threshold per time unit). When exceeded: queue `COMMAND_RECOVER` → sensor receives command via next heartbeat → sensor attempts self-healing (restart driver, clear buffers, reset state) → orchestrator monitors recovery via metrics events → if still unhealthy → queue `COMMAND_STOP`. Dashboard shows status throughout.
 
 ### 14.5 Malformed events
 

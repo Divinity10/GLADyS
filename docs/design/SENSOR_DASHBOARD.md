@@ -55,7 +55,7 @@ All decisions from design discussion (2026-02-12):
 | **Consolidation ratio** | Key metric with per-sensor thresholds | Shows adapter health; different expectations per sensor type |
 | **Orchestrator metrics** | Queue depth + avg wait in metrics strip | System-wide health; detects orchestrator falling behind |
 | **Sensor count format** | `●2 / ○1 / ⚠1` (blue/gray/orange symbols) | Concise, colorblind-friendly, triple-encoded (position + symbol + color) |
-| **Heartbeat** | Keep it (30-60s interval) | Dead sensor detection when idle; metrics delivery without events |
+| **Heartbeat** | Keep it (30-60s interval) | Dead sensor detection when idle; command delivery via HeartbeatResponse |
 | **Metrics retention** | 30 days, rolling delete | Trend analysis, post-mortem debugging, low storage cost |
 
 ---
@@ -80,7 +80,7 @@ sensors (sensor components)
   ↓ (1:1)
 sensor_status (runtime state)
   ↓ (1:many)
-sensor_metrics (time-series heartbeat data)
+sensor_metrics (time-series performance data via events)
 ```
 
 ### 3.3 Table Definitions
@@ -174,7 +174,7 @@ COMMENT ON COLUMN sensor_status.events_published IS 'Lifetime counter: total eve
 
 #### **`sensor_metrics` table (new)**
 
-Time-series heartbeat data. One row per heartbeat. Rolling 30-day retention.
+Time-series sensor performance data from system.metrics events. One row per metrics event. Rolling 30-day retention.
 
 ```sql
 CREATE TABLE sensor_metrics (
@@ -207,7 +207,7 @@ ALTER TABLE sensor_metrics OWNER TO gladys;
 CREATE INDEX idx_sensor_metrics_sensor_time ON sensor_metrics(sensor_id, timestamp DESC);
 CREATE INDEX idx_sensor_metrics_timestamp ON sensor_metrics(timestamp DESC);
 
-COMMENT ON TABLE sensor_metrics IS 'Time-series heartbeat data (30-day rolling retention)';
+COMMENT ON TABLE sensor_metrics IS 'Time-series sensor performance data from system.metrics events (30-day rolling retention)';
 COMMENT ON COLUMN sensor_metrics.consolidation_ratio IS 'events_received / events_published (adapter efficiency)';
 COMMENT ON COLUMN sensor_metrics.inbound_queue_depth IS 'Driver→Adapter queue depth at heartbeat time';
 COMMENT ON COLUMN sensor_metrics.outbound_queue_depth IS 'Adapter→Orchestrator queue depth at heartbeat time';
@@ -419,76 +419,58 @@ Click **"View Queue"** on Outbound → Shows normalized GLADyS events:
 
 ## 5. Orchestrator gRPC API Extensions
 
-### 5.1 Sensor Lifecycle RPCs
+### 5.1 Sensor Control via SendCommand
+
+Sensor lifecycle management uses the existing `SendCommand` RPC with generic `Command` enum (not sensor-specific RPCs):
 
 ```protobuf
-service Orchestrator {
-    // Existing RPCs...
+// Use existing SendCommand RPC for sensor lifecycle control
+rpc SendCommand(CommandRequest) returns (CommandResponse);
 
-    // Sensor lifecycle management
-    rpc ActivateSensor(ActivateSensorRequest) returns (ActivateSensorResponse);
-    rpc DeactivateSensor(DeactivateSensorRequest) returns (DeactivateSensorResponse);
-    rpc TriggerRecovery(TriggerRecoveryRequest) returns (TriggerRecoveryResponse);
-    rpc ForceShutdownSensor(ForceShutdownSensorRequest) returns (ForceShutdownSensorResponse);
-
-    // Sensor status query
-    rpc GetQueueStats(GetQueueStatsRequest) returns (GetQueueStatsResponse);
+enum Command {
+    COMMAND_UNSPECIFIED = 0;
+    COMMAND_START = 1;        // Activate sensor
+    COMMAND_STOP = 2;         // Deactivate sensor
+    COMMAND_PAUSE = 3;
+    COMMAND_RESUME = 4;
+    COMMAND_RELOAD = 5;
+    COMMAND_HEALTH_CHECK = 6;
+    COMMAND_RECOVER = 7;      // Trigger sensor recovery
 }
 
-message ActivateSensorRequest {
-    string sensor_id = 1;  // UUID from sensors table
+message CommandRequest {
+    string target_component_id = 1;  // sensor_id from sensors table
+    Command command = 2;
+    google.protobuf.Struct args = 3;  // Optional command arguments
 }
 
-message ActivateSensorResponse {
-    bool success = 1;
-    string error_message = 2;
-}
+// Dashboard button examples:
+// Activate:   SendCommand(sensor_id, COMMAND_START)
+// Deactivate: SendCommand(sensor_id, COMMAND_STOP)
+// Recover:    SendCommand(sensor_id, COMMAND_RECOVER)
+// Force Stop: SendCommand(sensor_id, COMMAND_STOP, {"force": true})
+```
 
-message DeactivateSensorRequest {
-    string sensor_id = 1;
-}
+### 5.2 Queue Stats RPC
 
-message DeactivateSensorResponse {
-    bool success = 1;
-    string error_message = 2;
-}
-
-message TriggerRecoveryRequest {
-    string sensor_id = 1;
-}
-
-message TriggerRecoveryResponse {
-    bool recovery_attempted = 1;
-    bool recovered = 2;  // True if sensor healthy after recovery
-    string error_message = 3;
-}
-
-message ForceShutdownSensorRequest {
-    string sensor_id = 1;
-}
-
-message ForceShutdownSensorResponse {
-    bool success = 1;
-    string error_message = 2;
-}
-
+```protobuf
 message GetQueueStatsRequest {
     // Empty - returns orchestrator-wide queue stats
 }
 
 message GetQueueStatsResponse {
-    int32 queue_depth = 1;          // Events in internal processing queue
-    float avg_wait_time_ms = 2;     // Average time events spend in queue
+    int32 queue_depth = 1;              // Events in internal processing queue
+    float avg_wait_time_ms = 2;         // Average time events spend in queue
     float processing_rate_per_sec = 3;  // Events/second throughput
 }
 ```
 
-### 5.2 Heartbeat Processing
+### 5.3 Metrics Event Processing
 
-Sensors send heartbeat metrics via existing `PublishEvent` RPC with `source="system.metrics"`:
+Sensors send performance metrics via existing `PublishEvent` RPC with `source="system.metrics"`:
 
 ```protobuf
-// Heartbeat event (sent every heartbeat_interval_s)
+// Metrics event (sent every heartbeat_interval_s via PublishEvent)
 Event {
     id = "<uuid>"
     source = "system.metrics"
@@ -511,7 +493,7 @@ Event {
 
 1. Route `source="system.metrics"` events to system handler (not salience pipeline)
 2. Parse `structured.sensor_id`
-3. Update `sensor_status` table (last_heartbeat, active_sources, counters)
+3. Update `sensor_status` table (active_sources, event counters)
 4. Insert row into `sensor_metrics` table (time-series)
 5. Check health: no heartbeat within 2x interval → update status to `disconnected`
 
@@ -548,9 +530,9 @@ Event {
 **After Phase 1 complete:**
 
 1. **Orchestrator gRPC implementation**
-   - Add sensor lifecycle RPCs (Activate, Deactivate, TriggerRecovery, ForceShutdown)
-   - Add GetQueueStats RPC
-   - Implement heartbeat processing (system.metrics event handling)
+   - Implement SendCommand support for sensor lifecycle management (COMMAND_RECOVER)
+   - Add GetQueueStats RPC with avg_wait_time_ms and processing_rate_per_sec
+   - Implement system.metrics event processing and heartbeat timeout detection
    - **Prompt**: TBD (after design doc review)
 
 ### 6.4 Testing Strategy

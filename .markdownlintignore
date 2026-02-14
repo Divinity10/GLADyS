@@ -25,6 +25,9 @@ AGENTS.md
 # Effort tracking (gitignored, draft content)
 efforts/
 
+# Claude Code auto memory (AI-consumed, not user docs)
+.claude/
+
 # Build outputs and caches
 dist/
 build/

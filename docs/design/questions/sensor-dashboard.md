@@ -14,7 +14,7 @@ All design questions resolved:
 
 - ✅ **Control plane + observation**: Both (lifecycle management + metrics/health observability)
 - ✅ **Registration**: `sensors` table linked to `skills` table, manifest-driven, persisted in DB
-- ✅ **gRPC changes**: Sensor lifecycle RPCs (ActivateSensor, DeactivateSensor, TriggerRecovery, ForceShutdown) + GetQueueStats
+- ✅ **gRPC changes**: Generic SendCommand for sensor lifecycle management (COMMAND_START/STOP/RECOVER) + GetQueueStats
 - ✅ **Tab layout**: New "Sensors" tab with drill-down pattern (not extension of Lab tab)
 
 ## Key Decisions

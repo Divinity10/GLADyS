@@ -197,6 +197,7 @@ message UnregisterResponse {
 message CommandRequest {
     string target_component_id = 1;
     Command command = 2;
+    google.protobuf.Struct args = 3;
     RequestMetadata metadata = 15;
 }
 
@@ -208,6 +209,7 @@ enum Command {
     COMMAND_RESUME = 4;
     COMMAND_RELOAD = 5;
     COMMAND_HEALTH_CHECK = 6;
+    COMMAND_RECOVER = 7;
 }
 
 message CommandResponse {
@@ -223,7 +225,6 @@ message CommandResponse {
 message HeartbeatRequest {
     string component_id = 1;
     ComponentState state = 2;
-    map<string, string> metrics = 3;
     RequestMetadata metadata = 15;
 }
 
@@ -235,6 +236,7 @@ message HeartbeatResponse {
 message PendingCommand {
     string command_id = 1;
     Command command = 2;
+    google.protobuf.Struct args = 3;
 }
 
 message SystemStatusRequest {
@@ -249,10 +251,12 @@ message SystemStatusResponse {
 message GetQueueStatsRequest {}
 
 message GetQueueStatsResponse {
-    int32 queue_size = 1;         // Current number of pending events
-    int64 total_queued = 2;       // Lifetime total events queued
-    int64 total_processed = 3;    // Lifetime total events processed
-    int64 total_timed_out = 4;    // Lifetime total events timed out
+    int32 queue_size = 1;              // Current number of pending events
+    int64 total_queued = 2;            // Lifetime total events queued
+    int64 total_processed = 3;         // Lifetime total events processed
+    int64 total_timed_out = 4;         // Lifetime total events timed out
+    float avg_wait_time_ms = 5;        // Average time events wait in queue
+    float processing_rate_per_sec = 6; // Events/second throughput
 }
 
 message ListQueuedEventsRequest {
