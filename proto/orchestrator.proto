@@ -4,6 +4,7 @@ package gladys.v1;
 import "common.proto";
 import "types.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
 
 // ============================================================================
 // ORCHESTRATOR SERVICE
