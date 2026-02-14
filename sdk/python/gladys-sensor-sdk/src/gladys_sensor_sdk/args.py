@@ -7,6 +7,7 @@ missing fields get defaults, wrong types get defaults, never throws.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -49,7 +50,12 @@ def _safe_int(value: Any, default: int) -> int:
     if isinstance(value, int) and not isinstance(value, bool):
         return value
     if isinstance(value, float):
-        return int(value)
+        if not math.isfinite(value):
+            return default
+        try:
+            return int(value)
+        except (ValueError, OverflowError):
+            return default
     if isinstance(value, str):
         try:
             return int(value)

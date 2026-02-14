@@ -174,14 +174,13 @@ class TestDispatchErrorHandling:
         assert error is not None
 
     @pytest.mark.asyncio
-    async def test_no_handler_returns_current_state_with_error(
+    async def test_no_handler_keeps_state_and_returns_error(
         self, dispatcher: CommandDispatcher
     ) -> None:
         dispatcher.current_state = ComponentState.ACTIVE
         state, error = await dispatcher.dispatch(Command.START, {})
         assert state == ComponentState.ACTIVE
-        assert error is not None
-        assert "No handler" in error
+        assert error == "No handler for START"
 
     @pytest.mark.asyncio
     async def test_error_handler_exception_falls_back_to_default(

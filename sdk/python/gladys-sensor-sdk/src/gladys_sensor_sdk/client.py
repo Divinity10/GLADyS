@@ -47,7 +47,15 @@ class GladysClient:
             import grpc.aio  # noqa: F811
 
             self._channel = grpc.aio.insecure_channel(self.address)
-            # Stub will be imported from generated proto code when available
+            try:
+                from .generated import orchestrator_pb2_grpc  # type: ignore[import-not-found]
+
+                self._stub = orchestrator_pb2_grpc.OrchestratorServiceStub(
+                    self._channel
+                )
+            except ImportError:
+                # Generated stubs are optional in some test/dev paths.
+                pass
             logger.info("Connected to orchestrator at %s", self.address)
         except ImportError:
             logger.warning(

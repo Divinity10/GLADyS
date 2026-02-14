@@ -81,6 +81,18 @@ class TestStopArgs:
         args = StopArgs.from_dict({"timeout_ms": 3000.5})
         assert args.timeout_ms == 3000
 
+    def test_safe_int_nan_returns_default(self) -> None:
+        args = StopArgs.from_dict({"timeout_ms": float("nan")})
+        assert args.timeout_ms == 5000
+
+    def test_safe_int_infinity_returns_default(self) -> None:
+        args = StopArgs.from_dict({"timeout_ms": float("inf")})
+        assert args.timeout_ms == 5000
+
+    def test_safe_int_negative_infinity_returns_default(self) -> None:
+        args = StopArgs.from_dict({"timeout_ms": float("-inf")})
+        assert args.timeout_ms == 5000
+
 
 class TestRecoverArgs:
     """RecoverArgs parsing and factory tests."""

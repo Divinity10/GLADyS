@@ -7,12 +7,15 @@ Top-level entry point for sensor lifecycle management.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .client import GladysClient
 from .dispatcher import CommandDispatcher
 from .heartbeat import HeartbeatManager
 from .state import Command, ComponentState
+
+if TYPE_CHECKING:
+    from .events import EventDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,7 @@ class SensorLifecycle:
         component_id: str,
         component_type: str,
         dispatcher: CommandDispatcher,
+        event_dispatcher: EventDispatcher | None = None,
         heartbeat_interval_seconds: float = 30.0,
     ) -> None:
         """Initialize sensor lifecycle orchestrator.
@@ -42,12 +46,14 @@ class SensorLifecycle:
             component_id: Component ID.
             component_type: Component type (e.g., "sensor.runescape").
             dispatcher: CommandDispatcher instance.
+            event_dispatcher: Optional EventDispatcher for event loop lifecycle wiring.
             heartbeat_interval_seconds: Heartbeat interval.
         """
         self.client = client
         self.component_id = component_id
         self.component_type = component_type
         self.dispatcher = dispatcher
+        self.event_dispatcher = event_dispatcher
 
         # Initialize heartbeat manager with command callback
         self.heartbeat_manager = HeartbeatManager(
@@ -80,8 +86,14 @@ class SensorLifecycle:
         self.heartbeat_manager.set_state(ComponentState.STARTING)
         await self.heartbeat_manager.start()
 
+        if self.event_dispatcher is not None:
+            await self.event_dispatcher.start()
+
     async def stop(self) -> None:
         """Stop lifecycle (stop heartbeat, unregister component)."""
+        if self.event_dispatcher is not None:
+            await self.event_dispatcher.stop()
+
         # Stop heartbeat
         await self.heartbeat_manager.stop()
 
