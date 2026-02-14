@@ -1,4 +1,4 @@
-"""Tests for TestSensorHarness using the SimpleSensor from conftest."""
+"""Tests for SensorTestHarness using the SimpleSensor from conftest."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from gladys_sensor_sdk import (
     StartArgs,
     StopArgs,
 )
-from gladys_sensor_sdk.testing import TestSensorHarness
+from gladys_sensor_sdk.testing import SensorTestHarness
 
 
 class TestHarnessStartCommand:
@@ -19,7 +19,7 @@ class TestHarnessStartCommand:
 
     @pytest.mark.asyncio
     async def test_start_sets_active(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_start(StartArgs.test_defaults())
         assert state == ComponentState.ACTIVE
@@ -28,7 +28,7 @@ class TestHarnessStartCommand:
 
     @pytest.mark.asyncio
     async def test_start_dry_run(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_start(StartArgs.test_dry_run())
         assert state == ComponentState.ACTIVE
@@ -40,7 +40,7 @@ class TestHarnessStopCommand:
 
     @pytest.mark.asyncio
     async def test_stop_disconnects(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         await harness.dispatch_start()
         state, error = await harness.dispatch_stop(StopArgs.test_defaults())
@@ -48,7 +48,7 @@ class TestHarnessStopCommand:
         assert harness.adapter.driver.connected is False  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
-    async def test_stop_force(self, harness: TestSensorHarness) -> None:
+    async def test_stop_force(self, harness: SensorTestHarness) -> None:
         await harness.dispatch_start()
         state, error = await harness.dispatch_stop(StopArgs.test_force())
         assert state == ComponentState.STOPPED
@@ -58,17 +58,17 @@ class TestHarnessPauseResumeReload:
     """Test harness PAUSE/RESUME/RELOAD commands."""
 
     @pytest.mark.asyncio
-    async def test_pause(self, harness: TestSensorHarness) -> None:
+    async def test_pause(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_pause()
         assert state == ComponentState.PAUSED
 
     @pytest.mark.asyncio
-    async def test_resume(self, harness: TestSensorHarness) -> None:
+    async def test_resume(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_resume()
         assert state == ComponentState.ACTIVE
 
     @pytest.mark.asyncio
-    async def test_reload(self, harness: TestSensorHarness) -> None:
+    async def test_reload(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_reload()
         assert state == ComponentState.ACTIVE
 
@@ -78,7 +78,7 @@ class TestHarnessHealthCheck:
 
     @pytest.mark.asyncio
     async def test_health_check_passes(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         harness.set_state(ComponentState.ACTIVE)
         state, error = await harness.dispatch_health_check()
@@ -87,7 +87,7 @@ class TestHarnessHealthCheck:
 
     @pytest.mark.asyncio
     async def test_health_check_failure_preserves_state(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         """HEALTH_CHECK failure does NOT set ERROR state."""
         harness.set_state(ComponentState.ACTIVE)
@@ -113,7 +113,7 @@ class TestHarnessRecover:
 
     @pytest.mark.asyncio
     async def test_recover_restarts_driver(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         await harness.dispatch_start()
         harness.adapter.driver.connected = False  # type: ignore[attr-defined]
@@ -132,7 +132,7 @@ class TestHarnessHandlerError:
 
     @pytest.mark.asyncio
     async def test_handler_error_sets_error_state(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         # Mock driver to fail on connect
         async def fail_connect() -> None:
@@ -150,16 +150,16 @@ class TestHarnessHandlerError:
 class TestHarnessStateManagement:
     """Test harness state get/set."""
 
-    def test_get_state_initial(self, harness: TestSensorHarness) -> None:
+    def test_get_state_initial(self, harness: SensorTestHarness) -> None:
         assert harness.get_state() == ComponentState.UNKNOWN
 
-    def test_set_state(self, harness: TestSensorHarness) -> None:
+    def test_set_state(self, harness: SensorTestHarness) -> None:
         harness.set_state(ComponentState.ACTIVE)
         assert harness.get_state() == ComponentState.ACTIVE
 
     @pytest.mark.asyncio
     async def test_state_tracks_through_commands(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         assert harness.get_state() == ComponentState.UNKNOWN
 
@@ -181,28 +181,28 @@ class TestHarnessDefaultArgs:
 
     @pytest.mark.asyncio
     async def test_dispatch_start_no_args(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_start()
         assert state == ComponentState.ACTIVE
 
     @pytest.mark.asyncio
     async def test_dispatch_stop_no_args(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_stop()
         assert state == ComponentState.STOPPED
 
     @pytest.mark.asyncio
     async def test_dispatch_health_check_no_args(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_health_check()
         assert error is None
 
     @pytest.mark.asyncio
     async def test_dispatch_recover_no_args(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_recover()
         assert state == ComponentState.ACTIVE

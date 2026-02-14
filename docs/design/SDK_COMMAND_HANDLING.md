@@ -26,7 +26,7 @@ should be the path of least resistance.
   throws to trigger ERROR.
 - **Per-command typed args** with `raw()` escape hatch for undocumented fields. Lenient parsing --
   missing/wrong-type returns defaults, never throws.
-- **TestSensorHarness** ships in main SDK -- bypasses heartbeat/gRPC, dispatches commands directly.
+- **SensorTestHarness** ships in main SDK -- bypasses heartbeat/gRPC, dispatches commands directly.
 - **gRPC timeouts enforced by default** per ADR-0005.
 
 ## 2. Architecture
@@ -63,7 +63,7 @@ The design composes existing components rather than replacing them:
 | `EventBuilder` | Exists (Java, JS) | No changes |
 | `CommandDispatcher` | **NEW** | Routes commands to typed handlers |
 | `SensorLifecycle` | **NEW** | Composes heartbeat + dispatcher + state |
-| `TestSensorHarness` | **NEW** | Test utility (bypasses gRPC) |
+| `SensorTestHarness` | **NEW** | Test utility (bypasses gRPC) |
 | Typed Args classes | **NEW** | `StartArgs`, `StopArgs`, `RecoverArgs`, `HealthCheckArgs` |
 | `AdapterBase` | **NEW** (Python only) | Idiomatic base class wrapping dispatcher |
 
@@ -178,7 +178,7 @@ class GameStateSensor(AdapterBase):
 | **Error handler** | `on_command_error(cmd, ex, state)` | `CommandErrorHandler.handleError(cmd, ex, state)` | `CommandErrorHandler(cmd, err, state)` |
 | **Lifecycle** | `SensorLifecycle` (via AdapterBase) | `SensorLifecycle.builder(client, id).build()` | `createSensorLifecycle({...})` |
 | **Timeout config** | `TimeoutConfig(publish_event_ms=100, ...)` | `TimeoutConfig.defaults()` / `.builder()` | `DEFAULT_TIMEOUTS` / `NO_TIMEOUT` |
-| **Test harness** | `TestSensorHarness(adapter)` | `TestSensorHarness(dispatcher)` | `TestSensorHarness()` |
+| **Test harness** | `SensorTestHarness(adapter)` | `SensorTestHarness(dispatcher)` | `SensorTestHarness()` |
 | **Intent constants** | `Intent.ACTIONABLE` | `Intent.ACTIONABLE` | `Intent.ACTIONABLE` |
 
 ### TimeoutConfig (All Languages)
@@ -368,9 +368,9 @@ const dispatcher = new CommandDispatcher()
 
 ## 5. Testing Strategy
 
-### TestSensorHarness
+### SensorTestHarness
 
-All three languages ship a `TestSensorHarness` in the SDK's `testing` subpackage. It:
+All three languages ship a `SensorTestHarness` in the SDK's `testing` subpackage. It:
 
 - **Wraps the dispatcher** (or adapter in Python), bypasses HeartbeatManager and gRPC entirely
 - **Dispatches commands directly** with typed args or test factories
@@ -384,7 +384,7 @@ All three languages ship a `TestSensorHarness` in the SDK's `testing` subpackage
 def harness():
     sensor = GameStateSensor(component_id="test", orchestrator_address="",
                              timeout_config=TimeoutConfig.no_timeout())
-    return TestSensorHarness(sensor)
+    return SensorTestHarness(sensor)
 
 async def test_start_sets_active(harness):
     state, error = await harness.dispatch_start(StartArgs.test_defaults())
@@ -428,7 +428,7 @@ For reference, the migration from raw proto handling to SDK is:
 | Manual `if/elif` dispatch chain | Register typed handlers |
 | Manual `self.current_state = ...` | SDK auto-manages state |
 | No error handling pattern | SDK catches + ERROR state + global callback |
-| No test support | `TestSensorHarness` + test factories |
+| No test support | `SensorTestHarness` + test factories |
 | Manual heartbeat loop | `SensorLifecycle` composes it |
 
 ## 7. Proto Changes Required

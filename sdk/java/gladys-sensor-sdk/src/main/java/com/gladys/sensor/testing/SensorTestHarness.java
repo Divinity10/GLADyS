@@ -18,13 +18,13 @@ import gladys.v1.Orchestrator;
  *     })
  *     .build();
  *
- * TestSensorHarness harness = new TestSensorHarness(dispatcher);
+ * SensorTestHarness harness = new SensorTestHarness(dispatcher);
  *
  * harness.sendStart(StartArgs.testArgs(false));
  * assertEquals(COMPONENT_STATE_ACTIVE, harness.getState());
  * </pre>
  */
-public class TestSensorHarness {
+public class SensorTestHarness {
 
     private final CommandDispatcher dispatcher;
 
@@ -33,7 +33,7 @@ public class TestSensorHarness {
      *
      * @param dispatcher Configured dispatcher with handlers
      */
-    public TestSensorHarness(CommandDispatcher dispatcher) {
+    public SensorTestHarness(CommandDispatcher dispatcher) {
         this.dispatcher = dispatcher;
     }
 

@@ -21,14 +21,14 @@ import {
  *
  * @example
  * ```typescript
- * import { TestSensorHarness } from "gladys-sensor-sdk/testing";
+ * import { SensorTestHarness } from "gladys-sensor-sdk/testing";
  *
- * const harness = new TestSensorHarness(dispatcher);
+ * const harness = new SensorTestHarness(dispatcher);
  * const result = await harness.dispatchStart();
  * expect(result.state).toBe(ComponentState.COMPONENT_STATE_ACTIVE);
  * ```
  */
-export class TestSensorHarness {
+export class SensorTestHarness {
   readonly dispatcher: CommandDispatcher;
 
   constructor(dispatcher: CommandDispatcher) {

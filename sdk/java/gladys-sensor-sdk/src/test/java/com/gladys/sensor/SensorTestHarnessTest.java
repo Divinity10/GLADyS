@@ -1,15 +1,15 @@
 package com.gladys.sensor;
 
-import com.gladys.sensor.testing.TestSensorHarness;
+import com.gladys.sensor.testing.SensorTestHarness;
 import gladys.v1.Common;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class TestSensorHarnessTest {
+class SensorTestHarnessTest {
 
-    private TestSensorHarness harness;
+    private SensorTestHarness harness;
 
     @BeforeEach
     void setUp() {
@@ -23,7 +23,7 @@ class TestSensorHarnessTest {
                 .onRecover(args -> null)
                 .build();
 
-        harness = new TestSensorHarness(dispatcher);
+        harness = new SensorTestHarness(dispatcher);
     }
 
     @Test

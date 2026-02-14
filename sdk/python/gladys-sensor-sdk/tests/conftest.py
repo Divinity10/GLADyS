@@ -16,7 +16,7 @@ from gladys_sensor_sdk import (
     StopArgs,
     TimeoutConfig,
 )
-from gladys_sensor_sdk.testing import TestSensorHarness
+from gladys_sensor_sdk.testing import SensorTestHarness
 
 
 class MockDriver:
@@ -109,6 +109,6 @@ def sensor() -> SimpleSensor:
 
 
 @pytest.fixture
-def harness(sensor: SimpleSensor) -> TestSensorHarness:
-    """Create a TestSensorHarness wrapping a SimpleSensor."""
-    return TestSensorHarness(sensor)
+def harness(sensor: SimpleSensor) -> SensorTestHarness:
+    """Create a SensorTestHarness wrapping a SimpleSensor."""
+    return SensorTestHarness(sensor)

@@ -1,4 +1,4 @@
-export { TestSensorHarness } from "./TestSensorHarness";
+export { SensorTestHarness } from "./SensorTestHarness";
 
 // Re-export commonly used types for test convenience
 export { Command } from "../generated/orchestrator";

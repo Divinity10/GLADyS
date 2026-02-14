@@ -1,4 +1,4 @@
-"""Tests for AdapterBase using TestSensorHarness."""
+"""Tests for AdapterBase using SensorTestHarness."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from gladys_sensor_sdk import (
     TimeoutConfig,
 )
 from gladys_sensor_sdk.state import Command
-from gladys_sensor_sdk.testing import TestSensorHarness
+from gladys_sensor_sdk.testing import SensorTestHarness
 
 
 class MinimalSensor(AdapterBase):
@@ -95,42 +95,42 @@ class TestMinimalSensor:
     """Test that default handlers produce correct state transitions."""
 
     @pytest.fixture
-    def harness(self) -> TestSensorHarness:
-        return TestSensorHarness(MinimalSensor())
+    def harness(self) -> SensorTestHarness:
+        return SensorTestHarness(MinimalSensor())
 
     @pytest.mark.asyncio
-    async def test_default_start(self, harness: TestSensorHarness) -> None:
+    async def test_default_start(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_start()
         assert state == ComponentState.ACTIVE
         assert error is None
 
     @pytest.mark.asyncio
-    async def test_default_stop(self, harness: TestSensorHarness) -> None:
+    async def test_default_stop(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_stop()
         assert state == ComponentState.STOPPED
         assert error is None
 
     @pytest.mark.asyncio
-    async def test_default_pause(self, harness: TestSensorHarness) -> None:
+    async def test_default_pause(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_pause()
         assert state == ComponentState.PAUSED
         assert error is None
 
     @pytest.mark.asyncio
-    async def test_default_resume(self, harness: TestSensorHarness) -> None:
+    async def test_default_resume(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_resume()
         assert state == ComponentState.ACTIVE
         assert error is None
 
     @pytest.mark.asyncio
-    async def test_default_reload(self, harness: TestSensorHarness) -> None:
+    async def test_default_reload(self, harness: SensorTestHarness) -> None:
         state, error = await harness.dispatch_reload()
         assert state == ComponentState.ACTIVE
         assert error is None
 
     @pytest.mark.asyncio
     async def test_default_health_check(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         harness.set_state(ComponentState.ACTIVE)
         state, error = await harness.dispatch_health_check()
@@ -139,7 +139,7 @@ class TestMinimalSensor:
 
     @pytest.mark.asyncio
     async def test_default_recover(
-        self, harness: TestSensorHarness
+        self, harness: SensorTestHarness
     ) -> None:
         state, error = await harness.dispatch_recover()
         assert state == ComponentState.ACTIVE
@@ -151,7 +151,7 @@ class TestOverrideSensor:
 
     @pytest.mark.asyncio
     async def test_handler_can_override_default_state(self) -> None:
-        harness = TestSensorHarness(OverrideSensor())
+        harness = SensorTestHarness(OverrideSensor())
         state, error = await harness.dispatch_start()
         assert state == ComponentState.STARTING  # Not default ACTIVE
         assert error is None
@@ -162,7 +162,7 @@ class TestFailingSensor:
 
     @pytest.mark.asyncio
     async def test_handler_failure_sets_error(self) -> None:
-        harness = TestSensorHarness(FailingSensor())
+        harness = SensorTestHarness(FailingSensor())
         state, error = await harness.dispatch_start()
         assert state == ComponentState.ERROR
         assert error is not None
@@ -174,7 +174,7 @@ class TestCustomErrorSensor:
 
     @pytest.mark.asyncio
     async def test_custom_error_handler_overrides_state(self) -> None:
-        harness = TestSensorHarness(CustomErrorSensor())
+        harness = SensorTestHarness(CustomErrorSensor())
         state, error = await harness.dispatch_start()
         assert state == ComponentState.STOPPED  # Custom override
         assert error is not None

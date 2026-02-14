@@ -5,7 +5,7 @@ Use in unit tests to validate command handlers.
 
 Example::
 
-    harness = TestSensorHarness(MySensorAdapter(
+    harness = SensorTestHarness(MySensorAdapter(
         component_id="test-sensor",
         component_type="sensor.test",
         orchestrator_address="",  # Not used
@@ -25,7 +25,7 @@ from ..args import HealthCheckArgs, RecoverArgs, StartArgs, StopArgs
 from ..state import Command, ComponentState
 
 
-class TestSensorHarness:
+class SensorTestHarness:
     """Test harness for sensor adapters.
 
     Bypasses heartbeat/gRPC, dispatches commands directly.

@@ -1219,7 +1219,7 @@ public class HeartbeatManager {
 }
 ```
 
-### 9. TestSensorHarness
+### 9. SensorTestHarness
 
 Testing utility in `com.gladys.sensor.testing` package.
 
@@ -1236,7 +1236,7 @@ import gladys.v1.Orchestrator;
  * Bypasses heartbeat loop and gRPC, dispatches commands directly.
  * Ships in main SDK artifact for use in sensor tests.
  */
-public class TestSensorHarness {
+public class SensorTestHarness {
 
     private final CommandDispatcher dispatcher;
     private Common.ComponentState currentState = Common.ComponentState.COMPONENT_STATE_ACTIVE;
@@ -1245,7 +1245,7 @@ public class TestSensorHarness {
     /**
      * Creates test harness from CommandDispatcher.
      */
-    public TestSensorHarness(CommandDispatcher dispatcher) {
+    public SensorTestHarness(CommandDispatcher dispatcher) {
         this.dispatcher = dispatcher;
     }
 
@@ -1311,7 +1311,7 @@ com.gladys.sensor/
 ├── CommandDispatcher.java         (new)
 ├── SensorLifecycle.java           (new)
 └── testing/
-    └── TestSensorHarness.java     (new)
+    └── SensorTestHarness.java     (new)
 ```
 
 ## Complete Example: Game State Sensor
@@ -1529,13 +1529,13 @@ public class GameStateSensor extends GamePlugin {
 
 ## Complete Test Example
 
-JUnit 5 tests using `TestSensorHarness`.
+JUnit 5 tests using `SensorTestHarness`.
 
 ```java
 package com.example.game;
 
 import com.gladys.sensor.*;
-import com.gladys.sensor.testing.TestSensorHarness;
+import com.gladys.sensor.testing.SensorTestHarness;
 import gladys.v1.Common;
 import gladys.v1.Orchestrator;
 import org.junit.jupiter.api.BeforeEach;
@@ -1545,7 +1545,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GameStateSensorTest {
 
-    private TestSensorHarness harness;
+    private SensorTestHarness harness;
     private boolean startCalled;
     private boolean dryRunMode;
     private boolean stopCalled;
@@ -1571,7 +1571,7 @@ class GameStateSensorTest {
                 })
                 .build();
 
-        harness = new TestSensorHarness(dispatcher);
+        harness = new SensorTestHarness(dispatcher);
     }
 
     @Test
@@ -1618,7 +1618,7 @@ class GameStateSensorTest {
                 })
                 .build();
 
-        TestSensorHarness failHarness = new TestSensorHarness(failingDispatcher);
+        SensorTestHarness failHarness = new SensorTestHarness(failingDispatcher);
         Common.ComponentState state = failHarness.dispatch(Orchestrator.Command.COMMAND_START);
 
         assertEquals(Common.ComponentState.COMPONENT_STATE_ERROR, state);
@@ -1633,7 +1633,7 @@ class GameStateSensorTest {
                 })
                 .build();
 
-        TestSensorHarness testHarness = new TestSensorHarness(dispatcher);
+        SensorTestHarness testHarness = new SensorTestHarness(dispatcher);
         Common.ComponentState state = testHarness.dispatch(Orchestrator.Command.COMMAND_HEALTH_CHECK);
 
         // State should remain ACTIVE (not ERROR)

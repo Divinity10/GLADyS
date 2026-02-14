@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { TestSensorHarness } from "../src/testing/TestSensorHarness";
+import { SensorTestHarness } from "../src/testing/SensorTestHarness";
 import { CommandDispatcher } from "../src/CommandDispatcher";
 import { ComponentState } from "../src/generated/common";
 
-describe("TestSensorHarness", () => {
+describe("SensorTestHarness", () => {
   let dispatcher: CommandDispatcher;
-  let harness: TestSensorHarness;
+  let harness: SensorTestHarness;
 
   beforeEach(() => {
     dispatcher = new CommandDispatcher()
@@ -20,7 +20,7 @@ describe("TestSensorHarness", () => {
       .onHealthCheck(async () => null)
       .onRecover(async () => null);
 
-    harness = new TestSensorHarness(dispatcher);
+    harness = new SensorTestHarness(dispatcher);
   });
 
   it("dispatches START", async () => {

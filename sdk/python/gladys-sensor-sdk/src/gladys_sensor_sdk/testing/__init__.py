@@ -1,5 +1,5 @@
 """GLADyS Sensor SDK Testing Utilities."""
 
-from .harness import TestSensorHarness
+from .harness import SensorTestHarness
 
-__all__ = ["TestSensorHarness"]
+__all__ = ["SensorTestHarness"]
