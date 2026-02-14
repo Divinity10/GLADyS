@@ -461,7 +461,6 @@ class OrchestratorServicer(orchestrator_pb2_grpc.OrchestratorServiceServicer):
         self.registry.update_heartbeat(
             component_id=request.component_id,
             state=request.state,
-            metrics=dict(request.metrics) if request.metrics else {},
         )
         # Check for pending commands for this component
         pending_dicts = self.registry.get_pending_commands(request.component_id)

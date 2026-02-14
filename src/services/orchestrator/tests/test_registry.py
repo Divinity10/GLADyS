@@ -74,7 +74,7 @@ class TestComponentRegistry:
         import time
         time.sleep(0.01)
 
-        registry.update_heartbeat("sensor-1", state=2, metrics={"events": "100"})
+        registry.update_heartbeat("sensor-1", state=2)
 
         updated = registry.get_by_id("sensor-1").last_heartbeat_ms
         assert updated > initial

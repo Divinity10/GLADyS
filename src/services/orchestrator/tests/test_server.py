@@ -77,7 +77,6 @@ class TestOrchestratorServicer:
         heartbeat_req = orchestrator_pb2.HeartbeatRequest(
             component_id="sensor-1",
             state=common_pb2.COMPONENT_STATE_ACTIVE,
-            metrics={"events_processed": "100"},
         )
         response = await servicer.Heartbeat(heartbeat_req, context=None)
 

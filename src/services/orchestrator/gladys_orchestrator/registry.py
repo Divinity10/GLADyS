@@ -105,7 +105,6 @@ class ComponentRegistry:
         self,
         component_id: str,
         state: int,
-        metrics: dict[str, str],
     ) -> bool:
         """Update heartbeat for a component."""
         if component_id not in self._components:
@@ -115,7 +114,6 @@ class ComponentRegistry:
         info = self._components[component_id]
         info.last_heartbeat_ms = int(time.time() * 1000)
         info.state = state
-        info.metrics.update(metrics)
 
         return True
 
