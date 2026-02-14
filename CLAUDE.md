@@ -262,13 +262,13 @@ Each dashboard tab should be:
 
 When sources conflict, follow this order for **current implementation**:
 
-1. **efforts/working_memory.md** — Latest decisions, Phase-specific choices (most authoritative)
-2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for Phase
+1. **efforts/poc2/state.md** — Current effort decisions, active work priorities (most authoritative for current PoC)
+2. **Design docs** (`docs/design/`) — Implementation plans, may deviate from ADRs for PoC
 3. **ADRs** (`docs/adr/`) — Architectural ideals, long-term intent
 
-**Rule**: ADRs describe the target architecture. Phase increments may reduce *scope* (fewer features, simpler flows) but not *standards*
+**Rule**: ADRs describe the target architecture. PoC increments may reduce *scope* (fewer features, simpler flows) but not *standards*
 (code quality, separation of concerns, test coverage).
-If working_memory.md says "skip pending_events table," that's a scope decision that overrides design docs.
+If state.md says "skip pending_events table," that's a scope decision that overrides design docs.
 
 ### Navigation
 
@@ -280,17 +280,16 @@ If working_memory.md says "skip pending_events table," that's a scope decision t
 
 ### Session Rules
 
-1. **At session start**: Read `efforts/working_memory.md` (effort index), then the active effort file from `efforts/`
+1. **At session start**: Read `efforts/working_memory.md` (27 lines: team, current effort), then `efforts/poc2/state.md` (51 lines: active
+   work, critical path, completion criteria)
 2. **Finding docs**: Use `docs/INDEX.md` to locate ADRs and design docs by topic
-3. **Update working_memory.md frequently** — after each decision, discovery, or task transition
+3. **Update state.md frequently** — after each decision, discovery, or task transition. Update completion timestamp.
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
 5. **For multi-step or agent-coordinated work**: Read `docs/workflow/CLAUDE_WORKFLOW.md`
 6. **For live codebase data** (RPCs, ports, DB schema, directory tree, routers): run `uv run codebase-info <command>` via Bash instead of reading
    static docs. Available commands: `rpcs`, `ports`, `schema`, `tree`, `routers`, `all`.
 7. **Default reviews to Sonnet**: Code review, consistency checks, and prompt refinement use Sonnet (`claude --model sonnet` or Task tool with
    `model: "sonnet"`) unless design uncertainty requires Opus escalation.
-8. **End sessions with a read list**: When writing a handoff in `state.md` or completing a prompt, include a `### Next Session Read List`
-   with 3-5 specific file paths the next session needs.
 
 ### Critical ADRs (affect daily decisions)
 
