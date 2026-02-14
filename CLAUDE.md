@@ -283,7 +283,9 @@ If state.md says "skip pending_events table," that's a scope decision that overr
 1. **At session start**: Read `efforts/working_memory.md` (27 lines: team, current effort), then `efforts/poc2/state.md` (51 lines: active
    work, critical path, completion criteria)
 2. **Finding docs**: Use `docs/INDEX.md` to locate ADRs and design docs by topic
-3. **Update state.md frequently** — after each decision, discovery, or task transition. Update completion timestamp.
+3. **state.md is your working memory across compactions.** After compaction it's ALL you have. Write anything the next session
+   needs to function: active tasks, pending cleanup, uncommitted changes, stale branches, open questions — not just feature-level
+   decisions. Update after every decision, discovery, task transition, or state change. If you can't fix something now, write it down.
 4. **Do NOT wait until end of discussion** — context may compact mid-conversation
 5. **For multi-step or agent-coordinated work**: Read `docs/workflow/CLAUDE_WORKFLOW.md`
 6. **For live codebase data** (RPCs, ports, DB schema, directory tree, routers): run `uv run codebase-info <command>` via Bash instead of reading
