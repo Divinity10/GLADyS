@@ -228,6 +228,7 @@ message CommandResponse {
 message HeartbeatRequest {
     string component_id = 1;
     ComponentState state = 2;
+    string error_message = 3;
     RequestMetadata metadata = 15;
 }
 
