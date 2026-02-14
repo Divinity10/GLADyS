@@ -36,6 +36,7 @@ config/local.yaml
 .claude/hooks/archive_memory.py
 .claude/hooks/archive_prefix.py
 .claude/hooks/__pycache__/
+.claude/skills/
 
 # Working memory and effort state (session state, not committed)
 efforts/
