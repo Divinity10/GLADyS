@@ -56,6 +56,7 @@ export class EventBuilder {
       tokens: [],
       tokenizerId: "",
       matchedHeuristicId: "",
+      appStatus: "",
       // Request metadata
       metadata: {
         requestId: randomUUID(),
