@@ -134,6 +134,8 @@ message EventResponse {
     string matched_heuristic_id = 7;
     int64 event_timestamp_ms = 8;
     int64 response_timestamp_ms = 9;
+    string source = 10;           // Sensor ID from original event
+    string original_text = 11;    // Event raw_text from original event
 }
 
 enum RoutingPath {
