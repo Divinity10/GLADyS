@@ -11,6 +11,12 @@ from .config import TimeoutConfig
 
 # Event building
 from .events import EventBuilder, EventDispatcher, Intent
+from .flow_control import (
+    FlowStrategy,
+    NoOpStrategy,
+    RateLimitStrategy,
+    create_strategy,
+)
 
 # State management
 from .state import Command, ComponentState
@@ -44,6 +50,10 @@ __all__ = [
     "EventBuilder",
     "EventDispatcher",
     "Intent",
+    "FlowStrategy",
+    "NoOpStrategy",
+    "RateLimitStrategy",
+    "create_strategy",
     # State
     "ComponentState",
     "Command",

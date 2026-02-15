@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .client import GladysClient
+from .flow_control import FlowStrategy, NoOpStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,7 @@ class EventDispatcher:
         source: str,
         flush_interval_ms: int = 0,
         immediate_on_threat: bool = True,
+        strategy: FlowStrategy | None = None,
     ) -> None:
         """Initialize event dispatcher.
 
@@ -169,11 +171,13 @@ class EventDispatcher:
             source: Sensor source ID.
             flush_interval_ms: Flush interval in ms. 0 = immediate mode.
             immediate_on_threat: In scheduled mode, send threat events immediately.
+            strategy: Flow control strategy, defaults to NoOpStrategy.
         """
         self.client = client
         self.source = source
         self.flush_interval_ms = flush_interval_ms
         self.immediate_on_threat = immediate_on_threat
+        self._strategy: FlowStrategy = strategy or NoOpStrategy()
 
         self._buffer: list[Any] = []
         self._flush_task: Optional[asyncio.Task[None]] = None
@@ -223,13 +227,19 @@ class EventDispatcher:
         Args:
             event: Event to emit (dict or proto message).
         """
+        is_threat = _is_threat(event)
+
         # Hybrid mode: threat events bypass the buffer
         if (
             self.is_scheduled
             and self.immediate_on_threat
-            and _is_threat(event)
+            and is_threat
         ):
             await self.client.publish_event(event)
+            return
+
+        # Threat events bypass flow control strategy checks.
+        if not is_threat and not self._strategy.should_publish(event):
             return
 
         # Immediate mode: send right away
@@ -239,6 +249,10 @@ class EventDispatcher:
 
         # Scheduled mode: buffer for batch flush
         self._buffer.append(event)
+
+    def set_strategy(self, strategy: FlowStrategy) -> None:
+        """Replace the active flow control strategy."""
+        self._strategy = strategy
 
     async def flush(self) -> None:
         """Force-flush all buffered events."""
