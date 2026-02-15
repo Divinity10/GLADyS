@@ -8,4 +8,14 @@ public class NoOpStrategy implements FlowStrategy {
     public boolean shouldPublish(Common.Event event) {
         return true;
     }
+
+    @Override
+    public int availableTokens() {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
+    public void consume(int n) {
+        // no-op
+    }
 }

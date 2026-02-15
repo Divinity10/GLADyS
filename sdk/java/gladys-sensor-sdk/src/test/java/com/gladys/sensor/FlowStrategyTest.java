@@ -89,6 +89,20 @@ class FlowStrategyTest {
     }
 
     @Test
+    void test_noop_available_tokens_returns_max() {
+        NoOpStrategy strategy = new NoOpStrategy();
+        assertEquals(Integer.MAX_VALUE, strategy.availableTokens());
+    }
+
+    @Test
+    void test_noop_consume_is_noop() {
+        NoOpStrategy strategy = new NoOpStrategy();
+        int before = strategy.availableTokens();
+        strategy.consume(10);
+        assertEquals(before, strategy.availableTokens());
+    }
+
+    @Test
     void testRateLimitAllowsWithinBudget() {
         AtomicLong now = new AtomicLong(0L);
         RateLimitStrategy strategy = new RateLimitStrategy(5, 1, now::get);
@@ -127,6 +141,26 @@ class FlowStrategyTest {
 
         now.set(1_100_000_000L);
         assertTrue(strategy.shouldPublish(event));
+    }
+
+    @Test
+    void test_rate_limit_available_tokens_reflects_budget() {
+        AtomicLong now = new AtomicLong(0L);
+        RateLimitStrategy strategy = new RateLimitStrategy(5, 1, now::get);
+        Common.Event event = new EventBuilder("sensor").text("test").build();
+
+        strategy.shouldPublish(event);
+        strategy.shouldPublish(event);
+
+        assertEquals(3, strategy.availableTokens());
+    }
+
+    @Test
+    void test_rate_limit_consume_decrements_tokens() {
+        AtomicLong now = new AtomicLong(0L);
+        RateLimitStrategy strategy = new RateLimitStrategy(10, 1, now::get);
+        strategy.consume(5);
+        assertEquals(5, strategy.availableTokens());
     }
 
     @Test
@@ -176,7 +210,8 @@ class FlowStrategyTest {
     @Test
     void testEmitWithNoOpStrategyPublishes() {
         EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, new NoOpStrategy());
-        dispatcher.emit(new EventBuilder("sensor").text("test").build());
+        boolean result = dispatcher.emit(new EventBuilder("sensor").text("test").build());
+        assertTrue(result);
         assertEquals(1, publishEventCount.get());
         dispatcher.shutdown();
     }
@@ -192,9 +227,11 @@ class FlowStrategyTest {
                 new RateLimitStrategy(1, 10, now::get)
         );
 
-        dispatcher.emit(new EventBuilder("sensor").text("first").build());
-        dispatcher.emit(new EventBuilder("sensor").text("second").build());
+        boolean first = dispatcher.emit(new EventBuilder("sensor").text("first").build());
+        boolean second = dispatcher.emit(new EventBuilder("sensor").text("second").build());
 
+        assertTrue(first);
+        assertFalse(second);
         assertEquals(1, publishEventCount.get());
         dispatcher.shutdown();
     }
@@ -217,15 +254,114 @@ class FlowStrategyTest {
                 .toBuilder()
                 .setSalience(Types.SalienceResult.newBuilder().setThreat(1.0f).build())
                 .build();
-        dispatcher.emit(threat);
+        boolean result = dispatcher.emit(threat);
 
+        assertTrue(result);
         assertEquals(2, publishEventCount.get());
         dispatcher.shutdown();
     }
 
     @Test
+    void test_emit_returns_true_when_published() {
+        EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, new NoOpStrategy());
+        boolean result = dispatcher.emit(new EventBuilder("sensor").text("ok").build());
+        assertTrue(result);
+        dispatcher.shutdown();
+    }
+
+    @Test
+    void test_emit_returns_false_when_suppressed() {
+        AtomicLong now = new AtomicLong(0L);
+        EventDispatcher dispatcher = new EventDispatcher(
+                client,
+                "sensor",
+                0,
+                true,
+                new RateLimitStrategy(1, 10, now::get)
+        );
+
+        dispatcher.emit(new EventBuilder("sensor").text("first").build());
+        boolean result = dispatcher.emit(new EventBuilder("sensor").text("blocked").build());
+        assertFalse(result);
+        dispatcher.shutdown();
+    }
+
+    @Test
+    void test_emit_threat_returns_true_when_rate_limited() {
+        AtomicLong now = new AtomicLong(0L);
+        EventDispatcher dispatcher = new EventDispatcher(
+                client,
+                "sensor",
+                0,
+                true,
+                new RateLimitStrategy(1, 10, now::get)
+        );
+
+        dispatcher.emit(new EventBuilder("sensor").text("first").build());
+        Common.Event threat = new EventBuilder("sensor")
+                .text("danger")
+                .build()
+                .toBuilder()
+                .setSalience(Types.SalienceResult.newBuilder().setThreat(1.0f).build())
+                .build();
+        boolean result = dispatcher.emit(threat);
+        assertTrue(result);
+        dispatcher.shutdown();
+    }
+
+    @Test
+    void test_events_filtered_increments_on_suppression() {
+        AtomicLong now = new AtomicLong(0L);
+        EventDispatcher dispatcher = new EventDispatcher(
+                client,
+                "sensor",
+                0,
+                true,
+                new RateLimitStrategy(1, 10, now::get)
+        );
+
+        dispatcher.emit(new EventBuilder("sensor").text("first").build());
+        dispatcher.emit(new EventBuilder("sensor").text("blocked").build());
+        assertEquals(1, dispatcher.getEventsFiltered());
+        dispatcher.shutdown();
+    }
+
+    @Test
+    void test_events_published_increments_on_send() {
+        EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, new NoOpStrategy());
+        dispatcher.emit(new EventBuilder("sensor").text("sent").build());
+        assertEquals(1, dispatcher.getEventsPublished());
+        dispatcher.shutdown();
+    }
+
+    @Test
+    void test_counters_zero_initially() {
+        EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, new NoOpStrategy());
+        assertEquals(0, dispatcher.getEventsFiltered());
+        assertEquals(0, dispatcher.getEventsPublished());
+        dispatcher.shutdown();
+    }
+
+    @Test
     void testSetStrategyReplacesStrategy() {
-        EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, event -> false);
+        FlowStrategy denyStrategy = new FlowStrategy() {
+            @Override
+            public boolean shouldPublish(Common.Event event) {
+                return false;
+            }
+
+            @Override
+            public int availableTokens() {
+                return 0;
+            }
+
+            @Override
+            public void consume(int n) {
+                // no-op
+            }
+        };
+
+        EventDispatcher dispatcher = new EventDispatcher(client, "sensor", 0, true, denyStrategy);
 
         dispatcher.emit(new EventBuilder("sensor").text("blocked").build());
         dispatcher.setStrategy(new NoOpStrategy());

@@ -3,6 +3,8 @@ import { Event } from "./generated/common";
 /** Strategy interface — called before every event publish. */
 export interface FlowStrategy {
   shouldPublish(event: Event): boolean;
+  availableTokens(): number;
+  consume(n: number): void;
 }
 
 /** Passthrough strategy that always allows publishing. */
@@ -10,6 +12,12 @@ export class NoOpStrategy implements FlowStrategy {
   shouldPublish(_event: Event): boolean {
     return true;
   }
+
+  availableTokens(): number {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  consume(_n: number): void {}
 }
 
 /** Token bucket rate limiter for event publishing. */
@@ -33,22 +41,33 @@ export class RateLimitStrategy implements FlowStrategy {
     this.lastRefillMs = Date.now();
   }
 
-  shouldPublish(_event: Event): boolean {
+  private refill(): void {
     const nowMs = Date.now();
     const elapsedMs = Math.max(0, nowMs - this.lastRefillMs);
     this.lastRefillMs = nowMs;
-
     this.tokens = Math.min(
       this.maxEvents,
       this.tokens + elapsedMs * this.refillRatePerMs
     );
+  }
 
+  shouldPublish(_event: Event): boolean {
+    this.refill();
     if (this.tokens >= 1) {
       this.tokens -= 1;
       return true;
     }
 
     return false;
+  }
+
+  availableTokens(): number {
+    this.refill();
+    return Math.floor(this.tokens);
+  }
+
+  consume(n: number): void {
+    this.tokens -= n;
   }
 }
 
