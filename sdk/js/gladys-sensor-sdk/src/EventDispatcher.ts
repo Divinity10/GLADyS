@@ -1,5 +1,6 @@
 import { GladysClient } from "./GladysClient";
 import { Event } from "./generated/common";
+import { FlowStrategy, NoOpStrategy } from "./FlowStrategy";
 
 /**
  * Configurable event dispatch strategy.
@@ -31,6 +32,7 @@ export class EventDispatcher {
   private readonly source: string;
   private readonly flushIntervalMs: number;
   private readonly immediateOnThreat: boolean;
+  private strategy: FlowStrategy;
   private buffer: Event[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -40,12 +42,14 @@ export class EventDispatcher {
     options?: {
       flushIntervalMs?: number;
       immediateOnThreat?: boolean;
+      strategy?: FlowStrategy;
     }
   ) {
     this.client = client;
     this.source = source;
     this.flushIntervalMs = options?.flushIntervalMs ?? 0;
     this.immediateOnThreat = options?.immediateOnThreat ?? true;
+    this.strategy = options?.strategy ?? new NoOpStrategy();
 
     if (this.flushIntervalMs > 0) {
       this.timer = setInterval(() => {
@@ -70,6 +74,11 @@ export class EventDispatcher {
     if (this.immediateOnThreat && isThreat && this.flushIntervalMs > 0) {
       // Hybrid mode: threat events bypass buffer
       await this.client.publishEvent(event);
+      return;
+    }
+
+    // Threat events always bypass strategy checks.
+    if (!isThreat && !this.strategy.shouldPublish(event)) {
       return;
     }
 
@@ -110,6 +119,11 @@ export class EventDispatcher {
       clearInterval(this.timer);
       this.timer = null;
     }
+  }
+
+  /** Replace the active flow control strategy. */
+  setStrategy(strategy: FlowStrategy): void {
+    this.strategy = strategy;
   }
 
   /** Check if an event has threat > 0 in its salience. */

@@ -178,10 +178,17 @@ enum InstancePolicy {
     INSTANCE_POLICY_MULTIPLE = 1;
 }
 
+message FlowControlConfig {
+    string strategy = 1;       // "none" or "rate_limit"
+    int32 max_events = 2;      // Event count cap (used by rate_limit)
+    int32 window_seconds = 3;  // Time window in seconds (used by rate_limit)
+}
+
 message RegisterResponse {
     bool success = 1;
     string error_message = 2;
     string assigned_id = 3;
+    FlowControlConfig flow_control = 4;
 }
 
 message UnregisterRequest {

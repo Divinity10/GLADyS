@@ -29,6 +29,7 @@ public class EventDispatcher {
     private final String source;
     private final long flushIntervalMs;
     private final boolean immediateOnThreat;
+    private volatile FlowStrategy strategy;
     private final List<Common.Event> buffer = new ArrayList<>();
     private final ScheduledExecutorService scheduler;
     private ScheduledFuture<?> flushTask;
@@ -40,7 +41,7 @@ public class EventDispatcher {
      * @param source Source identifier for events
      */
     public EventDispatcher(GladysClient client, String source) {
-        this(client, source, 0, true);
+        this(client, source, 0, true, null);
     }
 
     /**
@@ -53,10 +54,25 @@ public class EventDispatcher {
      */
     public EventDispatcher(GladysClient client, String source, long flushIntervalMs,
                            boolean immediateOnThreat) {
+        this(client, source, flushIntervalMs, immediateOnThreat, null);
+    }
+
+    /**
+     * Create an EventDispatcher with configurable flush interval and flow strategy.
+     *
+     * @param client GladysClient for publishing
+     * @param source Source identifier for events
+     * @param flushIntervalMs Flush interval in milliseconds (0 = immediate mode)
+     * @param immediateOnThreat If true, threat events bypass the buffer (hybrid mode)
+     * @param strategy Flow control strategy (null defaults to NoOpStrategy)
+     */
+    public EventDispatcher(GladysClient client, String source, long flushIntervalMs,
+                           boolean immediateOnThreat, FlowStrategy strategy) {
         this.client = client;
         this.source = source;
         this.flushIntervalMs = flushIntervalMs;
         this.immediateOnThreat = immediateOnThreat;
+        this.strategy = strategy != null ? strategy : new NoOpStrategy();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "gladys-event-flush-" + source);
             t.setDaemon(true);
@@ -75,9 +91,16 @@ public class EventDispatcher {
      * @param event Event to emit
      */
     public void emit(Common.Event event) {
+        boolean threat = isThreat(event);
+
         // Hybrid: threat events bypass buffer
-        if (immediateOnThreat && isThreat(event)) {
+        if (immediateOnThreat && threat && flushIntervalMs > 0) {
             sendImmediate(event);
+            return;
+        }
+
+        // Threat events always bypass strategy checks.
+        if (!threat && !strategy.shouldPublish(event)) {
             return;
         }
 
@@ -134,6 +157,15 @@ public class EventDispatcher {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Replace the active flow control strategy.
+     *
+     * @param strategy New strategy (null resets to NoOpStrategy)
+     */
+    public void setStrategy(FlowStrategy strategy) {
+        this.strategy = strategy != null ? strategy : new NoOpStrategy();
     }
 
     private void sendImmediate(Common.Event event) {

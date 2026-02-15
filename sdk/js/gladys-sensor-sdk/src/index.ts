@@ -15,6 +15,12 @@ export {
 
 // Event dispatch
 export { EventDispatcher } from "./EventDispatcher";
+export {
+  NoOpStrategy,
+  RateLimitStrategy,
+  createStrategy,
+  type FlowStrategy,
+} from "./FlowStrategy";
 
 // Sensor lifecycle
 export {
