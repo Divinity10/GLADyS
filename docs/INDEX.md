@@ -149,7 +149,8 @@ If none of these fit, create a new doc — and add it to this table and the inde
 | :--- | :--- | :--- |
 | **Truth** | [ADR-0003](adr/ADR-0003-Plugin-Manifest-Specification.md) | `manifest.yaml` structure for Plugins. |
 | **Design** | [SENSOR_ARCHITECTURE.md](design/SENSOR_ARCHITECTURE.md) | **Sensor protocol**: multi-sensor pipeline, language-agnostic contract, per-language SDKs, delivery patterns, capture/replay. |
-| **SDK** | `sdk/java/gladys-sensor-sdk/` | Java sensor SDK -- gRPC client, event builder, heartbeat manager. |
+| **SDK** | `sdk/python/gladys-sensor-sdk/` | Python sensor SDK -- async client, event dispatch, command handling, flow control, sensor lifecycle. |
+| **SDK** | `sdk/java/gladys-sensor-sdk/` | Java sensor SDK -- gRPC client, event dispatch, command handling, flow control. |
 | **SDK** | `sdk/js/gladys-sensor-sdk/` | TypeScript sensor SDK -- same API surface, ts-proto generated stubs. |
 | **Truth** | [ADR-0011](adr/ADR-0011-Actuator-Subsystem.md) | Actuator safety bounds and permissions. |
 | **Truth** | [ADR-0012](adr/ADR-0012-Audit-Logging.md) | Immutable audit logging requirements. |

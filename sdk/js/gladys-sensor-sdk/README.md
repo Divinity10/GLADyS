@@ -121,24 +121,75 @@ const resp = await SensorRegistration.register(
 );
 ```
 
-## Exports
+### EventDispatcher
 
-The SDK re-exports commonly used generated types for convenience:
+Configurable event dispatch with three modes: immediate (default), scheduled
+(buffer + timer flush), and hybrid (scheduled + threat bypass).
 
 ```typescript
-// SDK classes
-export { GladysClient, EventBuilder, SensorRegistration, HeartbeatManager };
+import { EventDispatcher } from "gladys-sensor-sdk";
 
-// Generated types
-export { Event, ComponentState, RequestMetadata };
-export {
-  EventAck,
-  ComponentCapabilities,
-  RegisterResponse,
-  HeartbeatResponse,
-  TransportMode,
-  InstancePolicy,
-};
+// Immediate mode (default) — every emit sends now
+const events = new EventDispatcher(client, "my-sensor");
+
+// Scheduled mode (600ms flush interval)
+const events = new EventDispatcher(client, "my-sensor", {
+  flushIntervalMs: 600,
+});
+
+// With flow control strategy
+const events = new EventDispatcher(client, "my-sensor", {
+  strategy: new RateLimitStrategy(100, 60),
+});
+
+// Single event — returns true if published, false if suppressed
+const sent = await events.emit(event);
+
+// Batch with selective filtering
+const result = await events.emitBatch(eventList);
+// result.sent + result.suppressed === eventList.length
+
+// Metrics
+events.eventsPublished;
+events.eventsFiltered;
+
+// Shutdown
+await events.flush();
+events.stop();
+```
+
+### CommandDispatcher
+
+Processes commands received via heartbeat responses. Register handlers per
+command type; unhandled commands are logged and skipped.
+
+```typescript
+import { CommandDispatcher } from "gladys-sensor-sdk";
+
+const commands = new CommandDispatcher("my-sensor");
+commands.onStart(async (args) => startSensor(args));
+commands.onStop(async (args) => stopSensor(args));
+
+// In heartbeat callback
+await commands.dispatch(heartbeatResponse.pendingCommands);
+```
+
+### FlowStrategy
+
+Pluggable rate limiting for event emission. The SDK ships `NoOpStrategy`
+(passthrough) and `RateLimitStrategy` (token bucket).
+
+```typescript
+import { RateLimitStrategy, createStrategy } from "gladys-sensor-sdk";
+
+// Token bucket: 100 events per 60-second window
+const strategy = new RateLimitStrategy(100, 60);
+
+// From orchestrator config
+const strategy = createStrategy(configObject);
+
+// Hot-swap at runtime
+events.setStrategy(strategy);
 ```
 
 ## Typical Sensor Lifecycle
@@ -147,6 +198,7 @@ export {
 import {
   GladysClient,
   EventBuilder,
+  EventDispatcher,
   SensorRegistration,
   HeartbeatManager,
   TransportMode,
@@ -163,13 +215,18 @@ await SensorRegistration.register(client, "my-sensor", "sensor", {
 const hb = new HeartbeatManager(client, "my-sensor", 30);
 hb.start();
 
-// 3. Emit events
+// 3. Set up event dispatch with flow control
+const events = new EventDispatcher(client, "my-sensor");
+
+// 4. Emit events
 const event = new EventBuilder("my-sensor")
   .text("Something happened")
   .build();
-await client.publishEvent(event);
+await events.emit(event);
 
-// 4. Shutdown
+// 5. Shutdown
+await events.flush();
+events.stop();
 hb.stop();
 client.close();
 ```

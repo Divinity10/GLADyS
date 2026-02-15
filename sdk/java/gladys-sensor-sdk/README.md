@@ -109,6 +109,67 @@ RegisterResponse resp = SensorRegistration.register(
     client, "my-sensor", "sensor", caps);
 ```
 
+### EventDispatcher
+
+Configurable event dispatch with three modes: immediate (default), scheduled
+(buffer + timer flush), and hybrid (scheduled + threat bypass).
+
+```java
+// Immediate mode (default) — every emit sends now
+EventDispatcher events = new EventDispatcher(client, "my-sensor");
+
+// Scheduled mode (600ms flush interval)
+EventDispatcher events = new EventDispatcher(client, "my-sensor", 600, true);
+
+// With flow control strategy
+EventDispatcher events = new EventDispatcher(
+    client, "my-sensor", 0, true, new RateLimitStrategy(100, 60));
+
+// Single event — returns true if published, false if suppressed
+boolean sent = events.emit(event);
+
+// Batch with selective filtering
+EmitResult result = events.emitBatch(eventList);
+// result.sent() + result.suppressed() == eventList.size()
+
+// Metrics
+events.getEventsPublished();
+events.getEventsFiltered();
+
+// Shutdown (flushes remaining buffer)
+events.shutdown();
+```
+
+### CommandDispatcher
+
+Processes commands received via heartbeat responses. Register handlers per
+command type; unhandled commands are logged and skipped.
+
+```java
+CommandDispatcher commands = new CommandDispatcher("my-sensor");
+commands.onStart(args -> startSensor(args));
+commands.onStop(args -> stopSensor(args));
+
+// In heartbeat callback
+commands.dispatch(heartbeatResponse.getPendingCommandsList());
+```
+
+### FlowStrategy
+
+Pluggable rate limiting for event emission. The SDK ships `NoOpStrategy`
+(passthrough) and `RateLimitStrategy` (token bucket).
+
+```java
+// Token bucket: 100 events per 60-second window
+FlowStrategy strategy = new RateLimitStrategy(100, 60);
+
+// From orchestrator config
+FlowStrategy strategy = FlowStrategyFactory.create(configMap);
+
+// Hot-swap at runtime
+events.setStrategy(strategy);
+```
+
 ## Typical Sensor Lifecycle
 
 ```java
@@ -120,15 +181,19 @@ try (GladysClient client = new GladysClient("localhost", 50050)) {
     HeartbeatManager hb = new HeartbeatManager(client, "my-sensor", 30);
     hb.start();
 
-    // 3. Emit events in your main loop
+    // 3. Set up event dispatch with flow control
+    EventDispatcher events = new EventDispatcher(client, "my-sensor");
+
+    // 4. Emit events in your main loop
     while (running) {
         Event event = new EventBuilder("my-sensor")
             .text(observeSomething())
             .build();
-        client.publishEvent(event);
+        events.emit(event);
     }
 
-    // 4. Shutdown
+    // 5. Shutdown
+    events.shutdown();
     hb.stop();
 }
 ```
