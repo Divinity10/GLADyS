@@ -7,6 +7,7 @@ Each SDK implements strategies locally.
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from typing import Any, Protocol
 
@@ -20,12 +21,26 @@ class FlowStrategy(Protocol):
         """Return True to publish the event, False to suppress it."""
         ...
 
+    def available_tokens(self) -> int:
+        """Return current token budget for batch emission."""
+        ...
+
+    def consume(self, n: int) -> None:
+        """Consume exactly n tokens after batch selection."""
+        ...
+
 
 class NoOpStrategy:
     """Passthrough strategy that always allows publishing."""
 
     def should_publish(self, event: Any) -> bool:
         return True
+
+    def available_tokens(self) -> int:
+        return sys.maxsize
+
+    def consume(self, n: int) -> None:
+        _ = n
 
 
 class RateLimitStrategy:
@@ -50,21 +65,29 @@ class RateLimitStrategy:
         self._tokens = self._max_events
         self._last_refill = time.monotonic()
 
-    def should_publish(self, event: Any) -> bool:
+    def _refill(self) -> None:
         now = time.monotonic()
         elapsed = max(0.0, now - self._last_refill)
         self._last_refill = now
-
         self._tokens = min(
             self._max_events,
             self._tokens + (elapsed * self._refill_rate),
         )
 
+    def should_publish(self, event: Any) -> bool:
+        self._refill()
         if self._tokens >= 1.0:
             self._tokens -= 1.0
             return True
 
         return False
+
+    def available_tokens(self) -> int:
+        self._refill()
+        return int(self._tokens)
+
+    def consume(self, n: int) -> None:
+        self._tokens -= float(n)
 
 
 def create_strategy(config: dict[str, Any]) -> FlowStrategy:

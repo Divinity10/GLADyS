@@ -14,7 +14,7 @@ export {
 } from "./CommandDispatcher";
 
 // Event dispatch
-export { EventDispatcher } from "./EventDispatcher";
+export { EventDispatcher, type EmitResult } from "./EventDispatcher";
 export {
   NoOpStrategy,
   RateLimitStrategy,

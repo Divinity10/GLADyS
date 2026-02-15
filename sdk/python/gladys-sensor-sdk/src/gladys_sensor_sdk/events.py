@@ -10,8 +10,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from .client import GladysClient
 from .flow_control import FlowStrategy, NoOpStrategy
@@ -25,6 +26,12 @@ class Intent:
     ACTIONABLE = "actionable"
     INFORMATIONAL = "informational"
     UNKNOWN = "unknown"
+
+
+@dataclass
+class EmitResult:
+    sent: int
+    suppressed: int
 
 
 class EventBuilder:
@@ -163,6 +170,7 @@ class EventDispatcher:
         flush_interval_ms: int = 0,
         immediate_on_threat: bool = True,
         strategy: FlowStrategy | None = None,
+        priority_fn: Callable[[Any], float] | None = None,
     ) -> None:
         """Initialize event dispatcher.
 
@@ -172,16 +180,21 @@ class EventDispatcher:
             flush_interval_ms: Flush interval in ms. 0 = immediate mode.
             immediate_on_threat: In scheduled mode, send threat events immediately.
             strategy: Flow control strategy, defaults to NoOpStrategy.
+            priority_fn: Optional priority tiebreaker used only when batch
+                candidates exceed the available token budget.
         """
         self.client = client
         self.source = source
         self.flush_interval_ms = flush_interval_ms
         self.immediate_on_threat = immediate_on_threat
         self._strategy: FlowStrategy = strategy or NoOpStrategy()
+        self._priority_fn = priority_fn
 
         self._buffer: list[Any] = []
         self._flush_task: Optional[asyncio.Task[None]] = None
         self._running = False
+        self._events_filtered: int = 0
+        self._events_published: int = 0
 
     @property
     def is_immediate(self) -> bool:
@@ -197,6 +210,16 @@ class EventDispatcher:
     def buffered_count(self) -> int:
         """Number of events currently buffered."""
         return len(self._buffer)
+
+    @property
+    def events_filtered(self) -> int:
+        """Number of events suppressed by flow control."""
+        return self._events_filtered
+
+    @property
+    def events_published(self) -> int:
+        """Number of events accepted for dispatch."""
+        return self._events_published
 
     async def start(self) -> None:
         """Start the flush timer (only needed for scheduled/hybrid mode)."""
@@ -221,7 +244,7 @@ class EventDispatcher:
         if self._buffer:
             await self.flush()
 
-    async def emit(self, event: Any) -> None:
+    async def emit(self, event: Any) -> bool:
         """Emit an event using the configured strategy.
 
         Args:
@@ -236,23 +259,132 @@ class EventDispatcher:
             and is_threat
         ):
             await self.client.publish_event(event)
-            return
+            self._events_published += 1
+            return True
 
         # Threat events bypass flow control strategy checks.
         if not is_threat and not self._strategy.should_publish(event):
-            return
+            self._events_filtered += 1
+            return False
 
         # Immediate mode: send right away
         if self.is_immediate:
             await self.client.publish_event(event)
-            return
+            self._events_published += 1
+            return True
 
         # Scheduled mode: buffer for batch flush
         self._buffer.append(event)
+        self._events_published += 1
+        return True
 
     def set_strategy(self, strategy: FlowStrategy) -> None:
         """Replace the active flow control strategy."""
         self._strategy = strategy
+
+    async def emit_batch(self, events: list[Any]) -> EmitResult:
+        """Emit a batch with selective filtering when budget is exceeded."""
+        if not events:
+            return EmitResult(sent=0, suppressed=0)
+
+        threats, candidates = self._partition_threats(events)
+
+        if not candidates:
+            to_send = self._reorder_original(events, threats, [])
+            await self._send(to_send)
+            self._events_published += len(to_send)
+            return EmitResult(sent=len(to_send), suppressed=0)
+
+        budget = self._strategy.available_tokens()
+
+        if budget >= len(candidates):
+            self._strategy.consume(len(candidates))
+            kept = list(candidates)
+            suppressed = 0
+        elif budget <= 0:
+            kept = []
+            suppressed = len(candidates)
+            self._events_filtered += suppressed
+        else:
+            kept = self._select_by_priority(candidates, budget)
+            self._strategy.consume(len(kept))
+            suppressed = len(candidates) - len(kept)
+            self._events_filtered += suppressed
+
+        to_send = self._reorder_original(events, threats, kept)
+        await self._send(to_send)
+        self._events_published += len(to_send)
+        return EmitResult(sent=len(to_send), suppressed=suppressed)
+
+    def _partition_threats(
+        self,
+        events: list[Any],
+    ) -> tuple[list[tuple[int, Any]], list[tuple[int, Any]]]:
+        threats: list[tuple[int, Any]] = []
+        candidates: list[tuple[int, Any]] = []
+
+        for index, event in enumerate(events):
+            if _is_threat(event):
+                threats.append((index, event))
+            else:
+                candidates.append((index, event))
+
+        return threats, candidates
+
+    def _select_by_priority(
+        self,
+        candidates: list[tuple[int, Any]],
+        budget: int,
+    ) -> list[tuple[int, Any]]:
+        if self._priority_fn is None:
+            return list(candidates[:budget])
+
+        scored = [
+            (index, event, self._priority_fn(event))
+            for index, event in candidates
+        ]
+        scored.sort(key=lambda x: (-x[2], x[0]))
+        selected = scored[:budget]
+        selected.sort(key=lambda x: x[0])
+        return [(index, event) for index, event, _ in selected]
+
+    def _reorder_original(
+        self,
+        original: list[Any],
+        threats: list[tuple[int, Any]],
+        kept: list[tuple[int, Any]],
+    ) -> list[Any]:
+        selected_indices = {
+            index for index, _ in threats
+        } | {index for index, _ in kept}
+        return [
+            event
+            for index, event in enumerate(original)
+            if index in selected_indices
+        ]
+
+    async def _send(self, events: list[Any]) -> None:
+        if not events:
+            return
+
+        if self.is_immediate:
+            if len(events) == 1:
+                await self.client.publish_event(events[0])
+            else:
+                await self.client.publish_events(events)
+            return
+
+        if self.immediate_on_threat:
+            buffered: list[Any] = []
+            for event in events:
+                if _is_threat(event):
+                    await self.client.publish_event(event)
+                else:
+                    buffered.append(event)
+            self._buffer.extend(buffered)
+            return
+
+        self._buffer.extend(events)
 
     async def flush(self) -> None:
         """Force-flush all buffered events."""

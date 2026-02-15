@@ -32,17 +32,31 @@ public class RateLimitStrategy implements FlowStrategy {
         this.lastRefillNanos = nanoTimeSupplier.getAsLong();
     }
 
-    @Override
-    public synchronized boolean shouldPublish(Common.Event event) {
+    private synchronized void refill() {
         long now = nanoTimeSupplier.getAsLong();
         long elapsedNanos = Math.max(0L, now - lastRefillNanos);
         lastRefillNanos = now;
-
         tokens = Math.min(maxEvents, tokens + (elapsedNanos * refillRatePerNano));
+    }
+
+    @Override
+    public synchronized boolean shouldPublish(Common.Event event) {
+        refill();
         if (tokens >= 1.0) {
             tokens -= 1.0;
             return true;
         }
         return false;
+    }
+
+    @Override
+    public synchronized int availableTokens() {
+        refill();
+        return (int) tokens;
+    }
+
+    @Override
+    public synchronized void consume(int n) {
+        tokens -= n;
     }
 }

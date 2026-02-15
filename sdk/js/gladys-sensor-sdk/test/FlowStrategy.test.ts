@@ -20,6 +20,18 @@ describe("FlowStrategy", () => {
     expect(strategy.shouldPublish(event)).toBe(true);
   });
 
+  it("test_noop_available_tokens_returns_max", () => {
+    const strategy = new NoOpStrategy();
+    expect(strategy.availableTokens()).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("test_noop_consume_is_noop", () => {
+    const strategy = new NoOpStrategy();
+    const before = strategy.availableTokens();
+    strategy.consume(10);
+    expect(strategy.availableTokens()).toBe(before);
+  });
+
   it("test_rate_limit_allows_within_budget", () => {
     vi.spyOn(Date, "now").mockReturnValue(0);
     const strategy = new RateLimitStrategy(5, 1);
@@ -56,6 +68,23 @@ describe("FlowStrategy", () => {
     expect(strategy.shouldPublish(event)).toBe(true);
     expect(strategy.shouldPublish(event)).toBe(false);
     expect(strategy.shouldPublish(event)).toBe(true);
+  });
+
+  it("test_rate_limit_available_tokens_reflects_budget", () => {
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const strategy = new RateLimitStrategy(5, 1);
+    const event = new EventBuilder("sensor").text("test").build();
+
+    strategy.shouldPublish(event);
+    strategy.shouldPublish(event);
+    expect(strategy.availableTokens()).toBe(3);
+  });
+
+  it("test_rate_limit_consume_decrements_tokens", () => {
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const strategy = new RateLimitStrategy(10, 1);
+    strategy.consume(5);
+    expect(strategy.availableTokens()).toBe(5);
   });
 
   it("test_rate_limit_rejects_zero_max_events", () => {
@@ -107,8 +136,9 @@ describe("FlowStrategy", () => {
     });
 
     const event = new EventBuilder("sensor").text("first").build();
-    await dispatcher.emit(event);
+    const result = await dispatcher.emit(event);
 
+    expect(result).toBe(true);
     expect(client.publishEvent).toHaveBeenCalledTimes(1);
     expect(client.publishEvent).toHaveBeenCalledWith(event);
   });
@@ -123,9 +153,15 @@ describe("FlowStrategy", () => {
       strategy: new RateLimitStrategy(1, 10),
     });
 
-    await dispatcher.emit(new EventBuilder("sensor").text("first").build());
-    await dispatcher.emit(new EventBuilder("sensor").text("second").build());
+    const first = await dispatcher.emit(
+      new EventBuilder("sensor").text("first").build()
+    );
+    const second = await dispatcher.emit(
+      new EventBuilder("sensor").text("second").build()
+    );
 
+    expect(first).toBe(true);
+    expect(second).toBe(false);
     expect(client.publishEvent).toHaveBeenCalledTimes(1);
   });
 
@@ -141,9 +177,98 @@ describe("FlowStrategy", () => {
 
     await dispatcher.emit(new EventBuilder("sensor").text("normal").build());
     const threat = new EventBuilder("sensor").text("danger").threat(true).build();
-    await dispatcher.emit(threat);
+    const result = await dispatcher.emit(threat);
 
+    expect(result).toBe(true);
     expect(client.publishEvent).toHaveBeenCalledTimes(2);
+  });
+
+  it("test_emit_returns_true_when_published", async () => {
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new NoOpStrategy(),
+    });
+
+    const result = await dispatcher.emit(
+      new EventBuilder("sensor").text("first").build()
+    );
+    expect(result).toBe(true);
+  });
+
+  it("test_emit_returns_false_when_suppressed", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new RateLimitStrategy(1, 10),
+    });
+
+    await dispatcher.emit(new EventBuilder("sensor").text("first").build());
+    const result = await dispatcher.emit(
+      new EventBuilder("sensor").text("blocked").build()
+    );
+    expect(result).toBe(false);
+  });
+
+  it("test_emit_threat_returns_true_when_rate_limited", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new RateLimitStrategy(1, 10),
+    });
+
+    await dispatcher.emit(new EventBuilder("sensor").text("first").build());
+    const threat = new EventBuilder("sensor").text("danger").threat(true).build();
+    const result = await dispatcher.emit(threat);
+    expect(result).toBe(true);
+  });
+
+  it("test_events_filtered_increments_on_suppression", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(0);
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new RateLimitStrategy(1, 10),
+    });
+
+    await dispatcher.emit(new EventBuilder("sensor").text("first").build());
+    await dispatcher.emit(new EventBuilder("sensor").text("blocked").build());
+    expect(dispatcher.eventsFiltered).toBe(1);
+  });
+
+  it("test_events_published_increments_on_send", async () => {
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new NoOpStrategy(),
+    });
+
+    await dispatcher.emit(new EventBuilder("sensor").text("first").build());
+    expect(dispatcher.eventsPublished).toBe(1);
+  });
+
+  it("test_counters_zero_initially", () => {
+    const client = {
+      publishEvent: vi.fn().mockResolvedValue(undefined),
+      publishEvents: vi.fn().mockResolvedValue(undefined),
+    };
+    const dispatcher = new EventDispatcher(client as any, "sensor", {
+      strategy: new NoOpStrategy(),
+    });
+    expect(dispatcher.eventsFiltered).toBe(0);
+    expect(dispatcher.eventsPublished).toBe(0);
   });
 
   it("test_set_strategy_replaces_strategy", async () => {
@@ -151,6 +276,12 @@ describe("FlowStrategy", () => {
       shouldPublish(): boolean {
         return false;
       }
+
+      availableTokens(): number {
+        return 0;
+      }
+
+      consume(_n: number): void {}
     }
 
     const client = {

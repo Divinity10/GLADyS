@@ -10,7 +10,7 @@ from .client import GladysClient
 from .config import TimeoutConfig
 
 # Event building
-from .events import EventBuilder, EventDispatcher, Intent
+from .events import EmitResult, EventBuilder, EventDispatcher, Intent
 from .flow_control import (
     FlowStrategy,
     NoOpStrategy,
@@ -49,6 +49,7 @@ __all__ = [
     # Events
     "EventBuilder",
     "EventDispatcher",
+    "EmitResult",
     "Intent",
     "FlowStrategy",
     "NoOpStrategy",
