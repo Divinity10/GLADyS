@@ -386,9 +386,10 @@ class LocalBackend(ServiceBackend):
 
         for f in files:
             print(f"  Applying {f.name}...", end=" ", flush=True)
+            db_name = os.environ.get("DB_NAME", "gladys")
             result = subprocess.run(
                 ["psql", "-h", "localhost", "-p", str(LOCAL_PORTS.db),
-                 "-U", "gladys", "-d", "gladys", "-f", str(f)],
+                 "-U", "gladys", "-d", db_name, "-f", str(f)],
                 capture_output=True,
                 text=True,
                 env=env,

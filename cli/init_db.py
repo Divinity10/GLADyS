@@ -19,6 +19,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCHEMA_FILE = REPO_ROOT / "src" / "db" / "schema.sql"
 
+# Load .env before reading env vars (workspace support)
+from _gladys import load_env_file
+load_env_file()
+
 DB_NAME = os.environ.get("DB_NAME", "gladys")
 DB_USER = os.environ.get("DB_USER", "gladys")
 DB_PASS = os.environ.get("DB_PASS", "gladys")
