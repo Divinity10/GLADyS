@@ -70,5 +70,6 @@ async def get_component(name: str, request: Request):
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8502)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("DASHBOARD_PORT", 8502)))

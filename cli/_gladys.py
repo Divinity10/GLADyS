@@ -116,11 +116,11 @@ class PortConfig:
 
 # Environment port configurations
 LOCAL_PORTS = PortConfig(
-    orchestrator=50050,
-    memory_python=50051,
-    memory_rust=50052,
-    executive=50053,
-    db=5432,
+    orchestrator=int(os.environ.get("ORCHESTRATOR_PORT", 50050)),
+    memory_python=int(os.environ.get("MEMORY_PYTHON_PORT", 50051)),
+    memory_rust=int(os.environ.get("MEMORY_RUST_PORT", 50052)),
+    executive=int(os.environ.get("EXECUTIVE_PORT", 50053)),
+    db=int(os.environ.get("DB_PORT", 5432)),
     dashboard=int(os.environ.get("DASHBOARD_PORT", 8502)),
 )
 

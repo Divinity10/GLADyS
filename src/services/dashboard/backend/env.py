@@ -63,11 +63,11 @@ class EnvConfig:
 
 ENV_CONFIGS = {
     "local": EnvConfig(
-        orchestrator="localhost:50050",
-        memory="localhost:50051",
-        salience="localhost:50052",
-        executive="localhost:50053",
-        db_port=5432,
+        orchestrator=os.environ.get("ORCHESTRATOR_ADDRESS", "localhost:50050"),
+        memory=os.environ.get("MEMORY_ADDRESS", "localhost:50051"),
+        salience=os.environ.get("SALIENCE_ADDRESS", "localhost:50052"),
+        executive=os.environ.get("EXECUTIVE_ADDRESS", "localhost:50053"),
+        db_port=int(os.environ.get("DB_PORT", 5432)),
     ),
     "docker": EnvConfig(
         orchestrator="localhost:50060",
