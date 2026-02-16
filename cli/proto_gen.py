@@ -71,6 +71,13 @@ def run_protoc(output_dir: Path, proto_file: str, python: str) -> bool:
     return True
 
 
+def normalize_line_endings(file_path: Path) -> None:
+    """Ensure file uses LF line endings (not CRLF)."""
+    raw = file_path.read_bytes()
+    if b"\r\n" in raw:
+        file_path.write_bytes(raw.replace(b"\r\n", b"\n"))
+
+
 def fix_imports(output_dir: Path, proto_name: str) -> None:
     """Fix absolute imports to relative imports."""
     base_name = proto_name.replace(".proto", "")
@@ -84,6 +91,7 @@ def fix_imports(output_dir: Path, proto_name: str) -> None:
         if new_content != content:
             gen_file.write_text(new_content, encoding="utf-8")
             print(f"    Fixed imports in {gen_file.name}")
+        normalize_line_endings(gen_file)
 
 
 def verify_syntax(file_path: Path) -> bool:
