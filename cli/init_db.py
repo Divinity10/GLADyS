@@ -150,6 +150,16 @@ def create_extensions() -> bool:
         else:
             if "already exists" in output:
                 print(f"  OK    Extension {ext} (already installed)")
+            elif "permission denied" in output or "Must be superuser" in output:
+                print(f"  FAIL  Extension {ext}: requires superuser")
+                print(f"        The '{ext}' extension is not marked as trusted in your PostgreSQL install.")
+                print(f"        Fix (one-time): add 'trusted = true' to the extension control file:")
+                print(f"          File: <PG_SHAREDIR>/extension/{ext}.control")
+                if sys.platform == "win32":
+                    print(f"          Typical: C:\\Program Files\\PostgreSQL\\17\\share\\extension\\{ext}.control")
+                print(f"        Or run as superuser:")
+                print(f"          psql -U postgres -d {DB_NAME} -c 'CREATE EXTENSION IF NOT EXISTS \"{ext}\";'")
+                return False
             else:
                 print(f"  FAIL  Extension {ext}: {output}")
                 return False
