@@ -50,7 +50,7 @@ def _psql_cmd(dbname: str, as_postgres: bool) -> list[str]:
     if as_postgres and sys.platform != "win32":
         # Peer auth via sudo — no host flag needed
         return ["sudo", "-u", "postgres", "psql", "-p", DB_PORT, "-d", dbname]
-    # Password auth as gladys user
+    # Password auth as gladys user (on Windows, gladys needs CREATEDB privilege)
     return ["psql", "-h", DB_HOST, "-p", DB_PORT, "-U", DB_USER, "-d", dbname]
 
 
@@ -64,7 +64,7 @@ def _psql_env() -> dict[str, str]:
 def run_psql(sql: str, dbname: str = "postgres", as_postgres: bool = True) -> tuple[bool, str]:
     """Run a SQL statement via psql. Returns (success, output)."""
     cmd = _psql_cmd(dbname, as_postgres) + ["-c", sql]
-    env = None if as_postgres else _psql_env()
+    env = None if (as_postgres and sys.platform != "win32") else _psql_env()
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=env)
     output = result.stdout.strip()
     if result.returncode != 0:
