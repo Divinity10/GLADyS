@@ -137,6 +137,8 @@ def generate_env(name: str, slot: int) -> str:
         f"EXECUTIVE_ADDRESS=localhost:{exe}",
         "",
         "# Service listen ports (read by each service's config)",
+        "# Note: GRPC_PORT is for memory-python; memory-rust also reads GRPC_PORT",
+        "# but _local_backend.py overrides it with the correct port at launch.",
         f"PORT={orch}",
         f"GRPC_PORT={mem}",
         f"GRPC_SALIENCE_ADDRESS=localhost:{rust}",

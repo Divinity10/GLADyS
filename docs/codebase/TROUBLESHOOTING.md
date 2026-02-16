@@ -21,6 +21,73 @@
 
 ---
 
+## Windows: pgvector extension "Must be superuser"
+
+**Symptoms**: `make init-db` fails with:
+
+```text
+FAIL  Extension vector: ERROR: permission denied to create extension "vector"
+HINT: Must be superuser to create this extension.
+```
+
+**Root cause**: The Windows pgvector binary distribution (e.g., 0.8.1 from EDB installer) ships without `trusted = true` in its
+control file. The upstream source has included this since pgvector 0.5.0 — it's a packaging defect, not a security decision.
+
+When an extension is `trusted`, any user with `CREATE` privilege on the database can install it. Without it, only superusers can.
+
+**Fix (one-time, requires admin)**:
+
+1. Open PowerShell **as Administrator**
+2. Run:
+
+   ```powershell
+   Add-Content "C:\Program Files\PostgreSQL\17\share\extension\vector.control" "`ntrusted = true"
+   ```
+
+3. Verify:
+
+   ```powershell
+   Get-Content "C:\Program Files\PostgreSQL\17\share\extension\vector.control"
+   ```
+
+   Should show `trusted = true` at the end.
+
+4. Re-run `make init-db`
+
+> **Note**: Adjust the PostgreSQL version number in the path (17) to match your installation.
+> Find it with: `psql -c "SHOW server_version;"` or check `C:\Program Files\PostgreSQL\`.
+
+**Why this matters**: The `uuid-ossp` extension ships as trusted in PostgreSQL core, so it works fine.
+Only third-party extensions like pgvector are affected by this packaging issue.
+
+Tracked in [#238](https://github.com/Divinity10/GLADyS/issues/238) for production hardening.
+
+---
+
+## Windows: "permission denied to create database"
+
+**Symptoms**: `make init-db` in a workspace clone fails with:
+
+```text
+FAIL  Could not create database: ERROR: permission denied to create database
+```
+
+**Root cause**: On Windows, `init_db.py` cannot use `sudo -u postgres` (peer auth), so all operations run as the `gladys`
+database user. By default, this user lacks the `CREATEDB` privilege needed to create workspace-specific databases
+(e.g., `gladys_codex`, `gladys_gemini`).
+
+**Fix (one-time)**:
+
+```powershell
+psql -U postgres -c "ALTER USER gladys CREATEDB;"
+```
+
+Enter the postgres superuser password when prompted. After this, `make init-db` will work in all workspace clones.
+
+> **Note**: On Linux, `init_db.py` uses `sudo -u postgres` for admin operations, so this is not needed.
+
+---
+
 ## "No immediate response" in UI despite services running
 
 **Symptoms**: Event submitted in UI shows "(No immediate response)" even though all services show healthy.

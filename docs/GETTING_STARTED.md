@@ -77,6 +77,15 @@ sudo systemctl enable postgresql
 - Install [protoc](https://github.com/protocolbuffers/protobuf/releases) and add to PATH
 - Install make: `winget install ezwinports.make` (required for Makefile targets)
 
+**After installing PostgreSQL**, two one-time fixes are needed:
+
+1. **pgvector trusted extension** — The Windows pgvector binary is missing `trusted = true`.
+   Fix in an admin PowerShell: `Add-Content "C:\Program Files\PostgreSQL\17\share\extension\vector.control" "``ntrusted = true"`
+2. **CREATEDB privilege** — Required for multi-workspace support.
+   Run: `psql -U postgres -c "ALTER USER gladys CREATEDB;"`
+
+See [Troubleshooting](docs/codebase/TROUBLESHOOTING.md) for details.
+
 ### macOS
 
 ```bash

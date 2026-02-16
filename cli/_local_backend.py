@@ -24,7 +24,12 @@ SERVICE_CONFIGS = {
     "memory-rust": {
         "cwd": ROOT / "src" / "services" / "salience",
         "cmd": ["cargo", "run", "--release"],
-        "env": {"STORAGE_ADDRESS": f"http://localhost:{LOCAL_PORTS.memory_python}"},
+        "env": {
+            "STORAGE_ADDRESS": f"http://localhost:{LOCAL_PORTS.memory_python}",
+            # Rust salience also reads GRPC_PORT — override to avoid collision
+            # with memory-python which reads the same env var.
+            "GRPC_PORT": str(LOCAL_PORTS.memory_rust),
+        },
         "depends_on": ["memory-python"],
     },
     "orchestrator": {
@@ -38,7 +43,10 @@ SERVICE_CONFIGS = {
     },
     "executive-stub": {
         "cwd": ROOT / "src" / "services" / "executive",
-        "cmd": ["uv", "run", "python", "-m", "gladys_executive", "start"],
+        "cmd": [
+            "uv", "run", "python", "-m", "gladys_executive", "start",
+            "--port", str(LOCAL_PORTS.executive),
+        ],
         "env": {},
         "depends_on": [],
     },
